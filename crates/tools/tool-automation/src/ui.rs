@@ -868,6 +868,7 @@ impl AutomationTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -909,6 +910,7 @@ impl AutomationTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id });
             }
@@ -1084,6 +1086,7 @@ impl AutomationTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let r = ui
             .push_id("automation-jobs", |ui| table.show(ui, &mut self.jobs_table))
@@ -1203,6 +1206,7 @@ impl AutomationTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let r = ui
             .push_id("automation-runs", |ui| table.show(ui, &mut self.runs_table))

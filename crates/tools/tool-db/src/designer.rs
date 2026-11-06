@@ -228,8 +228,9 @@ impl Designer {
         }
         // Name and schema.
         let mut changed = false;
-        ui.horizontal_wrapped(|ui| {
-            form::match_field_height(ui);
+        // Centred, so the schema prefix sits on the field's middle; still
+        // wraps when narrow (CR-0061).
+        form::centred_row_wrapped(ui, |ui| {
             if !self.schema.is_empty() {
                 ui.label(egui::RichText::new(format!("{}.", self.schema)).color(theme.text_muted));
             }
@@ -237,18 +238,35 @@ impl Designer {
                 form::text_field(ui, &mut self.edit.table.name, &s.t("db-designer-name-hint"))
                     .changed();
             ui.add_space(12.0);
-            for (sub, key, icon) in [
-                (Sub::Columns, "db-designer-columns", ph::COLUMNS),
-                (Sub::Indexes, "db-designer-indexes", ph::LIST_NUMBERS),
-                (Sub::Keys, "db-designer-keys", ph::LINK),
+            let material = s.settings.read().appearance.material_icons("db");
+            for (sub, key, icon, kind) in [
+                (
+                    Sub::Columns,
+                    "db-designer-columns",
+                    ph::COLUMNS,
+                    Some("column"),
+                ),
+                (Sub::Indexes, "db-designer-indexes", ph::LIST_NUMBERS, None),
+                (Sub::Keys, "db-designer-keys", ph::LINK, Some("key")),
             ] {
-                if ui
-                    .add(egui::Button::selectable(
-                        self.sub == sub,
-                        format!("{icon} {}", s.t(key)),
-                    ))
-                    .clicked()
+                // Material icons on: the picture the schema tree gives a
+                // column or a key; Indexes has none and keeps its glyph.
+                let button = match kind
+                    .filter(|_| material)
+                    .and_then(hs_ui::fileicons::for_kind)
                 {
+                    Some(src) => egui::Button::selectable(
+                        self.sub == sub,
+                        (
+                            egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(14.0)),
+                            s.t(key),
+                        ),
+                    ),
+                    None => {
+                        egui::Button::selectable(self.sub == sub, format!("{icon} {}", s.t(key)))
+                    }
+                };
+                if ui.add(button).clicked() {
                     self.sub = sub;
                 }
             }
@@ -283,8 +301,7 @@ impl Designer {
             ui.add_space(form::PANE_GAP);
         }
         let can_apply = !self.script.statements.is_empty() && self.script.refused.is_empty();
-        ui.horizontal_wrapped(|ui| {
-            form::match_field_height(ui);
+        form::centred_row_wrapped(ui, |ui| {
             ui.label(egui::RichText::new(s.t("db-designer-script")).strong());
             ui.add_space(12.0);
             let apply = ui
@@ -443,6 +460,7 @@ impl Designer {
             EditColumn::new(&h_key, 60.0),
             EditColumn::new("", 0.0),
         ];
+        let no_columns = s.t("db-designer-no-columns");
         let table = &mut self.edit.table;
         edit_table(
             ui,
@@ -450,6 +468,7 @@ impl Designer {
             ("db-designer-columns", self.uid),
             &columns,
             n,
+            Some(&no_columns),
             |ui, i, col| {
                 let w = ui.available_width() - 6.0;
                 let c = &mut table.columns[i];
@@ -486,14 +505,22 @@ impl Designer {
                         }
                     }
                     _ => {
-                        if i > 0
-                            && form::icon_button(ui, theme, ph::ARROW_UP, 14.0, false).clicked()
-                        {
+                        // Both arrows always drawn (dimmed where they cannot
+                        // move), so the actions stay in one aligned column.
+                        let up = ui
+                            .add_enabled_ui(i > 0, |ui| {
+                                form::icon_button(ui, theme, ph::ARROW_UP, 14.0, false)
+                            })
+                            .inner;
+                        if i > 0 && up.clicked() {
                             swap = Some((i, i - 1));
                         }
-                        if i + 1 < n
-                            && form::icon_button(ui, theme, ph::ARROW_DOWN, 14.0, false).clicked()
-                        {
+                        let down = ui
+                            .add_enabled_ui(i + 1 < n, |ui| {
+                                form::icon_button(ui, theme, ph::ARROW_DOWN, 14.0, false)
+                            })
+                            .inner;
+                        if i + 1 < n && down.clicked() {
                             swap = Some((i, i + 1));
                         }
                         if form::icon_button(ui, theme, ph::X, 14.0, false)
@@ -556,6 +583,7 @@ impl Designer {
             EditColumn::new("", 0.0),
         ];
         let n = self.edit.table.indexes.len();
+        let no_indexes = s.t("db-designer-no-indexes");
         let (indexes, index_cols) = (&mut self.edit.table.indexes, &mut self.index_cols);
         edit_table(
             ui,
@@ -563,6 +591,7 @@ impl Designer {
             ("db-designer-indexes", self.uid),
             &columns,
             n,
+            Some(&no_indexes),
             |ui, i, col| {
                 let w = ui.available_width() - 6.0;
                 let ix = &mut indexes[i];
@@ -667,14 +696,15 @@ impl Designer {
         ];
         let columns = [
             EditColumn::new(&heads[0], 200.0),
-            EditColumn::new(&heads[1], 200.0),
-            EditColumn::new(&heads[2], 220.0),
-            EditColumn::new(&heads[3], 200.0),
-            EditColumn::new(&heads[4], 140.0),
-            EditColumn::new(&heads[5], 140.0),
+            EditColumn::new(&heads[1], 170.0),
+            EditColumn::new(&heads[2], 200.0),
+            EditColumn::new(&heads[3], 170.0),
+            EditColumn::new(&heads[4], 130.0),
+            EditColumn::new(&heads[5], 130.0),
             EditColumn::new("", 0.0),
         ];
         let n = self.edit.table.foreign_keys.len();
+        let no_keys = s.t("db-designer-no-keys");
         let (keys, key_cols) = (&mut self.edit.table.foreign_keys, &mut self.key_cols);
         edit_table(
             ui,
@@ -682,6 +712,7 @@ impl Designer {
             ("db-designer-keys", self.uid),
             &columns,
             n,
+            Some(&no_keys),
             |ui, i, col| {
                 let w = ui.available_width() - 6.0;
                 let fk = &mut keys[i];

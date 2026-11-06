@@ -1190,7 +1190,7 @@ impl Debugger {
                     );
                 }
             });
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(egui::RichText::new(">").color(theme.accent));
             let r = ui.add(
                 hs_ui::form::line_edit(&mut self.console_input)

@@ -209,7 +209,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     }
     form::section(ui, theme, &s.t("dt-ports"), |ui| {
         form::hint(ui, theme, &s.t("dt-ports-hint"));
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             if ui
                 .add_enabled(
                     !state.busy,
@@ -275,6 +275,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ColumnSpec::new(s.t("dt-ports-process"), 220.0),
         ];
         let copy_label = s.t("table-copy-row");
+        let empty_label = s.t("dt-ports-none");
         // The list sits in a well, so it reads as a panel you can scroll
         // rather than as rows loose on the page (CR-0028).
         let r = hs_ui::form::well(ui, theme, Some(320.0), |ui| {
@@ -287,6 +288,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 copy_row_label: &copy_label,
                 built_in_menu: true,
                 row_icons: None,
+                empty_hint: Some(&empty_label),
             }
             .show(ui, &mut state.table)
         });

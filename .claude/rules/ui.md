@@ -17,6 +17,65 @@ look for it in `crates/hs-ui/src/` first.
   toolbar.
 - Dashboards and lists share section headings and top spacing. Centre list-card
   icons and labels vertically. Row actions go in a fixed, aligned column.
+  An action that cannot apply to a row (Move Up on the first) is drawn
+  disabled, never left out, so the column stays aligned (CR-0061).
+- **An empty table says so:** an editable or read-only table with no rows
+  shows its header and a one-line sentence-case hint under it ("This
+  table has no indexes yet."), never a bare header (CR-0061).
+- **History and recent lists can be cleared:** every History, Recent or
+  similar list in any activity has a right-click menu on its heading and
+  rows with Clear History (and Remove for one row), behind a
+  confirmation; it clears what is stored, not only what is shown
+  (CR-0067).
+- **Saved items can be deleted from their list:** a saved query, request,
+  command, source or any saved thing has Delete in its right-click menu,
+  behind a confirmation, in every activity (CR-0067).
+- **A label is shown whole:** a button or card that shrinks to fit a row
+  never goes narrower than its longest label; past that the row wraps.
+  An ellipsis is only for user data that can be any length, never for
+  the app's own names while there is room (owner, 2026-11-06: the Home
+  rail cut "Containers" and "Automation").
+- **Many of one kind, told apart by colour:** where a list holds many
+  saved items of the same kind with the same glyph (Logs saved sources,
+  and any list like it), each item wears a colour from a rotating palette
+  of eight, assigned by its position so it is stable across restarts and
+  two neighbours never share one. The same colour follows the item
+  everywhere it is drawn - its sidebar row, its open tab's icon, its
+  dashboard card (CR-0059).
+- **A pane is never narrower than its tabs:** a resizable pane or sidebar
+  that holds a row of tabs (segmented Project / Source Control, the
+  Browser's Favorites / Logins, …) cannot be dragged narrower than the
+  width that shows every tab's icon and label whole; nothing of one tab
+  is ever drawn over another. Measure it with
+  `hs_ui::tabs::segmented_min_width` and use it as the pane's minimum
+  (CR-0069).
+- **A side pane in a work pane can be hidden:** like the Editor's
+  project column, a side pane that is not the work itself has a
+  toolbar toggle that hides it, where the activity has room for one
+  (CR-0069).
+- **What opens a tab shows it:** any action that opens, adds or fills a
+  tab - New Query, Open Data, a saved item, a history entry, a template -
+  brings that tab to the front, whatever kind of tab (a designer, a
+  preview) was in front before, in every activity (BUG-0047).
+- **The header row is one accent band:** every table's header has the
+  accent fill (`table::header_fill`) across the full row - every column,
+  the gaps and the slack to the right edge - with an accent rule under it,
+  so it reads apart from the data cells. Painted once per table with
+  `table::begin_header_band` / `end_header_band`, never per cell; every
+  table, every activity (owner, 2026-11-06).
+- **Header titles are indented:** every table header title starts
+  `table::HEADER_INDENT` (8 px) in from its cell's left edge, and the
+  column's left-aligned cell text starts at the same x - every table, every
+  activity, the Database results grid included (owner, 2026-11-06).
+- **A table fits its pane:** column floors add up to no more than a usual
+  work pane (about 1050 px); a header must never run past the pane's
+  right edge at the default window size (CR-0061).
+- **Every list row has a glyph** when any row in that list has one -
+  palette commands, menus, sidebars - so the names line up (CR-0066).
+- **Scope of these rules:** every rule here applies to every pane,
+  component, row, table and activity, not only the one it was found in.
+  When the owner states a UI rule for one place that applies broadly, it
+  is written here the same turn and applied everywhere.
 
 ## Text
 
@@ -109,9 +168,18 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
     pixels shorter (CR-0061).
   - Dropdowns, checkboxes and buttons get the height from their container:
     `form::field_grid` (forms), `toolbar::strip_style` (toolbars),
-    `table::edit_table` (editable tables). Anywhere else, call
-    `form::match_field_height(ui)` at the top of the row's closure, or
-    use `form::field_row` (CR-0026, CR-0027, CR-0061).
+    `table::edit_table` (editable tables). Anywhere else a row mixes a
+    label, a field, a dropdown or buttons, open it with
+    `form::centred_row(ui, |ui| …)`, or `form::centred_row_wrapped` when
+    it may wrap (CR-0026, CR-0027, CR-0061).
+  - **Labels sit on the field's middle line.** egui fixes a horizontal
+    row's height when the row opens, so the field height must be set
+    *before* `ui.horizontal` / `ui.horizontal_wrapped`, never inside the
+    closure: `match_field_height` inside the closure makes the field tall
+    but leaves the label centred on the old, shorter row - it sits high
+    (owner's report, 2026-11-06: "main." beside the table name, "Script"
+    beside Apply). `centred_row` does it in the right order. A bare
+    `ui.horizontal` holding a label and a `line_edit` is the same bug.
   - Exceptions, kept compact on purpose: the command palette's search, the
     title bar and the bottom dock.
 - **Width shows the value:** a field is wide enough for the values it
@@ -223,6 +291,9 @@ reported; write what you checked in the item's App box.
   `TabItem` returns `icon_image` from `hs_ui::fileicons` when
   `material_icons(<tool>)` is on, the same picture its list uses. The
   palette's rows too: `PaletteItem::image` / `colour` (CR-0066).
+  Every sidebar list and tree row of an item kind too - saved queries,
+  history entries, snippets, sources - with the same picture its tab
+  wears; a plain glyph only when Material icons are off (CR-0068).
 
 Verify a Nerd Font / Phosphor glyph by looking at it on screen. A codepoint
 being present does not mean it draws the right picture.

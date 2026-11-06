@@ -462,8 +462,7 @@ impl AssistantPanel {
             crate::form::note(ui, theme, crate::icons::INFO, &s.t("ai-setup-hint"));
             return output;
         }
-        ui.horizontal(|ui| {
-            crate::form::match_field_height(ui);
+        crate::form::centred_row(ui, |ui| {
             let selected = providers
                 .iter()
                 .find(|p| p.id == self.provider)

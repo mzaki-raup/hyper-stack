@@ -446,3 +446,7 @@ same set, and an open tab notices a save made there on its next frame.
 ## Addendum (2026-11-05): the custom library's colour (CR-0048)
 
 A package library the user wrote in the app (`LibraryKind::Custom`) is marked in amber (`tool_api::library_icon`), on its sidebar row and on its tab through `tab_icon_colour`; imported and fetched libraries keep the plain package glyph.
+
+## Addendum (2026-11-06): clearing history (CR-0067)
+
+Right-click the History heading for **Clear History** and a history row for **Remove from History**, each confirmed; the workspace's stored history changes, not only the view.

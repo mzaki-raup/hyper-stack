@@ -199,10 +199,11 @@ impl HistoryView {
     }
 
     fn list(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<Pick> {
+        let material = s.settings.read().appearance.material_icons("git");
         egui::Frame::new()
             .inner_margin(egui::Margin::symmetric(8, 6))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(egui::RichText::new(ph::MAGNIFYING_GLASS).color(theme.text_muted));
                     ui.add(
                         egui::TextEdit::singleline(&mut self.search)
@@ -353,15 +354,26 @@ impl HistoryView {
                     let mut cursor = rect.left() + graph_w + 6.0;
                     let font = egui::TextStyle::Body.resolve(ui.style());
                     for r in &c.refs {
-                        let (text, colour) = ref_chip(r, theme);
+                        let (mark, name, colour) = ref_chip(r, theme);
+                        // Material icons on: the chip wears the branch / tag /
+                        // remote picture the Git lists use, in place of the glyph.
+                        let picture = mark
+                            .filter(|_| material)
+                            .and_then(|(_, kind)| hs_ui::fileicons::for_kind(kind));
+                        let text = match (mark, &picture) {
+                            (Some((glyph, _)), None) => format!("{glyph} {name}"),
+                            _ => name,
+                        };
                         let galley = ui.painter().layout_no_wrap(
                             text,
                             egui::FontId::proportional(font.size - 1.5),
                             theme.text,
                         );
+                        let side = galley.size().y;
+                        let pic_w = if picture.is_some() { side + 3.0 } else { 0.0 };
                         let chip = egui::Rect::from_min_size(
                             egui::pos2(cursor, rect.center().y - galley.size().y / 2.0 - 2.0),
-                            galley.size() + egui::vec2(10.0, 4.0),
+                            galley.size() + egui::vec2(10.0 + pic_w, 4.0),
                         );
                         ui.painter()
                             .rect_filled(chip, 4.0, colour.linear_multiply(0.35));
@@ -371,8 +383,22 @@ impl HistoryView {
                             egui::Stroke::new(1.0, colour),
                             egui::StrokeKind::Inside,
                         );
-                        ui.painter()
-                            .galley(chip.min + egui::vec2(5.0, 2.0), galley, theme.text);
+                        if let Some(src) = picture {
+                            egui::Image::new(src)
+                                .fit_to_exact_size(egui::Vec2::splat(side))
+                                .paint_at(
+                                    ui,
+                                    egui::Rect::from_min_size(
+                                        chip.min + egui::vec2(5.0, 2.0),
+                                        egui::Vec2::splat(side),
+                                    ),
+                                );
+                        }
+                        ui.painter().galley(
+                            chip.min + egui::vec2(5.0 + pic_w, 2.0),
+                            galley,
+                            theme.text,
+                        );
                         cursor = chip.right() + 6.0;
                     }
                     let meta_w = 230.0;
@@ -577,21 +603,32 @@ fn lane_colour(lane: usize) -> egui::Color32 {
 }
 
 /// A ref decoration as chip text and colour: HEAD and local branches in
-/// the accent, remotes muted, tags in the warning tone.
-fn ref_chip(r: &str, theme: &Theme) -> (String, egui::Color32) {
+/// the accent, remotes muted, tags in the warning tone. The mark is the
+/// chip's glyph and its `fileicons::for_kind` kind, `None` for bare HEAD.
+type RefMark = Option<(&'static str, &'static str)>;
+
+fn ref_chip(r: &str, theme: &Theme) -> (RefMark, String, egui::Color32) {
     if let Some(t) = r.strip_prefix("tag: ") {
-        return (format!("{} {t}", ph::TAG), theme.warning);
+        return (Some((ph::TAG, "tag")), t.to_string(), theme.warning);
     }
     if let Some(b) = r.strip_prefix("HEAD -> ") {
-        return (format!("{} {b}", ph::GIT_BRANCH), theme.accent);
+        return (
+            Some((ph::GIT_BRANCH, "branch")),
+            b.to_string(),
+            theme.accent,
+        );
     }
     if r == "HEAD" {
-        return (r.to_string(), theme.accent);
+        return (None, r.to_string(), theme.accent);
     }
     if r.contains('/') {
-        return (format!("{} {r}", ph::CLOUD), theme.text_muted);
+        return (Some((ph::CLOUD, "remote")), r.to_string(), theme.text_muted);
     }
-    (format!("{} {r}", ph::GIT_BRANCH), theme.success)
+    (
+        Some((ph::GIT_BRANCH, "branch")),
+        r.to_string(),
+        theme.success,
+    )
 }
 
 /// "2026-10-29 14:05" in local time.

@@ -61,6 +61,8 @@ pub struct Labels<'a> {
     pub set_null: &'a str,
     pub delete_row: &'a str,
     pub revert_row: &'a str,
+    /// Shown under the header when the result has no rows (CR-0061).
+    pub empty: &'a str,
 }
 
 fn cmp_values(a: &Value, b: &Value) -> std::cmp::Ordering {
@@ -228,6 +230,17 @@ pub fn show(
             );
         });
     state.wanted_width = measured;
+    // An empty result says so under its header, rather than leaving a
+    // bare header band (CR-0061).
+    if rows.is_empty() {
+        ui.painter().text(
+            table_rect.left_top() + egui::vec2(hs_ui::table::HEADER_INDENT, HEADER_HEIGHT + 8.0),
+            egui::Align2::LEFT_TOP,
+            labels.empty,
+            egui::FontId::proportional(12.5),
+            theme.text_muted,
+        );
+    }
     paint_gutter(ui, gutter, theme, state, &row_tops);
     if let Some(s) = new_sort {
         state.sort = s;
@@ -260,6 +273,8 @@ fn grid_table(
     let spacing_x = ui.spacing().item_spacing.x;
     // No row sense: a row-wide click area is registered after the cells
     // and would take their clicks (selection, double-click).
+    // One accent band across the whole header row (owner, 2026-11-06).
+    let band = hs_ui::table::begin_header_band(ui);
     let mut builder = TableBuilder::new(ui)
         .id_salt(id)
         .striped(true)
@@ -283,7 +298,7 @@ fn grid_table(
                         Some((col, false)) if col == i => " ▼",
                         _ => "",
                     };
-                    hs_ui::table::header_band(ui, theme);
+                    ui.add_space(hs_ui::table::HEADER_INDENT);
                     let r = ui.add(
                         egui::Label::new(
                             egui::RichText::new(format!("{}{arrow}", c.name))
@@ -307,7 +322,7 @@ fn grid_table(
                     }
                 });
             }
-            header.col(|ui| hs_ui::table::header_band(ui, theme));
+            header.col(|_| {});
         })
         .body(|body| {
             // Columns are: the row-number column, one per data column, then
@@ -375,6 +390,8 @@ fn grid_table(
                                 |ui| ui.add(label),
                             );
                         } else {
+                            // Text starts under its header's title.
+                            ui.add_space(hs_ui::table::HEADER_INDENT);
                             ui.add(label);
                         }
                     });
@@ -418,6 +435,7 @@ fn grid_table(
                 row.col(|ui| row_tops.push((data_idx, ui.max_rect().top())));
             });
         });
+    hs_ui::table::end_header_band(ui, theme, band);
 }
 
 /// Number the rows the table drew, in a strip the horizontal scroll never

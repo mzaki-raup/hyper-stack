@@ -152,8 +152,8 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0104
-Bugs : BUG-0046
-Change Request : CR-0066
+Bugs : BUG-0047
+Change Request : CR-0069
 ```
 
 ---
@@ -454,16 +454,16 @@ Change Request : CR-0066
 - [x] Docs: CHANGELOG
 
 ### CR-0059 · Logs: each saved source wears its own colour, on its row, its tab and its dashboard card
-- **State:** Pending ·
+- **State:** In-Progress · in the 2026-11-06 batch; the owner asked again the same day ("each of the tab open use the colored icon on the tab"). Replaces the single blue CR-0065 gave the Logs cards.
 - **Source:** owner, 2026-11-06 ("make the icon color rotate for each saved source and the color icon will follow in the tab icon and Dashboard → Saved Sources List icon")
 - **Scope:** `tool-logs` (the sidebar's Saved Sources rows, `tab_icon_colour`, the dashboard's saved entries), a small palette rotated by the source's position (stable across restarts).
 - **Parent:** CR-0025
 - **Depends on:** CR-0058
-- [ ] A palette of eight distinct colours, assigned by the source's position in the saved list so the same source keeps its colour until the list is reordered
-- [ ] The row's glyph, the open tab's icon and the dashboard card's icon all wear that colour
+- [x] A palette of eight distinct colours, assigned by the source's position in the saved list so the same source keeps its colour until the list is reordered
+- [x] The row's glyph, the open tab's icon and the dashboard card's icon all wear that colour
 - [ ] Test: the palette rotates and two neighbours never share a colour
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — three saved sources in three colours, each tab and card matching its row
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — three saved sources in three colours, each tab and card matching its row - three saved sources in four colours, each open tab and dashboard card matching its row (screenshots 10-12, 2026-11-06)
 - [ ] Docs: CHANGELOG
 
 ### CR-0060 · Browser joins Settings → Appearance → Material Icon: folders and logins wear Material icons
@@ -488,7 +488,9 @@ Change Request : CR-0066
 - [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
 - [ ] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned
 - [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock
-- [ ] Every loose dropdown row gets `form::match_field_height`; no input row uses `horizontal_top`
+- [ ] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top`
+- [ ] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
+- [ ] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06)
 - [ ] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height`
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list
@@ -528,7 +530,7 @@ Change Request : CR-0066
 - **Depends on:** CR-0038
 - [x] The buttons shrink with the window (labelled 76 → 58 px, glyph 22 → 18, name 11 → 10; unlabelled 34 → 30) and the row wraps below that
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — names on and off, wide and narrow windows
+- [x] App: `--data-dir ./tmp-data` — names on and off, wide and narrow windows - one row with every name whole at the default size (screenshot 18, 2026-11-06)
 - [ ] Docs: CHANGELOG
 
 ### CR-0065 · Coloured icons on every dashboard's saved cards, and inner tabs that follow Material icons
@@ -551,8 +553,61 @@ Change Request : CR-0066
 - **Depends on:** CR-0043, CR-0065
 - [x] Palette rows draw an image or a coloured glyph
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Ctrl+P and Ctrl+Shift+P with Material and coloured icons on and off
+- [x] App: `--data-dir ./tmp-data` — Ctrl+P and Ctrl+Shift+P with Material and coloured icons on and off - command palette with a glyph on every row, Quick Open in activity colours (screenshot 08, 2026-11-06)
 - [ ] Docs: CHANGELOG, ui.md rule
+
+
+### BUG-0047 · Database: a new or filled query tab stays behind the Design tab
+- **State:** In-Progress · fixed 2026-11-06; the app check follows
+- **Source:** owner, 2026-11-06 ("When right click table -> Open data, why it not focus on the new tab to open data?"; "When i click button New query, why it not focus to the new query tab?")
+- **Scope:** `tool-db` `run_in_new_tab` and the New SELECT template clear `active_designer`, so the query tab they fill comes to the front.
+- **Parent:** FEAT-0103
+- [x] New Query, Open Data, Count Rows, New SELECT, a saved query, history and templates bring their query tab to the front
+- [ ] Test: not reachable headless (the tool needs `Services`, which has no test constructor); checked in the app instead
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — with a Design tab in front, Open Data shows the query tab and its rows - Open Data and New Query with a Design tab in front bring the query tab forward (screenshots 02-03, 2026-11-06)
+- [ ] Docs: CHANGELOG
+
+
+### CR-0067 · Clear History and Delete saved items from a right-click, in every activity
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Database Query History, make user can right click on the History tree and clear history. Apply this also to all activities that use history, recent, etc"; "Saved query also can be deleted by right click on the list and click delete query")
+- **Scope:** the Database query history first; then every History / Recent list across the activities (found by a sweep). Right-click on the heading or a row: Clear History (confirmation) and Remove for one entry; the stored history is cleared, not only the view.
+- **Parent:** CR-0025
+- [x] Database query history: right-click Clear History and Remove
+- [ ] Every other history / recent list: the same menu (built so far: API history, Graphics Recent, Home Recent; the rest of the sweep follows)
+- [x] Database saved queries: right-click Delete Query (confirmation), the file removed
+- [ ] Every other activity's saved items the same (built so far: SSH kept forwards, Devtools snippets, Editor project cards, Git repo cards)
+- [ ] Test: clearing empties the store and a reload stays empty
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — each list cleared on screen, screenshots
+- [ ] Docs: CHANGELOG, ui.md rule, tool specs
+
+
+### CR-0068 · Material icons on every list row, not only tabs and cards
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Saved query list, use also colored material icon on the list (if enable the material icon in settings) same with the tab color icon of it. Check other activities list that still use generic plain icon instead material icon")
+- **Scope:** Database Saved Queries and Query History rows wear the query tab's Material picture; every other activity's list rows of an item kind found by a sweep get theirs from `hs_ui::fileicons` when Material icons are on.
+- **Parent:** CR-0065
+- [x] Database saved queries and history rows
+- [ ] Every other list found by the sweep (built so far: Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Material on and off, screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0069 · Tabbed panes keep a minimum width; side panes can be hidden
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Editor Activity -> Work Pane -> Project directory pane -> Project and Source control tab. Please restrict the pane to resize minimum the size where user can see icon and label on those tabs … I found this also in Browser Activity … check other activities also that use the same multi tab. And follow Editor Activity that can hide the pane")
+- **Scope:** the Editor's segmented tabs move to `hs_ui::tabs::segmented` with `segmented_min_width`; the Editor column, the Browser sidebar and every other pane or sidebar holding a tab row use it as their minimum; icons are clipped to their tab. Side panes in work panes get a hide toggle where it fits.
+- **Parent:** CR-0025
+- [x] Shared segmented tabs with a measured minimum width; nothing drawn outside its tab
+- [x] Editor column and Browser sidebar respect it
+- [ ] Every other tabbed pane found by a sweep respects it; side panes get a hide toggle where suitable
+- [ ] Test: the minimum fits every label and icon; a segment never paints outside its rect
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — drag each pane to its minimum, screenshots
+- [ ] Docs: CHANGELOG, ui.md rule, docs/04
 
 ---
 

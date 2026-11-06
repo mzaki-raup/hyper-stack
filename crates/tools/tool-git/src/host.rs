@@ -389,6 +389,7 @@ impl HostView {
         let here = self.active_tab().map(|t| t.project.clone());
         let cloning = self.cloning.as_ref().map(|(p, _, _)| p.full_name.clone());
         let mut open: Option<Project> = None;
+        let material = s.settings.read().appearance.material_icons("git");
         egui::ScrollArea::vertical()
             .id_salt(("git-host-repos", &self.cred.id))
             .auto_shrink([false, false])
@@ -410,14 +411,25 @@ impl HostView {
                         } else {
                             p.description.clone()
                         };
-                        let row = form::list_row(
+                        let row = form::list_row_icon(
                             ui,
                             theme,
                             here.as_deref() == Some(p.full_name.as_str()),
-                            glyph,
+                            &hs_ui::fileicons::item_icon(material, "source-control", glyph),
                             &p.full_name,
                             (!subtitle.is_empty()).then_some(subtitle.as_str()),
                         );
+                        // The picture replaces the lock glyph, so a private
+                        // repository keeps it as a small badge on the picture.
+                        if material && p.private {
+                            ui.painter().text(
+                                egui::pos2(row.rect.left() + 36.0, row.rect.center().y + 11.0),
+                                egui::Align2::RIGHT_BOTTOM,
+                                ph::LOCK,
+                                egui::FontId::proportional(11.0),
+                                theme.text,
+                            );
+                        }
                         if row.clicked() {
                             open = Some((*p).clone());
                         }

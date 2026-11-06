@@ -419,8 +419,7 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 
 fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-jwt-encode"), |ui| {
-        ui.horizontal(|ui| {
-            hs_ui::form::match_field_height(ui);
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("dt-jwt-algorithm"));
             egui::ComboBox::from_id_salt("jwt-alg")
                 .selected_text(st.alg.name())

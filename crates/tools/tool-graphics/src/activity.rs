@@ -215,6 +215,12 @@ impl GraphicsHub {
         self.save();
     }
 
+    /// Clear Recent (CR-0067): empties the stored list, not only the shown.
+    pub fn clear(&mut self) {
+        self.recents.clear();
+        self.save();
+    }
+
     pub fn set_pending_icon(&mut self, img: image::DynamicImage) {
         self.pending_icon = Some(img);
     }
@@ -288,5 +294,25 @@ mod tests {
         let mut hub = GraphicsHub::default();
         hub.touch(Kind::Image, "unsaved", None);
         assert!(hub.recents().is_empty());
+    }
+
+    #[test]
+    fn remove_and_clear_change_the_stored_recents() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dir.path().join("recents.json");
+        let reload = || hs_core::storage::read_json::<Vec<Recent>>(&store).unwrap_or_default();
+        let mut hub = GraphicsHub {
+            store: Some(store.clone()),
+            ..Default::default()
+        };
+        hub.touch(Kind::Image, "a.png", Some("C:/tmp/a.png".into()));
+        hub.touch(Kind::Icon, "b.ico", Some("C:/tmp/b.ico".into()));
+        hub.remove_path("C:/tmp/a.png");
+        let left = reload();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].title, "b.ico");
+        hub.clear();
+        assert!(hub.recents().is_empty());
+        assert!(reload().is_empty(), "the stored list is empty too");
     }
 }

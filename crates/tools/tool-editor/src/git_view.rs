@@ -1163,6 +1163,7 @@ impl Git {
                         folder_header(
                             ui,
                             theme,
+                            s.settings.read().appearance.material_icons("editor"),
                             root,
                             Some(&mut |ui: &mut egui::Ui| {
                                 history_button(ui, s, theme, false);
@@ -1411,6 +1412,7 @@ impl Git {
                     .and_then(|r| r.status.as_ref())
                     .map(|st| st.branch_label());
                 let mut reload = false;
+                let material = s.settings.read().appearance.material_icons("editor");
                 header(
                     ui,
                     s,
@@ -1426,10 +1428,20 @@ impl Git {
                             .strong(),
                         );
                         if let Some(b) = &branch {
-                            ui.label(
-                                egui::RichText::new(format!("{} {b}", ph::GIT_BRANCH))
-                                    .color(theme.text_muted),
-                            );
+                            match fileicons::item_icon(material, "branch", ph::GIT_BRANCH) {
+                                hs_ui::tree::TreeIcon::Image(src) => {
+                                    ui.add(
+                                        egui::Image::new(src).fit_to_exact_size(Vec2::splat(14.0)),
+                                    );
+                                    ui.label(egui::RichText::new(b).color(theme.text_muted));
+                                }
+                                hs_ui::tree::TreeIcon::Glyph(g) => {
+                                    ui.label(
+                                        egui::RichText::new(format!("{g} {b}"))
+                                            .color(theme.text_muted),
+                                    );
+                                }
+                            }
                         }
                     },
                     |ui| {
@@ -1618,9 +1630,11 @@ fn repo_header(
     history: &mut Option<PathBuf>,
     refresh: &mut bool,
 ) {
+    let material = s.settings.read().appearance.material_icons("editor");
     folder_header(
         ui,
         theme,
+        material,
         &r.root,
         Some(&mut |ui: &mut egui::Ui| {
             if ui
@@ -1658,7 +1672,12 @@ fn repo_header(
                 if let Some(t) = tip {
                     l.tip(t);
                 }
-                ui.label(egui::RichText::new(ph::GIT_BRANCH).color(theme.text_muted));
+                fileicons::show_icon(
+                    ui,
+                    &fileicons::item_icon(material, "branch", ph::GIT_BRANCH),
+                    14.0,
+                    theme.text_muted,
+                );
             }
         }),
     );
@@ -1681,11 +1700,17 @@ fn history_button(ui: &mut egui::Ui, s: &Services, theme: &Theme, enabled: bool)
 fn folder_header(
     ui: &mut egui::Ui,
     theme: &Theme,
+    material: bool,
     root: &Path,
     right: Option<&mut dyn FnMut(&mut egui::Ui)>,
 ) {
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(ph::FOLDER).color(theme.accent));
+        fileicons::show_icon(
+            ui,
+            &fileicons::folder_icon(material, &name_of(root), ph::FOLDER),
+            16.0,
+            theme.accent,
+        );
         ui.label(egui::RichText::new(name_of(root)).strong())
             .tip(root.display().to_string());
         if let Some(right) = right {
@@ -2389,6 +2414,7 @@ fn history_body(
 }
 
 fn commit_list(ui: &mut egui::Ui, s: &Services, theme: &Theme, h: &mut HistoryPane) {
+    let material = s.settings.read().appearance.material_icons("editor");
     let n = h.commits.len() + usize::from(!h.done);
     let mut pick = None;
     let mut need_more = false;
@@ -2470,17 +2496,32 @@ fn commit_list(ui: &mut egui::Ui, s: &Services, theme: &Theme, h: &mut HistoryPa
                 egui::Rect::from_min_max(rect.min, egui::pos2(author_r.left() - 12.0, rect.max.y));
             let p = p.with_clip_rect(clip.intersect(p.clip_rect()));
             for r in &c.refs {
-                let (label, colour) = if let Some(b) = r.strip_prefix("HEAD -> ") {
-                    (format!("{} {b}", ph::GIT_BRANCH), theme.accent)
+                let (mark, name, colour) = if let Some(b) = r.strip_prefix("HEAD -> ") {
+                    (
+                        Some((ph::GIT_BRANCH, "branch")),
+                        b.to_string(),
+                        theme.accent,
+                    )
                 } else if let Some(t) = r.strip_prefix("tag: ") {
-                    (format!("{} {t}", ph::TAG), theme.warning)
+                    (Some((ph::TAG, "tag")), t.to_string(), theme.warning)
                 } else {
-                    (r.clone(), theme.secondary)
+                    (None, r.clone(), theme.secondary)
+                };
+                // Material icons on: the branch / tag picture in place of
+                // the glyph, as the Source Control lists draw them.
+                let picture = mark
+                    .filter(|_| material)
+                    .and_then(|(_, kind)| fileicons::for_kind(kind));
+                let label = match (mark, &picture) {
+                    (Some((glyph, _)), None) => format!("{glyph} {name}"),
+                    _ => name,
                 };
                 let g = p.layout_no_wrap(label, egui::FontId::proportional(11.0), colour);
+                let side = g.size().y;
+                let pic_w = if picture.is_some() { side + 3.0 } else { 0.0 };
                 let chip = egui::Rect::from_min_size(
                     egui::pos2(x, y - g.size().y / 2.0 - 2.0),
-                    g.size() + Vec2::new(10.0, 4.0),
+                    g.size() + Vec2::new(10.0 + pic_w, 4.0),
                 );
                 p.rect_stroke(
                     chip,
@@ -2488,7 +2529,22 @@ fn commit_list(ui: &mut egui::Ui, s: &Services, theme: &Theme, h: &mut HistoryPa
                     egui::Stroke::new(1.0, colour),
                     egui::StrokeKind::Inside,
                 );
-                p.galley(chip.min + Vec2::new(5.0, 2.0), g, colour);
+                // An image paints through the ui, not the clipped painter,
+                // so it is drawn only when its chip is wholly in view.
+                if let Some(src) = picture
+                    && p.clip_rect().contains_rect(chip)
+                {
+                    egui::Image::new(src)
+                        .fit_to_exact_size(Vec2::splat(side))
+                        .paint_at(
+                            ui,
+                            egui::Rect::from_min_size(
+                                chip.min + Vec2::new(5.0, 2.0),
+                                Vec2::splat(side),
+                            ),
+                        );
+                }
+                p.galley(chip.min + Vec2::new(5.0 + pic_w, 2.0), g, colour);
                 x = chip.right() + 6.0;
             }
             p.text(

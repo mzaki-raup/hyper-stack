@@ -461,8 +461,7 @@ impl AiPanel {
             hs_ui::form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-setup-hint"));
             return;
         }
-        ui.horizontal(|ui| {
-            hs_ui::form::match_field_height(ui);
+        hs_ui::form::centred_row(ui, |ui| {
             let name = providers
                 .iter()
                 .find(|p| p.0 == self.provider)
@@ -483,8 +482,7 @@ impl AiPanel {
                 self.model_picker(ui, s, theme, p);
             }
         });
-        ui.horizontal(|ui| {
-            hs_ui::form::match_field_height(ui);
+        hs_ui::form::centred_row(ui, |ui| {
             let has_sel = ed.cursors.primary().has_selection();
             let label = |c: Context| match c {
                 Context::Auto if has_sel => s.t("ai-context-auto-selection"),
@@ -645,7 +643,6 @@ impl AiPanel {
         // Leave room for the refresh button so the panel never grows.
         let width = (ui.available_width() - 40.0).max(80.0);
         let state = list.lock().clone();
-        hs_ui::form::match_field_height(ui);
         egui::ComboBox::from_id_salt("ai-model")
             .width(width)
             .truncate()

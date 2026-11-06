@@ -22,8 +22,7 @@ fn a_line_edit_is_a_fields_height_and_a_bare_one_is_not() {
                 .rect
                 .height(),
         );
-        ui.horizontal(|ui| {
-            hs_ui::form::match_field_height(ui);
+        hs_ui::form::centred_row(ui, |ui| {
             combo.set(
                 hs_ui::egui::ComboBox::from_id_salt("cr-0061")
                     .selected_text("Auto")
@@ -53,6 +52,36 @@ fn a_line_edit_is_a_fields_height_and_a_bare_one_is_not() {
     );
 }
 
+/// The owner's report (2026-11-06): "main." beside the table name and
+/// "Script" beside Apply sat high. A label in a centred row shares the
+/// field's middle line, wrapped or not.
+#[test]
+fn a_label_in_a_centred_row_sits_on_the_fields_middle_line() {
+    for wrapped in [false, true] {
+        let label = Cell::new(0.0f32);
+        let field = Cell::new(0.0f32);
+        let mut v = String::from("bank");
+        let mut harness = Harness::new_ui(|ui| {
+            let row = |ui: &mut hs_ui::egui::Ui| {
+                label.set(ui.label("main.").rect.center().y);
+                field.set(ui.add(hs_ui::form::line_edit(&mut v)).rect.center().y);
+            };
+            if wrapped {
+                hs_ui::form::centred_row_wrapped(ui, row);
+            } else {
+                hs_ui::form::centred_row(ui, row);
+            }
+        });
+        harness.run();
+        assert!(
+            (label.get() - field.get()).abs() < 1.0,
+            "wrapped {wrapped}: label centre {} vs field centre {}",
+            label.get(),
+            field.get()
+        );
+    }
+}
+
 #[test]
 fn an_edit_table_row_holds_a_field_with_air_and_has_a_header() {
     let row_h = Cell::new(0.0f32);
@@ -75,6 +104,7 @@ fn an_edit_table_row_holds_a_field_with_air_and_has_a_header() {
             "cr-0061-table",
             &cols,
             values.len(),
+            None,
             |ui, r, c| {
                 if c == 0 {
                     let rect = ui.add(hs_ui::form::line_edit(&mut values[r])).rect;

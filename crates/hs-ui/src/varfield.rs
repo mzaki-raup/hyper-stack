@@ -197,7 +197,7 @@ pub fn var_field_width(
                                 state.adding = true;
                             }
                             if state.adding {
-                                ui.horizontal(|ui| {
+                                crate::form::centred_row(ui, |ui| {
                                     ui.label(format!("{partial} ="));
                                     let vr = ui.add(
                                         crate::form::line_edit(&mut state.add_value)

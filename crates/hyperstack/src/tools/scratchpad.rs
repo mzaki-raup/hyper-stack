@@ -921,6 +921,7 @@ impl Scratchpad {
             no_preview: &s.t("dash-no-preview"),
         };
         let untitled = s.t("scratchpad-untitled");
+        let material = s.settings.read().appearance.material_icons("scratchpad");
         let mut new_note = false;
         let mut open: Option<String> = None;
         let mut focus: Option<u64> = None;
@@ -949,7 +950,15 @@ impl Scratchpad {
                         label,
                     })
                     .collect();
-                hs_ui::dashboard::stats(ui, &theme, &stats);
+                // Material icons on: folders and notes wear the pictures
+                // their sidebar rows do; the open-tabs figure keeps its glyph.
+                let pictures = [
+                    material.then(|| hs_ui::fileicons::for_folder("")),
+                    material
+                        .then(|| hs_ui::fileicons::for_kind("note"))
+                        .flatten(),
+                ];
+                hs_ui::dashboard::stats_pictured(ui, &theme, &stats, &pictures);
                 hs_ui::dashboard::rule(ui, &theme);
 
                 hs_ui::dashboard::section(ui, &theme, &s.t("dash-start-here"));
@@ -1005,15 +1014,42 @@ impl Scratchpad {
                                         n.title.as_str()
                                     };
                                     let icon = if n.pinned { ph::PUSH_PIN } else { ph::NOTE };
-                                    if ui
-                                        .add(
-                                            egui::Button::new(format!("{icon}  {title}"))
-                                                .min_size(egui::vec2(BUTTON, 30.0))
-                                                .wrap_mode(egui::TextWrapMode::Truncate),
-                                        )
-                                        .tip(when(n.modified))
-                                        .clicked()
-                                    {
+                                    // Material icons on: the note picture, a
+                                    // pinned note's pin kept as a badge on it.
+                                    let r =
+                                        match hs_ui::fileicons::item_icon(material, "note", icon) {
+                                            hs_ui::tree::TreeIcon::Image(src) => {
+                                                let r = ui.add(
+                                                    egui::Button::new((
+                                                        egui::Image::new(src).fit_to_exact_size(
+                                                            egui::vec2(16.0, 16.0),
+                                                        ),
+                                                        title,
+                                                    ))
+                                                    .min_size(egui::vec2(BUTTON, 30.0))
+                                                    .wrap_mode(egui::TextWrapMode::Truncate),
+                                                );
+                                                if n.pinned {
+                                                    let x = r.rect.left()
+                                                        + ui.spacing().button_padding.x
+                                                        + 20.0;
+                                                    ui.painter().text(
+                                                        egui::pos2(x, r.rect.center().y + 10.0),
+                                                        egui::Align2::RIGHT_BOTTOM,
+                                                        ph::PUSH_PIN,
+                                                        egui::FontId::proportional(10.0),
+                                                        theme.text,
+                                                    );
+                                                }
+                                                r
+                                            }
+                                            hs_ui::tree::TreeIcon::Glyph(g) => ui.add(
+                                                egui::Button::new(format!("{g}  {title}"))
+                                                    .min_size(egui::vec2(BUTTON, 30.0))
+                                                    .wrap_mode(egui::TextWrapMode::Truncate),
+                                            ),
+                                        };
+                                    if r.tip(when(n.modified)).clicked() {
                                         open = Some(n.id.clone());
                                     }
                                     if (i + 1) % columns == 0 {

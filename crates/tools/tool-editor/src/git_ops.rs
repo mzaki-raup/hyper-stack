@@ -910,7 +910,7 @@ pub(crate) fn box_ui(
     }
     if let Some((old, new)) = &mut ops.rename_branch {
         let mut done = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(
                 s.i18n
                     .t_args("git-rename-branch-prompt", &[("branch", old)]),
@@ -1082,8 +1082,7 @@ fn rebase_panel(
                 .show(ui, |ui| {
                     for i in 0..panel.commits.len() {
                         let commit = &panel.commits[i];
-                        ui.horizontal(|ui| {
-                            hs_ui::form::match_field_height(ui);
+                        hs_ui::form::centred_row(ui, |ui| {
                             let first = i == 0;
                             let selected = action_label(panel.actions[i], s);
                             egui::ComboBox::from_id_salt(("rebase-action", i))
@@ -1124,20 +1123,25 @@ fn rebase_panel(
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if i + 1 < panel.commits.len()
-                                        && ui
-                                            .small_button(ph::ARROW_DOWN)
-                                            .tip(s.t("git-rebase-move-down"))
-                                            .clicked()
-                                    {
+                                    // Both arrows always drawn (dimmed where they
+                                    // cannot move), so the column stays aligned.
+                                    let can_down = i + 1 < panel.commits.len();
+                                    let down_btn = ui
+                                        .add_enabled_ui(can_down, |ui| {
+                                            ui.small_button(ph::ARROW_DOWN)
+                                                .tip(s.t("git-rebase-move-down"))
+                                        })
+                                        .inner;
+                                    if can_down && down_btn.clicked() {
                                         down = Some(i);
                                     }
-                                    if i > 0
-                                        && ui
-                                            .small_button(ph::ARROW_UP)
-                                            .tip(s.t("git-rebase-move-up"))
-                                            .clicked()
-                                    {
+                                    let up_btn = ui
+                                        .add_enabled_ui(i > 0, |ui| {
+                                            ui.small_button(ph::ARROW_UP)
+                                                .tip(s.t("git-rebase-move-up"))
+                                        })
+                                        .inner;
+                                    if i > 0 && up_btn.clicked() {
                                         up = Some(i);
                                     }
                                 },

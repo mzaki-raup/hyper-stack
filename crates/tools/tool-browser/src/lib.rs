@@ -721,6 +721,11 @@ impl Tool for BrowserTool {
         true
     }
 
+    /// The Favorites / Passwords tabs, whole (CR-0069).
+    fn sidebar_min_width(&self) -> Option<f32> {
+        self.side.min_width
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         self.tab_id = cx.tab_id;

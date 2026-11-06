@@ -384,7 +384,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         let mut go = false;
         match state.check {
             Check::Http => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-net-url"));
                     let r = ui.add(
                         hs_ui::form::line_edit(&mut state.url)
@@ -395,7 +395,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
             }
             _ => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-net-host"));
                     let r = ui.add(
                         hs_ui::form::line_edit(&mut state.host)

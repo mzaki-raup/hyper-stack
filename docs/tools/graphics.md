@@ -331,3 +331,7 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Functions** - the function list in its own card, with Start Here above it;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-06): clearing Recent (CR-0067)
+
+Recent has **Clear Recent** and a per-entry remove, each confirmed; the stored list changes and the files themselves are never deleted.

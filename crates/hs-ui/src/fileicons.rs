@@ -899,6 +899,23 @@ pub fn folder_icon(on: bool, name: &str, glyph: &str) -> crate::tree::TreeIcon {
     }
 }
 
+/// Draw `icon` inline, as the next widget of a row: the picture at
+/// `size`, or the glyph as a label in `colour` (a header's file, a
+/// sub-tab button's mark).
+pub fn show_icon(
+    ui: &mut egui::Ui,
+    icon: &crate::tree::TreeIcon,
+    size: f32,
+    colour: egui::Color32,
+) -> egui::Response {
+    match icon {
+        crate::tree::TreeIcon::Glyph(g) => ui.label(egui::RichText::new(g).color(colour)),
+        crate::tree::TreeIcon::Image(src) => {
+            ui.add(egui::Image::new(src.clone()).fit_to_exact_size(egui::Vec2::splat(size)))
+        }
+    }
+}
+
 /// The icon for an **item kind** a work pane lists - a branch, a volume, a
 /// table column, a topic - rather than for a file or folder name
 /// (FEAT-0084).

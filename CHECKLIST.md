@@ -675,3 +675,8 @@ and ADR-025.
 | One layout standard for tables, inputs and pane spacing (CR-0061) | In-Progress | The standard is written in `.claude/rules/ui.md`; the designer and the app-wide pass are built, the gate and the app check follow |
 | Home's activity toolbar shrinks to one row and wraps when it cannot (CR-0064) | In-Progress | Built 2026-11-06; the gate and the app check follow |
 | Coloured icons on every dashboard's saved cards; inner tabs follow Material icons (CR-0065) | In-Progress | Built 2026-11-06; the gate and the app check follow |
+
+| Quick Open and Commands icons in their kind's colour and Material picture (CR-0066) | In-Progress | Built 2026-11-06; the gate and the app check follow |
+| Clear History / Remove / Delete from a right-click in every activity (CR-0067) | In-Progress | Database, API, Graphics, Home Recent, SSH forwards, Devtools snippets, Editor and Git cards built; the sweep and the app check follow |
+| Material icons on every list row (CR-0068) | In-Progress | Database, Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad built; the sweep and the app check follow |
+| Database: a new or filled query tab comes to the front (BUG-0047) | In-Progress | Fixed 2026-11-06; the app check follows |

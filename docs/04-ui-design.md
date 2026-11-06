@@ -1380,3 +1380,14 @@ show the value), `hs_ui::form::line_edit` for every single-line field,
 with `PANE_MARGIN` (12) and `ROW_GAP` (10) beside `PANE_GAP` (8). The
 whole app moved onto `line_edit` (124 fields) and its loose dropdowns
 onto the field height in the same change.
+
+## Addendum (2026-11-06): header band, centred rows, history menus, tab focus (CR-0061, CR-0067, CR-0068, BUG-0047)
+
+Written in full in `.claude/rules/ui.md`; in short: every table header is one
+accent band across the full row with titles indented by `HEADER_INDENT`, and
+an empty table says so under it; a row mixing a label and a field opens with
+`form::centred_row` so the label sits on the field's middle line; every
+History / Recent list has a right-click Clear History and Remove, and every
+saved item a Delete, each behind a confirmation and changing what is stored;
+any action that opens or fills a tab brings it to the front; list rows wear
+the Material picture their tab wears when Material icons are on.

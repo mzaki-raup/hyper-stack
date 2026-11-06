@@ -23,7 +23,7 @@ use hs_ui::tip::TipExt;
 /// One toolbar button with its name under the icon (CR-0038): the same
 /// width for every activity, and the margin the name keeps from the edge.
 const LABELLED_WIDTH: f32 = 76.0;
-const LABELLED_PAD: f32 = 6.0;
+const LABELLED_PAD: f32 = 3.0;
 /// The narrowest a labelled button gets before the row wraps instead
 /// (CR-0064).
 const LABELLED_MIN_WIDTH: f32 = 58.0;
@@ -51,6 +51,7 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
 pub enum HomeRequest {
     OpenTool(String),
     ReopenClosed(usize),
+    ForgetClosed(Option<usize>),
     OpenConnection { tool: String, id: String },
     OpenFolderAsProject,
     NewConnection,
@@ -157,7 +158,24 @@ impl Tool for HomeTool {
         let gap = ui.spacing().item_spacing.x;
         let room = (ui.available_width() - RAIL_RESERVE - count * gap) / count;
         let (full, least) = if labelled {
-            (LABELLED_WIDTH, LABELLED_MIN_WIDTH)
+            // Never narrower than the longest name at the smallest size:
+            // a name is shown whole, and the row wraps instead (owner,
+            // 2026-11-06: "Contain…", "Automa…" were cut with room to
+            // spare).
+            let widest = hub
+                .tools
+                .iter()
+                .filter(|t| t.id == "settings" || ordered.contains(&t.id))
+                .map(|d| s.t(d.title_key))
+                .map(|name| {
+                    ui.painter()
+                        .layout_no_wrap(name, egui::FontId::proportional(RAIL_NAME.0), theme.text)
+                        .size()
+                        .x
+                })
+                .fold(0.0_f32, f32::max);
+            let least = LABELLED_MIN_WIDTH.max(widest + 2.0 * LABELLED_PAD);
+            (LABELLED_WIDTH.max(least), least)
         } else {
             (GLYPH_WIDTH, GLYPH_MIN_WIDTH)
         };
@@ -331,6 +349,9 @@ impl Tool for HomeTool {
         let r = launcher::side(ui, &theme, s, &descs, &hub.closed);
         if let Some(i) = r.reopen_closed {
             hub.requests.push(HomeRequest::ReopenClosed(i));
+        }
+        if let Some(which) = r.forget_closed {
+            hub.requests.push(HomeRequest::ForgetClosed(which));
         }
         if let Some((tool, id)) = r.open_connection {
             hub.requests.push(HomeRequest::OpenConnection { tool, id });

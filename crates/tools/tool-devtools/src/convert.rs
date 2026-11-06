@@ -538,7 +538,6 @@ fn unit_combo<T: PartialEq + Copy>(
     all: &[T],
     label: impl Fn(T) -> String,
 ) {
-    hs_ui::form::match_field_height(ui);
     egui::ComboBox::from_id_salt(id)
         .width(140.0)
         .selected_text(label(*value))
@@ -557,7 +556,7 @@ fn time_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-time"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.add(
                 hs_ui::form::line_edit(&mut st.time_input)
                     .hint_text(s.t("dt-conv-value"))
@@ -624,7 +623,7 @@ fn data_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-data"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.add(
                 hs_ui::form::line_edit(&mut st.data_input)
                     .hint_text(s.t("dt-conv-value"))
@@ -800,7 +799,7 @@ fn bandwidth_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-bandwidth"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.add(
                 hs_ui::form::line_edit(&mut st.rate_input)
                     .hint_text(s.t("dt-conv-value"))
@@ -853,7 +852,7 @@ fn bandwidth_pane(
     // How long something takes at this rate: the other half of the
     // question people bring to a bandwidth converter.
     form::section(ui, theme, &s.t("dt-conv-transfer"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.add(
                 hs_ui::form::line_edit(&mut st.transfer_mb)
                     .hint_text(s.t("dt-conv-transfer-hint"))

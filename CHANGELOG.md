@@ -18,9 +18,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Changed
 
 - One layout standard, written in `.claude/rules/ui.md` and applied: every single-line field and every dropdown beside one is the same height, the table designer's columns, indexes and keys are proper tables (header band, centred cells, columns wide enough for their values) inside the pane margin, and form rows have a fixed gap (CR-0061)
+- Every table's header is one accent-coloured band across the full row with its titles indented, and an empty table shows a hint under its header (CR-0061)
 - Every dashboard's saved cards carry a coloured icon (Devtools by category, Logs as its sidebar), and the Database query and design tabs and the Git host tabs draw the Material icon when Material icons are on (CR-0065)
 - The Home dashboard's activity rail shrinks its buttons, icons and names to stay on one row, and wraps to a second row when it cannot (CR-0064)
+- Logs: each saved source wears its own colour from a rotating palette of eight, on its sidebar row, its open tab's icon and its dashboard card (CR-0059)
+- A pane or sidebar holding a row of tabs (Editor Project / Source Control, Browser Favorites / Passwords, Tracker Browse / Search) cannot be dragged narrower than its tabs, and nothing of one tab is drawn over another; the Database schema column, the Git tree column and the Graphics diagram properties and generator prompt columns can be hidden from their toolbar (CR-0069)
+- Home's activity rail never cuts an activity's name: its buttons stay as wide as the longest name and the row wraps instead (CR-0064)
 - Quick Open and the command palette draw each row's icon as the rest of the app does: activities and their commands in the rail colour, connections in their product's mark, files in their Material icon (CR-0066)
+- Right-click Clear History / Remove on the Database query history, the API request history, Graphics' Recent and Home's Recent tabs, and Delete on Database saved queries, SSH kept forwards, Devtools snippets, Editor project cards and Git dashboard repo cards - each behind a confirmation, each changing what is stored (CR-0067)
+- Material icons on list rows when they are on: Database saved queries and history, Git changed files and repo cards, Editor projects and branches, Containers resources, NoSQL collections, Redis Keys, S3 buckets and Scratchpad notes (CR-0068)
+- Empty tables (designer indexes, keys and columns, Redis members, NoSQL indexes, Devtools ports, Database results) say so under their header (CR-0061)
+
+### Fixed
+
+- Database: New Query, Open Data, Count Rows, New SELECT, a saved query, history and templates bring their query tab to the front when a Design tab was in front (BUG-0047)
 
 ## 0.126.0 — 2026-11-06
 

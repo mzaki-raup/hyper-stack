@@ -769,7 +769,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 form::hint(ui, theme, &s.t("dt-gen-uuid-hint"));
             }
             Mode::Number => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-from"));
                     ui.add(egui::DragValue::new(&mut st.low));
                     ui.label(s.t("dt-gen-to"));
@@ -778,7 +778,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 form::hint(ui, theme, &s.t("dt-gen-seed-hint"));
             }
             Mode::Password => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-length"));
                     ui.add(egui::DragValue::new(&mut st.pw_length).range(1..=512));
                 });
@@ -798,7 +798,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 ));
             }
             Mode::Passphrase => {
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ui.label(s.t("dt-gen-words"));
                     ui.add(egui::DragValue::new(&mut st.phrase_words).range(1..=64));
                     ui.label(s.t("dt-gen-separator"));
@@ -821,12 +821,12 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             }
         }
         if st.mode != Mode::Password && st.mode != Mode::Passphrase {
-            ui.horizontal(|ui| {
+            hs_ui::form::centred_row(ui, |ui| {
                 ui.label(s.t("dt-gen-count"));
                 ui.add(egui::DragValue::new(&mut st.count).range(1..=1000));
             });
         }
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("dt-gen-seed"));
             ui.add(
                 hs_ui::form::line_edit(&mut st.seed)

@@ -980,7 +980,7 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         form::label(ui, &s.t("settings-window-dimensions"));
         let mut w = inner.x.round();
         let mut h = inner.y.round();
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             let a = ui.add(
                 egui::DragValue::new(&mut w)
                     .speed(1.0)
@@ -2096,7 +2096,7 @@ fn shortcuts(
         Some(&s.t("settings-shortcuts-sub")),
     );
     form::section(ui, theme, &s.t("settings-section-bindings"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(hs_ui::icons::SEARCH);
             form::text_field_width(
                 ui,
@@ -8296,7 +8296,7 @@ fn ssh_form(
     form::section(ui, theme, &s.t("conn-ssh-section-host"), |ui| {
         form::field_grid(ui, "ssh-host", |ui| {
             form::label(ui, &s.t("conn-ssh-host"));
-            ui.horizontal(|ui| {
+            hs_ui::form::centred_row(ui, |ui| {
                 let o = varfield::var_field_width(
                     ui,
                     theme,

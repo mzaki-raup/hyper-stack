@@ -207,7 +207,6 @@ pub fn show(
                                     egui::vec2(16.0, 16.0),
                                 );
                                 egui::Image::new(src.clone()).paint_at(ui, r);
-                                x += 24.0;
                             } else if let Some(icon) = &item.icon {
                                 ui.painter().text(
                                     egui::pos2(x, rect.center().y),
@@ -216,8 +215,10 @@ pub fn show(
                                     font.clone(),
                                     item.colour.unwrap_or(theme.text_muted),
                                 );
-                                x += 24.0;
                             }
+                            // The glyph's slot is kept on every row, so a row
+                            // with neither icon nor image still lines up.
+                            x += 24.0;
                             // Title with matched characters highlighted.
                             let mut job = egui::text::LayoutJob::default();
                             for (byte, ch) in item.title.char_indices() {

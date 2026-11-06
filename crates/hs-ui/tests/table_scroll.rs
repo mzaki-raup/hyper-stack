@@ -50,6 +50,7 @@ fn content_width(pane: f32, columns: Vec<ColumnSpec>) -> f32 {
             copy_row_label: "Copy Row",
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         // The width the inner `Ui` is bounded to, which is what the
         // scroll area scrolls over. Measuring `ui.min_rect()` from out
@@ -133,6 +134,7 @@ fn filter_and_sort_still_work_inside_the_scroll_area() {
         copy_row_label: "Copy Row",
         built_in_menu: true,
         row_icons: None,
+        empty_hint: None,
     };
     let mut state = TableState::default();
     assert_eq!(table.order(&state), vec![0, 1, 2]);

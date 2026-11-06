@@ -143,6 +143,21 @@ impl History {
         )?;
         Ok(n)
     }
+
+    /// Forget one entry (CR-0067).
+    pub fn remove(&self, id: i64) -> rusqlite::Result<usize> {
+        let c = open(&self.path)?;
+        c.execute("DELETE FROM query_history WHERE id = ?1", params![id])
+    }
+
+    /// Forget every entry of one connection (CR-0067).
+    pub fn clear(&self, connection_id: &str) -> rusqlite::Result<usize> {
+        let c = open(&self.path)?;
+        c.execute(
+            "DELETE FROM query_history WHERE connection_id = ?1",
+            params![connection_id],
+        )
+    }
 }
 
 #[cfg(test)]
@@ -183,5 +198,41 @@ mod tests {
         // The secret never reached the file.
         let bytes = std::fs::read(dir.path().join("history.sqlite")).unwrap();
         assert!(!bytes.windows(13).any(|w| w == b"hunter2secret"));
+    }
+
+    #[test]
+    fn remove_drops_one_entry_and_clear_empties_one_connection() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history.sqlite");
+        let h = History::new(path.clone());
+        let add = |conn: &str, sql: &str| {
+            h.add(
+                &NewEntry {
+                    workspace_id: "ws",
+                    connection_id: conn,
+                    environment_id: None,
+                    sql,
+                    duration_ms: 1,
+                    row_count: None,
+                    status: "ok",
+                    error: None,
+                },
+                &[],
+            )
+            .unwrap()
+        };
+        add("c1", "select 1");
+        add("c1", "select 2");
+        add("c2", "select 3");
+        let first = h.recent("c1", "", 10).unwrap()[1].id;
+        assert_eq!(h.remove(first).unwrap(), 1);
+        let left = h.recent("c1", "", 10).unwrap();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].sql, "select 2");
+        assert_eq!(h.clear("c1").unwrap(), 1);
+        // Read again from the file: c1 stays empty, c2 is untouched.
+        let again = History::new(path);
+        assert!(again.recent("c1", "", 10).unwrap().is_empty());
+        assert_eq!(again.recent("c2", "", 10).unwrap().len(), 1);
     }
 }

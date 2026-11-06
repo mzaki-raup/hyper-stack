@@ -295,6 +295,7 @@ impl DevtoolsTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,

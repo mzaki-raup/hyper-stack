@@ -1946,6 +1946,18 @@ impl EditorTool {
             .as_ref()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| s.t("editor-untitled"));
+        // Material icons on: the file's own picture, as its tab wears.
+        let name = d
+            .path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned());
+        let material = s.settings.read().appearance.material_icons("editor");
+        let icon = hs_ui::fileicons::file_icon(
+            material && name.is_some(),
+            name.as_deref().unwrap_or_default(),
+            ph::FILE_TEXT,
+        );
         egui::Frame::new()
             .fill(theme.panel_bg)
             .inner_margin(egui::Margin {
@@ -1957,7 +1969,7 @@ impl EditorTool {
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(ph::FILE_TEXT).color(theme.text_muted));
+                    hs_ui::fileicons::show_icon(ui, &icon, 14.0, theme.text_muted);
                     let r = ui.add(
                         egui::Label::new(
                             egui::RichText::new(&text).small().color(theme.text_muted),
@@ -2291,7 +2303,7 @@ impl EditorTool {
             ui.set_width(380.0);
             ui.heading(title);
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
+            hs_ui::form::centred_row(ui, |ui| {
                 ui.label(s.t("editor-name-prompt"));
                 let r =
                     ui.add(hs_ui::form::line_edit(&mut prompt.text).desired_width(f32::INFINITY));
@@ -2769,6 +2781,7 @@ impl EditorTool {
         let mut add = false;
         let mut manage = false;
         let mut open: Option<String> = None;
+        let mut remove: Option<String> = None;
         let mut focus: Option<u64> = None;
         egui::ScrollArea::vertical()
             .id_salt(self.id.with("dashboard"))
@@ -2865,13 +2878,21 @@ impl EditorTool {
                             .spacing([spacing, spacing])
                             .show(ui, |ui| {
                                 for (i, (id, name, path, icon)) in projects.iter().enumerate() {
-                                    if hs_ui::dashboard::item_button_icon(
+                                    let card = hs_ui::dashboard::item_button_icon(
                                         ui, &theme, *icon, name, path, CELL,
-                                    )
-                                    .clicked()
-                                    {
+                                    );
+                                    if card.clicked() {
                                         open = Some(id.clone());
                                     }
+                                    // Remove From List, as the sidebar
+                                    // has it; the shell asks first and
+                                    // never touches the folder (CR-0067).
+                                    card.context_menu(|ui| {
+                                        if ui.button(s.t("settings-project-remove")).clicked() {
+                                            remove = Some(id.clone());
+                                            ui.close();
+                                        }
+                                    });
                                     if (i + 1) % columns == 0 {
                                         ui.end_row();
                                     }
@@ -2889,6 +2910,11 @@ impl EditorTool {
         if manage {
             cx.actions.push(hs_core::tool::Action::RunCommand {
                 id: "settings:editor:projects".into(),
+            });
+        }
+        if let Some(id) = remove {
+            cx.actions.push(hs_core::tool::Action::RunCommand {
+                id: format!("project:remove:{id}"),
             });
         }
         if let Some(id) = open {
@@ -2968,17 +2994,9 @@ impl EditorTool {
         at
     }
 
-    /// The work pane's left column: Project (the file tree) and Source
-    /// Control, the two views of the folder this tab has open.
-    ///
-    /// This used to be the activity sidebar. The sidebar now lists every
-    /// project in the workspace, which is a different question - "what
-    /// could I open?" rather than "what is in the thing I have open?" -
-    /// and the two want to be visible at the same time (owner's
-    /// requirement, 2026-10-26).
-    fn workspace_column(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
-        let s = cx.services;
-        let (theme, _) = Self::theme(s);
+    /// The column's two tab labels and their Material pictures, computed
+    /// once for the tabs and for the column's minimum width (CR-0069).
+    fn column_tabs(&self, s: &Services) -> ([String; 2], [Option<egui::ImageSource<'static>>; 2]) {
         let changes = self.git.change_count();
         // With Material icons on the pictures are drawn beside the words,
         // so the labels drop the glyph they carry inline (FEAT-0084).
@@ -3007,11 +3025,27 @@ impl EditorTool {
             format!("{}{}", lead(ph::GIT_BRANCH, 1), s.t("git-source-control"))
         };
         let files_label = format!("{}{}", lead(ph::FOLDERS, 0), s.t("editor-project"));
-        if let Some(i) = segmented(
+        ([files_label, git_label], arts)
+    }
+
+    /// The work pane's left column: Project (the file tree) and Source
+    /// Control, the two views of the folder this tab has open.
+    ///
+    /// This used to be the activity sidebar. The sidebar now lists every
+    /// project in the workspace, which is a different question - "what
+    /// could I open?" rather than "what is in the thing I have open?" -
+    /// and the two want to be visible at the same time (owner's
+    /// requirement, 2026-10-26).
+    fn workspace_column(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
+        let s = cx.services;
+        let (theme, _) = Self::theme(s);
+        let ([files_label, git_label], arts) = self.column_tabs(s);
+        if let Some(i) = hs_ui::tabs::segmented(
             ui,
             &theme,
             &[&files_label, &git_label],
             &arts,
+            &[],
             usize::from(self.git.sidebar),
         ) {
             self.git.sidebar = i == 1;
@@ -3604,9 +3638,14 @@ impl Tool for EditorTool {
         // tab strip, the path row and the editor lay out in what is
         // left - the toolbar above them spans both, because the shell
         // draws it outside this pane (owner's requirement, 2026-10-26).
+        // Never narrower than its two tabs, icon and label whole (CR-0069).
+        let ([files_label, git_label], arts) = self.column_tabs(s);
+        let min = (hs_ui::tabs::segmented_min_width(ui, &[&files_label, &git_label], &arts, &[])
+            + egui::Frame::side_top_panel(ui.style()).inner_margin.sum().x)
+            .max(180.0);
         let mut column = egui::Panel::left(self.id.with("workspace-column"))
-            .default_size(260.0)
-            .size_range(180.0..=(ui.available_width() * 0.5).max(180.0))
+            .default_size(260.0_f32.max(min))
+            .size_range(min..=(ui.available_width() * 0.5).max(min))
             .resizable(true);
         if !self.show_column {
             column = column.exact_size(0.0).resizable(false);
@@ -4313,90 +4352,6 @@ const LANGUAGE_MENU: &[(&str, &str)] = &[
     ("Log", "log"),
     ("CSV", "csv"),
 ];
-
-/// A row of equal-width toggle segments across the available width (never
-/// wider, so a resizable side panel does not grow). Returns the clicked one.
-/// A segmented control. A segment may show a Material picture beside its
-/// text instead of a leading glyph (FEAT-0084): `arts` is index-aligned
-/// with `labels`, and a missing or `None` entry draws the label alone,
-/// which is what an activity with Material icons off gets.
-fn segmented(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    labels: &[&str],
-    arts: &[Option<egui::ImageSource<'static>>],
-    selected: usize,
-) -> Option<usize> {
-    let (rect, _) =
-        ui.allocate_exact_size(egui::vec2(ui.available_width(), 26.0), egui::Sense::hover());
-    let w = rect.width() / labels.len().max(1) as f32;
-    let mut clicked = None;
-    for (i, label) in labels.iter().enumerate() {
-        let r = egui::Rect::from_min_size(
-            egui::pos2(rect.left() + i as f32 * w, rect.top()),
-            egui::vec2(w, rect.height()),
-        )
-        .shrink2(egui::vec2(1.0, 0.0));
-        let resp = ui.interact(r, ui.id().with(("segment", i)), egui::Sense::click());
-        resp.widget_info(|| {
-            egui::WidgetInfo::selected(
-                egui::WidgetType::SelectableLabel,
-                true,
-                i == selected,
-                *label,
-            )
-        });
-        let on = i == selected;
-        let fill = if on {
-            theme.accent.linear_multiply(0.3)
-        } else if resp.hovered() {
-            theme.surface_hover
-        } else {
-            theme.surface
-        };
-        ui.painter()
-            .rect_filled(r, egui::CornerRadius::same(4), fill);
-        let p = ui.painter().with_clip_rect(r);
-        let colour = if on { theme.text } else { theme.text_muted };
-        let font = egui::FontId::proportional(13.0);
-        match arts.get(i).and_then(|a| a.clone()) {
-            // Picture and text are centred as one unit, so the segment
-            // reads the same as the glyph-and-text one beside it.
-            Some(src) => {
-                let icon = 15.0;
-                let gap = 5.0;
-                let galley = p.layout_no_wrap(label.to_string(), font, colour);
-                let total = icon + gap + galley.size().x;
-                let left = r.center().x - total / 2.0;
-                let at = egui::Rect::from_min_size(
-                    egui::pos2(left, r.center().y - icon / 2.0),
-                    egui::Vec2::splat(icon),
-                );
-                egui::Image::new(src)
-                    .fit_to_exact_size(egui::Vec2::splat(icon))
-                    .paint_at(ui, at);
-                p.galley(
-                    egui::pos2(left + icon + gap, r.center().y - galley.size().y / 2.0),
-                    galley,
-                    colour,
-                );
-            }
-            None => {
-                p.text(
-                    r.center(),
-                    egui::Align2::CENTER_CENTER,
-                    *label,
-                    font,
-                    colour,
-                );
-            }
-        }
-        if resp.clicked() {
-            clicked = Some(i);
-        }
-    }
-    clicked
-}
 
 fn is_writable(meta: &std::fs::Metadata) -> bool {
     !meta.permissions().readonly()

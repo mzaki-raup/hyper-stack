@@ -376,6 +376,7 @@ impl GitTool {
         let credentials = hosts.len();
         let hosts_heading = s.t("git-dash-hosts");
         let hosts_empty = s.t("git-dash-no-hosts");
+        let remove_label = s.t("git-repo-remove");
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
@@ -396,6 +397,8 @@ impl GitTool {
                 empty: &hosts_empty,
                 entries: &hosts,
             }),
+            // The sidebar row's Remove From List, on the card too.
+            entry_menu: Some(&remove_label),
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -456,6 +459,10 @@ impl GitTool {
                 cx.open("git", Some(OpenRequest::Connection { id }))
             }
             Some(hs_ui::dashboard::Pick::Open(id)) => open_saved(cx, &id),
+            // The same confirmed removal the sidebar row's menu asks for.
+            Some(hs_ui::dashboard::Pick::Menu(id)) => cx.actions.push(Action::RunCommand {
+                id: format!("git:remove:{id}"),
+            }),
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id })
             }
@@ -733,6 +740,7 @@ impl Tool for GitTool {
         }
         [
             ("git.ai", "Git: Toggle AI Assistant"),
+            ("git.tree", "Git: Toggle Tree Column"),
             ("git.refresh", "Git: Refresh"),
             ("git.fetch", "Git: Fetch"),
             ("git.pull", "Git: Pull"),

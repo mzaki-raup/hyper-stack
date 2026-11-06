@@ -221,7 +221,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         });
     });
     form::section(ui, theme, &s.t("dt-hash-results"), |ui| {
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("dt-hash-compare"));
             ui.add(
                 hs_ui::form::line_edit(&mut st.expected)
@@ -266,15 +266,19 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             .column(egui_extras::Column::exact(84.0))
             .header(26.0, |mut h| {
                 h.col(|ui| {
+                    ui.add_space(hs_ui::table::HEADER_INDENT);
                     ui.label(egui::RichText::new(s.t("dt-hash-col-algorithm")).strong());
                 });
                 h.col(|ui| {
+                    ui.add_space(hs_ui::table::HEADER_INDENT);
                     ui.label(egui::RichText::new(s.t("dt-hash-col-digest")).strong());
                 });
                 h.col(|ui| {
+                    ui.add_space(hs_ui::table::HEADER_INDENT);
                     ui.label(egui::RichText::new(s.t("dt-hash-col-bits")).strong());
                 });
                 h.col(|ui| {
+                    ui.add_space(hs_ui::table::HEADER_INDENT);
                     ui.label(egui::RichText::new(s.t("dt-hash-col-actions")).strong());
                 });
             })
@@ -282,6 +286,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 for (algo, bytes) in rows {
                     body.row(28.0, |mut row| {
                         row.col(|ui| {
+                            ui.add_space(hs_ui::table::HEADER_INDENT);
                             ui.label(egui::RichText::new(algo.name()).strong());
                         });
                         match bytes {
@@ -295,6 +300,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                         || expected == hex_encode(&b)
                                         || st.expected.trim() == b64_encode(&b));
                                 row.col(|ui| {
+                                    ui.add_space(hs_ui::table::HEADER_INDENT);
                                     ui.add(
                                         egui::Label::new(
                                             egui::RichText::new(&text).monospace().color(
@@ -307,12 +313,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                     .tip(&text);
                                 });
                                 row.col(|ui| {
+                                    ui.add_space(hs_ui::table::HEADER_INDENT);
                                     ui.label(
                                         egui::RichText::new((b.len() * 8).to_string())
                                             .color(theme.text_muted),
                                     );
                                 });
                                 row.col(|ui| {
+                                    ui.add_space(hs_ui::table::HEADER_INDENT);
                                     if ui
                                         .small_button(hs_ui::icons::COPY)
                                         .tip(s.t("dt-copy"))
@@ -327,6 +335,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             }
                             None => {
                                 row.col(|ui| {
+                                    ui.add_space(hs_ui::table::HEADER_INDENT);
                                     ui.colored_label(theme.text_muted, s.t("dt-hash-no-hmac"));
                                 });
                                 row.col(|_| {});

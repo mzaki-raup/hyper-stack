@@ -309,7 +309,6 @@ impl Verbs {
         } else {
             value.clone()
         };
-        hs_ui::form::match_field_height(ui);
         egui::ComboBox::from_id_salt(salt)
             .selected_text(shown)
             .width(220.0)
@@ -338,7 +337,7 @@ impl Verbs {
         busy: bool,
     ) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-branch-name"));
             ui.add(
                 hs_ui::form::line_edit(&mut self.branch_name)
@@ -379,7 +378,7 @@ impl Verbs {
         busy: bool,
     ) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-panel-merge-source"));
             Self::ref_picker(
                 ui,
@@ -418,7 +417,7 @@ impl Verbs {
         busy: bool,
     ) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-panel-rebase-onto"));
             Self::ref_picker(
                 ui,
@@ -501,8 +500,7 @@ impl Verbs {
             .max_height(220.0)
             .show(ui, |ui| {
                 for i in 0..n {
-                    ui.horizontal(|ui| {
-                        hs_ui::form::match_field_height(ui);
+                    hs_ui::form::centred_row(ui, |ui| {
                         let (c, action) = &mut self.inter_todo[i];
                         egui::ComboBox::from_id_salt(("git-rebase-action", i))
                             .selected_text(action.as_str())
@@ -562,7 +560,7 @@ impl Verbs {
 
     fn stash_panel(&mut self, ui: &mut egui::Ui, s: &Services, busy: bool) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-stash-message"));
             ui.add(
                 hs_ui::form::line_edit(&mut self.stash_message)
@@ -590,7 +588,7 @@ impl Verbs {
         busy: bool,
     ) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-panel-tag-name"));
             ui.add(
                 hs_ui::form::line_edit(&mut self.tag_name)
@@ -647,7 +645,7 @@ impl Verbs {
     ) -> Option<Op> {
         let flow = s.settings.read().git.flow.clone();
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             for k in [FlowKind::Feature, FlowKind::Release, FlowKind::Hotfix] {
                 if ui
                     .add(egui::Button::selectable(self.flow_kind == k, s.t(k.key())))
@@ -776,7 +774,7 @@ impl Verbs {
 
     fn rename_panel(&mut self, ui: &mut egui::Ui, s: &Services, busy: bool) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(egui::RichText::new(&self.rename_old).monospace());
             ui.label(ph::ARROW_RIGHT);
             ui.add(hs_ui::form::line_edit(&mut self.rename_new).desired_width(220.0));
@@ -798,7 +796,7 @@ impl Verbs {
 
     fn remote_panel(&mut self, ui: &mut egui::Ui, s: &Services, busy: bool) -> Option<Op> {
         let mut op = None;
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("git-panel-remote-name"));
             ui.add_enabled(
                 self.remote_old.is_none(),

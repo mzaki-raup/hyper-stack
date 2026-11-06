@@ -188,6 +188,35 @@ pub fn match_field_height(ui: &mut egui::Ui) {
     ui.spacing_mut().interact_size.y = h;
 }
 
+/// A row of mixed controls - a label, a text field, a dropdown, buttons -
+/// on one middle line (CR-0061). The row's height is a field's height
+/// *before* the row is laid out: egui fixes a horizontal row's height
+/// when it opens, so raising it inside the closure (as
+/// [`match_field_height`] alone does) leaves a label centred on the old,
+/// shorter row - it sits high beside the field.
+pub fn centred_row<R>(
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let saved = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = field_height(ui);
+    let r = ui.horizontal(add);
+    ui.spacing_mut().interact_size.y = saved;
+    r
+}
+
+/// [`centred_row`] that wraps to the next line when it runs out of width.
+pub fn centred_row_wrapped<R>(
+    ui: &mut egui::Ui,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<R> {
+    let saved = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = field_height(ui);
+    let r = ui.horizontal_wrapped(add);
+    ui.spacing_mut().interact_size.y = saved;
+    r
+}
+
 /// A comfortable single-line text field that fills the available width
 /// (between [`FIELD_MIN_WIDTH`] and [`FIELD_MAX_WIDTH`]).
 pub fn text_field(ui: &mut egui::Ui, value: &mut String, hint: &str) -> egui::Response {

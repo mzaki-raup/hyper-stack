@@ -650,3 +650,7 @@ root, language, order and the repository identity).
   palette commands with their shortcuts (`file.open_folder`, `file.open`).
 - A file's tab wears the **same icon as the file list**: its Material
   picture when Material icons are on, the generic file glyph when not.
+
+## 17. List rows and project cards (CR-0067, CR-0068, 2026-11-06)
+
+Project cards on the dashboard have a right-click **Remove From List**, as the sidebar row does. Project and branch rows wear their Material pictures when Material icons are on.

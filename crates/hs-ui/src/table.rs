@@ -21,6 +21,11 @@ pub const HEADER_HEIGHT: f32 = 34.0;
 /// Header text, larger than a cell's and always bold (CR-0046).
 pub const HEADER_TEXT: f32 = 14.5;
 
+/// How far a header's title sits in from its column's left edge, and a
+/// left-aligned cell's text with it, so the two start at the same x in
+/// every table.
+pub const HEADER_INDENT: f32 = 8.0;
+
 /// Every cell lays its content out from the left, centred on the row's
 /// height, so text sits in the middle of its row in every table (CR-0046).
 pub fn cell_layout() -> egui::Layout {
@@ -80,6 +85,10 @@ pub struct DataTable<'a> {
     /// An icon for the first column of each row, in `rows` order. A file
     /// listing reads far faster with its file-type icons than without.
     pub row_icons: Option<&'a [egui::ImageSource<'static>]>,
+    /// One sentence-case line drawn under the header when there are no
+    /// rows, so an empty table says so (CR-0061). `None` for a caller
+    /// that shows its empty state elsewhere.
+    pub empty_hint: Option<&'a str>,
 }
 
 impl DataTable<'_> {
@@ -134,7 +143,7 @@ impl DataTable<'_> {
     pub fn show(&self, ui: &mut egui::Ui, state: &mut TableState) -> TableResponse {
         let mut resp = TableResponse::default();
         if self.show_filter {
-            ui.horizontal(|ui| {
+            crate::form::centred_row(ui, |ui| {
                 ui.label(crate::icons::SEARCH);
                 ui.add(
                     crate::form::line_edit(&mut state.filter)
@@ -174,6 +183,7 @@ impl DataTable<'_> {
                 // infinitely wide.
                 ui.set_min_width(content_width);
                 ui.set_max_width(content_width);
+                let band = begin_header_band(ui);
                 let mut builder = TableBuilder::new(ui)
                     .striped(true)
                     .resizable(true)
@@ -196,7 +206,7 @@ impl DataTable<'_> {
                                     Some((col, false)) if col == i => " ▼",
                                     _ => "",
                                 };
-                                header_band(ui, self.theme);
+                                ui.add_space(HEADER_INDENT);
                                 if ui
                                     .add(
                                         egui::Label::new(
@@ -217,7 +227,7 @@ impl DataTable<'_> {
                                 }
                             });
                         }
-                        header.col(|ui| header_band(ui, self.theme));
+                        header.col(|_| {});
                     })
                     .body(|body| {
                         body.rows(self.row_height.max(ROW_HEIGHT), order.len(), |mut row| {
@@ -225,6 +235,9 @@ impl DataTable<'_> {
                             row.set_selected(state.selected == Some(data_idx));
                             for (ci, c) in self.columns.iter().enumerate() {
                                 row.col(|ui| {
+                                    if !c.numeric {
+                                        ui.add_space(HEADER_INDENT);
+                                    }
                                     let text = self.rows[data_idx]
                                         .get(ci)
                                         .map(String::as_str)
@@ -288,7 +301,13 @@ impl DataTable<'_> {
                             }
                         });
                     });
+                end_header_band(ui, self.theme, band);
             });
+        if self.rows.is_empty()
+            && let Some(text) = self.empty_hint
+        {
+            draw_empty_hint(ui, self.theme, text);
+        }
         if let Some(s) = new_sort {
             state.sort = s;
         }
@@ -301,22 +320,61 @@ impl DataTable<'_> {
     }
 }
 
-/// Fill a header cell, so the header row reads as a band rather than as
-/// a first row in bold. Drawn before the label, and widened by the
-/// column spacing so the cells meet instead of leaving gaps (CR-0028).
-pub fn header_band(ui: &mut egui::Ui, theme: &Theme) {
-    let r = ui.max_rect();
-    let pad = ui.spacing().item_spacing.x;
-    let band = egui::Rect::from_min_max(
-        egui::pos2(r.left() - pad, r.top()),
-        egui::pos2(r.right() + pad, r.bottom()),
+/// The header row's background, reserved before the table is laid out
+/// and painted once it is: one band the full width of the table's row,
+/// behind every header cell and the gaps between them, so it never
+/// stops short at the last column (owner, 2026-11-06).
+pub struct HeaderBand {
+    idx: egui::layers::ShapeIdx,
+    left: f32,
+    right: f32,
+    top: f32,
+}
+
+/// Reserve the header band. Call before `TableBuilder::new`, and
+/// [`end_header_band`] after the table.
+pub fn begin_header_band(ui: &egui::Ui) -> HeaderBand {
+    let r = ui.available_rect_before_wrap();
+    HeaderBand {
+        idx: ui.painter().add(egui::Shape::Noop),
+        left: r.left(),
+        right: r.right().max(ui.clip_rect().right()),
+        top: ui.cursor().top(),
+    }
+}
+
+/// The header's fill: the accent, light enough to keep the bold titles
+/// readable, so the header row stands apart from the data cells.
+pub fn header_fill(theme: &Theme) -> egui::Color32 {
+    theme.accent.gamma_multiply(0.22)
+}
+
+/// Paint the band reserved by [`begin_header_band`]: the accent fill
+/// across the full row, with an accent rule under it.
+pub fn end_header_band(ui: &egui::Ui, theme: &Theme, band: HeaderBand) {
+    let rect = egui::Rect::from_min_max(
+        egui::pos2(band.left, band.top),
+        egui::pos2(band.right, band.top + HEADER_HEIGHT),
     );
-    ui.painter().rect_filled(band, 0.0, theme.surface);
+    ui.painter().set(
+        band.idx,
+        egui::Shape::rect_filled(rect, 0.0, header_fill(theme)),
+    );
     ui.painter().hline(
-        band.x_range(),
-        band.bottom() - 0.5,
-        egui::Stroke::new(1.0, theme.border),
+        rect.x_range(),
+        rect.bottom() - 0.5,
+        egui::Stroke::new(1.0, theme.accent.gamma_multiply(0.6)),
     );
+}
+
+/// The muted line an empty table shows under its header, indented as
+/// the header's titles are.
+fn draw_empty_hint(ui: &mut egui::Ui, theme: &Theme, text: &str) {
+    ui.add_space(4.0);
+    ui.horizontal(|ui| {
+        ui.add_space(HEADER_INDENT);
+        crate::form::hint(ui, theme, text);
+    });
 }
 
 /// One column of an [`edit_table`]: its header and its narrowest width.
@@ -347,19 +405,21 @@ pub fn edit_row_height(ui: &egui::Ui) -> f32 {
 /// left and centred on the row ([`cell_layout`]); and every control in a
 /// cell - field, dropdown, checkbox, button - is a field's height, so the
 /// inputs of a row line up (CR-0061). `cell(ui, row, column)` draws one
-/// cell.
+/// cell. With no rows, `empty_hint` is drawn under the header.
 pub fn edit_table(
     ui: &mut egui::Ui,
     theme: &Theme,
     id: impl std::hash::Hash + std::fmt::Debug,
     columns: &[EditColumn<'_>],
     rows: usize,
+    empty_hint: Option<&str>,
     mut cell: impl FnMut(&mut egui::Ui, usize, usize),
 ) {
     let field_h = crate::form::field_height(ui);
     let row_h = edit_row_height(ui);
     let avail = ui.available_width();
     let spacing = ui.spacing().item_spacing.x * columns.len() as f32;
+    let band = begin_header_band(ui);
     let mut builder = TableBuilder::new(ui)
         .id_salt(id)
         .striped(true)
@@ -387,8 +447,7 @@ pub fn edit_table(
         .header(HEADER_HEIGHT, |mut header| {
             for c in columns {
                 header.col(|ui| {
-                    header_band(ui, theme);
-                    ui.add_space(4.0);
+                    ui.add_space(HEADER_INDENT);
                     ui.add(
                         egui::Label::new(egui::RichText::new(c.name).strong().size(HEADER_TEXT))
                             .selectable(false),
@@ -402,12 +461,19 @@ pub fn edit_table(
                 for c in 0..columns.len() {
                     row.col(|ui| {
                         ui.spacing_mut().interact_size.y = field_h;
-                        ui.add_space(4.0);
+                        // The field's edge under the header's title.
+                        ui.add_space(HEADER_INDENT);
                         cell(ui, r, c);
                     });
                 }
             });
         });
+    end_header_band(ui, theme, band);
+    if rows == 0
+        && let Some(text) = empty_hint
+    {
+        draw_empty_hint(ui, theme, text);
+    }
 }
 
 #[cfg(test)]
@@ -435,6 +501,7 @@ mod tests {
             copy_row_label: "Copy Row",
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let mut st = TableState::default();
         assert_eq!(t.order(&st), vec![0, 1, 2]);

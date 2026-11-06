@@ -339,3 +339,7 @@ The activity's home tab wears the shape every activity now shares
 mark, name and subtitle; the figures in equal rounded boxes;
 **Start Here** with its first moves; **Tools** - every utility over the category the sidebar files it in;
 and the shared **Open Here** grid, each section ruled apart.
+
+## Addendum (2026-11-06): deleting a snippet (CR-0067)
+
+A saved snippet has **Delete Snippet** in its right-click menu, confirmed. Ports with nothing listening show a hint instead of an empty table.

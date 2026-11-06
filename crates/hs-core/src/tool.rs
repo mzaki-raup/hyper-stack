@@ -388,6 +388,16 @@ pub trait Tool: Send {
         false
     }
 
+    /// The narrowest the shell may let the sidebar be dragged, when the
+    /// sidebar holds something that needs more than the shell's own
+    /// minimum - a row of tabs that must show every icon and label whole
+    /// (CR-0069). The width of the content alone: the shell adds its
+    /// panel's margins. Measured while drawing, so it may lag one frame.
+    /// `None` keeps the shell's minimum.
+    fn sidebar_min_width(&self) -> Option<f32> {
+        None
+    }
+
     /// Optional toolbar row under the environment banner.
     fn toolbar(&mut self, _ui: &mut egui::Ui, _cx: &mut ToolContext) {}
 

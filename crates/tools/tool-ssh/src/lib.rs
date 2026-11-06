@@ -203,6 +203,8 @@ pub struct SshTool {
     monitor_error: Option<String>,
     /// Saved forwards are started on the Idle → Connected edge only.
     was_connected: bool,
+    /// A kept forward's Delete waiting for its confirmation (CR-0067).
+    confirm_forward: Option<usize>,
 }
 
 /// `ssh -L` as a form: local port (empty = any free one) → remote host:port
@@ -262,6 +264,7 @@ impl SshTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -297,6 +300,7 @@ impl SshTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -354,6 +358,7 @@ impl SshTool {
             monitor_at: None,
             monitor_error: None,
             was_connected: false,
+            confirm_forward: None,
         };
         // What the profile already learned, so a restored tab wears the
         // host's logo before any probe runs.
@@ -1157,6 +1162,7 @@ impl SshTool {
             ColumnSpec::new(s.t("ssh-col-perms"), 90.0),
         ];
         let copy_label = s.t("table-copy-row");
+        let empty_label = s.t("ssh-folder-empty");
         let table = DataTable {
             theme,
             columns: &columns,
@@ -1167,6 +1173,7 @@ impl SshTool {
             // The pane has a menu of its own, below.
             built_in_menu: false,
             row_icons: material.then_some(icons.as_slice()),
+            empty_hint: Some(&empty_label),
         };
         let resp = table.show(ui, &mut self.table);
         // Map table row (shown index) back to the entry index.
@@ -2081,15 +2088,32 @@ impl SshTool {
                                 } else {
                                     fw.local_port.to_string()
                                 };
-                                ui.label(
-                                    egui::RichText::new(tunnel_title(
-                                        &fw.name,
-                                        &local,
-                                        &fw.remote_host,
-                                        fw.remote_port,
-                                    ))
-                                    .strong(),
-                                );
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(tunnel_title(
+                                            &fw.name,
+                                            &local,
+                                            &fw.remote_host,
+                                            fw.remote_port,
+                                        ))
+                                        .strong(),
+                                    )
+                                    .selectable(false)
+                                    .sense(egui::Sense::click()),
+                                )
+                                .context_menu(|ui| {
+                                    if ui
+                                        .button(format!(
+                                            "{} {}",
+                                            hs_ui::icons::TRASH,
+                                            s.t("delete")
+                                        ))
+                                        .clicked()
+                                    {
+                                        remove = Some(i);
+                                        ui.close();
+                                    }
+                                });
                                 let mut auto = fw.auto;
                                 if ui
                                     .checkbox(&mut auto, s.t("ssh-saved-forward-auto"))
@@ -2122,16 +2146,37 @@ impl SshTool {
                                 }
                             });
                         }
-                        if let Some(i) = remove {
-                            Self::edit_saved_forwards(s, &id, |v| {
-                                if i < v.len() {
-                                    v.remove(i);
-                                }
-                            });
+                        if remove.is_some() {
+                            self.confirm_forward = remove;
                         }
                     });
             });
         ui.add_space(4.0);
+        // Delete, from the trash button or the right-click menu, behind a
+        // confirmation (CR-0067).
+        if let (Some(i), Some(id)) = (self.confirm_forward, self.state.conn_id.clone()) {
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                theme,
+                "ssh-delete-forward",
+                &s.t("ssh-saved-forward-delete"),
+                &s.t("ssh-saved-forward-delete-body"),
+                &s.t("delete"),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.confirm_forward = None;
+                    Self::edit_saved_forwards(s, &id, |v| {
+                        if i < v.len() {
+                            v.remove(i);
+                        }
+                    });
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_forward = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        }
     }
 
     /// The server monitor strip (docs/tools/ssh-sftp.md §9): figures

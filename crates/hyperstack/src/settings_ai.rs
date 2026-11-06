@@ -1235,8 +1235,7 @@ fn pick_field(
     placeholder: &str,
     options: &[String],
 ) {
-    ui.horizontal(|ui| {
-        hs_ui::form::match_field_height(ui);
+    hs_ui::form::centred_row(ui, |ui| {
         form::text_field_width(ui, value, placeholder, form::FIELD_MIN_WIDTH - 34.0);
         if !options.is_empty() {
             egui::ComboBox::from_id_salt(id)

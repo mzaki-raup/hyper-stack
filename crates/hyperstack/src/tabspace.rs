@@ -351,6 +351,18 @@ impl TabSpace {
         Some(closed)
     }
 
+    /// Home's Recent → Remove (CR-0067): forget one closed tab.
+    pub fn remove_closed(&mut self, index: usize) {
+        if index < self.closed.len() {
+            self.closed.remove(index);
+        }
+    }
+
+    /// Home's Recent → Clear Recent (CR-0067): forget every closed tab.
+    pub fn clear_closed(&mut self) {
+        self.closed.clear();
+    }
+
     pub fn close_others(&mut self, keep: u64) -> Vec<u64> {
         let ids: Vec<u64> = self
             .tabs
@@ -685,5 +697,28 @@ mod tests {
             "after Settings says the logo changed, it is read again"
         );
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn recent_closed_tabs_can_be_removed_one_at_a_time_or_cleared() {
+        let mut space = TabSpace::new();
+        for title in ["a", "b", "c"] {
+            space.closed.push(ClosedTab {
+                factory_id: "devtools".into(),
+                state: serde_json::Value::Null,
+                title: title.into(),
+            });
+        }
+        space.remove_closed(1);
+        let titles: Vec<&str> = space.closed.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, ["a", "c"]);
+        space.remove_closed(9);
+        assert_eq!(
+            space.closed.len(),
+            2,
+            "an index past the end changes nothing"
+        );
+        space.clear_closed();
+        assert!(space.closed.is_empty());
     }
 }

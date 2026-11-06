@@ -413,8 +413,7 @@ impl FilesView {
                 self.refresh();
             }
         });
-        ui.horizontal(|ui| {
-            hs_ui::form::match_field_height(ui);
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(ph::GIT_BRANCH);
             egui::ComboBox::from_id_salt(ui.id().with("git-files-branch"))
                 .selected_text(current.unwrap_or("HEAD"))

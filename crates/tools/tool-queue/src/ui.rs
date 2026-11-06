@@ -891,6 +891,7 @@ impl QueueTool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -932,6 +933,7 @@ impl QueueTool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(Action::FocusTab { tab_id });
             }
@@ -1110,6 +1112,7 @@ impl QueueTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: (!icons.is_empty()).then_some(icons.as_slice()),
+            empty_hint: None,
         };
         // Each table in the tab needs its own id scope, or egui sees the
         // destinations and the consumers as one table drawn twice.
@@ -1216,7 +1219,7 @@ impl QueueTool {
             _ => form::hint(ui, theme, &s.t("queue-peek-safe")),
         }
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("queue-peek-count"));
             ui.add(egui::DragValue::new(&mut self.peek_count).range(1..=driver::PEEK_MAX));
             if caps.peek_from {
@@ -1300,6 +1303,7 @@ impl QueueTool {
                 copy_row_label: &s.t("table-copy-row"),
                 built_in_menu: true,
                 row_icons: None,
+                empty_hint: None,
             };
             let r = ui
                 .push_id("queue-messages", |ui| {
@@ -1592,6 +1596,7 @@ impl QueueTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let r = ui
             .push_id("queue-consumers", |ui| {
@@ -1678,6 +1683,7 @@ impl QueueTool {
             copy_row_label: &s.t("table-copy-row"),
             built_in_menu: true,
             row_icons: None,
+            empty_hint: None,
         };
         let r = ui
             .push_id("queue-bindings", |ui| {

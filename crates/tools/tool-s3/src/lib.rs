@@ -236,6 +236,7 @@ impl S3Tool {
             tabs: &tabs,
             labels: &labels,
             extra: None,
+            entry_menu: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -271,6 +272,7 @@ impl S3Tool {
             }
             // No second grid on this dashboard (CR-0056).
             Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
+            Some(hs_ui::dashboard::Pick::Menu(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -2045,14 +2047,22 @@ impl S3Tool {
                 let w = ui.available_width();
                 for b in &buckets {
                     let on = self.state.bucket.as_deref() == Some(b.name.as_str());
-                    if ui
-                        .add(
-                            egui::Button::selectable(on, format!("{} {}", ph::ARCHIVE, b.name))
-                                .min_size(egui::vec2(w, 0.0)),
-                        )
-                        .clicked()
-                        && !on
+                    // Material icons on: the bucket picture in place of
+                    // the glyph.
+                    let button = match material
+                        .then(|| hs_ui::fileicons::for_kind("bucket"))
+                        .flatten()
                     {
+                        Some(src) => egui::Button::selectable(
+                            on,
+                            (
+                                egui::Image::new(src).fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                                b.name.as_str(),
+                            ),
+                        ),
+                        None => egui::Button::selectable(on, format!("{} {}", ph::ARCHIVE, b.name)),
+                    };
+                    if ui.add(button.min_size(egui::vec2(w, 0.0))).clicked() && !on {
                         open = Some(b.name.clone());
                     }
                     if !on {
@@ -2085,10 +2095,17 @@ impl S3Tool {
         let crumb_material = s.settings.read().appearance.material_icons("s3");
         let mut go: Option<String> = None;
         ui.horizontal_wrapped(|ui| {
-            if ui
-                .add(egui::Button::new(format!("{} {bucket}", ph::ARCHIVE)).frame(false))
-                .clicked()
+            let root = match crumb_material
+                .then(|| hs_ui::fileicons::for_kind("bucket"))
+                .flatten()
             {
+                Some(src) => egui::Button::image_and_text(
+                    egui::Image::new(src).fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                    bucket.as_str(),
+                ),
+                None => egui::Button::new(format!("{} {bucket}", ph::ARCHIVE)),
+            };
+            if ui.add(root.frame(false)).clicked() {
                 go = Some(String::new());
             }
             let mut acc = String::new();
@@ -2210,6 +2227,7 @@ impl S3Tool {
                     copy_row_label: &copy_label,
                     built_in_menu: true,
                     row_icons: material.then_some(icons.as_slice()),
+                    empty_hint: None,
                 }
                 .show(ui, &mut self.table)
             })

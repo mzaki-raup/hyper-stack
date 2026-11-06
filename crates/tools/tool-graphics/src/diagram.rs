@@ -696,9 +696,12 @@ impl DiagramState {
                 "gfx-view-split",
             ),
         ] {
-            if ui
-                .selectable_label(self.view == view, format!("{} {}", icon, s.t(key)))
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                self.view == view,
+                format!("{} {}", icon, s.t(key)),
+            )
+            .clicked()
             {
                 self.view = view;
             }
@@ -777,12 +780,12 @@ impl DiagramState {
                 s.t("gfx-diagram-grid")
             ),
         );
-        if ui
-            .selectable_label(
-                self.tool == ToolMode::Select,
-                format!("{} {}", hs_ui::icons::ph::CURSOR, s.t("gfx-diagram-select")),
-            )
-            .clicked()
+        if hs_ui::form::selectable_label(
+            ui,
+            self.tool == ToolMode::Select,
+            format!("{} {}", hs_ui::icons::ph::CURSOR, s.t("gfx-diagram-select")),
+        )
+        .clicked()
         {
             self.tool = ToolMode::Select;
             self.edge_from = None;
@@ -871,16 +874,16 @@ impl DiagramState {
         {
             self.add_frame();
         }
-        if ui
-            .selectable_label(
-                self.tool == ToolMode::Edge,
-                format!(
-                    "{} {}",
-                    hs_ui::icons::ph::ARROW_RIGHT,
-                    s.t("gfx-diagram-add-edge")
-                ),
-            )
-            .clicked()
+        if hs_ui::form::selectable_label(
+            ui,
+            self.tool == ToolMode::Edge,
+            format!(
+                "{} {}",
+                hs_ui::icons::ph::ARROW_RIGHT,
+                s.t("gfx-diagram-add-edge")
+            ),
+        )
+        .clicked()
         {
             self.tool = ToolMode::Edge;
             self.edge_from = None;
@@ -956,7 +959,7 @@ impl DiagramState {
                 .selected_text(&pages[selected].name)
                 .show_ui(ui, |ui| {
                     for (i, page) in pages.iter().enumerate() {
-                        ui.selectable_value(&mut selected, i, &page.name);
+                        hs_ui::form::selectable_value(ui, &mut selected, i, &page.name);
                     }
                 });
             ui.add_space(10.0);
@@ -1025,7 +1028,7 @@ impl DiagramState {
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
                                 .unwrap_or_else(|| root.display().to_string());
-                            ui.selectable_value(&mut self.save_project, i, label);
+                            hs_ui::form::selectable_value(ui, &mut self.save_project, i, label);
                         }
                     });
                 ui.end_row();
@@ -1260,13 +1263,13 @@ impl DiagramState {
                                         NodeKind::Store,
                                         NodeKind::Queue,
                                     ] {
-                                        if ui
-                                            .selectable_value(
-                                                &mut node.kind,
-                                                kind,
-                                                shape_label(kind, s),
-                                            )
-                                            .changed()
+                                        if hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut node.kind,
+                                            kind,
+                                            shape_label(kind, s),
+                                        )
+                                        .changed()
                                         {
                                             changed = true;
                                         }
@@ -1338,13 +1341,13 @@ impl DiagramState {
                                                             "UQ",
                                                         ),
                                                     ] {
-                                                        if ui
-                                                            .selectable_value(
-                                                                &mut column.key,
-                                                                key,
-                                                                label,
-                                                            )
-                                                            .changed()
+                                                        if hs_ui::form::selectable_value(
+                                                            ui,
+                                                            &mut column.key,
+                                                            key,
+                                                            label,
+                                                        )
+                                                        .changed()
                                                         {
                                                             changed = true;
                                                         }
@@ -1455,13 +1458,13 @@ impl DiagramState {
                                             .unwrap_or_else(|| s.t("gfx-card-custom")),
                                     )
                                     .show_ui(ui, |ui| {
-                                        if ui
-                                            .selectable_value(
-                                                &mut edge.cardinality,
-                                                None,
-                                                s.t("gfx-card-custom"),
-                                            )
-                                            .changed()
+                                        if hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut edge.cardinality,
+                                            None,
+                                            s.t("gfx-card-custom"),
+                                        )
+                                        .changed()
                                         {
                                             changed = true;
                                         }
@@ -1472,13 +1475,13 @@ impl DiagramState {
                                             (hs_diagram::model::Cardinality::ZeroOrOne, "0 .. 1"),
                                             (hs_diagram::model::Cardinality::ZeroOrMany, "0 .. *"),
                                         ] {
-                                            if ui
-                                                .selectable_value(
-                                                    &mut edge.cardinality,
-                                                    Some(value),
-                                                    label,
-                                                )
-                                                .changed()
+                                            if hs_ui::form::selectable_value(
+                                                ui,
+                                                &mut edge.cardinality,
+                                                Some(value),
+                                                label,
+                                            )
+                                            .changed()
                                             {
                                                 edge.label = value.label().into();
                                                 changed = true;
@@ -1494,9 +1497,13 @@ impl DiagramState {
                                     (Arrow::End, "gfx-arrow-end"),
                                     (Arrow::Both, "gfx-arrow-both"),
                                 ] {
-                                    changed |= ui
-                                        .selectable_value(&mut edge.arrow, value, s.t(key))
-                                        .changed();
+                                    changed |= hs_ui::form::selectable_value(
+                                        ui,
+                                        &mut edge.arrow,
+                                        value,
+                                        s.t(key),
+                                    )
+                                    .changed();
                                 }
                             });
                             ui.end_row();
@@ -1507,31 +1514,43 @@ impl DiagramState {
                                     (EdgeRoute::Orthogonal, "gfx-route-orthogonal"),
                                     (EdgeRoute::Curved, "gfx-route-curved"),
                                 ] {
-                                    changed |= ui
-                                        .selectable_value(&mut edge.route, value, s.t(key))
-                                        .changed();
+                                    changed |= hs_ui::form::selectable_value(
+                                        ui,
+                                        &mut edge.route,
+                                        value,
+                                        s.t(key),
+                                    )
+                                    .changed();
                                 }
                             });
                             ui.end_row();
                             props_label(ui, &s.t("gfx-prop-line"));
                             ui.horizontal(|ui| {
                                 let solid = !edge.dashed && !edge.dotted;
-                                if ui.selectable_label(solid, s.t("gfx-line-solid")).clicked() {
+                                if hs_ui::form::selectable_label(ui, solid, s.t("gfx-line-solid"))
+                                    .clicked()
+                                {
                                     edge.dashed = false;
                                     edge.dotted = false;
                                     changed = true;
                                 }
-                                if ui
-                                    .selectable_label(edge.dashed, s.t("gfx-line-dashed"))
-                                    .clicked()
+                                if hs_ui::form::selectable_label(
+                                    ui,
+                                    edge.dashed,
+                                    s.t("gfx-line-dashed"),
+                                )
+                                .clicked()
                                 {
                                     edge.dashed = true;
                                     edge.dotted = false;
                                     changed = true;
                                 }
-                                if ui
-                                    .selectable_label(edge.dotted, s.t("gfx-line-dotted"))
-                                    .clicked()
+                                if hs_ui::form::selectable_label(
+                                    ui,
+                                    edge.dotted,
+                                    s.t("gfx-line-dotted"),
+                                )
+                                .clicked()
                                 {
                                     edge.dotted = true;
                                     edge.dashed = false;
@@ -1657,9 +1676,13 @@ impl DiagramState {
                                             (hs_diagram::model::FragmentKind::Opt, "opt"),
                                             (hs_diagram::model::FragmentKind::Note, "note"),
                                         ] {
-                                            if ui
-                                                .selectable_value(&mut fragment.kind, kind, label)
-                                                .changed()
+                                            if hs_ui::form::selectable_value(
+                                                ui,
+                                                &mut fragment.kind,
+                                                kind,
+                                                label,
+                                            )
+                                            .changed()
                                             {
                                                 fragment_changed = true;
                                             }
@@ -1736,8 +1759,7 @@ impl DiagramState {
                 ui.indent("gfx-outline-nodes", |ui| {
                     for (id, label, icon) in nodes {
                         let selected = self.selected.as_deref() == Some(id.as_str());
-                        if ui
-                            .selectable_label(selected, format!("{icon}  {label}"))
+                        if hs_ui::form::selectable_label(ui, selected, format!("{icon}  {label}"))
                             .clicked()
                         {
                             self.selected = Some(id);
@@ -1755,12 +1777,12 @@ impl DiagramState {
                             format!("{} → {} ({})", edge.from, edge.to, edge.label)
                         };
                         let selected = self.selected_edge.as_deref() == Some(edge.id.as_str());
-                        if ui
-                            .selectable_label(
-                                selected,
-                                format!("{}  {}", hs_ui::icons::ph::ARROW_RIGHT, label),
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            selected,
+                            format!("{}  {}", hs_ui::icons::ph::ARROW_RIGHT, label),
+                        )
+                        .clicked()
                         {
                             self.selected_edge = Some(edge.id.clone());
                             self.selected = None;
@@ -2887,7 +2909,7 @@ fn placement_picker(
                 "gfx-place-bottom",
             ),
         ] {
-            if ui.selectable_label(*placement == value, s.t(key)).clicked() {
+            if hs_ui::form::selectable_label(ui, *placement == value, s.t(key)).clicked() {
                 *placement = value;
                 changed = true;
             }
@@ -2909,7 +2931,7 @@ fn align_picker(
             (hs_diagram::model::LabelAlign::Centre, "gfx-text-middle"),
             (hs_diagram::model::LabelAlign::Right, "gfx-text-right"),
         ] {
-            if ui.selectable_label(*align == value, s.t(key)).clicked() {
+            if hs_ui::form::selectable_label(ui, *align == value, s.t(key)).clicked() {
                 *align = value;
                 changed = true;
             }

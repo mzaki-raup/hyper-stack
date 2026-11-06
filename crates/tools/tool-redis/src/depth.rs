@@ -812,8 +812,7 @@ impl RedisTool {
                 .width(320.0)
                 .show_ui(ui, |ui| {
                     for k in &streams {
-                        if ui
-                            .selectable_label(self.depth.stream_key == *k, k)
+                        if hs_ui::form::selectable_label(ui, self.depth.stream_key == *k, k)
                             .clicked()
                         {
                             picked = Some(k.clone());

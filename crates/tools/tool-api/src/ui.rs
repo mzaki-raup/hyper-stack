@@ -171,9 +171,19 @@ impl ResponseView {
 
     fn show(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.mode, BodyMode::Pretty, s.t("api-body-pretty"));
-            ui.selectable_value(&mut self.mode, BodyMode::Raw, s.t("api-body-raw"));
-            ui.selectable_value(&mut self.mode, BodyMode::Preview, s.t("api-body-preview"));
+            hs_ui::form::selectable_value(
+                ui,
+                &mut self.mode,
+                BodyMode::Pretty,
+                s.t("api-body-pretty"),
+            );
+            hs_ui::form::selectable_value(ui, &mut self.mode, BodyMode::Raw, s.t("api-body-raw"));
+            hs_ui::form::selectable_value(
+                ui,
+                &mut self.mode,
+                BodyMode::Preview,
+                s.t("api-body-preview"),
+            );
             ui.separator();
             if let Some(sn) = &self.sniffed {
                 ui.label(
@@ -1428,7 +1438,7 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                 )
                 .show_ui(ui, |ui| {
                     for m in METHODS {
-                        if ui.selectable_label(t.request.method == m, m).clicked() {
+                        if hs_ui::form::selectable_label(ui, t.request.method == m, m).clicked() {
                             t.request.method = m.into();
                         }
                     }
@@ -1702,7 +1712,7 @@ fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id:
             .selected_text(a.kind.label())
             .show_ui(ui, |ui| {
                 for k in AuthKind::ALL {
-                    ui.selectable_value(&mut a.kind, k, k.label());
+                    hs_ui::form::selectable_value(ui, &mut a.kind, k, k.label());
                 }
             });
     });
@@ -1765,7 +1775,12 @@ fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id:
                         ("password", "api-auth-grant-password"),
                         ("refresh_token", "api-auth-grant-refresh"),
                     ] {
-                        ui.selectable_value(&mut a.grant, value.to_string(), s.t(key));
+                        hs_ui::form::selectable_value(
+                            ui,
+                            &mut a.grant,
+                            value.to_string(),
+                            s.t(key),
+                        );
                     }
                 });
             ui.end_row();
@@ -2149,7 +2164,7 @@ fn console(
     ui: &mut egui::Ui,
     theme: &Theme,
     logs: &[String],
-    levels: &[Option<hs_core::loglevel::Level>],
+    levels: &[Option<hs_ui::loglevel::Span>],
 ) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
@@ -2157,14 +2172,13 @@ fn console(
             if logs.is_empty() {
                 ui.colored_label(theme.text_muted, "—");
             }
+            let mono = egui::TextStyle::Monospace.resolve(ui.style());
             for (i, l) in logs.iter().enumerate() {
-                let mut text = egui::RichText::new(l).monospace();
-                // The Logs activity's level colours (CR-0077), read once
-                // when the outcome arrived.
-                if let Some(Some(lv)) = levels.get(i) {
-                    text = text.color(hs_ui::loglevel::colour(theme, *lv));
-                }
-                ui.add(egui::Label::new(text).wrap());
+                // The Logs activity's level colours (CR-0077) on the level
+                // word only, its span read once when the outcome arrived.
+                let span = levels.get(i).and_then(Option::as_ref);
+                let job = hs_ui::loglevel::line_job(theme, l, span, mono.clone(), theme.text);
+                ui.add(egui::Label::new(job).wrap());
             }
         });
 }
@@ -2389,7 +2403,9 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                     )
                     .show_ui(ui, |ui| {
                         for (id, name) in &cols {
-                            if ui.selectable_label(&st.collection == id, name).clicked() {
+                            if hs_ui::form::selectable_label(ui, &st.collection == id, name)
+                                .clicked()
+                            {
                                 st.collection = id.clone();
                                 st.folder = None;
                             }
@@ -2959,7 +2975,7 @@ pub(crate) fn manage_tab(
     ui.horizontal_wrapped(|ui| {
         for page in ManagePage::ALL {
             let text = format!("{} {}", page.icon(), s.t(page.label_key()));
-            if ui.selectable_label(t.manage_page == page, text).clicked() {
+            if hs_ui::form::selectable_label(ui, t.manage_page == page, text).clicked() {
                 t.manage_page = page;
             }
         }

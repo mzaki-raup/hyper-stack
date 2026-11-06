@@ -183,9 +183,12 @@ impl GeneratorState {
                     "gfx-view-split",
                 ),
             ] {
-                if ui
-                    .selectable_label(self.view == view, format!("{} {}", icon, s.t(key)))
-                    .clicked()
+                if hs_ui::form::selectable_label(
+                    ui,
+                    self.view == view,
+                    format!("{} {}", icon, s.t(key)),
+                )
+                .clicked()
                 {
                     self.view = view;
                 }
@@ -235,22 +238,22 @@ impl GeneratorState {
                                 }
                             })
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Flow,
                                     s.t("gfx-diagram-flow-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Architecture,
                                     s.t("gfx-diagram-arch-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Erd,
                                     s.t("gfx-diagram-erd-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Sequence,
                                     s.t("gfx-diagram-sequence-template"),
@@ -270,8 +273,7 @@ impl GeneratorState {
                             .selected_text(selected_name)
                             .show_ui(ui, |ui| {
                                 for p in &providers {
-                                    if ui
-                                        .selectable_label(
+                                    if hs_ui::form::selectable_label(ui,
                                             self.provider_id == p.id,
                                             &p.name,
                                         )

@@ -216,8 +216,8 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 util::secret_line(ui, s, theme, &mut st.hmac_key, &s.t("dt-hash-hmac-key"));
             }
             ui.separator();
-            ui.selectable_value(&mut st.output, Output::Hex, "hex");
-            ui.selectable_value(&mut st.output, Output::Base64, "Base64");
+            hs_ui::form::selectable_value(ui, &mut st.output, Output::Hex, "hex");
+            hs_ui::form::selectable_value(ui, &mut st.output, Output::Base64, "Base64");
         });
     });
     form::section(ui, theme, &s.t("dt-hash-results"), |ui| {

@@ -1048,10 +1048,13 @@ impl NoSqlTool {
                     let clicked = ui
                         .horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 4.0;
-                            let mut r = ui.add(egui::Button::selectable(
-                                self.state.database.as_deref() == Some(db.as_str()),
-                                format!("{icon} {db}"),
-                            ));
+                            let mut r = hs_ui::form::add_selectable(
+                                ui,
+                                egui::Button::selectable(
+                                    self.state.database.as_deref() == Some(db.as_str()),
+                                    format!("{icon} {db}"),
+                                ),
+                            );
                             if let Some(src) = material
                                 .then(|| hs_ui::fileicons::for_kind("database"))
                                 .flatten()
@@ -1100,7 +1103,10 @@ impl NoSqlTool {
                                             ),
                                         );
                                     }
-                                    let lr = ui.add(egui::Button::selectable(selected, label));
+                                    let lr = hs_ui::form::add_selectable(
+                                        ui,
+                                        egui::Button::selectable(selected, label),
+                                    );
                                     let hit = match r {
                                         Some(ir) => (lr | ir).clicked(),
                                         None => lr.clicked(),

@@ -1732,7 +1732,12 @@ impl SshTool {
                         .width((ui.available_width() - 24.0).max(60.0))
                         .show_ui(ui, |ui| {
                             for (id, name) in &hosts {
-                                ui.selectable_value(&mut form_state.ssh_id, id.clone(), name);
+                                hs_ui::form::selectable_value(
+                                    ui,
+                                    &mut form_state.ssh_id,
+                                    id.clone(),
+                                    name,
+                                );
                             }
                         });
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-host")).weak());
@@ -2103,13 +2108,18 @@ impl SshTool {
             .inner_margin(egui::Margin::same(10))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                // Never taller than half of what the terminal column has
-                // left, so a short window scrolls the list instead of
-                // cutting its last rows off at the edge.
-                let max_h = (ui.available_height() * 0.5).clamp(80.0, 260.0);
+                // Up to 60 % of the terminal column, so the whole section -
+                // live tunnels and Kept Forwards - is seen at a normal
+                // window size; past that it scrolls, with a visible bar,
+                // instead of a row half cut at the edge (owner, CR-0070).
+                let max_h = (ui.available_height() * 0.6).clamp(120.0, 520.0);
                 egui::ScrollArea::vertical()
                     .id_salt(("ssh-tunnels-pane", self.serial))
                     .max_height(max_h)
+                    .auto_shrink([false, true])
+                    .scroll_bar_visibility(
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                    )
                     .show(ui, |ui| {
                         self.tunnels_section(ui, cx, theme);
                         // A gap above the heading and before its first
@@ -2488,26 +2498,8 @@ impl Tool for SshTool {
             Status::Failed(_) => (theme.error, s.t("ssh-failed")),
             Status::Disconnected => (theme.text_muted, s.t("ssh-disconnected")),
         };
-        // The pane show/hide toggles come first, before any action
-        // (CR-0073, CR-0071).
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.tunnels_open,
-            ph::ARROWS_LEFT_RIGHT,
-            &s.t("ssh-tunnels"),
-        )
-        .tip(s.t("ssh-tunnels-pane-tip"));
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.monitor_open,
-            ph::GAUGE,
-            &s.t("ssh-monitor"),
-        )
-        .tip(s.t("ssh-monitor-tip"));
-        // The host's name is in the header band above, so after the
-        // toggles comes the light that says what the connection is doing
+        // The host's name is in the header band above, so the toolbar
+        // opens with the light that says what the connection is doing
         // (owner's requirement, 2026-10-26).
         hs_ui::toolbar::status(ui, &theme, dot, "●", &label);
         match self.status {
@@ -2530,11 +2522,31 @@ impl Tool for SshTool {
         {
             sess.write(b"\x1b[3J\x1b[2J\x1b[H");
         }
-        ui.toggle_value(
+        hs_ui::form::toggle_value(
+            ui,
             &mut self.state.sync_cwd,
             format!("{} {}", ph::FOLDER_OPEN, s.t("ssh-sync-cwd")),
         )
         .tip(s.t("ssh-sync-cwd-hint"));
+        // Tunnels and Monitor sit with the session's actions, just before
+        // Broadcast - they are views of this session, not panes of the
+        // work area (owner, 2026-11-06, reversing their move to the left).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.tunnels_open,
+            ph::ARROWS_LEFT_RIGHT,
+            &s.t("ssh-tunnels"),
+        )
+        .tip(s.t("ssh-tunnels-pane-tip"));
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.monitor_open,
+            ph::GAUGE,
+            &s.t("ssh-monitor"),
+        )
+        .tip(s.t("ssh-monitor-tip"));
         // Broadcast reads red while it is on: every keystroke here lands
         // on every other shell of this host, which is worth seeing.
         let peers = self
@@ -2553,8 +2565,7 @@ impl Tool for SshTool {
         } else {
             egui::RichText::new(format!("{} {}", ph::BROADCAST, s.t("ssh-broadcast")))
         };
-        ui.toggle_value(&mut self.broadcast, label)
-            .tip(s.t("ssh-broadcast-tip"));
+        hs_ui::form::toggle_value(ui, &mut self.broadcast, label).tip(s.t("ssh-broadcast-tip"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it
             // sits in the same place: hard right of the toolbar, away

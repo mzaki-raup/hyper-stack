@@ -1113,7 +1113,8 @@ fn rebase_panel(
                                         {
                                             continue;
                                         }
-                                        ui.selectable_value(
+                                        hs_ui::form::selectable_value(
+                                            ui,
                                             &mut panel.actions[i],
                                             action,
                                             action_label(action, s),

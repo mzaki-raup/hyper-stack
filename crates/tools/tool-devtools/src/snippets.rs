@@ -190,7 +190,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                 // short: allocate_ui otherwise takes only
                                 // what the child used.
                                 ui.set_min_width(name_w);
-                                ui.add(egui::Button::selectable(open, &sn.name))
+                                hs_ui::form::add_selectable(
+                                    ui,
+                                    egui::Button::selectable(open, &sn.name),
+                                )
                             })
                             .inner;
                         row.context_menu(|ui| {

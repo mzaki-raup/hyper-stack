@@ -266,7 +266,7 @@ impl Designer {
                         egui::Button::selectable(self.sub == sub, format!("{icon} {}", s.t(key)))
                     }
                 };
-                if ui.add(button).clicked() {
+                if hs_ui::form::add_selectable(ui, button).clicked() {
                     self.sub = sub;
                 }
             }

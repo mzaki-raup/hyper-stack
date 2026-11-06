@@ -167,6 +167,9 @@ enum CropGrip {
 
 pub struct GraphicsTool {
     hub: SharedGraphics,
+    /// Whether the Image / Icon editor's Properties column is shown; its
+    /// toggle is the first item of the toolbar (owner, 2026-11-06).
+    show_settings: bool,
     kind: Kind,
     path: Option<PathBuf>,
     original: Option<DynamicImage>,
@@ -383,6 +386,7 @@ impl Default for GraphicsTool {
             original_bytes: Vec::new(),
             ops: Vec::new(),
             undo_stack: Vec::new(),
+            show_settings: true,
             redo_stack: Vec::new(),
             undo_limit: 20,
             current: None,
@@ -780,7 +784,7 @@ impl GraphicsTool {
                             GenJob::Describe if fal => "gfx-ai-job-describe",
                             GenJob::Describe => continue,
                         };
-                        ui.selectable_value(&mut self.generate.job, job, s.t(key));
+                        hs_ui::form::selectable_value(ui, &mut self.generate.job, job, s.t(key));
                     }
                 });
             });
@@ -819,7 +823,8 @@ impl GraphicsTool {
                         .selected_text(provider.name.clone())
                         .show_ui(ui, |ui| {
                             for p in providers {
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(
+                                    ui,
                                     &mut self.generate.provider,
                                     p.id.clone(),
                                     &p.name,
@@ -1549,13 +1554,13 @@ impl GraphicsTool {
                     rows.title(&s.t("gfx-crop"));
                     let (iw, ih) = (ow, oh);
                     rows.row(&s.t("gfx-crop-select"), None, |ui| {
-                        if ui
-                            .selectable_label(
-                                self.crop_select,
-                                format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
-                            )
-                            .tip(s.t("gfx-crop-on-canvas-tip"))
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            self.crop_select,
+                            format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
+                        )
+                        .tip(s.t("gfx-crop-on-canvas-tip"))
+                        .clicked()
                         {
                             self.crop_select = !self.crop_select;
                             let [_, _, w, h] = self.controls.crop;
@@ -1713,10 +1718,10 @@ impl GraphicsTool {
                             egui::RichText::new(s.t("gfx-colour")).color(theme.text_muted),
                         ),
                     );
-                    if ui.selectable_label(gray_on, s.t("gfx-grayscale")).clicked() {
+                    if hs_ui::form::selectable_label(ui, gray_on, s.t("gfx-grayscale")).clicked() {
                         toggle = Some(Op::Grayscale);
                     }
-                    if ui.selectable_label(inv_on, s.t("gfx-invert")).clicked() {
+                    if hs_ui::form::selectable_label(ui, inv_on, s.t("gfx-invert")).clicked() {
                         toggle = Some(Op::Invert);
                     }
                 });
@@ -1860,7 +1865,12 @@ impl GraphicsTool {
                             .selected_text(self.format.label())
                             .show_ui(ui, |ui| {
                                 for f in Format::ALL {
-                                    ui.selectable_value(&mut self.format, f, f.label());
+                                    hs_ui::form::selectable_value(
+                                        ui,
+                                        &mut self.format,
+                                        f,
+                                        f.label(),
+                                    );
                                 }
                             });
                     });
@@ -3217,9 +3227,12 @@ impl Tool for GraphicsTool {
                 ui.indent("gfx-recent-indent", |ui| {
                     for r in recents {
                         let Some(path) = r.path.clone() else { continue };
-                        let row = ui
-                            .selectable_label(false, format!("{}  {}", r.kind.icon(), r.title))
-                            .tip(path.clone());
+                        let row = hs_ui::form::selectable_label(
+                            ui,
+                            false,
+                            format!("{}  {}", r.kind.icon(), r.title),
+                        )
+                        .tip(path.clone());
                         if row.clicked() {
                             open_recent(cx, &path, r.kind);
                         }
@@ -3309,6 +3322,17 @@ impl Tool for GraphicsTool {
         }
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        // The Properties column's toggle comes first, as every pane toggle
+        // does (CR-0073).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_settings,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-diagram-props-pane"),
+        )
+        .tip(s.t("gfx-image-props-pane-tip"));
+        ui.separator();
         if hs_ui::toolbar::btn_enabled(
             ui,
             &theme,
@@ -3379,6 +3403,15 @@ impl Tool for GraphicsTool {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| self.title().to_string());
         let icon = self.kind.icon();
+        // The tool's own picture and colour, as its sidebar row, dashboard
+        // card and tab wear them (CR-0076; owner, 2026-11-06).
+        let paint = |h: hs_core::tool::ToolHeader| match function_of(self.kind).map(tool_picture) {
+            Some((Some(egui::ImageSource::Bytes { uri, .. }), _, _)) => {
+                h.icon_image(uri.to_string())
+            }
+            Some((_, _, c)) => h.icon_hex(format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b())),
+            None => h,
+        };
         match self.kind {
             Kind::Diagram | Kind::Generator => {
                 // A diagram has no pixels and no size on disk worth
@@ -3387,10 +3420,10 @@ impl Tool for GraphicsTool {
                     Kind::Diagram => self.diagram.as_ref().map(|d| d.doc.kind),
                     _ => self.generator.as_ref().map(|g| g.kind),
                 };
-                Some(
-                    hs_core::tool::ToolHeader::new(icon, name)
-                        .fact("Type", doc_kind.map(|k| k.label()).unwrap_or_default()),
-                )
+                Some(paint(hs_core::tool::ToolHeader::new(icon, name).fact(
+                    "Type",
+                    doc_kind.map(|k| k.label()).unwrap_or_default(),
+                )))
             }
             _ => {
                 // The *current* dimensions: an image that has been
@@ -3401,7 +3434,7 @@ impl Tool for GraphicsTool {
                     .as_ref()
                     .map(|c| format!("{}×{}", c.width(), c.height()))
                     .unwrap_or_default();
-                Some(
+                Some(paint(
                     hs_core::tool::ToolHeader::new(icon, name)
                         .fact("Dimension", dims)
                         .fact(
@@ -3419,7 +3452,7 @@ impl Tool for GraphicsTool {
                                 .map(|p| p.display().to_string())
                                 .unwrap_or_default(),
                         ),
-                )
+                ))
             }
         }
     }
@@ -3498,11 +3531,18 @@ impl Tool for GraphicsTool {
         }
         // The picture keeps the tab, but its controls move into this panel so
         // the activity sidebar can list the four tools (owner's request).
-        egui::Panel::left("gfx-settings")
+        let mut column = egui::Panel::left("gfx-settings")
             .default_size(300.0)
             .size_range(220.0..=460.0)
-            .resizable(true)
-            .show(ui, |ui| self.settings_panel(ui, cx, &theme));
+            .resizable(true);
+        if !self.show_settings {
+            column = column.exact_size(0.0).resizable(false);
+        }
+        column.show(ui, |ui| {
+            if self.show_settings {
+                self.settings_panel(ui, cx, &theme);
+            }
+        });
         // The shared split: the assistant column shrinks to keep room for
         // the picture and steps aside in a narrow window, like every other
         // tool, instead of a fixed cut that read as a floating card.

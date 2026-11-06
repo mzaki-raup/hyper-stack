@@ -179,12 +179,12 @@ pub fn parts(url: &str) -> Vec<(String, String)> {
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::page_title(ui, theme, &s.t("dt-url"), Some(&s.t("dt-url-sub")));
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut st.mode, Mode::Encode, s.t("dt-url-encode"));
-        ui.selectable_value(&mut st.mode, Mode::Decode, s.t("dt-url-decode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-url-encode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-url-decode"));
         ui.separator();
-        ui.selectable_value(&mut st.scope, Scope::Component, s.t("dt-url-component"));
-        ui.selectable_value(&mut st.scope, Scope::Full, s.t("dt-url-full"));
-        ui.selectable_value(&mut st.scope, Scope::Form, s.t("dt-url-form"));
+        hs_ui::form::selectable_value(ui, &mut st.scope, Scope::Component, s.t("dt-url-component"));
+        hs_ui::form::selectable_value(ui, &mut st.scope, Scope::Full, s.t("dt-url-full"));
+        hs_ui::form::selectable_value(ui, &mut st.scope, Scope::Form, s.t("dt-url-form"));
     });
     ui.add_space(4.0);
     form::hint(

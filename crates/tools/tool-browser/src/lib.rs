@@ -42,6 +42,10 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     accepts: &[Accept::Text],
 };
 
+/// The Browser's colour in the rail and on a page tab with no favicon:
+/// one value, which the shell's `activity_colour("browser")` reads too.
+pub const ACTIVITY_COLOUR: egui::Color32 = egui::Color32::from_rgb(0x22, 0xd3, 0xee);
+
 // ---------------------------------------------------------------------------
 // The contract with the host
 
@@ -537,6 +541,10 @@ impl TabItem for PageTab {
         }
         self.favicon.clone()
     }
+    /// A page with no favicon (yet) wears the Browser's own colour.
+    fn icon_colour(&self) -> Option<egui::Color32> {
+        Some(ACTIVITY_COLOUR)
+    }
     fn pinned(&self) -> bool {
         false
     }
@@ -941,8 +949,7 @@ impl Tool for BrowserTool {
             let mut toggled: Option<f64> = None;
             let p = self.page_mut();
             let mut js = p.javascript;
-            if ui
-                .selectable_label(js, "JS")
+            if hs_ui::form::selectable_label(ui, js, "JS")
                 .tip(s.t("browser-js-tip"))
                 .clicked()
             {
@@ -950,8 +957,7 @@ impl Tool for BrowserTool {
             }
             p.javascript = js;
             let mut ad = p.adblock;
-            if ui
-                .selectable_label(ad, ph::SHIELD_CHECK)
+            if hs_ui::form::selectable_label(ui, ad, ph::SHIELD_CHECK)
                 .tip(s.t("browser-adblock-tip"))
                 .clicked()
             {
@@ -959,8 +965,7 @@ impl Tool for BrowserTool {
             }
             p.adblock = ad;
             let mut dark = p.dark;
-            if ui
-                .selectable_label(dark, ph::MOON)
+            if hs_ui::form::selectable_label(ui, dark, ph::MOON)
                 .tip(s.t("browser-dark-tip"))
                 .clicked()
             {
@@ -985,14 +990,14 @@ impl Tool for BrowserTool {
             // allows it (that needs a local debugging port); otherwise it
             // opens WebView2's own window, which is all that API offers.
             let open = p.devtools;
-            let clicked = ui
-                .add(egui::Button::selectable(docked && open, ph::BUG))
-                .tip(s.t(if docked {
-                    "browser-devtools-panel"
-                } else {
-                    "browser-devtools"
-                }))
-                .clicked();
+            let clicked =
+                hs_ui::form::add_selectable(ui, egui::Button::selectable(docked && open, ph::BUG))
+                    .tip(s.t(if docked {
+                        "browser-devtools-panel"
+                    } else {
+                        "browser-devtools"
+                    }))
+                    .clicked();
             // Opening the panel resizes the page, which makes egui lay the
             // frame out again, and `clicked` is pointer state rather than an
             // event: without this the second pass closes it again.

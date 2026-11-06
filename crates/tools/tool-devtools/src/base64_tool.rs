@@ -55,9 +55,9 @@ fn hash_of(text: &str) -> u64 {
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::page_title(ui, theme, &s.t("dt-base64"), Some(&s.t("dt-base64-sub")));
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut st.mode, Mode::Decode, s.t("dt-base64-decode"));
-        ui.selectable_value(&mut st.mode, Mode::Encode, s.t("dt-base64-encode"));
-        ui.selectable_value(&mut st.mode, Mode::BasicAuth, s.t("dt-base64-basic"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-base64-decode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-base64-encode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::BasicAuth, s.t("dt-base64-basic"));
     });
     ui.add_space(8.0);
     match st.mode {

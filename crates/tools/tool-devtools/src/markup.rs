@@ -293,7 +293,7 @@ pub fn ui(
                 (IndentSetting::Four, Indent::Four.label()),
                 (IndentSetting::Tab, Indent::Tab.label()),
             ] {
-                ui.selectable_value(&mut st.indent, setting, label);
+                hs_ui::form::selectable_value(ui, &mut st.indent, setting, label);
             }
         });
         ui.add_space(4.0);

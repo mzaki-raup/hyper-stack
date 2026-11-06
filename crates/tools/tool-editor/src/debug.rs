@@ -102,8 +102,9 @@ pub struct Debugger {
     pub picker_open: bool,
     pub panel_open: bool,
     tab: PanelTab,
-    /// Each line with the level it names, read once when it is pushed.
-    console: Vec<(Line, Option<hs_core::loglevel::Level>)>,
+    /// Each line with where it names its level, read once when it is
+    /// pushed.
+    console: Vec<(Line, Option<hs_ui::loglevel::Span>)>,
     console_input: String,
     threads: Vec<Thread>,
     current_thread: Option<i64>,
@@ -457,7 +458,7 @@ impl Debugger {
 
     fn push(&mut self, line: Line) {
         let level = match &line {
-            Line::Out(t) | Line::Info(t) => hs_core::loglevel::level_span(t).map(|(_, l)| l),
+            Line::Out(t) | Line::Info(t) => hs_core::loglevel::level_span(t),
             Line::Err(_) | Line::Input(_) => None,
         };
         self.console.push((line, level));
@@ -1177,14 +1178,16 @@ impl Debugger {
                     s.settings.read().editor.font_size,
                     hs_ui::fonts::editor_family(),
                 );
-                for (line, level) in &self.console {
+                for (line, span) in &self.console {
                     // A line that names a level wears the Logs activity's
-                    // colour for it (CR-0077); the level was read on push.
-                    let level_colour = level.map(|l| hs_ui::loglevel::colour(theme, l));
+                    // colour for it on the level word only (CR-0077); the
+                    // span was read on push. Only Out and Info lines carry
+                    // one; the stream colours stay whole-line without it.
                     let (text, colour) = match line {
-                        Line::Out(t) => (t.as_str(), level_colour.unwrap_or(theme.text)),
+                        Line::Out(t) => (t.as_str(), theme.text),
                         Line::Err(t) => (t.as_str(), theme.error),
-                        Line::Info(t) => (t.as_str(), level_colour.unwrap_or(theme.text_muted)),
+                        Line::Info(t) if span.is_some() => (t.as_str(), theme.text),
+                        Line::Info(t) => (t.as_str(), theme.text_muted),
                         Line::Input(t) => (t.as_str(), theme.accent),
                     };
                     let prefix = if matches!(line, Line::Input(_)) {
@@ -1192,14 +1195,14 @@ impl Debugger {
                     } else {
                         ""
                     };
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(format!("{prefix}{text}"))
-                                .font(font.clone())
-                                .color(colour),
-                        )
-                        .wrap(),
+                    let job = hs_ui::loglevel::line_job(
+                        theme,
+                        &format!("{prefix}{text}"),
+                        span.as_ref(),
+                        font.clone(),
+                        colour,
                     );
+                    ui.add(egui::Label::new(job).wrap());
                 }
             });
         hs_ui::form::centred_row(ui, |ui| {
@@ -1358,12 +1361,11 @@ impl Debugger {
                     } else {
                         egui::RichText::new(text)
                     };
-                    if ui
-                        .add(egui::Button::selectable(
-                            self.selected_frame == Some(i),
-                            rich,
-                        ))
-                        .clicked()
+                    if hs_ui::form::add_selectable(
+                        ui,
+                        egui::Button::selectable(self.selected_frame == Some(i), rich),
+                    )
+                    .clicked()
                     {
                         pick = Some(i);
                     }

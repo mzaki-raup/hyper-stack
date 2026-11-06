@@ -1355,6 +1355,15 @@ impl Tool for LogsTool {
             .map(source_colour)
     }
 
+    /// A source's own glyph - the one its sidebar row, dashboard card and
+    /// header band wear - rather than the activity's scroll.
+    fn tab_icon(&self) -> Option<&'static str> {
+        if self.is_home {
+            return None;
+        }
+        self.state.spec.as_ref().map(saved_icon_for)
+    }
+
     fn subtitle(&self) -> Option<String> {
         self.state.spec.as_ref().map(|s| {
             if self.conn_name.is_empty() {
@@ -1666,19 +1675,21 @@ impl Tool for LogsTool {
                     .join(" + ");
             }
         }
-        Some(
-            hs_core::tool::ToolHeader::new(saved_icon_for(spec), spec.label())
-                .fact("Command", command)
-                .fact("Path", path)
-                .fact(
-                    if self.session_user.is_empty() {
-                        "Host"
-                    } else {
-                        "Session"
-                    },
-                    self.session_label.clone(),
-                ),
-        )
+        // The source's glyph in its rotating colour, as its tab and
+        // sidebar row wear it (CR-0059).
+        let head = hs_core::tool::ToolHeader::new(saved_icon_for(spec), spec.label());
+        let head = match self.tab_icon_colour() {
+            Some(c) => head.icon_hex(hs_ui::theme::to_hex(c)),
+            None => head,
+        };
+        Some(head.fact("Command", command).fact("Path", path).fact(
+            if self.session_user.is_empty() {
+                "Host"
+            } else {
+                "Session"
+            },
+            self.session_label.clone(),
+        ))
     }
 
     fn sidebar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) -> bool {
@@ -2001,7 +2012,7 @@ impl Tool for LogsTool {
                 })
                 .show_ui(ui, |ui| {
                     for f in Format::ALL {
-                        ui.selectable_value(&mut chosen, f, s.t(f.label_key()));
+                        hs_ui::form::selectable_value(ui, &mut chosen, f, s.t(f.label_key()));
                     }
                 });
             if chosen != self.state.format {
@@ -4344,12 +4355,12 @@ impl LogsTool {
                 ui.ctx().copy_text(self.leaving(&json));
             }
             let marked = self.state.bookmarks.iter().any(|(l, _)| *l == rec.line);
-            if ui
-                .selectable_label(
-                    marked,
-                    format!("{} {}", ph::BOOKMARK_SIMPLE, s.t("logs-bookmark")),
-                )
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                marked,
+                format!("{} {}", ph::BOOKMARK_SIMPLE, s.t("logs-bookmark")),
+            )
+            .clicked()
             {
                 self.toggle_bookmark();
             }
@@ -4434,10 +4445,12 @@ impl LogsTool {
                                         });
                                     }
                                     let pinned = self.state.pinned.contains(k);
-                                    if ui
-                                        .add(egui::Button::selectable(pinned, ph::PUSH_PIN).small())
-                                        .tip(s.t("logs-pin-column"))
-                                        .clicked()
+                                    if hs_ui::form::add_selectable(
+                                        ui,
+                                        egui::Button::selectable(pinned, ph::PUSH_PIN).small(),
+                                    )
+                                    .tip(s.t("logs-pin-column"))
+                                    .clicked()
                                     {
                                         pin = Some(k.clone());
                                     }
@@ -4507,7 +4520,7 @@ impl LogsTool {
                         .selected_text(s.t(kinds[a.kind]))
                         .show_ui(ui, |ui| {
                             for (i, k) in kinds.iter().enumerate() {
-                                ui.selectable_value(&mut a.kind, i, s.t(k));
+                                hs_ui::form::selectable_value(ui, &mut a.kind, i, s.t(k));
                             }
                         });
                     ui.end_row();
@@ -4541,7 +4554,12 @@ impl LogsTool {
                                 .selected_text(current)
                                 .show_ui(ui, |ui| {
                                     for (id, name) in &conns {
-                                        ui.selectable_value(&mut a.conn_id, id.clone(), name);
+                                        hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut a.conn_id,
+                                            id.clone(),
+                                            name,
+                                        );
                                     }
                                 });
                             ui.end_row();
@@ -4580,13 +4598,19 @@ impl LogsTool {
                             egui::ComboBox::from_id_salt("logs-add-conn-j")
                                 .selected_text(current)
                                 .show_ui(ui, |ui| {
-                                    ui.selectable_value(
+                                    hs_ui::form::selectable_value(
+                                        ui,
                                         &mut a.conn_id,
                                         String::new(),
                                         s.t("logs-this-machine"),
                                     );
                                     for (id, name) in &conns {
-                                        ui.selectable_value(&mut a.conn_id, id.clone(), name);
+                                        hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut a.conn_id,
+                                            id.clone(),
+                                            name,
+                                        );
                                     }
                                 });
                             ui.end_row();
@@ -4622,7 +4646,12 @@ impl LogsTool {
                                 .selected_text(s.t(a.format.label_key()))
                                 .show_ui(ui, |ui| {
                                     for f in Format::ALL {
-                                        ui.selectable_value(&mut a.format, f, s.t(f.label_key()));
+                                        hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut a.format,
+                                            f,
+                                            s.t(f.label_key()),
+                                        );
                                     }
                                 });
                             ui.end_row();
@@ -4902,7 +4931,7 @@ impl LogsTool {
                         .selected_text(s.t(kinds[c.kind]))
                         .show_ui(ui, |ui| {
                             for (i, k) in kinds.iter().enumerate() {
-                                ui.selectable_value(&mut c.kind, i, s.t(k));
+                                hs_ui::form::selectable_value(ui, &mut c.kind, i, s.t(k));
                             }
                         });
                     ui.end_row();
@@ -4914,7 +4943,12 @@ impl LogsTool {
                                 .selected_text(aliases.name(c.level))
                                 .show_ui(ui, |ui| {
                                     for l in Level::ALL {
-                                        ui.selectable_value(&mut c.level, l, aliases.name(l));
+                                        hs_ui::form::selectable_value(
+                                            ui,
+                                            &mut c.level,
+                                            l,
+                                            aliases.name(l),
+                                        );
                                     }
                                 });
                             ui.end_row();

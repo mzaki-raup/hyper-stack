@@ -1631,8 +1631,8 @@ impl S3Tool {
                         ui.add_space(6.0);
                         let before = (*put, *expires);
                         ui.horizontal(|ui| {
-                            ui.selectable_value(put, false, "GET");
-                            ui.selectable_value(put, true, "PUT");
+                            hs_ui::form::selectable_value(ui, put, false, "GET");
+                            hs_ui::form::selectable_value(ui, put, true, "PUT");
                             ui.separator();
                             for (secs, label) in [
                                 (900u64, "15 min"),
@@ -1640,7 +1640,7 @@ impl S3Tool {
                                 (86_400, "24 h"),
                                 (604_800, "7 days"),
                             ] {
-                                ui.selectable_value(expires, secs, label);
+                                hs_ui::form::selectable_value(ui, expires, secs, label);
                             }
                         });
                         // Signed once per choice: the signature carries the
@@ -1743,21 +1743,25 @@ impl S3Tool {
                         });
                         ui.horizontal(|ui| {
                             ui.label(s.t("s3-sync-direction"));
-                            if ui
-                                .add(egui::Button::selectable(
+                            if hs_ui::form::add_selectable(
+                                ui,
+                                egui::Button::selectable(
                                     *direction == sync::Direction::Up,
                                     s.t("s3-sync-up"),
-                                ))
-                                .clicked()
+                                ),
+                            )
+                            .clicked()
                             {
                                 *direction = sync::Direction::Up;
                             }
-                            if ui
-                                .add(egui::Button::selectable(
+                            if hs_ui::form::add_selectable(
+                                ui,
+                                egui::Button::selectable(
                                     *direction == sync::Direction::Down,
                                     s.t("s3-sync-down"),
-                                ))
-                                .clicked()
+                                ),
+                            )
+                            .clicked()
                             {
                                 *direction = sync::Direction::Down;
                             }
@@ -2073,7 +2077,10 @@ impl S3Tool {
                         ),
                         None => egui::Button::selectable(on, format!("{} {}", ph::ARCHIVE, b.name)),
                     };
-                    if ui.add(button.min_size(egui::vec2(w, 0.0))).clicked() && !on {
+                    if hs_ui::form::add_selectable(ui, button.min_size(egui::vec2(w, 0.0)))
+                        .clicked()
+                        && !on
+                    {
                         open = Some(b.name.clone());
                     }
                     if !on {
@@ -2793,7 +2800,11 @@ impl Tool for S3Tool {
             return None;
         }
         Some(
-            hs_core::tool::ToolHeader::new(hs_ui::icons::ph::CLOUD, self.state.conn_name.clone())
+            // The profile's own mark - MinIO's logo, S3's orange - as its
+            // tab and sidebar row wear it (CR-0079).
+            self.tab_mark
+                .unwrap_or_else(|| hs_ui::icons::conn_icon(self.tab_kind(), ""))
+                .header(self.state.conn_name.clone())
                 .fact("Type", self.state.kind_label.clone())
                 .fact(
                     if self.state.session_user.is_empty() {

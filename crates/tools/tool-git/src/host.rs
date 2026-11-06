@@ -458,6 +458,7 @@ impl HostView {
             id: u64,
             title: String,
             image: Option<egui::ImageSource<'static>>,
+            colour: Option<egui::Color32>,
         }
         impl hs_ui::tabs::TabItem for Item {
             fn id(&self) -> u64 {
@@ -471,6 +472,9 @@ impl HostView {
             }
             fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
                 self.image.clone()
+            }
+            fn icon_colour(&self) -> Option<egui::Color32> {
+                self.colour
             }
             fn pinned(&self) -> bool {
                 false
@@ -488,6 +492,12 @@ impl HostView {
             .material_icons("git")
             .then(|| hs_ui::fileicons::for_kind("branch"))
             .flatten();
+        // Off: the glyph in the branch picture's colour.
+        let branch_colour = image
+            .is_none()
+            .then(|| hs_ui::fileicons::for_kind("branch"))
+            .flatten()
+            .and_then(|p| hs_ui::fileicons::picture_colour(&p));
         let items: Vec<Item> = self
             .tabs
             .iter()
@@ -495,6 +505,7 @@ impl HostView {
                 id: t.uid,
                 title: t.name.clone(),
                 image: image.clone(),
+                colour: branch_colour,
             })
             .collect();
         let labels = hs_ui::tabs::TabStripLabels {

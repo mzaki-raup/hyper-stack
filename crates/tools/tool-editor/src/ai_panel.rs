@@ -472,7 +472,7 @@ impl AiPanel {
                 .selected_text(name)
                 .show_ui(ui, |ui| {
                     for (id, name, model) in &providers {
-                        if ui.selectable_label(self.provider == *id, name).clicked() {
+                        if hs_ui::form::selectable_label(ui, self.provider == *id, name).clicked() {
                             self.provider = id.clone();
                             self.model = model.clone();
                         }
@@ -501,12 +501,13 @@ impl AiPanel {
                         Context::Selection,
                         Context::None,
                     ] {
-                        ui.selectable_value(&mut self.context, c, label(c));
+                        hs_ui::form::selectable_value(ui, &mut self.context, c, label(c));
                     }
                 })
                 .response
                 .tip(s.t("ai-context-tip"));
-            ui.toggle_value(
+            hs_ui::form::toggle_value(
+                ui,
                 &mut self.cascade,
                 format!("{} {}", ph::LIGHTNING, s.t("ai-cascade")),
             )
@@ -685,7 +686,8 @@ impl AiPanel {
                                         );
                                     }
                                     for m in models {
-                                        let r = ui.selectable_label(self.model == m, &m);
+                                        let r =
+                                            hs_ui::form::selectable_label(ui, self.model == m, &m);
                                         let r = match ai::onemin_model_name(&m) {
                                             Some(name) if p.kind == ai::Provider::OneMin => {
                                                 r.tip(name)

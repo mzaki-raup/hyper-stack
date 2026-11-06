@@ -473,8 +473,7 @@ impl AssistantPanel {
                 .selected_text(selected)
                 .show_ui(ui, |ui| {
                     for p in &providers {
-                        if ui
-                            .selectable_label(p.id == self.provider, &p.name)
+                        if crate::form::selectable_label(ui, p.id == self.provider, &p.name)
                             .clicked()
                         {
                             self.provider = p.id.clone();

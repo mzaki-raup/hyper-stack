@@ -30,9 +30,10 @@ pub struct DockState {
     /// How many buffer lines had been seen when the Logs tab was last
     /// shown, so errors since then count on the tab label.
     pub seen_lines: usize,
-    /// Each buffer line's level, read once as the line arrives and kept
-    /// parallel to the buffer; `levels[0]` is line number `levels_first`.
-    levels: std::collections::VecDeque<Option<tracing::Level>>,
+    /// Each buffer line's level and where its level word sits, read once
+    /// as the line arrives and kept parallel to the buffer; `levels[0]` is
+    /// line number `levels_first`.
+    levels: std::collections::VecDeque<LineLevel>,
     levels_first: usize,
 }
 
@@ -48,6 +49,22 @@ impl Default for DockState {
             levels_first: 0,
         }
     }
+}
+
+/// A line's level, for the filter, and its level word's span, so only
+/// that word is painted in the level's colour (owner, 2026-11-07).
+type LineLevel = (Option<tracing::Level>, Option<hs_ui::loglevel::Span>);
+
+/// Read a line's level and find the level word `line_level` matched.
+fn line_entry(line: &str) -> LineLevel {
+    let Some(level) = line_level(line) else {
+        return (None, None);
+    };
+    let word = level.as_str();
+    let span = line
+        .find(&format!(" {word} "))
+        .map(|i| (i + 1..i + 1 + word.len(), shared_level(level)));
+    (Some(level), span)
 }
 
 /// The levels a user picks from, highest first.
@@ -78,7 +95,7 @@ fn sync_levels(state: &mut DockState, lines: &[String], pushed: usize) {
     let have = state.levels.len();
     state
         .levels
-        .extend(lines[have..].iter().map(|l| line_level(l)));
+        .extend(lines[have..].iter().map(|l| line_entry(l)));
 }
 
 /// The shared level model's level for a `tracing` level, for its colour.
@@ -121,7 +138,7 @@ pub fn show(
         .levels
         .iter()
         .skip(state.seen_lines.min(lines.len()))
-        .filter(|l| **l == Some(tracing::Level::ERROR))
+        .filter(|l| l.0 == Some(tracing::Level::ERROR))
         .count();
     ui.horizontal(|ui| {
         let running = services.jobs.running_count();
@@ -142,7 +159,7 @@ pub fn show(
             } else {
                 egui::RichText::new(label)
             };
-            if ui.selectable_label(state.tab == tab, text).clicked() {
+            if hs_ui::form::selectable_label(ui, state.tab == tab, text).clicked() {
                 state.tab = tab;
             }
         }
@@ -153,7 +170,8 @@ pub fn show(
                 .selected_text(services.t(&format!("log-level-{}", level_name(state.min_level))))
                 .show_ui(ui, |ui| {
                     for (l, n) in LEVELS {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut state.min_level,
                             l,
                             services.t(&format!("log-level-{n}")),
@@ -184,10 +202,10 @@ pub fn show(
         DockTab::Logs => {
             state.seen_lines = lines.len();
             let needle = state.search.to_lowercase();
-            let shown: Vec<(&String, Option<tracing::Level>)> = lines
+            let shown: Vec<(&String, &LineLevel)> = lines
                 .iter()
-                .zip(state.levels.iter().copied())
-                .filter(|(_, lv)| {
+                .zip(state.levels.iter())
+                .filter(|(_, (lv, _))| {
                     // A continuation line (no level of its own) follows the
                     // record before it; it is shown whenever that one is,
                     // which the filter approximates by letting it through.
@@ -195,7 +213,7 @@ pub fn show(
                 })
                 .filter(|(l, _)| needle.is_empty() || l.to_lowercase().contains(&needle))
                 .collect();
-            let shown: Vec<(&String, Option<tracing::Level>)> =
+            let shown: Vec<(&String, &LineLevel)> =
                 shown.into_iter().rev().take(2000).rev().collect();
             if shown.is_empty() {
                 ui.colored_label(theme.text_muted, services.t("dock-logs-empty"));
@@ -204,20 +222,22 @@ pub fn show(
                 .stick_to_bottom(true)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    for (line, level) in shown {
-                        // The Logs activity's colours (CR-0077).
-                        let colour = level.map_or(theme.text_muted, |l| {
-                            hs_ui::loglevel::colour(theme, shared_level(l))
-                        });
-                        ui.add(
-                            egui::Label::new(
-                                egui::RichText::new(line)
-                                    .monospace()
-                                    .size(12.0)
-                                    .color(colour),
-                            )
-                            .wrap(),
+                    for (line, (level, span)) in shown {
+                        // The Logs activity's colours (CR-0077), on the
+                        // level word only; a continuation line is muted.
+                        let base = if level.is_some() {
+                            theme.text
+                        } else {
+                            theme.text_muted
+                        };
+                        let job = hs_ui::loglevel::line_job(
+                            theme,
+                            line,
+                            span.as_ref(),
+                            egui::FontId::monospace(12.0),
+                            base,
                         );
+                        ui.add(egui::Label::new(job).wrap());
                     }
                 });
         }

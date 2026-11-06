@@ -67,12 +67,12 @@ pub fn picker(ui: &mut egui::Ui, id_salt: &str, none_label: &str, value: &mut St
         .selected_text(selected)
         .width(220.0)
         .show_ui(ui, |ui| {
-            if ui.selectable_label(value.is_empty(), none_label).clicked() {
+            if crate::form::selectable_label(ui, value.is_empty(), none_label).clicked() {
                 value.clear();
                 changed = true;
             }
             for (id, label) in ALL.iter() {
-                if ui.selectable_label(value == id, *label).clicked() {
+                if crate::form::selectable_label(ui, value == id, *label).clicked() {
                     *value = (*id).to_string();
                     changed = true;
                 }

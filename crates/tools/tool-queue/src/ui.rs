@@ -1179,12 +1179,14 @@ impl QueueTool {
                 if !shown {
                     continue;
                 }
-                if ui
-                    .add(egui::Button::selectable(
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(
                         self.state.detail == d,
                         format!("{icon} {}", s.t(key)),
-                    ))
-                    .clicked()
+                    ),
+                )
+                .clicked()
                     && self.state.detail != d
                 {
                     self.state.detail = d;

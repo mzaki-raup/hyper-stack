@@ -231,7 +231,11 @@ impl Verbs {
             (Panel::Flow, ph::FLOW_ARROW, "git-verb-flow"),
         ] {
             let b = egui::Button::selectable(self.panel == p, format!("{icon} {}", s.t(key)));
-            if ui.add_enabled(!busy, b).clicked() {
+            if ui
+                .add_enabled_ui(!busy, |ui| hs_ui::form::add_selectable(ui, b))
+                .inner
+                .clicked()
+            {
                 self.toggle(p);
             }
         }
@@ -314,7 +318,7 @@ impl Verbs {
             .width(220.0)
             .show_ui(ui, |ui| {
                 for b in facts.branches {
-                    if ui.selectable_label(*value == b.name, &b.name).clicked() {
+                    if hs_ui::form::selectable_label(ui, *value == b.name, &b.name).clicked() {
                         *value = b.name.clone();
                     }
                 }
@@ -514,7 +518,7 @@ impl Verbs {
                                     RebaseAction::Fixup,
                                     RebaseAction::Drop,
                                 ] {
-                                    ui.selectable_value(action, a, a.as_str());
+                                    hs_ui::form::selectable_value(ui, action, a, a.as_str());
                                 }
                             });
                         ui.label(
@@ -654,29 +658,29 @@ impl Verbs {
         let mut op = None;
         hs_ui::form::centred_row(ui, |ui| {
             for k in [FlowKind::Feature, FlowKind::Release, FlowKind::Hotfix] {
-                if ui
-                    .add(egui::Button::selectable(self.flow_kind == k, s.t(k.key())))
-                    .clicked()
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(self.flow_kind == k, s.t(k.key())),
+                )
+                .clicked()
                 {
                     self.flow_kind = k;
                 }
             }
             ui.separator();
-            if ui
-                .add(egui::Button::selectable(
-                    !self.flow_finish,
-                    s.t("git-flow-start"),
-                ))
-                .clicked()
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(!self.flow_finish, s.t("git-flow-start")),
+            )
+            .clicked()
             {
                 self.flow_finish = false;
             }
-            if ui
-                .add(egui::Button::selectable(
-                    self.flow_finish,
-                    s.t("git-flow-finish"),
-                ))
-                .clicked()
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(self.flow_finish, s.t("git-flow-finish")),
+            )
+            .clicked()
             {
                 self.flow_finish = true;
             }

@@ -1581,12 +1581,12 @@ impl TrackerTool {
                 )
                 .show_ui(ui, |ui| {
                     for sp in &spaces {
-                        if ui
-                            .selectable_label(
-                                current.as_ref() == Some(sp),
-                                format!("{} ({})", sp.name, sp.key),
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            current.as_ref() == Some(sp),
+                            format!("{} ({})", sp.name, sp.key),
+                        )
+                        .clicked()
                         {
                             picked = Some(sp.clone());
                         }
@@ -1635,9 +1635,12 @@ impl TrackerTool {
                     ui.horizontal(|ui| {
                         ui.add_space(depth as f32 * 14.0);
                         let selected = self.state.page.as_ref() == Some(&p.id);
-                        if ui
-                            .selectable_label(selected, format!("{} {}", ph::FILE_TEXT, p.title))
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            selected,
+                            format!("{} {}", ph::FILE_TEXT, p.title),
+                        )
+                        .clicked()
                             && !selected
                         {
                             open = Some(p.id.clone());
@@ -2104,7 +2107,7 @@ impl TrackerTool {
                     .selected_text(item.kind.clone())
                     .show_ui(ui, |ui| {
                         for k in &spec.kinds {
-                            ui.selectable_value(&mut item.kind, k.clone(), k);
+                            hs_ui::form::selectable_value(ui, &mut item.kind, k.clone(), k);
                         }
                     });
                 ui.end_row();
@@ -2115,9 +2118,9 @@ impl TrackerTool {
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(item.priority.clone())
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut item.priority, String::new(), "—");
+                        hs_ui::form::selectable_value(ui, &mut item.priority, String::new(), "—");
                         for p in &spec.priorities {
-                            ui.selectable_value(&mut item.priority, p.clone(), p);
+                            hs_ui::form::selectable_value(ui, &mut item.priority, p.clone(), p);
                         }
                     });
                 ui.end_row();

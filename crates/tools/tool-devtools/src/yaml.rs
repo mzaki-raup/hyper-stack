@@ -733,13 +733,19 @@ pub fn to_yaml(node: &Node) -> String {
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::page_title(ui, theme, &s.t("dt-yaml"), Some(&s.t("dt-yaml-sub")));
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut st.mode, Mode::Check, s.t("dt-yaml-check"));
-        ui.selectable_value(
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Check, s.t("dt-yaml-check"));
+        hs_ui::form::selectable_value(
+            ui,
             &mut st.mode,
             Mode::YamlToProperties,
             s.t("dt-yaml-to-properties"),
         );
-        ui.selectable_value(&mut st.mode, Mode::PropertiesToYaml, s.t("dt-yaml-to-yaml"));
+        hs_ui::form::selectable_value(
+            ui,
+            &mut st.mode,
+            Mode::PropertiesToYaml,
+            s.t("dt-yaml-to-yaml"),
+        );
     });
     ui.add_space(4.0);
     form::hint(ui, theme, &s.t("dt-yaml-subset-hint"));

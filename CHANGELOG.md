@@ -13,6 +13,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Selectable rows, tabs and labels no longer grow 1 px a side under the pointer (an egui sizing quirk); hover only fills and outlines. Form buttons expose their plain label to screen readers (owner, 2026-11-07)
 - Selected table rows keep readable text; a tab's title stops before its close button; Git changed files and the Containers resource list wear Material pictures; the Redis key tree draws its caret first; right-click menu items carry glyphs and Clear is disabled on an empty list; the API history says when it is empty; Devtools rows and tabs wear their category colour; the Tracker query buttons are a field's height; the SSH Kept Forwards list scrolls and Start has a glyph (CR-0070)
 
 ### Changed
@@ -26,6 +27,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Log lines in the Output dock, Automation run logs, the API console and the debug console use the Logs activity's level colours (CR-0077)
 - Options sharing a row (Amend · Push After Commit and the like) are spaced apart (CR-0078)
 - Saved shells and CLIs, Git hosts, SSH hosts and S3 stores wear their products' real logos in every place they are drawn - the list, the tab, the dashboard, Home's Recent and Settings; new logos for GitHub, Gitea, Bitbucket, Azure DevOps, Alpine, FreeBSD, Nushell, MinIO, Claude Code, OpenCode, Kilo Code and Cursor (CR-0079)
+- Settings forms: labels left-aligned in one column per page, sub-settings indented, every control (checkbox, radio, field, dropdown) in the second column, each hint under its own row, every row and text block spaced, one button size with a gap between buttons, larger sub-section headings, spaced checkbox, reorder and suggestion lists; About's Data Folder on one row and the Policy and Check for Updates cards merged into Updates (CR-0080)
+- Every work-pane header and tab wears its item's coloured mark - API Client, S3, Logs, Scratchpad, Editor, Terminal, Containers, Graphics tools, and inner tabs when Material icons are off (CR-0076)
+- Show/hide toggles for a work-pane column come first in the toolbar, including Graphics' new Properties toggle for the Image and Icon editors; SSH's Tunnels and Monitor stay just before Broadcast (CR-0073)
+- Log views outside the Logs activity colour only the level word, not the whole line (CR-0077)
 - Padding above the Editor status bar, the Logs status line and the Debug Panel tabs, icons on the Debug tabs, and a Switch button per workspace in Settings (CR-0040)
 
 ## 0.128.0 — 2026-11-06

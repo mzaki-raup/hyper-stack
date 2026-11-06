@@ -44,10 +44,10 @@ pub fn mic_button(
         egui::RichText::new(ph::MICROPHONE_SLASH).color(theme.text_muted)
     };
     let r = ui
-        .add_enabled(
-            listening || !active,
-            egui::Button::selectable(listening, label),
-        )
+        .add_enabled_ui(listening || !active, |ui| {
+            crate::form::add_selectable(ui, egui::Button::selectable(listening, label))
+        })
+        .inner
         .tip(s.t(if listening {
             "ai-mic-stop-tip"
         } else {

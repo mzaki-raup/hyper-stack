@@ -33,6 +33,17 @@ pub const PANE_MARGIN: f32 = 12.0;
 /// The vertical space between two form rows, the same as
 /// [`field_grid`]'s row spacing (CR-0061).
 pub const ROW_GAP: f32 = 10.0;
+/// How far a sub-setting's label (one that only applies when its parent
+/// is on) sits in from its parent's label in a [`field_grid`] (CR-0080).
+pub const SUB_INDENT: f32 = 18.0;
+/// The gap between buttons side by side in a form (CR-0080).
+pub const BUTTON_GAP: f32 = 8.0;
+/// The narrowest a [`field_grid`]'s label column is; it grows to fit its
+/// longest label, so every control starts at one x (CR-0080).
+const LABEL_MIN_WIDTH: f32 = 170.0;
+/// The horizontal padding of every form button, so a primary and a plain
+/// button side by side are one size (CR-0080).
+const BUTTON_PADDING: Vec2 = Vec2::new(12.0, 4.0);
 /// The gap between options sharing one row - checkboxes, radio buttons -
 /// so each reads as its own choice rather than one run of text (owner,
 /// 2026-11-06, CR-0078).
@@ -145,7 +156,9 @@ pub fn section_max<R>(
     r
 }
 
-/// Two-column label/field grid for a section.
+/// Two-column label/field grid for a section: labels left-aligned in a
+/// first column as wide as its longest label, every control starting at
+/// one x in the second (CR-0080).
 pub fn field_grid<R>(
     ui: &mut egui::Ui,
     id: impl std::hash::Hash + std::fmt::Debug,
@@ -155,7 +168,7 @@ pub fn field_grid<R>(
     egui::Grid::new(id)
         .num_columns(2)
         .spacing([18.0, ROW_GAP])
-        .min_col_width(170.0)
+        .min_col_width(LABEL_MIN_WIDTH)
         .show(ui, |ui| {
             // Every cell in a form row is a field's height tall, so a
             // checkbox or a ComboBox beside a label centres on the same
@@ -166,12 +179,218 @@ pub fn field_grid<R>(
         .inner
 }
 
-/// A row label inside [`field_grid`]: muted, vertically centred with the field.
+/// A row label inside [`field_grid`]: left-aligned, vertically centred
+/// with the field.
 pub fn label(ui: &mut egui::Ui, text: &str) {
-    ui.add_sized(
-        [170.0, field_height(ui)],
-        egui::Label::new(RichText::new(text)).halign(egui::Align::LEFT),
+    grid_label(ui, text, 0.0);
+}
+
+/// A sub-setting's label inside [`field_grid`] (one that only applies
+/// when its parent is on): [`label`] indented [`SUB_INDENT`] under its
+/// parent's, still left-aligned (CR-0080).
+pub fn sub_label(ui: &mut egui::Ui, text: &str) {
+    grid_label(ui, text, SUB_INDENT);
+}
+
+/// A grid label `indent` in from the column's left edge, a field's height
+/// tall; returns the rect of the text itself. The cell is at least
+/// page's label-column width ([`page_labels`]) and grows to fit the text,
+/// so the grid's first column - and the x every control starts at - fits
+/// its longest label. The indent is part of the cell rather than an
+/// `add_space`, which a grid does not allow.
+fn grid_label(ui: &mut egui::Ui, text: &str, indent: f32) -> egui::Rect {
+    let h = field_height(ui);
+    let galley = egui::WidgetText::from(text).into_galley(
+        ui,
+        Some(egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        egui::TextStyle::Body,
     );
+    note_label_width(ui, indent + galley.size().x);
+    let w = (indent + galley.size().x).max(label_column_width(ui));
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, h), egui::Sense::hover());
+    let text_rect = egui::Rect::from_min_size(
+        egui::pos2(
+            rect.left() + indent,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley.size(),
+    );
+    let colour = ui.visuals().text_color();
+    ui.painter().galley(text_rect.min, galley, colour);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, text));
+    text_rect
+}
+
+/// An empty first cell in a [`field_grid`] row, as wide as the page's
+/// label column and `height` tall, so what follows starts at the control
+/// column.
+fn empty_label_cell(ui: &mut egui::Ui, height: f32) {
+    let size = Vec2::new(label_column_width(ui), height);
+    ui.allocate_exact_size(size, egui::Sense::hover());
+}
+
+/// What [`page_labels`] keeps in the context while a page is drawn: the
+/// label-column width every grid uses this frame, and the widest label
+/// measured so far, for the next frame.
+#[derive(Clone, Copy, Default)]
+struct PageLabels {
+    width: f32,
+    widest: f32,
+}
+
+fn page_labels_id() -> egui::Id {
+    egui::Id::new("hs-form-page-labels")
+}
+
+/// Draw a page whose [`field_grid`]s - in every card - share one label
+/// column, as wide as the page's widest label, so controls line up across
+/// cards (owner, 2026-11-06). The width is measured while the page is
+/// drawn and used from the next frame; a change asks for a repaint.
+pub fn page_labels<R>(
+    ui: &mut egui::Ui,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    let key = egui::Id::new(("hs-form-page-label-width", id));
+    let width = ui
+        .data(|d| d.get_temp::<f32>(key))
+        .unwrap_or(LABEL_MIN_WIDTH);
+    let start = PageLabels {
+        width,
+        widest: LABEL_MIN_WIDTH,
+    };
+    let outer = ui.data_mut(|d| {
+        let outer = d.get_temp::<PageLabels>(page_labels_id());
+        d.insert_temp(page_labels_id(), start);
+        outer
+    });
+    let r = add(ui);
+    let done = ui.data_mut(|d| {
+        let done = d.get_temp::<PageLabels>(page_labels_id());
+        match outer {
+            Some(o) => {
+                d.insert_temp(page_labels_id(), o);
+            }
+            None => {
+                d.remove_temp::<PageLabels>(page_labels_id());
+            }
+        }
+        done
+    });
+    if let Some(p) = done
+        && (p.widest - width).abs() > 0.5
+    {
+        ui.data_mut(|d| d.insert_temp(key, p.widest));
+        ui.ctx().request_repaint();
+    }
+    r
+}
+
+/// The label column's width: the page's (see [`page_labels`]), or the
+/// minimum outside one.
+fn label_column_width(ui: &egui::Ui) -> f32 {
+    ui.data(|d| d.get_temp::<PageLabels>(page_labels_id()))
+        .map_or(LABEL_MIN_WIDTH, |p| p.width.max(LABEL_MIN_WIDTH))
+}
+
+/// Record a label's width for the page's next frame.
+fn note_label_width(ui: &egui::Ui, w: f32) {
+    ui.data_mut(|d| {
+        if let Some(mut p) = d.get_temp::<PageLabels>(page_labels_id()) {
+            p.widest = p.widest.max(w);
+            d.insert_temp(page_labels_id(), p);
+        }
+    });
+}
+
+/// A sub-section heading inside a card (a group of rows under the card's
+/// title): a step larger than body text and strong, smaller than the
+/// card's title, with [`ROW_GAP`] above and half that below (CR-0080).
+pub fn subsection(ui: &mut egui::Ui, theme: &Theme, title: &str) {
+    let size = ui.text_style_height(&egui::TextStyle::Body) + 1.5;
+    ui.add_space(ROW_GAP);
+    ui.label(RichText::new(title).size(size).strong().color(theme.text));
+    ui.add_space(ROW_GAP / 2.0);
+}
+
+/// A checkbox with its description under the label, indented to the
+/// label's text, and [`ROW_GAP`] after the description rather than
+/// between the box and its text (CR-0080). Returns the checkbox's
+/// response.
+pub fn checkbox_with_description(
+    ui: &mut egui::Ui,
+    value: &mut bool,
+    label: &str,
+    description: &str,
+) -> egui::Response {
+    let r = described_checkbox(ui, value, label, description);
+    let rest = ROW_GAP - ui.spacing().item_spacing.y;
+    if rest > 0.0 {
+        ui.add_space(rest);
+    }
+    r
+}
+
+/// A checkbox and its description under the checkbox's text, stacked.
+fn described_checkbox(
+    ui: &mut egui::Ui,
+    value: &mut bool,
+    label: &str,
+    description: &str,
+) -> egui::Response {
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        let r = ui.checkbox(value, label);
+        if !description.is_empty() {
+            let indent = ui.spacing().icon_width + ui.spacing().icon_spacing;
+            let weak = ui.visuals().weak_text_color();
+            ui.horizontal(|ui| {
+                ui.add_space(indent);
+                ui.add(egui::Label::new(RichText::new(description).color(weak).size(12.5)).wrap());
+            });
+        }
+        r
+    })
+    .inner
+}
+
+/// A checkbox row inside [`field_grid`]: an empty label cell, then the
+/// checkbox at the control column, like every other control (owner,
+/// 2026-11-06). Ends the row.
+pub fn checkbox_row(ui: &mut egui::Ui, value: &mut bool, label: &str) -> egui::Response {
+    let h = field_height(ui);
+    empty_label_cell(ui, h);
+    let r = ui.checkbox(value, label);
+    ui.end_row();
+    r
+}
+
+/// [`checkbox_with_description`] as a [`field_grid`] row: an empty label
+/// cell, then the checkbox at the control column with its description
+/// under the checkbox's text. Ends the row.
+pub fn checkbox_row_with_description(
+    ui: &mut egui::Ui,
+    value: &mut bool,
+    label: &str,
+    description: &str,
+) -> egui::Response {
+    let h = field_height(ui);
+    empty_label_cell(ui, h);
+    let r = described_checkbox(ui, value, label, description);
+    ui.end_row();
+    r
+}
+
+/// A row inside [`field_grid`] whose control is whatever `add` draws - a
+/// button row, a note, a list - at the control column under an empty
+/// label cell. Ends the row.
+pub fn control_row<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let h = field_height(ui);
+    empty_label_cell(ui, h);
+    let r = ui.vertical(add).inner;
+    ui.end_row();
+    r
 }
 
 /// A single-line `TextEdit` with the standard [`FIELD_MARGIN`], for a
@@ -285,7 +504,7 @@ pub fn pick_field_width(
                 .max_height(240.0)
                 .show(ui, |ui| {
                     for o in options {
-                        if ui.selectable_label(value == o, o).clicked() {
+                        if selectable_label(ui, value == o, o).clicked() {
                             *value = o.clone();
                             chosen = true;
                             ui.close();
@@ -403,14 +622,17 @@ pub fn hint(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     ui.add(egui::Label::new(RichText::new(text).color(theme.text_muted).size(12.5)).wrap());
 }
 
-/// A [`hint`] under a form row, on a row of its own inside [`field_grid`].
-/// A grid cell is centred in its row, so a description stacked under the
-/// control makes that row tall and drags the label below the control's
-/// middle; on its own row the control's label stays level with it.
-pub fn field_hint_row(ui: &mut egui::Ui, theme: &Theme, text: &str) {
-    ui.label("");
-    hint(ui, theme, text);
+/// A [`hint`] directly under the row it explains, on a row of its own
+/// inside [`field_grid`]: an empty label cell, the hint at the control's x
+/// (owner, 2026-11-06). A grid cell is centred in its row, so a
+/// description stacked under the control would make that row tall and
+/// drag the label below the control's middle; on its own row the label
+/// stays level with its control. Call it right after the row's `end_row`.
+pub fn row_hint(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
+    empty_label_cell(ui, 0.0);
+    let r = ui.add(egui::Label::new(RichText::new(text).color(theme.text_muted).size(12.5)).wrap());
     ui.end_row();
+    r
 }
 
 /// A well for a scrollable area: the field background, a border and a
@@ -1064,22 +1286,135 @@ pub fn selectable_button(
     )
 }
 
+/// The one form button: a field's height with the standard padding, an
+/// optional `icon` (empty for none) in the accent colour before `label`
+/// (CR-0080). [`primary_button`] and [`danger_button`] are the same size;
+/// buttons side by side keep [`BUTTON_GAP`] between them.
+pub fn button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egui::Response {
+    let text = crate::toolbar::item_text(ui, theme, icon, label);
+    sized_button(ui, egui::Button::new(text), label)
+}
+
+/// A form button at a field's height with [`BUTTON_PADDING`].
+/// `name` is what a screen reader and a test read: the label alone, never
+/// the icon glyph drawn before it.
+fn sized_button(ui: &mut egui::Ui, button: egui::Button<'_>, name: &str) -> egui::Response {
+    let h = field_height(ui);
+    let r = ui
+        .scope(|ui| {
+            ui.spacing_mut().button_padding = BUTTON_PADDING;
+            ui.add(button.min_size(Vec2::new(0.0, h)))
+        })
+        .inner;
+    let enabled = r.enabled();
+    let name = name.to_owned();
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, &name));
+    r
+}
+
+/// The words of a button's text without the icon glyph it may lead with:
+/// icon fonts live in the Private Use Areas.
+fn plain_label(text: &str) -> &str {
+    let mut chars = text.char_indices();
+    match chars.next() {
+        Some((_, c))
+            if ('\u{E000}'..='\u{F8FF}').contains(&c)
+                || ('\u{F0000}'..='\u{10FFFD}').contains(&c) =>
+        {
+            chars.next().map_or("", |(i, _)| text[i..].trim_start())
+        }
+        _ => text,
+    }
+}
+
+/// A primary (accent-filled) button, the same size as [`button`].
 pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
-    ui.add(
+    sized_button(
+        ui,
         egui::Button::new(RichText::new(text).color(egui::Color32::WHITE))
             .fill(theme.accent)
-            .corner_radius(CornerRadius::same(5))
-            .min_size(Vec2::new(0.0, 30.0)),
+            .corner_radius(CornerRadius::same(5)),
+        plain_label(text),
     )
 }
 
-/// A danger (error-coloured text) button.
+/// A danger (error-coloured text) button, the same size as [`button`].
 pub fn danger_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
-    ui.add(egui::Button::new(RichText::new(text).color(theme.error)).min_size(Vec2::new(0.0, 30.0)))
+    sized_button(
+        ui,
+        egui::Button::new(RichText::new(text).color(theme.error)),
+        plain_label(text),
+    )
+}
+
+/// `Ui::selectable_label` that keeps its size under the pointer - for list
+/// and tree rows, where a frame per row is wrong (see [`toggle_button`]).
+///
+/// egui 0.35 sizes a button's inner margin as `button_padding - stroke` of
+/// the current state, and draws an unselected selectable button with no
+/// frame (so no stroke) while inactive. The theme gives inactive widgets a
+/// 1 px outline (fields need it), so an inactive row came out a pixel
+/// short on every side and grew to full size on hover - rows, links and
+/// tabs "magnifying" in Containers, Redis and NoSQL (owner, 2026-11-07).
+/// With no inactive stroke the margin is the same in every state; hover
+/// only fills and outlines.
+pub fn selectable_label<'a>(
+    ui: &mut egui::Ui,
+    selected: bool,
+    atoms: impl egui::IntoAtoms<'a>,
+) -> egui::Response {
+    add_selectable(ui, egui::Button::selectable(selected, atoms))
+}
+
+/// `Ui::selectable_value` through [`selectable_label`].
+pub fn selectable_value<'a, V: PartialEq>(
+    ui: &mut egui::Ui,
+    current: &mut V,
+    value: V,
+    atoms: impl egui::IntoAtoms<'a>,
+) -> egui::Response {
+    let mut r = selectable_label(ui, *current == value, atoms);
+    if r.clicked() && *current != value {
+        *current = value;
+        r.mark_changed();
+    }
+    r
+}
+
+/// `Ui::toggle_value` through [`selectable_label`].
+pub fn toggle_value<'a>(
+    ui: &mut egui::Ui,
+    on: &mut bool,
+    atoms: impl egui::IntoAtoms<'a>,
+) -> egui::Response {
+    let mut r = selectable_label(ui, *on, atoms);
+    if r.clicked() {
+        *on = !*on;
+        r.mark_changed();
+    }
+    r
+}
+
+/// `ui.add(button)` for an `egui::Button::selectable(..)` with extra
+/// styling, with the same fixed size as [`selectable_label`].
+pub fn add_selectable(ui: &mut egui::Ui, button: egui::Button<'_>) -> egui::Response {
+    let saved = ui.visuals().widgets.inactive.bg_stroke;
+    ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+    let r = ui.add(button);
+    ui.visuals_mut().widgets.inactive.bg_stroke = saved;
+    r
 }
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_buttons_accessible_name_drops_its_icon_glyph() {
+        assert_eq!(super::plain_label("\u{E0A0} Save"), "Save");
+        assert_eq!(super::plain_label("\u{F0001} Close"), "Close");
+        assert_eq!(super::plain_label("Save"), "Save");
+        assert_eq!(super::plain_label("Check Now"), "Check Now");
+    }
     use super::*;
 
     #[test]
@@ -1095,6 +1430,165 @@ mod tests {
         let v = toggle_list_item(&v, "id");
         assert_eq!(v, "age");
         assert_eq!(toggle_list_item(&v, "age"), "");
+    }
+
+    /// Run `add` for three frames - a grid sizes its columns from the frame
+    /// before, and a page's label column from the frame before that - and
+    /// return what the last one recorded.
+    fn settled<T: Default>(mut add: impl FnMut(&mut egui::Ui, &mut T)) -> T {
+        let ctx = egui::Context::default();
+        let mut out = T::default();
+        for _ in 0..3 {
+            out = T::default();
+            let _ = ctx.run_ui(egui::RawInput::default(), |ui| add(ui, &mut out));
+        }
+        out
+    }
+
+    #[test]
+    fn labels_start_left_sub_labels_indent_and_controls_share_one_x() {
+        let (label, sub, control_a, control_b) = settled(|ui, out: &mut (f32, f32, f32, f32)| {
+            field_grid(ui, "t", |ui| {
+                out.0 = grid_label(ui, "Short", 0.0).left();
+                out.2 = ui.button("A").rect.left();
+                ui.end_row();
+                out.1 = grid_label(ui, "A much longer sub-setting label", SUB_INDENT).left();
+                out.3 = ui.button("B").rect.left();
+                ui.end_row();
+            });
+        });
+        assert!(
+            (sub - label - SUB_INDENT).abs() < 0.5,
+            "label at {label}, sub-label at {sub}"
+        );
+        assert!(
+            (control_a - control_b).abs() < 0.5,
+            "controls at {control_a} and {control_b}"
+        );
+        assert!(control_a > sub, "the controls start past the labels");
+    }
+
+    #[test]
+    fn a_row_hint_sits_under_its_control_at_the_control_x() {
+        let theme = Theme::dark();
+        let (control, hint, control_bottom, hint_top) =
+            settled(|ui, out: &mut (f32, f32, f32, f32)| {
+                field_grid(ui, "t", |ui| {
+                    label(ui, "Undo limit");
+                    let c = ui.button("Control").rect;
+                    ui.end_row();
+                    let h = row_hint(ui, &theme, "What the control does.").rect;
+                    label(ui, "Log level");
+                    let _ = ui.button("Next");
+                    ui.end_row();
+                    *out = (c.left(), h.left(), c.bottom(), h.top());
+                });
+            });
+        assert!(
+            (control - hint).abs() < 0.5,
+            "control at {control}, hint at {hint}"
+        );
+        assert!(hint_top >= control_bottom, "the hint is under its control");
+    }
+
+    #[test]
+    fn a_grid_checkbox_starts_at_the_control_column() {
+        let (control, plain, described) = settled(|ui, out: &mut (f32, f32, f32)| {
+            field_grid(ui, "t", |ui| {
+                label(ui, "A label");
+                out.0 = ui.button("Control").rect.left();
+                ui.end_row();
+                let mut on = false;
+                out.1 = checkbox_row(ui, &mut on, "Copy on select").rect.left();
+                out.2 = checkbox_row_with_description(ui, &mut on, "Detect links", "Underlined.")
+                    .rect
+                    .left();
+            });
+        });
+        assert!(
+            (control - plain).abs() < 0.5,
+            "control at {control}, checkbox at {plain}"
+        );
+        assert!(
+            (control - described).abs() < 0.5,
+            "control at {control}, described checkbox at {described}"
+        );
+    }
+
+    #[test]
+    fn grids_on_one_page_share_the_label_column() {
+        let (short_card, long_card) = settled(|ui, out: &mut (f32, f32)| {
+            page_labels(ui, "page", |ui| {
+                field_grid(ui, "a", |ui| {
+                    label(ui, "Short");
+                    out.0 = ui.button("A").rect.left();
+                    ui.end_row();
+                });
+                field_grid(ui, "b", |ui| {
+                    label(ui, "A label much longer than the minimum column width");
+                    out.1 = ui.button("B").rect.left();
+                    ui.end_row();
+                });
+            });
+        });
+        assert!(
+            (short_card - long_card).abs() < 0.5,
+            "controls at {short_card} and {long_card}"
+        );
+    }
+
+    #[test]
+    fn button_primary_and_danger_are_one_height() {
+        let theme = Theme::dark();
+        let (plain, primary, danger) = settled(|ui, out: &mut (f32, f32, f32)| {
+            ui.horizontal(|ui| {
+                out.0 = button(ui, &theme, "", "Plain").rect.height();
+                out.1 = primary_button(ui, &theme, "Primary").rect.height();
+                out.2 = danger_button(ui, &theme, "Danger").rect.height();
+            });
+        });
+        assert!((plain - primary).abs() < 0.5, "{plain} vs {primary}");
+        assert!((plain - danger).abs() < 0.5, "{plain} vs {danger}");
+    }
+
+    /// One frame with the pointer at `pointer` (if any); the row's rect
+    /// and whether egui saw it hovered.
+    fn row_frame(
+        ctx: &egui::Context,
+        pointer: Option<egui::Pos2>,
+        selected: bool,
+    ) -> (egui::Rect, bool) {
+        let mut input = egui::RawInput::default();
+        input.events.extend(pointer.map(egui::Event::PointerMoved));
+        let mut out = (egui::Rect::NOTHING, false);
+        let _ = ctx.run_ui(input, |ui| {
+            let r = selectable_label(ui, selected, "A list row");
+            out = (r.rect, r.hovered());
+        });
+        out
+    }
+
+    /// Owner, 2026-11-07: rows must not magnify on hover - a fill or a
+    /// border only. The hovered rect is the resting rect, selected or not.
+    #[test]
+    fn a_selectable_row_keeps_its_rect_under_the_pointer() {
+        for selected in [false, true] {
+            let ctx = egui::Context::default();
+            Theme::dark().apply(&ctx);
+            let mut resting = egui::Rect::NOTHING;
+            for _ in 0..3 {
+                resting = row_frame(&ctx, None, selected).0;
+            }
+            let mut hovered = (egui::Rect::NOTHING, false);
+            for _ in 0..3 {
+                hovered = row_frame(&ctx, Some(resting.center()), selected);
+            }
+            assert!(
+                hovered.1,
+                "the pointer is over the row (selected {selected})"
+            );
+            assert_eq!(hovered.0, resting, "selected {selected}");
+        }
     }
 
     #[test]

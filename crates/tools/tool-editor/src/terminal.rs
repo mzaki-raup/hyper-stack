@@ -223,9 +223,11 @@ impl TerminalPanel {
                 } else {
                     t.title.clone()
                 };
-                if ui
-                    .add(egui::Button::selectable(self.active == i, label))
-                    .clicked()
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(self.active == i, label),
+                )
+                .clicked()
                 {
                     self.active = i;
                 }

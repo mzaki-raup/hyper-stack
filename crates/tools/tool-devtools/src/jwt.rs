@@ -316,8 +316,8 @@ impl Default for State {
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::page_title(ui, theme, &s.t("dt-jwt"), Some(&s.t("dt-jwt-sub")));
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut st.mode, Mode::Decode, s.t("dt-jwt-decode"));
-        ui.selectable_value(&mut st.mode, Mode::Encode, s.t("dt-jwt-encode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-jwt-decode"));
+        hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-jwt-encode"));
     });
     ui.add_space(8.0);
     match st.mode {
@@ -425,7 +425,7 @@ fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .selected_text(st.alg.name())
                 .show_ui(ui, |ui| {
                     for a in Alg::ALL {
-                        ui.selectable_value(&mut st.alg, a, a.name());
+                        hs_ui::form::selectable_value(ui, &mut st.alg, a, a.name());
                     }
                 });
         });

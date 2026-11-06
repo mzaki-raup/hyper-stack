@@ -690,6 +690,7 @@ Change Request : CR-0080
 - **Parent:** CR-0065
 - [x] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
 - [x] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
+- [ ] Every activity's work-pane header wears the same picture and colour as its tab (Graphics first; owner, 2026-11-06)
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -732,23 +733,23 @@ Change Request : CR-0080
 
 
 ### CR-0080 · Settings forms: left-aligned labels, indented sub-settings, one control column
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** In-Progress · built and gated 2026-11-07; docs follow
 - **Source:** owner, 2026-11-06 ("In All Settings Form; Put the all the label, horizontal left align and sub setting indented left align too. The checkbox, radio button, text input, dropdown input put in the same column position of other horizontal left align too. Write tjhis in rules")
 - **Scope:** `hs_ui::form::field_grid` / `label` left-align labels and gain `sub_label` with `SUB_INDENT`; every Settings page (crates/hyperstack/src/settings_ui.rs, settings_ai.rs) and the connection forms built like them use it, with every control in the second column.
 - **Parent:** CR-0061
-- [ ] `field_grid` labels left-aligned; `sub_label` indents a sub-setting
-- [ ] Every Settings page converted: labels left, sub-settings indented, controls in one column
-- [ ] Every Settings row, in the grid or outside it, has `ROW_GAP` above and below (owner: "some of the row in settings still not having top/bottom margin/padding")
-- [ ] Descriptions, guides, paragraphs, hints and standalone labels in Settings have the same gap above and below as the rows around them (owner, 2026-11-06)
-- [ ] Every Settings button one size (field height, same padding) through `form::button` / `form::primary_button`, with `BUTTON_GAP` between buttons side by side (owner, 2026-11-06)
-- [ ] Sub-section headings inside Settings cards a step larger and strong (`form::subsection`), between the card title and row labels (owner, 2026-11-06)
-- [ ] Checkbox lists spaced with descriptions under their labels; reorder (rearrange order) buttons standard size, their rows spaced (owner, 2026-11-06)
-- [ ] Suggestion lists: rows middle-aligned, Add buttons standard size in an aligned column, rows spaced (owner, 2026-11-06)
-- [ ] Settings → About → Installed: the Data Folder value and Open Data Folder on one middle-aligned row with a gap (owner, 2026-11-06)
-- [ ] Settings → About: the Policy and Check for Updates cards merged into one card titled Updates - the policy settings, then Check for Updates and its status (owner, 2026-11-06)
-- [ ] Test: a label and a sub-label start left; their controls share one x
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — several Settings pages; screenshots
+- [x] `field_grid` labels left-aligned; `sub_label` indents a sub-setting
+- [x] Every Settings page converted: labels left, sub-settings indented, controls in one column
+- [x] Every Settings row, in the grid or outside it, has `ROW_GAP` above and below (owner: "some of the row in settings still not having top/bottom margin/padding")
+- [x] Descriptions, guides, paragraphs, hints and standalone labels in Settings have the same gap above and below as the rows around them (owner, 2026-11-06)
+- [x] Every Settings button one size (field height, same padding) through `form::button` / `form::primary_button`, with `BUTTON_GAP` between buttons side by side (owner, 2026-11-06)
+- [x] Sub-section headings inside Settings cards a step larger and strong (`form::subsection`), between the card title and row labels (owner, 2026-11-06)
+- [x] Checkbox lists spaced with descriptions under their labels; reorder (rearrange order) buttons standard size, their rows spaced (owner, 2026-11-06)
+- [x] Suggestion lists: rows middle-aligned, Add buttons standard size in an aligned column, rows spaced (owner, 2026-11-06)
+- [x] Settings → About → Installed: the Data Folder value and Open Data Folder on one middle-aligned row with a gap (owner, 2026-11-06)
+- [x] Settings → About: the Policy and Check for Updates cards merged into one card titled Updates - the policy settings, then Check for Updates and its status (owner, 2026-11-06)
+- [x] Test: a label and a sub-label start left; their controls share one x
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — several Settings pages; screenshots - General, About, Terminal seen 2026-11-07 (screenshots 47-49)
 - [ ] Docs: CHANGELOG, ui.md rule
 
 ---

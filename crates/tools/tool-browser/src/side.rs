@@ -1100,34 +1100,37 @@ pub fn add_favorite_dialog(
         egui::ScrollArea::vertical()
             .max_height(160.0)
             .show(ui, |ui| {
-                if ui
-                    .add(egui::Button::selectable(
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(
                         d.folder.is_none() && !d.making_folder,
                         s.t("browser-add-favorite-root"),
-                    ))
-                    .clicked()
+                    ),
+                )
+                .clicked()
                 {
                     d.folder = None;
                     d.making_folder = false;
                 }
                 for (id, path) in &folders {
-                    if ui
-                        .add(egui::Button::selectable(
+                    if hs_ui::form::add_selectable(
+                        ui,
+                        egui::Button::selectable(
                             d.folder.as_deref() == Some(id.as_str()) && !d.making_folder,
                             format!("{} {path}", ph::FOLDER),
-                        ))
-                        .clicked()
+                        ),
+                    )
+                    .clicked()
                     {
                         d.folder = Some(id.clone());
                         d.making_folder = false;
                     }
                 }
-                if ui
-                    .add(egui::Button::selectable(
-                        d.making_folder,
-                        s.t("browser-add-favorite-new"),
-                    ))
-                    .clicked()
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(d.making_folder, s.t("browser-add-favorite-new")),
+                )
+                .clicked()
                 {
                     d.making_folder = true;
                 }
@@ -1233,7 +1236,8 @@ pub fn fill_password_dialog(
                 } else {
                     format!("{name} \u{b7} {user}")
                 };
-                if ui.add(egui::Button::selectable(false, label)).clicked() {
+                if hs_ui::form::add_selectable(ui, egui::Button::selectable(false, label)).clicked()
+                {
                     fill = Some(id.clone());
                 }
             }

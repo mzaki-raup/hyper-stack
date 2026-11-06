@@ -776,7 +776,7 @@ pub fn resource_rail(
                 &s.t(r.key()),
                 counts.get(i).copied(),
             );
-            if ui.add(button).clicked() {
+            if hs_ui::form::add_selectable(ui, button).clicked() {
                 picked = Some(r);
             }
             ui.add_space(2.0);

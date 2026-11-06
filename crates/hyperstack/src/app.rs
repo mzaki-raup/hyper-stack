@@ -2545,9 +2545,14 @@ impl HyperStackApp {
                         egui::ComboBox::from_id_salt("ws-copy-from")
                             .selected_text(selected)
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(copy_from, None, &none);
+                                hs_ui::form::selectable_value(ui, copy_from, None, &none);
                                 for n in &ws_names {
-                                    ui.selectable_value(copy_from, Some(n.clone()), n);
+                                    hs_ui::form::selectable_value(
+                                        ui,
+                                        copy_from,
+                                        Some(n.clone()),
+                                        n,
+                                    );
                                 }
                             });
                     });
@@ -2972,9 +2977,12 @@ impl HyperStackApp {
                 }
             }
             ui.separator();
-            if ui
-                .selectable_label(false, format!("{} {new_label}", hs_ui::icons::TAB_NEW))
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                false,
+                format!("{} {new_label}", hs_ui::icons::TAB_NEW),
+            )
+            .clicked()
             {
                 self.pending_actions.push(Action::RunCommand {
                     id: "ws.new".into(),
@@ -3008,9 +3016,12 @@ impl HyperStackApp {
         egui::ComboBox::from_id_salt("env")
             .selected_text(label)
             .show_ui(ui, |ui| {
-                if ui
-                    .selectable_label(s.environments.read().active.is_none(), s.t("env-none"))
-                    .clicked()
+                if hs_ui::form::selectable_label(
+                    ui,
+                    s.environments.read().active.is_none(),
+                    s.t("env-none"),
+                )
+                .clicked()
                 {
                     self.pending_actions
                         .push(Action::RunCommand { id: "env:".into() });
@@ -3031,8 +3042,7 @@ impl HyperStackApp {
                         name
                     ))
                     .color(col);
-                    if ui
-                        .selectable_label(active.as_deref() == Some(&id), txt)
+                    if hs_ui::form::selectable_label(ui, active.as_deref() == Some(&id), txt)
                         .clicked()
                     {
                         self.pending_actions.push(Action::RunCommand {
@@ -5142,8 +5152,8 @@ pub(crate) fn activity_colour(id: &str) -> egui::Color32 {
         "redis" => egui::Color32::from_rgb(0xf8, 0x71, 0x71),
         "nosql" => egui::Color32::from_rgb(0x34, 0xd3, 0x99),
         "logs" => egui::Color32::from_rgb(0xa3, 0xe6, 0x35),
-        "api" => egui::Color32::from_rgb(0xfb, 0xbf, 0x24),
-        "browser" => egui::Color32::from_rgb(0x22, 0xd3, 0xee),
+        "api" => tool_api::ACTIVITY_COLOUR,
+        "browser" => tool_browser::ACTIVITY_COLOUR,
         "graphics" => egui::Color32::from_rgb(0xf4, 0x72, 0xb6),
         "devtools" => egui::Color32::from_rgb(0xc0, 0x84, 0xfc),
         // Docker's blue, which is what a container reads as everywhere

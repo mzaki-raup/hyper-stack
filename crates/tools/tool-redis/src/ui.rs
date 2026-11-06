@@ -1103,8 +1103,7 @@ impl RedisTool {
                             .find(|(x, _)| *x == n)
                             .map(|(_, k)| *k)
                             .unwrap_or(0);
-                        if ui
-                            .selectable_label(n == db, format!("{n} ({count})"))
+                        if hs_ui::form::selectable_label(ui, n == db, format!("{n} ({count})"))
                             .clicked()
                             && n != db
                         {
@@ -1238,7 +1237,7 @@ impl RedisTool {
                         // A selectable label sizes to its text, so every row
                         // starts at the same left edge; a stretched button
                         // centres its text and makes the list look ragged.
-                        let r = ui.selectable_label(is_selected, label);
+                        let r = hs_ui::form::selectable_label(ui, is_selected, label);
                         let r = match pic_r {
                             Some(p) => r | p,
                             None => r,
@@ -2113,7 +2112,7 @@ impl RedisTool {
                                     KeyType::Hash,
                                 ] {
                                     let label = k.badge().to_string();
-                                    ui.selectable_value(kind, k, label);
+                                    hs_ui::form::selectable_value(ui, kind, k, label);
                                 }
                             });
                         ui.end_row();

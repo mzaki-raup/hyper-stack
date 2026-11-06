@@ -586,7 +586,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 (FrequencySetting::Monthly, "dt-cron-monthly"),
                 (FrequencySetting::Yearly, "dt-cron-yearly"),
             ] {
-                ui.selectable_value(&mut st.frequency, setting, s.t(key));
+                hs_ui::form::selectable_value(ui, &mut st.frequency, setting, s.t(key));
             }
         });
         ui.add_space(6.0);
@@ -636,7 +636,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                         .selected_text(MONTH_NAMES[(st.month.clamp(1, 12) - 1) as usize])
                         .show_ui(ui, |ui| {
                             for (i, m) in MONTH_NAMES.iter().enumerate() {
-                                ui.selectable_value(&mut st.month, i as u32 + 1, *m);
+                                hs_ui::form::selectable_value(ui, &mut st.month, i as u32 + 1, *m);
                             }
                         });
                 }

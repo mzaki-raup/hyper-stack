@@ -787,8 +787,10 @@ impl Tool for TerminalTool {
         if self.state.cluster.is_some() {
             return Some(hs_ui::icons::ph::POLYGON);
         }
-        if let Some(key) = &self.state.icon {
-            return Some(cli_icon(key));
+        // A CLI's mark is the product's, as its sidebar row and the header
+        // band draw it, not only the category the user picked.
+        if self.state.icon.is_some() {
+            return self.tab_conn_icon().map(|c| c.glyph);
         }
         self.state.profile.as_deref().map(shell_icon)
     }
@@ -826,7 +828,9 @@ impl Tool for TerminalTool {
             .unwrap_or_else(|| self.title().to_string());
         Some(
             self.tab_conn_icon()
-                .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL))
+                // No profile: the activity's glyph, which is what the tab
+                // falls back to.
+                .unwrap_or(hs_ui::icons::ConnIcon::glyph(DESCRIPTOR.icon))
                 .header(name.clone())
                 .fact(
                     "Version",

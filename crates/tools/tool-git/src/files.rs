@@ -420,7 +420,9 @@ impl FilesView {
                 .width(ui.available_width() - 8.0)
                 .show_ui(ui, |ui| {
                     for b in branches.iter().filter(|b| !b.remote) {
-                        if ui.selectable_label(b.current, &b.name).clicked() && !b.current {
+                        if hs_ui::form::selectable_label(ui, b.current, &b.name).clicked()
+                            && !b.current
+                        {
                             checkout = Some(b.name.clone());
                         }
                     }

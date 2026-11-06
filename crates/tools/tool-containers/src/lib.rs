@@ -1313,13 +1313,19 @@ impl ContainersTool {
                 egui::ComboBox::from_id_salt("cluster-namespace")
                     .selected_text(current)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut self.state.namespace,
                             String::new(),
                             s.t("cluster-all-namespaces"),
                         );
                         for n in &inv.namespaces {
-                            ui.selectable_value(&mut self.state.namespace, n.clone(), n);
+                            hs_ui::form::selectable_value(
+                                ui,
+                                &mut self.state.namespace,
+                                n.clone(),
+                                n,
+                            );
                         }
                     });
             });
@@ -3333,6 +3339,13 @@ impl Tool for ContainersTool {
     fn tab_icon_uri(&self) -> Option<String> {
         self.tab_icon()?;
         hs_ui::icons::conn_icon(&self.state.host_kind, "").uri()
+    }
+
+    /// The engine's colour for the glyph where it has no logo, as the
+    /// header band draws it.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.state.host_kind, "").brand()
     }
 
     /// A dashboard reports **no** uri, or it takes every request for the

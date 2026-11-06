@@ -753,7 +753,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
     );
     ui.horizontal(|ui| {
         for mode in [Mode::Uuid, Mode::Number, Mode::Password, Mode::Passphrase] {
-            ui.selectable_value(&mut st.mode, mode, s.t(mode.label_key()));
+            hs_ui::form::selectable_value(ui, &mut st.mode, mode, s.t(mode.label_key()));
         }
     });
     ui.add_space(8.0);
@@ -762,9 +762,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         match st.mode {
             Mode::Uuid => {
                 ui.horizontal(|ui| {
-                    ui.selectable_value(&mut st.uuid_kind, UuidSetting::V4, "v4");
-                    ui.selectable_value(&mut st.uuid_kind, UuidSetting::V7, "v7");
-                    ui.selectable_value(&mut st.uuid_kind, UuidSetting::Nil, s.t("dt-gen-nil"));
+                    hs_ui::form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V4, "v4");
+                    hs_ui::form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V7, "v7");
+                    hs_ui::form::selectable_value(
+                        ui,
+                        &mut st.uuid_kind,
+                        UuidSetting::Nil,
+                        s.t("dt-gen-nil"),
+                    );
                 });
                 form::hint(ui, theme, &s.t("dt-gen-uuid-hint"));
             }

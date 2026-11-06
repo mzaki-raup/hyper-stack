@@ -29,6 +29,9 @@ pub struct Line {
     /// How many groups deep the line sits; body lines indent by it.
     pub depth: usize,
     pub text: String,
+    /// A `Plain` line's level word and level, read once here so the pane
+    /// paints that word in its colour without searching every frame.
+    pub level: Option<(std::ops::Range<usize>, hs_core::loglevel::Level)>,
 }
 
 /// Lay the log out. Every input line becomes at most one output line, so
@@ -42,6 +45,7 @@ pub fn lines(text: &str) -> Vec<Line> {
                 kind: Kind::Blank,
                 depth: 0,
                 text: String::new(),
+                level: None,
             });
         }
     };
@@ -57,6 +61,7 @@ pub fn lines(text: &str) -> Vec<Line> {
                 kind: Kind::Header,
                 depth: 0,
                 text: name.to_string(),
+                level: None,
             });
             continue;
         }
@@ -66,6 +71,7 @@ pub fn lines(text: &str) -> Vec<Line> {
                 kind: Kind::Group,
                 depth,
                 text: name.to_string(),
+                level: None,
             });
             depth += 1;
             continue;
@@ -83,6 +89,7 @@ pub fn lines(text: &str) -> Vec<Line> {
                 kind: Kind::Command,
                 depth,
                 text: cmd.trim_start().to_string(),
+                level: None,
             });
             continue;
         }
@@ -91,10 +98,16 @@ pub fn lines(text: &str) -> Vec<Line> {
         } else {
             Kind::Plain
         };
+        let level = if kind == Kind::Plain {
+            hs_core::loglevel::level_span(line)
+        } else {
+            None
+        };
         out.push(Line {
             kind,
             depth,
             text: line.to_string(),
+            level,
         });
     }
     out

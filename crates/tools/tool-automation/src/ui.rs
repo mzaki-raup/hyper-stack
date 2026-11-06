@@ -153,13 +153,22 @@ fn log_line(ui: &mut egui::Ui, theme: &Theme, l: &crate::logfmt::Line) {
             .monospace()
             .color(theme.text_muted),
         Kind::Plain => {
-            let t = egui::RichText::new(format!("{indent}{}", l.text)).monospace();
             // A line that names a level wears the Logs activity's colour
-            // for it (CR-0077).
-            match hs_ui::loglevel::line_colour(theme, &l.text) {
-                Some(c) => t.color(c),
-                None => t,
-            }
+            // for it on the level word only (CR-0077); the span was read
+            // when the log was laid out.
+            let span = l
+                .level
+                .as_ref()
+                .map(|(r, lv)| (r.start + indent.len()..r.end + indent.len(), *lv));
+            let job = hs_ui::loglevel::line_job(
+                theme,
+                &format!("{indent}{}", l.text),
+                span.as_ref(),
+                egui::TextStyle::Monospace.resolve(ui.style()),
+                theme.text,
+            );
+            ui.add(egui::Label::new(job).selectable(true).extend());
+            return;
         }
     };
     ui.add(egui::Label::new(text).selectable(true).extend());
@@ -1137,12 +1146,14 @@ impl AutomationTool {
                 if !shown {
                     continue;
                 }
-                if ui
-                    .add(egui::Button::selectable(
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(
                         self.state.detail == d,
                         format!("{icon} {}", s.t(key)),
-                    ))
-                    .clicked()
+                    ),
+                )
+                .clicked()
                     && self.state.detail != d
                 {
                     self.state.detail = d;
@@ -1404,7 +1415,7 @@ impl AutomationTool {
                             .selected_text(value.clone())
                             .show_ui(ui, |ui| {
                                 for o in options {
-                                    ui.selectable_value(value, o.clone(), o);
+                                    hs_ui::form::selectable_value(ui, value, o.clone(), o);
                                 }
                             });
                     }
@@ -1428,7 +1439,7 @@ impl AutomationTool {
                 }
                 ui.end_row();
                 if !p.description.is_empty() {
-                    form::field_hint_row(ui, theme, &p.description);
+                    form::row_hint(ui, theme, &p.description);
                 }
             }
         });

@@ -587,13 +587,13 @@ impl RepoPane {
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The same control in every tool, in the same place.
-            if ui
-                .selectable_label(
-                    self.assistant.open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
-                .on_hover_text(s.t("git-ai-tip"))
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                self.assistant.open,
+                format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+            )
+            .on_hover_text(s.t("git-ai-tip"))
+            .clicked()
             {
                 self.assistant.toggle("git");
                 if self.assistant.open {

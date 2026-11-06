@@ -270,7 +270,9 @@ pub fn resource_rail(
                 &s.t(r.key()),
                 counts.get(i).copied(),
             );
-            let resp = ui.add_enabled(usable, button);
+            let resp = ui
+                .add_enabled_ui(usable, |ui| hs_ui::form::add_selectable(ui, button))
+                .inner;
             let resp = if usable {
                 resp
             } else {

@@ -1728,7 +1728,7 @@ impl Tool for Scratchpad {
         // sidebar column.
         if let Some((folder, mut name)) = self.renaming.clone() {
             form::hint(ui, &theme, &s.t("scratchpad-rename-folder"));
-            let r = ui.add(egui::TextEdit::singleline(&mut name).desired_width(f32::INFINITY));
+            let r = ui.add(hs_ui::form::line_edit(&mut name).desired_width(f32::INFINITY));
             if std::mem::take(&mut self.rename_focus) {
                 r.request_focus();
             }

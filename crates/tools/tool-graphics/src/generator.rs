@@ -199,6 +199,7 @@ impl GeneratorState {
                         );
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
+                            hs_ui::form::match_field_height(ui);
                             ui.label(s.t("gfx-gen-type"));
                             egui::ComboBox::from_id_salt("gfx-gen-kind")
                                 .selected_text(match self.kind {
@@ -237,6 +238,7 @@ impl GeneratorState {
                         ui.add_space(4.0);
                         let providers = s.settings.read().ai.chat_providers();
                         ui.horizontal(|ui| {
+                            hs_ui::form::match_field_height(ui);
                             ui.label(s.t("gfx-gen-provider"));
                             let selected_name = providers
                                 .iter()
@@ -271,7 +273,7 @@ impl GeneratorState {
                             ui.horizontal(|ui| {
                                 ui.label(s.t("gfx-gen-model"));
                                 ui.add(
-                                    egui::TextEdit::singleline(&mut self.model)
+                                    hs_ui::form::line_edit(&mut self.model)
                                         .hint_text(s.t("gfx-gen-model-hint"))
                                         .desired_width(f32::INFINITY),
                                 );

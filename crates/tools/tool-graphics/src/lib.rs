@@ -809,6 +809,7 @@ impl GraphicsTool {
                 .spacing([10.0, 6.0])
                 .show(ui, |ui| {
                     ui.label(s.t("gfx-ai-generate-provider"));
+                    hs_ui::form::match_field_height(ui);
                     egui::ComboBox::from_id_salt("gfx-generate-provider")
                         .width(ui.available_width())
                         .selected_text(provider.name.clone())
@@ -846,7 +847,7 @@ impl GraphicsTool {
                             provider.checkpoint.clone()
                         };
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.generate.models[model_slot])
+                            hs_ui::form::line_edit(&mut self.generate.models[model_slot])
                                 .hint_text(hint)
                                 .desired_width(f32::INFINITY),
                         );
@@ -1850,6 +1851,7 @@ impl GraphicsTool {
             ui.add_enabled_ui(has, |ui| {
                 Rows::show(ui, theme, "gfx-rows-export", |rows| {
                     rows.row(&s.t("gfx-format"), None, |ui| {
+                        hs_ui::form::match_field_height(ui);
                         egui::ComboBox::from_id_salt("gfx-format")
                             .width(120.0)
                             .selected_text(self.format.label())

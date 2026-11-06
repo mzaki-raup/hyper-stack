@@ -538,6 +538,7 @@ fn unit_combo<T: PartialEq + Copy>(
     all: &[T],
     label: impl Fn(T) -> String,
 ) {
+    hs_ui::form::match_field_height(ui);
     egui::ComboBox::from_id_salt(id)
         .width(140.0)
         .selected_text(label(*value))
@@ -558,7 +559,7 @@ fn time_pane(
     form::section(ui, theme, &s.t("dt-conv-time"), |ui| {
         ui.horizontal(|ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut st.time_input)
+                hs_ui::form::line_edit(&mut st.time_input)
                     .hint_text(s.t("dt-conv-value"))
                     .desired_width(120.0),
             );
@@ -625,7 +626,7 @@ fn data_pane(
     form::section(ui, theme, &s.t("dt-conv-data"), |ui| {
         ui.horizontal(|ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut st.data_input)
+                hs_ui::form::line_edit(&mut st.data_input)
                     .hint_text(s.t("dt-conv-value"))
                     .desired_width(120.0),
             );
@@ -691,7 +692,7 @@ fn number_pane(
     form::section(ui, theme, &s.t("dt-conv-number"), |ui| {
         ui.horizontal(|ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut st.number_input)
+                hs_ui::form::line_edit(&mut st.number_input)
                     .hint_text(s.t("dt-conv-number-hint"))
                     .desired_width(220.0),
             );
@@ -749,14 +750,14 @@ fn epoch_pane(
         ui.add_space(4.0);
         ui.label(s.t("dt-conv-epoch-value"));
         ui.add(
-            egui::TextEdit::singleline(&mut st.epoch_input)
+            hs_ui::form::line_edit(&mut st.epoch_input)
                 .hint_text("1760659200")
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(6.0);
         ui.label(s.t("dt-conv-iso-value"));
         ui.add(
-            egui::TextEdit::singleline(&mut st.iso_input)
+            hs_ui::form::line_edit(&mut st.iso_input)
                 .hint_text("2026-10-17T00:00:00Z")
                 .desired_width(f32::INFINITY),
         );
@@ -801,7 +802,7 @@ fn bandwidth_pane(
     form::section(ui, theme, &s.t("dt-conv-bandwidth"), |ui| {
         ui.horizontal(|ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut st.rate_input)
+                hs_ui::form::line_edit(&mut st.rate_input)
                     .hint_text(s.t("dt-conv-value"))
                     .desired_width(120.0),
             );
@@ -854,7 +855,7 @@ fn bandwidth_pane(
     form::section(ui, theme, &s.t("dt-conv-transfer"), |ui| {
         ui.horizontal(|ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut st.transfer_mb)
+                hs_ui::form::line_edit(&mut st.transfer_mb)
                     .hint_text(s.t("dt-conv-transfer-hint"))
                     .desired_width(120.0),
             );
@@ -896,7 +897,7 @@ fn duration_pane(
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-duration"), |ui| {
         ui.add(
-            egui::TextEdit::singleline(&mut st.duration_input)
+            hs_ui::form::line_edit(&mut st.duration_input)
                 .hint_text(s.t("dt-conv-duration-hint"))
                 .desired_width(f32::INFINITY),
         );

@@ -1082,7 +1082,7 @@ fn name_row(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                 .color(theme.text_muted),
         );
         let r = ui.add(
-            egui::TextEdit::singleline(&mut t.request.name)
+            hs_ui::form::line_edit(&mut t.request.name)
                 .hint_text(s.t("api-request-name-hint"))
                 .desired_width(f32::INFINITY),
         );
@@ -1649,6 +1649,7 @@ fn auth_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 /// The authentication form, for a request and for a collection.
 fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id: &str) {
     ui.horizontal(|ui| {
+        hs_ui::form::match_field_height(ui);
         ui.label(s.t("api-auth-type"));
         egui::ComboBox::from_id_salt(id)
             .selected_text(a.kind.label())
@@ -2674,7 +2675,7 @@ pub(crate) fn library_tab(
                         let url_id = ui.id().with("url");
                         let mut url: String = ui.data(|d| d.get_temp(url_id)).unwrap_or_default();
                         let r = ui.add(
-                            egui::TextEdit::singleline(&mut url)
+                            hs_ui::form::line_edit(&mut url)
                                 .hint_text(s.t("api-library-url-hint"))
                                 .desired_width(f32::INFINITY),
                         );

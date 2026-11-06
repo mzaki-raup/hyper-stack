@@ -802,9 +802,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                     ui.label(s.t("dt-gen-words"));
                     ui.add(egui::DragValue::new(&mut st.phrase_words).range(1..=64));
                     ui.label(s.t("dt-gen-separator"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut st.phrase_separator).desired_width(60.0),
-                    );
+                    ui.add(hs_ui::form::line_edit(&mut st.phrase_separator).desired_width(60.0));
                 });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut st.phrase_capitalise, s.t("dt-gen-capitalise"));
@@ -831,7 +829,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         ui.horizontal(|ui| {
             ui.label(s.t("dt-gen-seed"));
             ui.add(
-                egui::TextEdit::singleline(&mut st.seed)
+                hs_ui::form::line_edit(&mut st.seed)
                     .hint_text(s.t("dt-gen-seed-empty"))
                     .desired_width(140.0),
             );

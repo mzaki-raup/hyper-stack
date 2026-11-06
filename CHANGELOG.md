@@ -15,6 +15,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Database: a table designer - Design Table… on a table, New Table… on a schema - with columns, indexes and foreign keys as a form, the ALTER or CREATE script shown underneath, engine refusals said plainly, and Apply through the connection's guarded run path (FEAT-0103)
 
+### Changed
+
+- One layout standard, written in `.claude/rules/ui.md` and applied: every single-line field and every dropdown beside one is the same height, the table designer's columns, indexes and keys are proper tables (header band, centred cells, columns wide enough for their values) inside the pane margin, and form rows have a fixed gap (CR-0061)
+- Every dashboard's saved cards carry a coloured icon (Devtools by category, Logs as its sidebar), and the Database query and design tabs and the Git host tabs draw the Material icon when Material icons are on (CR-0065)
+- The Home dashboard's activity rail shrinks its buttons, icons and names to stay on one row, and wraps to a second row when it cannot (CR-0064)
+- Quick Open and the command palette draw each row's icon as the rest of the app does: activities and their commands in the rail colour, connections in their product's mark, files in their Material icon (CR-0066)
+
 ## 0.126.0 — 2026-11-06
 
 ### Added

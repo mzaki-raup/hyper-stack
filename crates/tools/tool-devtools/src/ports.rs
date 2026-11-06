@@ -227,7 +227,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 ui.spinner();
             }
             ui.add(
-                egui::TextEdit::singleline(&mut state.filter)
+                hs_ui::form::line_edit(&mut state.filter)
                     .hint_text(s.t("dt-ports-filter"))
                     .desired_width(200.0),
             );

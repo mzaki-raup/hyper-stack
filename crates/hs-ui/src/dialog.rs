@@ -150,7 +150,7 @@ pub fn password(
         ui.add_space(10.0);
         ui.label(labels.password);
         let r = ui.add(
-            egui::TextEdit::singleline(&mut state.password)
+            crate::form::line_edit(&mut state.password)
                 .password(true)
                 .desired_width(f32::INFINITY),
         );
@@ -162,7 +162,7 @@ pub fn password(
         if let Some(c) = labels.confirm {
             ui.label(c);
             let r2 = ui.add(
-                egui::TextEdit::singleline(&mut state.confirm)
+                crate::form::line_edit(&mut state.confirm)
                     .password(true)
                     .desired_width(f32::INFINITY),
             );

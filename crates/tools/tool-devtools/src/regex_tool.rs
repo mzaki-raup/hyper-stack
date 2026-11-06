@@ -150,7 +150,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
     ui.add_space(4.0);
     form::section(ui, theme, &s.t("dt-regex-pattern"), |ui| {
         ui.add(
-            egui::TextEdit::singleline(&mut st.pattern)
+            hs_ui::form::line_edit(&mut st.pattern)
                 .hint_text(s.t("dt-regex-pattern-hint"))
                 .font(egui::TextStyle::Monospace)
                 .desired_width(f32::INFINITY),
@@ -272,7 +272,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             });
             form::section(ui, theme, &s.t("dt-regex-replace"), |ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut st.replacement)
+                    hs_ui::form::line_edit(&mut st.replacement)
                         .hint_text(s.t("dt-regex-replace-hint"))
                         .font(egui::TextStyle::Monospace)
                         .desired_width(f32::INFINITY),

@@ -937,6 +937,7 @@ impl DiagramState {
             ui.painter().rect_filled(ui.max_rect(), 8.0, theme.panel_bg);
             ui.heading(s.t("gfx-diagram-import"));
             ui.label(s.t("gfx-drawio-choose-page"));
+            hs_ui::form::match_field_height(ui);
             egui::ComboBox::from_id_salt("gfx-drawio-page")
                 .selected_text(&pages[selected].name)
                 .show_ui(ui, |ui| {
@@ -1147,7 +1148,7 @@ impl DiagramState {
                     props_label(ui, &s.t("gfx-diagram-title"));
                     doc_changed |= ui
                         .add(
-                            egui::TextEdit::singleline(&mut self.doc.title)
+                            hs_ui::form::line_edit(&mut self.doc.title)
                                 .hint_text(s.t("gfx-diagram-title"))
                                 .desired_width(f32::INFINITY),
                         )
@@ -1212,12 +1213,13 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut node.label)
+                                    hs_ui::form::line_edit(&mut node.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
                             ui.end_row();
                             props_label(ui, &s.t("gfx-diagram-shape"));
+                            hs_ui::form::match_field_height(ui);
                             egui::ComboBox::from_id_salt("gfx-diagram-shape")
                                 .width(ui.available_width())
                                 .selected_text(shape_label(node.kind, s))
@@ -1276,20 +1278,19 @@ impl DiagramState {
                                         for (i, column) in erd.columns.iter_mut().enumerate() {
                                             changed |= ui
                                                 .add(
-                                                    egui::TextEdit::singleline(&mut column.name)
+                                                    hs_ui::form::line_edit(&mut column.name)
                                                         .desired_width(78.0)
                                                         .hint_text(s.t("gfx-col-name")),
                                                 )
                                                 .changed();
                                             changed |= ui
                                                 .add(
-                                                    egui::TextEdit::singleline(
-                                                        &mut column.data_type,
-                                                    )
-                                                    .desired_width(64.0)
-                                                    .hint_text(s.t("gfx-col-type")),
+                                                    hs_ui::form::line_edit(&mut column.data_type)
+                                                        .desired_width(64.0)
+                                                        .hint_text(s.t("gfx-col-type")),
                                                 )
                                                 .changed();
+                                            hs_ui::form::match_field_height(ui);
                                             egui::ComboBox::from_id_salt(("column-key", i))
                                                 .width(56.0)
                                                 .selected_text(match column.key {
@@ -1412,13 +1413,14 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-diagram-label"));
                             changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut edge.label)
+                                    hs_ui::form::line_edit(&mut edge.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
                             ui.end_row();
                             if is_erd {
                                 props_label(ui, &s.t("gfx-prop-cardinality"));
+                                hs_ui::form::match_field_height(ui);
                                 egui::ComboBox::from_id_salt("gfx-edge-cardinality")
                                     .width(ui.available_width())
                                     .selected_text(
@@ -1574,7 +1576,7 @@ impl DiagramState {
                             props_label(ui, &s.t("gfx-prop-text"));
                             frame_changed |= ui
                                 .add(
-                                    egui::TextEdit::singleline(&mut group.label)
+                                    hs_ui::form::line_edit(&mut group.label)
                                         .desired_width(f32::INFINITY),
                                 )
                                 .changed();
@@ -1613,6 +1615,7 @@ impl DiagramState {
                         .spacing([6.0, 4.0])
                         .show(ui, |ui| {
                             for (i, fragment) in self.doc.fragments.iter_mut().enumerate() {
+                                hs_ui::form::match_field_height(ui);
                                 egui::ComboBox::from_id_salt(("fragment-kind", i))
                                     .width(64.0)
                                     .selected_text(match fragment.kind {
@@ -1638,7 +1641,7 @@ impl DiagramState {
                                     });
                                 fragment_changed |= ui
                                     .add(
-                                        egui::TextEdit::singleline(&mut fragment.label)
+                                        hs_ui::form::line_edit(&mut fragment.label)
                                             .hint_text(s.t("gfx-frag-condition"))
                                             .desired_width(86.0),
                                     )

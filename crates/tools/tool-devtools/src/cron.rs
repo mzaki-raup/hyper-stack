@@ -628,6 +628,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         ) {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
+                hs_ui::form::match_field_height(ui);
                 ui.label(s.t("dt-cron-day-of-month"));
                 ui.add(egui::DragValue::new(&mut st.day_of_month).range(1..=31));
                 if st.frequency == FrequencySetting::Yearly {
@@ -682,7 +683,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         form::hint(ui, theme, &s.t("dt-cron-check-hint"));
         ui.add_space(4.0);
         ui.add(
-            egui::TextEdit::singleline(&mut st.check_input)
+            hs_ui::form::line_edit(&mut st.check_input)
                 .hint_text("0 30 9 * * ?")
                 .desired_width(f32::INFINITY)
                 .font(egui::TextStyle::Monospace),

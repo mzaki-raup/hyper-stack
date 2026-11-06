@@ -1,6 +1,6 @@
 # 07 — Roadmap
 
-**Status:** draft · **Last updated:** 2026-10-10
+**Status:** draft · **Last updated:** 2026-11-06
 
 Effort assumes one experienced Rust developer working mostly full-time, able to
 read Eden Explorer for reference but writing every module fresh. Weeks are
@@ -61,15 +61,15 @@ in the e2e test).
 ### M1 · Terminal + Editor (5 w)
 - [x] `hs-term`: grid on `alacritty_terminal`, listener, key encoding; `portable-pty` local; shell profile detection (PowerShell 7/5, cmd + Clink, Git Bash, WSL)
 - [x] `tool-terminal`: tabs, splits, "open here" action, profiles settings, right-click copy/paste, scrollback search (Ctrl+Shift+F), Ctrl+click links (URLs, `path:line:col`)
-- [ ] Terminal settings: a Terminal List of CLI profiles (mysql, psql, mongosh, redis-cli, claude, opencode, custom) on the Terminal page between Security and Connections, reorderable, with PATH suggestions; the Terminal activity sidebar shows them under Shells (docs/tools/terminal.md §5, 2026-10-19)
+- [x] Terminal settings: a Terminal List of CLI profiles (mysql, psql, mongosh, redis-cli, claude, opencode, custom) on the Terminal page between Security and Connections, reorderable, with PATH suggestions; the Terminal activity sidebar shows them under Shells (docs/tools/terminal.md §5, 2026-10-19)
 - [x] `hs-editor`: ropey buffer, cursor/selection model, grouped undo/redo, syntect highlighting (incremental, per visible lines), gutter, find/replace, bracket match, indent, multi-cursor
 - [x] `tool-editor`: project tree with `notify` watcher, open/save (local files; VFS schemes with M2), encodings, line endings, dirty and external-change handling, quick-open provider
 - [x] Markdown preview (pulldown-cmark) in the editor with a native Mermaid subset (flowchart, sequence)
 - [x] Settings → Updates: version display, **Check now**, release notes, download Job with verification (size, sha256, manifest signature, `--self-test`), restart-and-install by rename, `--finish-update` handshake, keep previous + **Revert**
 
 ### M2 · SSH/SFTP + S3 (4 w)
-- [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term`
-- [ ] `tool-ssh`: SFTP dual pane on `DataTable`, transfer queue in `Transfers`, resume, chmod, open-in-editor and save back via `sftp://` VFS
+- [ ] `tool-ssh`: host profiles, import `~/.ssh/config`, auth methods, agent, jump hosts, known hosts in `HyperStackData/`, shell tab over `hs-term` (profiles, password / key / agent auth, known hosts and the shell tab done 2026-10-11; `~/.ssh/config` import and jump hosts pending)
+- [ ] `tool-ssh`: SFTP dual pane on `DataTable`, transfer queue in `Transfers`, resume, chmod, open-in-editor and save back via `sftp://` VFS (dual pane, transfers as Jobs and edit-in-editor done 2026-10-11; the transfer queue with resume, chmod and the `sftp://` VFS pending)
 - [x] `Tunnels` service (local forward) ready for DB/Redis/API
 - [x] `tool-s3`: profiles + import AWS files, SigV4 client in `hs-core::objstore`, bucket/prefix browsing, uploads with multipart, downloads, delete with guard, presigned URLs — the `s3://` VFS moves to M6 with the `sftp://` one (editing goes through a temp file meanwhile)
 
@@ -111,11 +111,11 @@ on the full gate and releasable:
 - [x] 1 · `hs_ui::table::DataTable` scrolls instead of clipping (fixes S3 and SFTP too); `podman`/`wincontainer` connection kinds; Settings → Containers with the Container List and the per-kind forms; vault wiring
 - [x] 2 · `hs-container` Docker/Podman driver: the CLI across all four transports, verified against a real engine behind an env var. `bollard` deferred to phase 4 for streaming (see `docs/tools/containers.md` §10.3a)
 - [x] 3 · The activity, its rail entry, the dashboard, the two-section sidebar, one tab per host
-- [ ] 4 · Docker pane (Portainer-shaped): containers, images, volumes, networks; start/stop/restart; Logs and Exec handed to `tool-logs` and `hs-term`
-- [ ] 5 · Compose and Swarm
-- [ ] 6 · Kubernetes driver (`kube` + `k8s-openapi`, with Use kubectl as the escape hatch) and the Lens-shaped pane: namespaces, workloads, events, YAML
-- [ ] 7 · Apply with a dry-run diff, port-forward, CRD discovery
-- [ ] 8 · AI assistant, prompt buttons, `hs-container` action blocks, the Problems feed
+- [x] 4 · Docker pane (Portainer-shaped): containers, images, volumes, networks; start/stop/restart; Logs and Exec handed to `tool-logs` and `hs-term`
+- [x] 5 · Compose and Swarm
+- [x] 6 · Kubernetes driver (`kube` + `k8s-openapi`, with Use kubectl as the escape hatch) and the Lens-shaped pane: namespaces, workloads, events, YAML
+- [x] 7 · Apply with a dry-run diff, port-forward, CRD discovery
+- [x] 8 · AI assistant, prompt buttons, `hs-container` action blocks, the Problems feed
 
 The Phase 2 "Containers" line below is superseded by this; the Phase 2
 Logs line keeps its own Docker/Kubernetes **log source** work, which
@@ -130,28 +130,34 @@ as the **depth programme** - fifteen phases A to O in
 compare / ERD, Cassandra, forge integration, and a new Automation
 activity for Jenkins / TeamCity / Actions / AWX / Puppet).
 
+Status on 2026-11-06 (detail in `CHECKLIST.md`): A to H and O are done;
+K (Automation), L (Queue) and N (Tracker) are built and released, open
+only for checks that need servers this machine cannot run (AWX, Jira,
+Confluence, Kafka over TLS / OAUTHBEARER); I (Cassandra), J (pull
+requests, issues and CI status) and M (ELK) are pending.
+
 
 - [x] Containers: Docker/Podman (local, TCP, over SSH), Kubernetes and Windows containers, compose; logs feed `tool-logs`, exec feeds `hs-term` — the Container activity, 2026-10-24 (ADR-026)
 - [ ] API: Rhai pre/post scripts and assertions, collection runner with report, WebSocket + SSE, GraphQL introspection, cookie jar, client certs, proxy
-- [ ] SQL: SQL Server, inline editing with preview, explain plan tree, CSV import, Excel export
+- [x] SQL: SQL Server, inline editing with preview, explain plan tree, CSV import, Excel export — depth phases B (2026-10-30) and C (FEAT-0068, 2026-11-01); a table designer followed (FEAT-0103, app v0.127.0, 2026-11-06)
 - [ ] NoSQL: Elasticsearch/OpenSearch and DynamoDB drivers, index management, explain, schema inference, import/export, copy collection across environments, CouchDB views and replication
-- [ ] Redis: server info dashboard, slowlog, client list, pub/sub tab, streams with consumer groups, big-key finder, bulk delete with dry run, export/import
-- [ ] Logs: Docker/Kubernetes sources done through the Container activity (2026-10-24); journalctl/Windows Event Log sources, multi-source merge, statistics sparkline, alerts, save filtered output pending
+- [ ] Redis: server info dashboard, slowlog, client list, pub/sub tab, streams with consumer groups, big-key finder, bulk delete with dry run, export/import — all but export/import done in depth phase A (2026-10-30)
+- [x] Logs: Docker/Kubernetes sources done through the Container activity (2026-10-24); journalctl/Windows Event Log sources, multi-source merge, statistics, alerts in depth phase D (2026-10-30); Save Filtered… with the redaction rules (§15.4)
 - [ ] Editor: tree-sitter highlighting and folding, minimap, snippets, external formatter, three-way merge editor
 - [x] Git: log graph, blame, file history, merge/rebase/cherry-pick/tags, conflict resolution — the Git activity, 2026-10-29/30 (revert pending)
-- [ ] SSH: port-forward manager UI, broadcast input, server monitor widget, saved commands
-- [ ] S3: object metadata/tags/versions, sync with dry run, policy/CORS viewer
+- [ ] SSH: port-forward manager UI, broadcast input, server monitor widget, saved commands — all but saved commands done in depth phase E (2026-10-30); forwards take a name (FEAT-0098)
+- [x] S3: object metadata/tags/versions, sync with dry run, policy/CORS viewer — depth phase F (2026-10-30)
 - [ ] Shell: cross-tool drag and drop, global search, optional installed mode (per-user data folder) for people who prefer it
 - [ ] Delivery: Linux x64 release built on the Windows runner with `cargo-zigbuild`, beta channel from a `beta` branch, mirror `source` setting for managed networks
-- [ ] Devtools: network tools, process/port viewer, snippet manager, `.env` editor, scratchpad, SQL formatter, fake data
+- [ ] Devtools: network tools, process/port viewer, snippet manager, `.env` editor, scratchpad, SQL formatter, fake data — network tools, the port viewer, snippets and the `.env` editor in depth phase G (2026-10-30); the scratchpad is its own activity with folders (phase O); SQL formatter and fake data pending
 
 ## Phase 3 — Reach (≈ 16 weeks)
 
 - [x] Kubernetes: contexts, namespaces, workloads, pods logs/exec/port-forward, describe, apply — in the Container activity, 2026-10-24
 - [ ] API: gRPC (reflection + proto import), mock server from collection/OpenAPI, OpenAPI export
-- [ ] SQL: ER diagram, DDL generator, schema compare, data compare, ClickHouse/DuckDB
+- [x] SQL: ER diagram, DDL generator, schema compare, data compare, ClickHouse/DuckDB — depth phase H (2026-10-31) and FEAT-0068 (2026-11-01)
 - [ ] NoSQL: Cassandra/ScyllaDB (CQL), Firestore/Cosmos/Neo4j evaluation
-- [ ] Git forge integration: project listing, clone and avatars done (Git activity phase 4, 2026-10-29); PRs, issues and CI status pending
+- [ ] Git forge integration: project listing, clone and avatars done (Git activity phase 4, 2026-10-29); a tab per host with its repositories and the Files view (FEAT-0100 to FEAT-0102, 2026-11-05); PRs, issues and CI status pending (depth phase J)
 - [ ] Plugin API (WASM via `wasmtime`): devtools utilities and importers first
 - [ ] Detachable tabs (multiple viewports), session audit log, presentation mode
 - [x] Optional AI assistant (bring your own service) in the editor (ADR-019); review-only assistant with Insert in Terminal, SSH, SQL, S3, API client and Graphics (2026-10-15)
@@ -176,10 +182,9 @@ Diagram Generator — split into two releases. The requirements and design are i
       (2026-10-19)
 - [ ] Diagram Editor: flowchart and architecture, direct manipulation, undo,
       save/open `.hdiag`, drafts, project save, templates, Mermaid flowchart
-      import (canvas, selection, drag, add/connect, undo, templates,
-      save/export and close-time drafts implemented; project save,
-      debounced autosave, resize/align and Mermaid remain)
-- [ ] Diagram Generator: prompt, examples, AI providers, offline templates,
+      import (everything but the Mermaid flowchart import is implemented;
+      project save, debounced autosave and resize/align came with R1.1 below)
+- [x] Diagram Generator: prompt, examples, AI providers, offline templates,
       validation/repair, preview, open in editor, export (prompt, examples, AI,
       offline templates, the one repair round, preview, open in editor and export
       implemented 2026-10-20)
@@ -187,9 +192,9 @@ Diagram Generator — split into two releases. The requirements and design are i
       (review-only; implemented 2026-10-20)
 - [x] Archify schema adaptation with `THIRD_PARTY_NOTICES.md`, pinned v3.2.0,
       and the strict IR validator (2026-10-19)
-      (schemas and notice committed; validator, About page and notice test
-      pending)
-- [ ] Tests, documentation, screenshots and GIF
+      (schemas, notice, validator, the About page's notices and their test
+      committed)
+- [x] Tests, documentation, screenshots and GIF
 
 ### R1.1 — finishing the editor (implemented 2026-10-20)
 - [x] Save Diagram modal into a project's `docs/diagrams/` folder
@@ -199,7 +204,7 @@ Diagram Generator — split into two releases. The requirements and design are i
 
 ### Release 2 — more diagram types and imports
 
-- [ ] ERD: entities, columns, types, keys and cardinality
+- [x] ERD: entities, columns, types, keys and cardinality
 - [x] Sequence: basic participants/messages template and Mermaid sequence import (2026-10-20)
 - [x] Archify JSON import from the adapted schemas (2026-10-20)
 - [x] draw.io XML import: plain and compressed, first page, basic styles

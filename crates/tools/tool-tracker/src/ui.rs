@@ -1294,7 +1294,7 @@ impl TrackerTool {
         ui.horizontal(|ui| {
             let width = (ui.available_width() - 120.0).max(120.0);
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.query_text)
+                hs_ui::form::line_edit(&mut self.query_text)
                     .hint_text(s.t(match self.kind.as_str() {
                         "jira" => "tracker-query-hint-jql",
                         "confluence" => "tracker-query-hint-cql",
@@ -1552,6 +1552,7 @@ impl TrackerTool {
             .cloned();
         let mut picked = None;
         ui.horizontal(|ui| {
+            hs_ui::form::match_field_height(ui);
             egui::ComboBox::from_id_salt("tracker-space")
                 .width(ui.available_width() - 30.0)
                 .selected_text(

@@ -1729,8 +1729,7 @@ impl EditorView {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Go to Line");
-                    let r =
-                        ui.add(egui::TextEdit::singleline(&mut self.goto_text).desired_width(80.0));
+                    let r = ui.add(hs_ui::form::line_edit(&mut self.goto_text).desired_width(80.0));
                     if self.goto_text.is_empty() {
                         r.request_focus();
                     }

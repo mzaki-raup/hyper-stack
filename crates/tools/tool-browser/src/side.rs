@@ -781,7 +781,7 @@ fn favorite_detail(
         };
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(name).desired_width(f32::INFINITY))
             .changed();
     } else {
         let Some(l) = t.favorites.link_mut(id) else {
@@ -789,12 +789,12 @@ fn favorite_detail(
         };
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.name).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-url")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.url).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.url).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         icon_field(ui, theme, s, &mut l.icon, &mut changed);
@@ -834,7 +834,7 @@ fn icon_field(
     ui.label(egui::RichText::new(s.t("browser-icon")).size(11.0));
     *changed |= ui
         .add(
-            egui::TextEdit::singleline(icon)
+            hs_ui::form::line_edit(icon)
                 .hint_text(s.t("browser-icon-hint"))
                 .desired_width(f32::INFINITY),
         )
@@ -873,17 +873,17 @@ fn login_detail(
         let l = &mut t.passwords.items[i];
         ui.label(egui::RichText::new(s.t("browser-name")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.name).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.name).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-url")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.url).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.url).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         ui.label(egui::RichText::new(s.t("browser-username")).size(11.0));
         changed |= ui
-            .add(egui::TextEdit::singleline(&mut l.username).desired_width(f32::INFINITY))
+            .add(hs_ui::form::line_edit(&mut l.username).desired_width(f32::INFINITY))
             .changed();
         ui.add_space(6.0);
         icon_field(ui, theme, s, &mut l.icon, &mut changed);
@@ -939,7 +939,7 @@ fn secret_field(
             s.t("browser-secret-stored")
         };
         ui.add(
-            egui::TextEdit::singleline(buf)
+            hs_ui::form::line_edit(buf)
                 .password(!shown)
                 .hint_text(hint)
                 .desired_width(ui.available_width() - 96.0),
@@ -1142,7 +1142,7 @@ pub fn add_favorite_dialog(
         if d.making_folder {
             ui.add_space(6.0);
             ui.add(
-                egui::TextEdit::singleline(&mut d.new_folder)
+                hs_ui::form::line_edit(&mut d.new_folder)
                     .hint_text(s.t("browser-add-favorite-new-hint"))
                     .desired_width(f32::INFINITY),
             );

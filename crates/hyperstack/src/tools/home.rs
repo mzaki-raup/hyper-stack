@@ -24,6 +24,19 @@ use hs_ui::tip::TipExt;
 /// width for every activity, and the margin the name keeps from the edge.
 const LABELLED_WIDTH: f32 = 76.0;
 const LABELLED_PAD: f32 = 6.0;
+/// The narrowest a labelled button gets before the row wraps instead
+/// (CR-0064).
+const LABELLED_MIN_WIDTH: f32 = 58.0;
+/// The rail's sizes without names, full and least (CR-0064).
+const GLYPH_WIDTH: f32 = 34.0;
+const GLYPH_MIN_WIDTH: f32 = 30.0;
+/// Room kept for the separator and the row's ends (CR-0064).
+const RAIL_RESERVE: f32 = 32.0;
+/// Glyph and name sizes at the least and the full width (CR-0064).
+const RAIL_GLYPH: (f32, f32) = (18.0, 22.0);
+const RAIL_NAME: (f32, f32) = (10.0, 11.0);
+/// A labelled button's height at the least and the full width (CR-0064).
+const RAIL_HEIGHT: (f32, f32) = (42.0, 50.0);
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     id: "home",
@@ -136,6 +149,22 @@ impl Tool for HomeTool {
             .filter(|id| !hidden.iter().any(|h| h == id))
             .collect();
         let mut open: Option<String> = None;
+        // The buttons shrink to keep the rail on one row - down to
+        // LABELLED_MIN_WIDTH (or 30 px without names), with a smaller
+        // glyph and name - and the row wraps when even that does not fit
+        // (CR-0064).
+        let count = ordered.len() as f32 + 1.0;
+        let gap = ui.spacing().item_spacing.x;
+        let room = (ui.available_width() - RAIL_RESERVE - count * gap) / count;
+        let (full, least) = if labelled {
+            (LABELLED_WIDTH, LABELLED_MIN_WIDTH)
+        } else {
+            (GLYPH_WIDTH, GLYPH_MIN_WIDTH)
+        };
+        let width = room.clamp(least, full);
+        let t = (width - least) / (full - least).max(1.0);
+        let glyph_size = RAIL_GLYPH.0 + (RAIL_GLYPH.1 - RAIL_GLYPH.0) * t;
+        let name_size = RAIL_NAME.0 + (RAIL_NAME.1 - RAIL_NAME.0) * t;
         let mut icon_button = |ui: &mut egui::Ui, id: &str| {
             let Some(d) = hub.tools.iter().find(|t| t.id == id) else {
                 return;
@@ -153,9 +182,9 @@ impl Tool for HomeTool {
             // name under the glyph, so the row stays a grid whatever the
             // names' lengths (CR-0038).
             let size = if labelled {
-                egui::vec2(LABELLED_WIDTH, 50.0)
+                egui::vec2(width, RAIL_HEIGHT.0 + (RAIL_HEIGHT.1 - RAIL_HEIGHT.0) * t)
             } else {
-                egui::vec2(34.0, 34.0)
+                egui::vec2(width, width)
             };
             let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
             // Hovering says "this is the one you are about to open": a
@@ -173,7 +202,7 @@ impl Tool for HomeTool {
                 );
             }
             let glyph_at = if labelled {
-                egui::pos2(rect.center().x, rect.top() + 17.0)
+                egui::pos2(rect.center().x, rect.top() + 6.0 + glyph_size / 2.0)
             } else {
                 rect.center()
             };
@@ -184,11 +213,11 @@ impl Tool for HomeTool {
                 // row's cursor and the buttons stair-step across the page.
                 let mut job = egui::text::LayoutJob::simple_singleline(
                     label.clone(),
-                    egui::FontId::proportional(11.0),
+                    egui::FontId::proportional(name_size),
                     theme.text,
                 );
                 job.wrap = egui::text::TextWrapping {
-                    max_width: LABELLED_WIDTH - 2.0 * LABELLED_PAD,
+                    max_width: width - 2.0 * LABELLED_PAD,
                     max_rows: 1,
                     break_anywhere: true,
                     overflow_character: Some('…'),
@@ -205,7 +234,7 @@ impl Tool for HomeTool {
                 glyph_at,
                 egui::Align2::CENTER_CENTER,
                 d.icon,
-                egui::FontId::proportional(22.0),
+                egui::FontId::proportional(glyph_size),
                 colour,
                 // As in the rail: the ring is for a coloured glyph. A
                 // plain one is the theme's text colour already.
@@ -226,13 +255,15 @@ impl Tool for HomeTool {
                 open = Some(id.to_string());
             }
         };
-        for id in &ordered {
-            icon_button(ui, id);
-        }
-        // Settings is not in the rail's own order (it is pinned to the
-        // foot of the rail), so it is added here rather than filtered in.
-        ui.separator();
-        icon_button(ui, "settings");
+        ui.horizontal_wrapped(|ui| {
+            for id in &ordered {
+                icon_button(ui, id);
+            }
+            // Settings is not in the rail's own order (it is pinned to the
+            // foot of the rail), so it is added here rather than filtered in.
+            ui.separator();
+            icon_button(ui, "settings");
+        });
         if let Some(id) = open {
             // No request with it: `open_tool` then focuses the activity's
             // dashboard home tab, which is where this is meant to land -

@@ -1,6 +1,6 @@
 # 02 — Feature catalogue
 
-**Status:** draft · **Last updated:** 2026-10-10
+**Status:** draft · **Last updated:** 2026-11-06
 
 Priorities: **P0** = must ship in v1.0 · **P1** = first releases after 1.0 ·
 **P2** = planned, not scheduled · **Idea** = worth keeping, not committed.
@@ -43,6 +43,7 @@ suggestion.
 | Drag and drop between tools (file → editor, file → SFTP, result → request) | P1 | M | |
 | Detach tab to its own OS window | P2 | L | egui viewports |
 | Session audit log of commands run (local only) | P2 | M | Useful for DBAs and SREs |
+| Material icons inside each activity's work pane, switched on per activity in Settings → Appearance | P1 | S | Done 2026-11-02 (FEAT-0084) |
 
 ## 2. Code editor (requested) — [spec](tools/editor.md)
 
@@ -69,20 +70,21 @@ suggestion.
 | Feature | Priority | Effort |
 |---|---|---|
 | Drivers: SQLite, PostgreSQL, MySQL/MariaDB | P0 | L |
-| Driver: SQL Server (tiberius) | P1 | M |
-| Drivers: ClickHouse, DuckDB, Oracle (via ODBC) | P2 | M–L |
+| Driver: SQL Server (tiberius) — done 2026-11-01 (depth phase C, FEAT-0068) | P1 | M |
+| Drivers: ClickHouse, DuckDB, Oracle (via ODBC) — done 2026-11-01 (FEAT-0068); Db2 through ODBC is built but not yet verified against a server | P2 | M–L |
 | Redis and document/NoSQL stores: see their own tools below (sections 3b, 3d) | — | — |
 | Schema browser: databases, schemas, tables, views, columns, indexes, foreign keys, routines | P0 | M |
 | SQL editor with keyword/table/column completion, multi-statement, run selection | P0 | M |
 | Result grid: virtualised, sortable, filterable, copy as CSV/JSON/Markdown/INSERT, cell viewer for JSON/blob/long text | P0 | M |
-| Inline editing with generated statements and preview before commit | P1 | M |
-| Explain / explain analyze with visual plan tree | P1 | M |
-| Export (CSV, JSON, SQL, Excel) and import (CSV) with column mapping | P1 | M |
+| Inline editing with generated statements and preview before commit — done 2026-10-30 (depth phase B); double-click a cell to edit, and each query tab keeps its own results, 2026-11-05 (FEAT-0096) | P1 | M |
+| Explain / explain analyze with visual plan tree — done 2026-10-30 (depth phase B) | P1 | M |
+| Export (CSV, JSON, SQL, Excel) and import (CSV) with column mapping — done 2026-10-30 (depth phase B) | P1 | M |
 | Query history and saved queries per connection, parameterised with `{{var}}` | P0 | S |
 | Transactions toggle (auto-commit off), read-only connections | P0 | S |
 | Destructive statement guard (UPDATE/DELETE without WHERE, DROP, TRUNCATE) naming the environment | P0 | S |
 | SSH tunnel for any connection (reuses SSH tool) | P0 | M |
-| ER diagram, DDL generation, schema compare, data compare | P2 | L |
+| ER diagram, DDL generation, schema compare, data compare — done 2026-10-31 (depth phase H) | P2 | L |
+| Table designer: Design Table… / New Table… open a tab with columns, indexes and foreign keys as a form, the ALTER or CREATE script per engine underneath, what the engine cannot do in place refused in the script, Apply through the guarded run path; schema- and database-level DDL is FEAT-0104 — done 2026-11-06 (FEAT-0103, app v0.127.0) | P1 | M |
 
 ## 3b. Redis cache viewer (requested) — [spec](tools/redis.md)
 
@@ -92,13 +94,13 @@ suggestion.
 | Key browser: `SCAN`-based lazy tree grouped by delimiter (`user:123:session` → `user` › `123`), per-db selector, pattern filter, key count estimate | P0 | M | done 2026-10-16 |
 | Type-aware value viewers and editors: string (JSON/text/hex/MessagePack decode), hash, list, set, sorted set, stream, HyperLogLog, bitmap | P0 | L | done 2026-10-16 for string (JSON/text/hex/gzip), hash, list, set, sorted set and stream reads; HyperLogLog, bitmap and MessagePack pending |
 | TTL display with countdown, set/persist TTL, rename, delete, copy key, duplicate | P0 | S | done 2026-10-16 (duplicate pending) |
-| Memory usage per key (`MEMORY USAGE`), encoding, idle time, big-key finder (sampled) | P1 | M | |
+| Memory usage per key (`MEMORY USAGE`), encoding, idle time, big-key finder (sampled) | P1 | M | big-key finder done 2026-10-30 (depth phase A) |
 | Command console with completion and history (RESP2/RESP3), raw command tab | P0 | M | done 2026-10-16; completion from `COMMAND DOCS` pending |
-| Pub/Sub subscriber and publisher tab | P1 | S | |
-| Stream viewer with consumer groups, pending entries, ack | P1 | M | |
-| Server info dashboard: memory, clients, hit rate, ops/sec, keyspace, replication, slowlog, `CLIENT LIST` | P1 | M | |
+| Pub/Sub subscriber and publisher tab | P1 | S | done 2026-10-30 (depth phase A) |
+| Stream viewer with consumer groups, pending entries, ack | P1 | M | groups, consumers, entries and pending done 2026-10-30 (depth phase A); ack pending |
+| Server info dashboard: memory, clients, hit rate, ops/sec, keyspace, replication, slowlog, `CLIENT LIST` | P1 | M | done 2026-10-30 (depth phase A) |
 | Real-time `MONITOR` tail with filter (guarded: warns about production impact) | P1 | S | |
-| Bulk operations: delete by pattern (SCAN + UNLINK batches, dry run first), export/import keys as JSON or RDB-like dump | P1 | M | |
+| Bulk operations: delete by pattern (SCAN + UNLINK batches, dry run first), export/import keys as JSON or RDB-like dump | P1 | M | delete / expire / persist / rename-prefix by pattern with a preview done 2026-10-30 (depth phase A); export/import pending |
 | Lua script runner, `EVAL` with keys/args | P2 | S | |
 | Guards: `FLUSHALL`/`FLUSHDB`/`KEYS *` blocked on protected environments; `SCAN` always preferred over `KEYS` | P0 | S | |
 
@@ -106,18 +108,18 @@ suggestion.
 
 | Feature | Priority | Effort |
 |---|---|---|
-| Sources: local file, remote file over SSH (`tail -F` or SFTP range reads), Docker container logs, Kubernetes pod logs, `journalctl`, Windows Event Log, command stdout | P0 (local, SSH) / P1 (others) | L |
+| Sources: local file, remote file over SSH (`tail -F` or SFTP range reads), Docker container logs, Kubernetes pod logs, `journalctl`, Windows Event Log, command stdout — done (local, SSH and command 2026-10-22; Docker and Kubernetes 2026-10-24; journald and Event Log 2026-10-30, depth phase D) | P0 (local, SSH) / P1 (others) | L |
 | Live tail with follow, pause, scroll-lock indicator, "new lines" badge, auto-reconnect after rotation (`tail -F` semantics, inode change detection) | P0 | M |
 | Large-file engine: open multi-GB files by index, backward paging, no full load | P0 | L |
 | Filters: include/exclude text, regex, level, time range; multiple filter chips combined; highlight rules with colours | P0 | M |
 | Format detection: plain, JSON lines, logfmt, syslog, Apache/Nginx combined, Java/.NET stack traces (multi-line grouping) | P0 | M |
 | Structured view for JSON/logfmt: columns from fields, pin fields, expand record, copy as JSON | P0 | M |
 | Level colouring (TRACE…FATAL), timestamp normalisation to local or UTC, relative time | P0 | S |
-| Multi-source merge: tail several hosts/containers into one timeline, source colour tag (e.g. web-01 + web-02) | P1 | M |
+| Multi-source merge: tail several hosts/containers into one timeline, source colour tag (e.g. web-01 + web-02) — done 2026-10-30 (depth phase D) | P1 | M |
 | Bookmarks, "jump to time", find (Ctrl+F) with match count, context lines | P0 | S |
-| Statistics: lines per level per minute sparkline, top messages, error rate | P1 | M |
+| Statistics: lines per level per minute sparkline, top messages, error rate — done 2026-10-30 (depth phase D) | P1 | M |
 | Save filtered output, copy selection, open line's file:line in editor if path detected | P1 | S |
-| Alerts: pattern seen → toast / sound / badge on tab (e.g. "ERROR" appears) | P1 | S |
+| Alerts: pattern seen → toast / sound / badge on tab (e.g. "ERROR" appears) — done 2026-10-30 (depth phase D) | P1 | S |
 | Saved log sources and filter presets per environment | P0 | S |
 
 ## 3d. NoSQL / document database client (requested) — [spec](tools/nosql.md)
@@ -165,9 +167,9 @@ suggestion.
 | SFTP pane: dual-pane local/remote, drag transfer, queue with progress, resume | P0 | L |
 | Edit remote file in editor, save back; permissions dialog (chmod/chown) | P0 | M |
 | Host key verification and known hosts (OpenSSH format, stored in `HyperStackData/`) | P0 | S |
-| Port forwarding (local, remote, dynamic/SOCKS) managed in Jobs | P1 | M |
-| Multiple shells per host, broadcast input to several hosts | P1 | M |
-| Server monitor widget: CPU, memory, disk, load, top processes via SSH | P1 | M |
+| Port forwarding (local, remote, dynamic/SOCKS) managed in Jobs — local forwards in a Tunnels pane, saved per profile and started with the connection, done 2026-10-30 (depth phase E), named 2026-11-05 (FEAT-0098); remote and dynamic pending | P1 | M |
+| Multiple shells per host, broadcast input to several hosts — done 2026-10-30 (depth phase E) | P1 | M |
+| Server monitor widget: CPU, memory, disk, load, top processes via SSH — done 2026-10-30 (depth phase E) | P1 | M |
 | Snippets / saved commands, sudo password prompt handling | P1 | S |
 | Mosh / serial / telnet | Idea | M |
 
@@ -176,12 +178,12 @@ suggestion.
 | Feature | Priority | Effort |
 |---|---|---|
 | Profiles for AWS, MinIO, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi (any SigV4 endpoint); import AWS credentials file | P0 | S |
-| Bucket list, prefix navigation, virtualised listing with paging, search by prefix | P0 | M |
+| Bucket list, prefix navigation, virtualised listing with paging, search by prefix — the folder column is a tree that expands in place, 2026-11-05 (FEAT-0097) | P0 | M |
 | Upload/download (multipart, resume), delete, copy/move, rename, folder create | P0 | M |
-| Object details: metadata, tags, storage class, ETag, versions | P1 | M |
+| Object details: metadata, tags, storage class, ETag, versions — done 2026-10-30 (depth phase F) | P1 | M |
 | Presigned URL generator, public URL, copy ARN/URI | P0 | S |
 | Edit small objects in the editor and save back | P0 | S |
-| Sync folder ↔ prefix (dry run first), bucket policy / CORS viewer | P1 | M |
+| Sync folder ↔ prefix (dry run first), bucket policy / CORS viewer — done 2026-10-30 (depth phase F) | P1 | M |
 | Lifecycle rules viewer, bucket size estimate | P2 | M |
 | Azure Blob and Google Cloud Storage drivers behind the same object-store trait | P2 | L |
 
@@ -198,7 +200,8 @@ suggestion.
 | Rebase (interactive list), cherry-pick, revert, tags — rebase, interactive rebase, cherry-pick and tags done 2026-10-18 (editor) / 2026-10-29 (activity); revert pending | P1 | M |
 | **Git activity** (owner's request 2026-10-29, [spec](tools/git-activity.md)): rail entry after Editor, dashboard with figures, saved repositories per workspace with uploaded icons, SourceTree work pane, Git Flow start/finish from plain git, hosts (Fetch Project for GitHub / GitLab / Forgejo / Gitea / Bitbucket, Clone and Save as a Job, credential Test, avatars as icons), AI Assistant with git prompt buttons, a palette command per verb — done in six phases 2026-10-29/30 (v0.98–v0.103) | P0 | L |
 | Submodules, worktrees, LFS awareness | P2 | M |
-| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in the vault) — project listing, clone and avatars done 2026-10-29; PRs, issues and CI status pending | P2 | L |
+| **Git hosts** (owner's request 2026-11-05): a tab per host with its repositories (anonymous credentials list public ones), the Files view (read, edit, add, rename, delete, upload, a branch picker), shallow clones, clone into a folder the user picks registered as an Editor project, a Saved Hosts card and Add Host on the dashboard — done 2026-11-05/06 (FEAT-0100 to FEAT-0102, CR-0053, CR-0056) | P1 | L |
+| GitHub / GitLab / Forgejo integration: PRs, issues, CI status (token in the vault) — project listing, clone and avatars done 2026-10-29; PRs, issues and CI status pending (depth phase J) | P2 | L |
 
 ## 8. Terminal (suggested) — [spec](tools/terminal.md)
 
@@ -214,39 +217,70 @@ suggestion.
 
 | Feature | Priority | Effort |
 |---|---|---|
-| Docker/Podman: containers, images, volumes, networks; start/stop/logs/exec/inspect | P1 | L |
-| Compose projects: up/down/logs per service | P1 | M |
-| Kubernetes: contexts, namespaces, pods, logs, exec, port-forward, describe, apply YAML | P2 | L |
-| Remote Docker over SSH | P1 | S |
+| Docker/Podman: containers, images, volumes, networks; start/stop/logs/exec/inspect — done 2026-10-24 (the Container activity, ADR-026) | P1 | L |
+| Compose projects: up/down/logs per service — done 2026-10-24, with Swarm | P1 | M |
+| Kubernetes: contexts, namespaces, pods, logs, exec, port-forward, describe, apply YAML — done 2026-10-24 (apply with a dry-run diff) | P2 | L |
+| Remote Docker over SSH — done 2026-10-24 | P1 | S |
 
 ## 9b. Browser (requested) — [spec](tools/browser.md)
 
 | Feature | Priority | Effort |
 |---|---|---|
-| Multi-row page tabs, address bar with search fallback, back/forward/reload/home, zoom | P1 | M |
-| Ad and tracker blocking (navigation blocklist + cosmetic hiding), per-page JavaScript switch, forced dark rendering | P1 | M |
-| Inspect (developer tools), Print, Clear Browsing Data | P1 | S |
-| Pages restored per workspace; Shift+click on a terminal link opens it here | P1 | S |
+| Multi-row page tabs, address bar with search fallback, back/forward/reload/home, zoom — done 2026-10-15 | P1 | M |
+| Ad and tracker blocking (navigation blocklist + cosmetic hiding), per-page JavaScript switch, forced dark rendering — done | P1 | M |
+| Inspect (developer tools), Print, Clear Browsing Data — done | P1 | S |
+| Pages restored per workspace; Shift+click on a terminal link opens it here — done | P1 | S |
+| Favourites (a per-workspace tree with folders and a bar) and saved logins whose secrets live in the vault, with Fill in Password — done | P1 | M |
 | Platforms other than Windows (webkit2gtk / WKWebView through `wry`) | P2 | M |
 
 ## 9c. Graphics (requested) — [spec](tools/graphics.md)
 
 | Feature | Priority | Effort |
 |---|---|---|
-| Open pictures from the editor tree or a dialog; view with zoom on a checkerboard | P1 | S |
-| Resize, scale, extend canvas, crop, rotate, flip; brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen — as a removable operation list | P1 | M |
-| Convert between PNG, JPEG, WebP, BMP, GIF, ICO; multi-size ICO export; icon frame extraction | P1 | S |
-| Review-only AI assistant on the picture's metadata and operations | P1 | S |
-| AI enhancement/outpainting through a provider | P2 | M |
+| Open pictures from the editor tree or a dialog; view with zoom on a checkerboard — done 2026-10-15 | P1 | S |
+| Resize, scale, extend canvas, crop, rotate, flip; brightness, contrast, hue, saturation, grayscale, invert, blur, sharpen — as a removable operation list — done 2026-10-15 | P1 | M |
+| Convert between PNG, JPEG, WebP, BMP, GIF, ICO; multi-size ICO export; icon frame extraction — done 2026-10-15 | P1 | S |
+| Review-only AI assistant on the picture's metadata and operations — done 2026-10-15 | P1 | S |
+| AI enhancement/outpainting through a provider — generation, editing and enhancement done 2026-10-22 (1min.AI and self-hosted servers) and 2026-11-05 (fal.ai); outpainting pending | P2 | M |
 | fal.ai as a hosted image provider: a key in the vault, Test Connection, Fetch Models per purpose (generate, edit, enhance, upscale, describe) from fal.ai's catalogue, one chosen model per purpose on the provider; the Graphics form runs each as a cancellable Job through fal.ai's queue, and Describe turns the picture into text (FEAT-0099, ADR-031, 2026-11-05) | P1 | M |
-| Graphics activity: permanent dashboard home tab, sidebar with Image / Icon / Diagram Editor / Diagram Generator and a scrollable Recent section, right-click menus, drafts kept in Recent (R1) | P1 | M |
-| Separate Image and Icon tabs: in-pane settings left, preview right; icon colour-key transparency with an eyedropper and tolerance; image → icon (R1) | P1 | M |
-| Diagram Editor: flowchart and architecture, shapes, connectors, labels, align, grid/snap, undo/redo, zoom/pan, save/open `.hdiag`, drafts, PNG/SVG/PDF export, templates, Mermaid flowchart import (R1) | P1 | L |
-| Diagram Generator: prompt + examples + preview, existing AI providers, offline templates, semantic IR, validation/repair, open in editor, export (R1) | P1 | L |
-| AI assistant with four quick actions and More Suggestions in all four Graphics tools, review-only (R1) | P1 | M |
-| Diagram types: ERD and sequence, with the editor and generator support (R2) | P1 | L |
-| Archify JSON import and draw.io XML import (plain and compressed, first page) (R2) | P1 | L |
-| `.diagram.json` alias of `.hdiag`, schema migration (R2) | P1 | S |
+| Graphics activity: permanent dashboard home tab, sidebar with Image / Icon / Diagram Editor / Diagram Generator and a scrollable Recent section, right-click menus, drafts kept in Recent (R1) — done 2026-10-19 | P1 | M |
+| Separate Image and Icon tabs: in-pane settings left, preview right; icon colour-key transparency with an eyedropper and tolerance; image → icon (R1) — done 2026-10-19 | P1 | M |
+| Diagram Editor: flowchart and architecture, shapes, connectors, labels, align, grid/snap, undo/redo, zoom/pan, save/open `.hdiag`, drafts, PNG/SVG/PDF export, templates, Mermaid flowchart import (R1) — done 2026-10-20 except the Mermaid flowchart import | P1 | L |
+| Diagram Generator: prompt + examples + preview, existing AI providers, offline templates, semantic IR, validation/repair, open in editor, export (R1) — done 2026-10-20 | P1 | L |
+| AI assistant with four quick actions and More Suggestions in all four Graphics tools, review-only (R1) — done 2026-10-20 | P1 | M |
+| Diagram types: ERD and sequence, with the editor and generator support (R2) — done 2026-10-22 | P1 | L |
+| Archify JSON import and draw.io XML import (plain and compressed, first page) (R2) — done 2026-10-20; a page picker for multi-page draw.io files 2026-10-22 | P1 | L |
+| `.diagram.json` alias of `.hdiag`, schema migration (R2) — done | P1 | S |
+
+## 9d. Automation (owner's request, 2026-10-30) — [spec](tools/automation.md)
+
+| Feature | Priority | Effort |
+|---|---|---|
+| Activity shell: rail entry, dashboard, saved servers, Settings → Automation, credentials as password, token or API key in the vault — done 2026-10-31 (depth phase K, FEAT-0077) | P1 | M |
+| Jenkins, TeamCity, GitHub Actions, GitLab CI and Forgejo Actions: jobs or workflows with their last run, run with parameters, the log followed, open in Logs or the Browser, guarded cancel — done 2026-10-31 (FEAT-0078 to FEAT-0082); TeamCity verified against a live server 2026-11-06 | P1 | L |
+| AWX / Ansible Automation Platform: job templates, survey and extra vars, launch, cancel, stdout — built 2026-10-31 (FEAT-0083), checked against a mock server only (AWX cannot run here) | P1 | M |
+| Puppet: PuppetDB nodes, reports and their logs; a deploy through the Puppet Enterprise orchestrator — done 2026-11-05 (FEAT-0092) | P1 | M |
+| Fields the server fills (a ref picker on the Run form) and a run's log laid out in steps — done 2026-11-05 (FEAT-0095) | P1 | S |
+
+## 9e. Queue (owner's request, 2026-10-30) — [spec](tools/queue.md)
+
+| Feature | Priority | Effort |
+|---|---|---|
+| Activity shell: rail entry, dashboard, saved brokers, Settings → Queue, credentials as password, token or API key in the vault, read-only and protected guards — done 2026-10-31 (depth phase L, FEAT-0069) | P1 | M |
+| RabbitMQ through the management API: queues per vhost with rates, peek with requeue, publish, exchanges and bindings, guarded purge and delete — done 2026-10-31 (FEAT-0070) | P1 | M |
+| Kafka: topics with partitions and offsets, peek, publish by partition or key, purge, consumer groups with lag per partition; SASL PLAIN and SCRAM verified 2026-11-06, TLS and OAUTHBEARER built but not run against a broker (FEAT-0071, FEAT-0072) | P1 | L |
+| Redis Streams, NATS JetStream and MQTT 3.1.1 / 5: list, peek, publish, guarded purge — done 2026-10-31 (FEAT-0073 to FEAT-0075) | P1 | M |
+| Live tail into the Logs activity; an "explain this backlog" assistant | P2 | M |
+
+## 9f. Tracker (owner's request, 2026-10-30) — [spec](tools/tracker.md)
+
+| Feature | Priority | Effort |
+|---|---|---|
+| Activity shell: rail entry, dashboard, saved trackers, Settings → Tracker, credentials as password, token or API key in the vault — done 2026-10-31 (depth phase N, FEAT-0085) | P1 | M |
+| Redmine, GitHub Issues, GitLab Issues and Forgejo Issues: query, item pane rendered as Markdown, edit with a review, change status, comment, create — done 2026-10-31 (FEAT-0087 to FEAT-0090) | P1 | L |
+| Jira (Cloud v3, Data Center v2) and Confluence (Cloud v2, Data Center v1): JQL / CQL, ADF, wiki and storage format as Markdown, transitions, page tree and publish — built 2026-10-31 (FEAT-0086, FEAT-0091), checked against a mock server only (they need a licence key) | P1 | L |
+| Server-fed Assignee and Priority pickers and a Due Date calendar — done 2026-11-05 (FEAT-0095) | P1 | S |
+| AI assistant: Summarise This Ticket, Draft a Reply, Suggest a Status — done 2026-10-31 | P1 | S |
 
 ## 10. Devtools drawer (suggested) — [spec](tools/devtools.md)
 
@@ -260,17 +294,18 @@ suggestion.
 | Timestamp / timezone converter, duration calculator | P0 | S |
 | Text diff (reuses editor diff), Markdown preview, number base converter | P1 | S |
 | Colour picker/converter, fake data generator, SQL formatter, case converter | P1 | S |
-| Network tools: DNS lookup, TCP/HTTP ping, port check, whois, TLS certificate viewer | P1 | M |
-| Local process and port viewer (what is listening on :8080) | P1 | M |
-| Snippet manager (code, SQL, shell) with tags | P1 | M |
-| `.env` file editor with secret masking and environment linking | P1 | S |
-| Scratchpad notes (Markdown) per workspace — done 2026-10-15: notes collection, pinning, dual pane, AI assistant ([tools/scratchpad.md](tools/scratchpad.md)) | P1 | S |
+| Network tools: DNS lookup, TCP/HTTP ping, port check, whois, TLS certificate viewer — done 2026-10-30 (depth phase G) | P1 | M |
+| Local process and port viewer (what is listening on :8080) — done 2026-10-30 (depth phase G) | P1 | M |
+| Snippet manager (code, SQL, shell) with tags — done 2026-10-30 (depth phase G) | P1 | M |
+| `.env` file editor with secret masking and environment linking — done 2026-10-30 (depth phase G) | P1 | S |
+| Scratchpad notes (Markdown) per workspace — done 2026-10-15: notes collection, pinning, dual pane, AI assistant ([tools/scratchpad.md](tools/scratchpad.md)); folders and subfolders with drag to move 2026-10-31 (depth phase O), a folder count on the dashboard (FEAT-0076) | P1 | S |
 
 ## 11. Shared services (enablers)
 
 | Feature | Priority | Effort |
 |---|---|---|
 | Connection profiles with kinds (db, ssh, s3, api base, docker, k8s), tags, colour, folders | P0 | M |
+| Add buttons land on that kind's Settings form and Save opens the new connection; Remove From List deletes a saved profile and its vault credential — done 2026-11-03 (FEAT-0093, FEAT-0094) | P1 | S |
 | Environments: named sets of variables + default connection per kind; `{{var}}` substitution everywhere | P0 | M |
 | Secrets in an encrypted vault file beside the executable (master password), referenced by id from profiles; OS keyring as an opt-in alternative for installed, non-portable use | P0 | M |
 | Import/export of everything except secrets as a folder of files; put `.hyperstack/` in a repo to share with a team | P0 | S |

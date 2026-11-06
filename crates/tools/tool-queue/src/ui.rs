@@ -1226,7 +1226,7 @@ impl QueueTool {
                     _ => "queue-peek-from-sequence",
                 }));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.peek_from)
+                    hs_ui::form::line_edit(&mut self.peek_from)
                         .hint_text(s.t("queue-peek-from-hint"))
                         .desired_width(120.0),
                 );
@@ -1234,7 +1234,7 @@ impl QueueTool {
             if self.kind == "kafka" {
                 ui.label(s.t("queue-partition"));
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.peek_partition)
+                    hs_ui::form::line_edit(&mut self.peek_partition)
                         .hint_text(s.t("queue-partition-all"))
                         .desired_width(60.0),
                 );
@@ -1440,12 +1440,12 @@ impl QueueTool {
             for (i, (k, v)) in self.publish.headers.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.add(
-                        egui::TextEdit::singleline(k)
+                        hs_ui::form::line_edit(k)
                             .hint_text(s.t("queue-name"))
                             .desired_width(160.0),
                     );
                     ui.add(
-                        egui::TextEdit::singleline(v)
+                        hs_ui::form::line_edit(v)
                             .hint_text(s.t("queue-value"))
                             .desired_width(220.0),
                     );
@@ -1743,7 +1743,7 @@ impl QueueTool {
                     ));
                     ui.add_space(8.0);
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut typed)
+                        hs_ui::form::line_edit(&mut typed)
                             .hint_text(&dest.name)
                             .desired_width(f32::INFINITY),
                     );

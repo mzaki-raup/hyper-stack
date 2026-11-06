@@ -5,13 +5,21 @@ use egui::{Align2, Color32, CornerRadius, Key, Vec2};
 
 use crate::theme::Theme;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct PaletteItem {
     pub id: String,
     pub title: String,
     pub subtitle: Option<String>,
     pub icon: Option<String>,
     pub shortcut: Option<String>,
+    /// A picture drawn instead of [`PaletteItem::icon`]: the Material
+    /// icon of a file or kind, or a product's logo, when Material icons
+    /// are on (CR-0066).
+    pub image: Option<egui::ImageSource<'static>>,
+    /// The glyph's colour: an activity's rail colour while Coloured
+    /// Activity Icons is on, a product's colour for a connection. `None`
+    /// draws it muted (CR-0066).
+    pub colour: Option<egui::Color32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,13 +201,20 @@ pub fn show(
                             }
                             let mut x = rect.left() + 8.0;
                             let font = egui::FontId::proportional(14.0);
-                            if let Some(icon) = &item.icon {
+                            if let Some(src) = &item.image {
+                                let r = egui::Rect::from_center_size(
+                                    egui::pos2(x + 8.0, rect.center().y),
+                                    egui::vec2(16.0, 16.0),
+                                );
+                                egui::Image::new(src.clone()).paint_at(ui, r);
+                                x += 24.0;
+                            } else if let Some(icon) = &item.icon {
                                 ui.painter().text(
                                     egui::pos2(x, rect.center().y),
                                     Align2::LEFT_CENTER,
                                     icon,
                                     font.clone(),
-                                    theme.text_muted,
+                                    item.colour.unwrap_or(theme.text_muted),
                                 );
                                 x += 24.0;
                             }
@@ -291,6 +306,8 @@ mod tests {
             subtitle: None,
             icon: None,
             shortcut: None,
+            image: None,
+            colour: None,
         }];
         let mut harness = Harness::new_ui_state(
             |ui, state: &mut State| {

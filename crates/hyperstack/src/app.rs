@@ -1630,6 +1630,19 @@ impl HyperStackApp {
         let km = s.shortcuts.read();
         let sc = |a: &str| km.get(a).map(|c| c.display());
         let mut items = Vec::new();
+        // Icons as the rest of the app draws them (CR-0066): an
+        // activity in its rail colour while Coloured Activity Icons is
+        // on, a connection in its product's mark, a file in its Material
+        // icon when the tool has Material icons on.
+        let (rail_coloured, theme) = {
+            let st = s.settings.read();
+            (
+                st.appearance.rail_coloured,
+                hs_ui::theme::Theme::from_settings(&st.appearance),
+            )
+        };
+        let tint = |id: &str| rail_coloured.then(|| activity_colour(id));
+        let material = |id: &str| s.settings.read().appearance.material_icons(id);
         match self.palette.mode {
             PaletteMode::Commands => {
                 let shell = [
@@ -1653,6 +1666,8 @@ impl HyperStackApp {
                         subtitle: None,
                         icon: None,
                         shortcut: sc(id),
+                        image: None,
+                        colour: None,
                     });
                 }
                 let vault_cmd = if s.secrets.is_locked() {
@@ -1666,6 +1681,8 @@ impl HyperStackApp {
                     subtitle: None,
                     icon: Some(hs_ui::icons::LOCK.into()),
                     shortcut: sc("vault.lock"),
+                    image: None,
+                    colour: None,
                 });
                 for f in &self.factories {
                     let d = f.descriptor();
@@ -1677,6 +1694,8 @@ impl HyperStackApp {
                         subtitle: Some(s.t(d.category.label_key())),
                         icon: Some(d.icon.into()),
                         shortcut: None,
+                        image: None,
+                        colour: tint(d.id),
                     });
                 }
                 if let Some(a) = self.tabs.active
@@ -1689,6 +1708,8 @@ impl HyperStackApp {
                             subtitle: Some(t.tool.title().to_string()),
                             icon: Some(t.tool.descriptor().icon.into()),
                             shortcut: c.shortcut_action.as_deref().and_then(sc),
+                            image: None,
+                            colour: tint(&t.factory_id),
                         });
                     }
                 }
@@ -1700,6 +1721,8 @@ impl HyperStackApp {
                     subtitle: None,
                     icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                     shortcut: None,
+                    image: None,
+                    colour: None,
                 });
                 for e in s.environments.read().all() {
                     items.push(PaletteItem {
@@ -1708,6 +1731,8 @@ impl HyperStackApp {
                         subtitle: e.protected.then(|| s.t("env-protected")),
                         icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
                 for w in &self.registry.workspaces {
@@ -1717,6 +1742,8 @@ impl HyperStackApp {
                         subtitle: Some(w.path.clone()),
                         icon: Some(hs_ui::icons::WORKSPACE.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
             }
@@ -1729,15 +1756,20 @@ impl HyperStackApp {
                         subtitle: Some(s.t(d.category.label_key())),
                         icon: Some(d.icon.into()),
                         shortcut: None,
+                        image: None,
+                        colour: tint(d.id),
                     });
                 }
                 for c in s.connections.read().all() {
+                    let mark = hs_ui::icons::profile_conn_icon(c);
                     items.push(PaletteItem {
                         id: format!("conn:{}", c.id),
                         title: c.name.clone(),
                         subtitle: Some(hs_core::connections::kind_label(&c.kind).to_string()),
-                        icon: None,
+                        icon: Some(mark.glyph.to_string()),
                         shortcut: None,
+                        image: mark.uri().map(|u| egui::ImageSource::Uri(u.into())),
+                        colour: mark.fixed_colour(&theme),
                     });
                 }
                 for e in s.environments.read().all() {
@@ -1747,6 +1779,8 @@ impl HyperStackApp {
                         subtitle: Some(s.t("settings-environments")),
                         icon: Some(hs_ui::icons::ENVIRONMENT.into()),
                         shortcut: None,
+                        image: None,
+                        colour: None,
                     });
                 }
                 // Files and other items the open tools contribute (the active tab first,
@@ -1761,12 +1795,16 @@ impl HyperStackApp {
                         if !seen.insert(q.id.clone()) {
                             continue;
                         }
+                        let title = q.title;
                         items.push(PaletteItem {
                             id: format!("qo:{}:{}", t.id, q.id),
-                            title: q.title,
+                            title: title.clone(),
                             subtitle: Some(q.subtitle),
                             icon: Some(hs_ui::icons::ph::FILE.into()),
                             shortcut: None,
+                            image: material(&t.factory_id)
+                                .then(|| hs_ui::fileicons::for_file(&title)),
+                            colour: tint(&t.factory_id),
                         });
                     }
                 }

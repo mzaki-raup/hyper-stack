@@ -1915,7 +1915,7 @@ impl DbTool {
                 // down to a box still worth typing in.
                 let filter_w = (ui.available_width() - 140.0).clamp(70.0, 160.0);
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.grids[i].filter)
+                    hs_ui::form::line_edit(&mut self.grids[i].filter)
                         .hint_text(s.t("db-grid-filter"))
                         .desired_width(filter_w),
                 );
@@ -2212,7 +2212,7 @@ impl DbTool {
                         ui.add_space(6.0);
                         ui.label(s.i18n.t_args("db-type-name", &[("name", name)]));
                         ui.add(
-                            egui::TextEdit::singleline(typed)
+                            hs_ui::form::line_edit(typed)
                                 .hint_text(name.as_str())
                                 .desired_width(f32::INFINITY),
                         );
@@ -2431,6 +2431,7 @@ impl DbTool {
                     match (&imp.columns, &imp.preview) {
                         (None, _) => {
                             ui.horizontal(|ui| {
+                                hs_ui::form::match_field_height(ui);
                                 ui.spinner();
                                 ui.label(s.t("db-import-loading"));
                             });
@@ -2604,7 +2605,7 @@ impl DbTool {
                     ui.heading(s.t("db-save-query"));
                     ui.add_space(6.0);
                     let r = ui.add(
-                        egui::TextEdit::singleline(name)
+                        hs_ui::form::line_edit(name)
                             .hint_text(s.t("db-query-name"))
                             .desired_width(f32::INFINITY),
                     );
@@ -2650,6 +2651,7 @@ impl DbTool {
                     ui.add_space(6.0);
                     let before = (*dialect, *opts);
                     ui.horizontal(|ui| {
+                        hs_ui::form::match_field_height(ui);
                         ui.label(s.t("db-ddl-dialect"));
                         egui::ComboBox::from_id_salt("db-ddl-dialect")
                             .selected_text(dialect.label())
@@ -2751,14 +2753,14 @@ impl DbTool {
                         ui.end_row();
                         ui.label(s.t("db-cmp-target-schema"));
                         ui.add(
-                            egui::TextEdit::singleline(other_schema)
+                            hs_ui::form::line_edit(other_schema)
                                 .hint_text(schema.as_str())
                                 .desired_width(260.0),
                         );
                         ui.end_row();
                         if data {
                             ui.label(s.t("db-cmp-limit"));
-                            ui.add(egui::TextEdit::singleline(limit).desired_width(100.0));
+                            ui.add(hs_ui::form::line_edit(limit).desired_width(100.0));
                             ui.end_row();
                         }
                     });
@@ -4829,6 +4831,7 @@ impl DbTool {
             title: String,
             dirty: bool,
             designer: bool,
+            image: Option<egui::ImageSource<'static>>,
         }
         impl hs_ui::tabs::TabItem for QueryTab {
             fn id(&self) -> u64 {
@@ -4844,6 +4847,9 @@ impl DbTool {
                     ph::FILE_SQL
                 }
             }
+            fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+                self.image.clone()
+            }
             fn pinned(&self) -> bool {
                 false
             }
@@ -4851,6 +4857,13 @@ impl DbTool {
                 self.dirty
             }
         }
+        // Material icons on: the tabs wear the same pictures as the
+        // explorer's tables and saved queries (CR-0065).
+        let material = s.settings.read().appearance.material_icons("db");
+        let query_image = material.then(|| hs_ui::fileicons::for_file("query.sql"));
+        let table_image = material
+            .then(|| hs_ui::fileicons::for_kind("table"))
+            .flatten();
         let untitled = s.t("db-untitled");
         let design = s.t("db-designer-tab");
         let new_table = s.t("db-designer-new");
@@ -4862,6 +4875,7 @@ impl DbTool {
                 title: d.label(&untitled),
                 dirty: d.buf.dirty(),
                 designer: false,
+                image: query_image.clone(),
             })
             .collect();
         // Designers sit after the query tabs (FEAT-0103).
@@ -4870,6 +4884,7 @@ impl DbTool {
             title: d.title(&design, &new_table),
             dirty: false,
             designer: true,
+            image: table_image.clone(),
         }));
         let active = self.active_designer.unwrap_or(self.doc().uid);
         let labels = hs_ui::tabs::TabStripLabels {

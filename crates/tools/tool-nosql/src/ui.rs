@@ -1170,7 +1170,7 @@ impl NoSqlTool {
                 if extras {
                     ui.label(s.t("nosql-projection"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.state.projection)
+                        hs_ui::form::line_edit(&mut self.state.projection)
                             .hint_text(r#"{"total": 1}"#)
                             .desired_width(f32::INFINITY)
                             .font(egui::TextStyle::Monospace),
@@ -1178,7 +1178,7 @@ impl NoSqlTool {
                     ui.end_row();
                     ui.label(s.t("nosql-sort"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.state.sort)
+                        hs_ui::form::line_edit(&mut self.state.sort)
                             .hint_text(r#"{"createdAt": -1}"#)
                             .desired_width(f32::INFINITY)
                             .font(egui::TextStyle::Monospace),

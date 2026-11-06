@@ -1698,7 +1698,7 @@ impl Tool for LogsTool {
             // out by its own filter box.
             let room = (ui.available_width() - 8.0).max(60.0);
             ui.add(
-                egui::TextEdit::singleline(&mut self.sidebar_filter)
+                hs_ui::form::line_edit(&mut self.sidebar_filter)
                     .hint_text(s.t("logs-filter-sources"))
                     .desired_width(room),
             );
@@ -2330,9 +2330,11 @@ impl LogsTool {
                 id: src.spec.uri(),
                 name: src.name.clone(),
                 detail: src.spec.describe(),
-                icon: ph::SCROLL.to_string(),
+                // The sidebar's own icon and colour for a saved source
+                // (CR-0058), so the card matches its row (CR-0065).
+                icon: saved_icon(src).to_string(),
                 image: None,
-                tint: None,
+                tint: Some(SOURCE_BLUE),
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
@@ -3873,7 +3875,7 @@ impl LogsTool {
                 ui.separator();
                 ui.label(ph::MAGNIFYING_GLASS);
                 let r = ui.add(
-                    egui::TextEdit::singleline(&mut self.find.text)
+                    hs_ui::form::line_edit(&mut self.find.text)
                         .hint_text(s.t("logs-find-hint"))
                         .desired_width(180.0),
                 );

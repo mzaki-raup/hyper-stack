@@ -353,7 +353,7 @@ impl HostView {
         });
         ui.add_space(4.0);
         ui.add(
-            egui::TextEdit::singleline(&mut self.filter)
+            hs_ui::form::line_edit(&mut self.filter)
                 .hint_text(s.t("git-host-filter"))
                 .desired_width(f32::INFINITY),
         );
@@ -445,6 +445,7 @@ impl HostView {
         struct Item {
             id: u64,
             title: String,
+            image: Option<egui::ImageSource<'static>>,
         }
         impl hs_ui::tabs::TabItem for Item {
             fn id(&self) -> u64 {
@@ -456,6 +457,9 @@ impl HostView {
             fn icon(&self) -> &str {
                 ph::GIT_BRANCH
             }
+            fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
+                self.image.clone()
+            }
             fn pinned(&self) -> bool {
                 false
             }
@@ -463,12 +467,22 @@ impl HostView {
                 false
             }
         }
+        // Material icons on: the repository tabs wear the branch picture
+        // the Git lists use (CR-0065).
+        let image = s
+            .settings
+            .read()
+            .appearance
+            .material_icons("git")
+            .then(|| hs_ui::fileicons::for_kind("branch"))
+            .flatten();
         let items: Vec<Item> = self
             .tabs
             .iter()
             .map(|t| Item {
                 id: t.uid,
                 title: t.name.clone(),
+                image: image.clone(),
             })
             .collect();
         let labels = hs_ui::tabs::TabStripLabels {

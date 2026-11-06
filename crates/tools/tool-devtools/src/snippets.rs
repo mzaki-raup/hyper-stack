@@ -269,7 +269,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             .color(theme.text_muted),
                     );
                     ui.add(
-                        egui::TextEdit::singleline(value)
+                        hs_ui::form::line_edit(value)
                             .hint_text(name.as_str())
                             .desired_width(200.0),
                     );

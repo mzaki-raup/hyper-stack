@@ -1424,12 +1424,12 @@ impl S3Tool {
                             for (i, (k, v)) in tags.iter_mut().enumerate() {
                                 ui.horizontal(|ui| {
                                     ui.add(
-                                        egui::TextEdit::singleline(k)
+                                        hs_ui::form::line_edit(k)
                                             .hint_text(s.t("s3-tag-key"))
                                             .desired_width(110.0),
                                     );
                                     ui.add(
-                                        egui::TextEdit::singleline(v)
+                                        hs_ui::form::line_edit(v)
                                             .hint_text(s.t("s3-tag-value"))
                                             .desired_width(130.0),
                                     );
@@ -1528,7 +1528,7 @@ impl S3Tool {
                         ui.heading(s.t("s3-new-folder"));
                         ui.add_space(6.0);
                         let r = ui.add(
-                            egui::TextEdit::singleline(name)
+                            hs_ui::form::line_edit(name)
                                 .hint_text(s.t("s3-folder-name"))
                                 .desired_width(f32::INFINITY),
                         );
@@ -1579,7 +1579,7 @@ impl S3Tool {
                             ui.add_space(6.0);
                             ui.label(s.i18n.t_args("s3-type-bucket", &[("bucket", &bucket)]));
                             ui.add(
-                                egui::TextEdit::singleline(typed)
+                                hs_ui::form::line_edit(typed)
                                     .hint_text(&bucket)
                                     .desired_width(f32::INFINITY),
                             );

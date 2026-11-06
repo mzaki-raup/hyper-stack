@@ -273,7 +273,7 @@ impl DevtoolsTool {
                 detail: s.t(cat),
                 icon: (*icon).to_string(),
                 image: None,
-                tint: None,
+                tint: Some(category_colour(cat)),
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
@@ -658,6 +658,20 @@ impl Tool for DevtoolsTool {
             "diff": self.diff,
             "net": serde_json::to_value(&self.net).unwrap_or_default(),
         })
+    }
+}
+
+/// The dashboard card colour of a utility's category, so a saved card's
+/// icon is coloured like every other activity's (CR-0065).
+fn category_colour(cat: &str) -> egui::Color32 {
+    match cat {
+        "dt-cat-encoding" => egui::Color32::from_rgb(0x3b, 0x82, 0xf6),
+        "dt-cat-crypto" => egui::Color32::from_rgb(0xef, 0x44, 0x44),
+        "dt-cat-tokens" => egui::Color32::from_rgb(0xf5, 0x9e, 0x0b),
+        "dt-cat-generate" => egui::Color32::from_rgb(0x22, 0xc5, 0x5e),
+        "dt-cat-text" => egui::Color32::from_rgb(0xa8, 0x55, 0xf7),
+        "dt-cat-network" => egui::Color32::from_rgb(0x06, 0xb6, 0xd4),
+        _ => egui::Color32::from_rgb(0xec, 0x48, 0x99),
     }
 }
 

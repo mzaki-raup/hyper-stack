@@ -1287,6 +1287,7 @@ impl ContainersTool {
         // The namespace picker, above everything it narrows.
         let namespaced = self.state.cluster_resource.namespaced();
         ui.horizontal(|ui| {
+            hs_ui::form::match_field_height(ui);
             ui.label(
                 egui::RichText::new(s.t("cluster-namespace"))
                     .small()
@@ -1609,7 +1610,7 @@ impl ContainersTool {
         fresh: bool,
     ) {
         ui.add(
-            egui::TextEdit::singleline(&mut self.forward_port)
+            hs_ui::form::line_edit(&mut self.forward_port)
                 .desired_width(72.0)
                 .hint_text(s.t("cluster-forward-port")),
         );
@@ -1748,7 +1749,7 @@ impl ContainersTool {
         if cluster::Verb::Scale(0).applies_to(&target.kind) {
             ui.add_enabled(
                 !blocked,
-                egui::TextEdit::singleline(&mut self.scale_to)
+                hs_ui::form::line_edit(&mut self.scale_to)
                     // Wide enough for the word, not for a number: the
                     // hint is what tells a reader what the box is for,
                     // and at 48 px it clipped to "Rep…".

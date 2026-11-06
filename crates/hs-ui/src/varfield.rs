@@ -200,7 +200,7 @@ pub fn var_field_width(
                                 ui.horizontal(|ui| {
                                     ui.label(format!("{partial} ="));
                                     let vr = ui.add(
-                                        egui::TextEdit::singleline(&mut state.add_value)
+                                        crate::form::line_edit(&mut state.add_value)
                                             .hint_text("value")
                                             .desired_width(width - 130.0),
                                     );

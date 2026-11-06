@@ -1693,7 +1693,7 @@ impl SshTool {
                     // stand in for one left blank.
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-name")).weak());
                     ui.add(
-                        egui::TextEdit::singleline(&mut form_state.name)
+                        hs_ui::form::line_edit(&mut form_state.name)
                             .hint_text(s.t("ssh-tunnel-name-hint"))
                             .desired_width(f32::INFINITY),
                     );
@@ -1703,6 +1703,7 @@ impl SshTool {
                         .find(|(id, _)| *id == form_state.ssh_id)
                         .map(|(_, n)| n.clone())
                         .unwrap_or_default();
+                    hs_ui::form::match_field_height(ui);
                     // Widths below stay inside the sidebar: anything wider
                     // grows the panel a little every frame.
                     egui::ComboBox::from_id_salt("ssh-tunnel-host")
@@ -1715,19 +1716,19 @@ impl SshTool {
                         });
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-host")).weak());
                     ui.add(
-                        egui::TextEdit::singleline(&mut form_state.remote_host)
+                        hs_ui::form::line_edit(&mut form_state.remote_host)
                             .hint_text("localhost")
                             .desired_width(f32::INFINITY),
                     );
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-port")).weak());
                     ui.add(
-                        egui::TextEdit::singleline(&mut form_state.remote_port)
+                        hs_ui::form::line_edit(&mut form_state.remote_port)
                             .hint_text("5432")
                             .desired_width(f32::INFINITY),
                     );
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-local")).weak());
                     ui.add(
-                        egui::TextEdit::singleline(&mut form_state.local_port)
+                        hs_ui::form::line_edit(&mut form_state.local_port)
                             .hint_text(s.t("ssh-tunnel-local-hint"))
                             .desired_width(f32::INFINITY),
                     );

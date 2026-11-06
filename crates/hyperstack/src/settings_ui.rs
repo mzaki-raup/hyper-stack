@@ -2748,6 +2748,7 @@ fn collection_copy_dialog(
             .num_columns(2)
             .show(ui, |ui| {
                 ui.label(s.t("env-copy-workspace"));
+                hs_ui::form::match_field_height(ui);
                 egui::ComboBox::from_id_salt("col-copy-ws")
                     .selected_text(&cp.source_ws)
                     .show_ui(ui, |ui| {
@@ -2762,6 +2763,7 @@ fn collection_copy_dialog(
                     .find(|(id, ..)| *id == cp.source_col)
                     .map(|(_, n, _)| n.clone())
                     .unwrap_or_else(|| "—".into());
+                hs_ui::form::match_field_height(ui);
                 egui::ComboBox::from_id_salt("col-copy-col")
                     .selected_text(sel_name)
                     .show_ui(ui, |ui| {
@@ -3010,6 +3012,7 @@ fn env_copy_dialog(
             .num_columns(2)
             .show(ui, |ui| {
                 ui.label(s.t("env-copy-workspace"));
+                hs_ui::form::match_field_height(ui);
                 egui::ComboBox::from_id_salt("env-copy-ws")
                     .selected_text(&cp.source_ws)
                     .show_ui(ui, |ui| {
@@ -3024,6 +3027,7 @@ fn env_copy_dialog(
                     .find(|(id, ..)| *id == cp.source_env)
                     .map(|(_, n, _)| n.clone())
                     .unwrap_or_else(|| "—".into());
+                hs_ui::form::match_field_height(ui);
                 egui::ComboBox::from_id_salt("env-copy-env")
                     .selected_text(sel_name)
                     .show_ui(ui, |ui| {
@@ -7259,7 +7263,7 @@ fn repo_detail(
                             .width(360.0)
                             .show_ui(ui, |ui| {
                                 ui.add(
-                                    egui::TextEdit::singleline(&mut state.repo_project_filter)
+                                    hs_ui::form::line_edit(&mut state.repo_project_filter)
                                         .hint_text(s.t("settings-git-repo-project-hint"))
                                         .desired_width(f32::INFINITY),
                                 );
@@ -7690,7 +7694,7 @@ fn editor(
             form::label(ui, &s.t("settings-editor-maven"));
             changed |= ui
                 .add(
-                    egui::TextEdit::singleline(&mut settings.editor.maven_command)
+                    hs_ui::form::line_edit(&mut settings.editor.maven_command)
                         .hint_text("mvn")
                         .desired_width(f32::INFINITY),
                 )
@@ -7699,7 +7703,7 @@ fn editor(
             form::label(ui, &s.t("settings-editor-gradle"));
             changed |= ui
                 .add(
-                    egui::TextEdit::singleline(&mut settings.editor.gradle_command)
+                    hs_ui::form::line_edit(&mut settings.editor.gradle_command)
                         .hint_text("gradle")
                         .desired_width(f32::INFINITY),
                 )
@@ -7916,7 +7920,7 @@ fn debug_adapter_table(
                     .scope(|ui| {
                         ui.set_min_width(command_w);
                         ui.add(
-                            egui::TextEdit::singleline(&mut row.command)
+                            hs_ui::form::line_edit(&mut row.command)
                                 .hint_text(spec.command)
                                 .desired_width(command_w),
                         )
@@ -7926,7 +7930,7 @@ fn debug_adapter_table(
                     .scope(|ui| {
                         ui.set_min_width(args_w);
                         ui.add(
-                            egui::TextEdit::singleline(&mut row.args)
+                            hs_ui::form::line_edit(&mut row.args)
                                 .hint_text(spec.args.join(" "))
                                 .desired_width(args_w),
                         )
@@ -8055,7 +8059,7 @@ fn language_server_table(
                     .scope(|ui| {
                         ui.set_min_width(command_w);
                         ui.add(
-                            egui::TextEdit::singleline(&mut row.command)
+                            hs_ui::form::line_edit(&mut row.command)
                                 .hint_text(spec.command)
                                 .desired_width(command_w),
                         )
@@ -8065,7 +8069,7 @@ fn language_server_table(
                     .scope(|ui| {
                         ui.set_min_width(args_w);
                         ui.add(
-                            egui::TextEdit::singleline(&mut row.args)
+                            hs_ui::form::line_edit(&mut row.args)
                                 .hint_text(spec.args.join(" "))
                                 .desired_width(args_w),
                         )
@@ -8861,6 +8865,7 @@ fn ssh_profile_picker(ui: &mut egui::Ui, s: &Services, chosen: &mut String) -> b
         .find(|(id, _)| id == chosen)
         .map(|(_, name)| name.clone())
         .unwrap_or_else(|| s.t("conn-container-no-ssh"));
+    hs_ui::form::match_field_height(ui);
     egui::ComboBox::from_id_salt("container-ssh")
         .width(form::FIELD_MIN_WIDTH)
         .selected_text(label)
@@ -8902,7 +8907,7 @@ fn db_form(
             form::label(ui, &s.t("conn-db-url"));
             ui.horizontal(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut url)
+                    hs_ui::form::line_edit(&mut url)
                         .hint_text("postgres://user@host:5432/db")
                         .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                 );
@@ -8972,7 +8977,7 @@ fn db_form(
                     };
                     changed |= ui
                         .add(
-                            egui::TextEdit::singleline(&mut f.path)
+                            hs_ui::form::line_edit(&mut f.path)
                                 .hint_text(example)
                                 .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                         )
@@ -9154,7 +9159,7 @@ fn redis_form(
             form::label(ui, &s.t("conn-redis-url"));
             ui.horizontal(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut url)
+                    hs_ui::form::line_edit(&mut url)
                         .hint_text("redis://user@host:6379/0")
                         .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                 );
@@ -9302,7 +9307,7 @@ fn nosql_form(
             form::label(ui, &s.t("conn-nosql-url"));
             ui.horizontal(|ui| {
                 ui.add(
-                    egui::TextEdit::singleline(&mut url)
+                    hs_ui::form::line_edit(&mut url)
                         .hint_text(if is_mongo {
                             "mongodb://user@host:27017/shop"
                         } else {
@@ -9896,6 +9901,7 @@ fn font_combo(
     use hs_ui::fonts;
     let mut changed = false;
     let current = fonts::label(value, default_label);
+    hs_ui::form::match_field_height(ui);
     egui::ComboBox::from_id_salt(salt)
         .selected_text(current)
         .width(form::FIELD_MIN_WIDTH)

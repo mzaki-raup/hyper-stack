@@ -217,7 +217,7 @@ pub fn save_to_env_button(
                             }
                         }
                         let r = ui.add(
-                            egui::TextEdit::singleline(&mut st.name)
+                            crate::form::line_edit(&mut st.name)
                                 .hint_text(s.t("var-save-env-name"))
                                 .desired_width(f32::INFINITY),
                         );

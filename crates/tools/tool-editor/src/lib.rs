@@ -2293,8 +2293,8 @@ impl EditorTool {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
                 ui.label(s.t("editor-name-prompt"));
-                let r = ui
-                    .add(egui::TextEdit::singleline(&mut prompt.text).desired_width(f32::INFINITY));
+                let r =
+                    ui.add(hs_ui::form::line_edit(&mut prompt.text).desired_width(f32::INFINITY));
                 if prompt.focus {
                     r.request_focus();
                     prompt.focus = false;

@@ -151,14 +151,21 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0103
+Features : FEAT-0104
 Bugs : BUG-0046
-Change Request : CR-0060
+Change Request : CR-0066
 ```
 
 ---
 
-## v0.7.7 — Planned
+## v0.7.7 — In-Progress
+
+> **Shipped in:** FEAT-0099 in app v0.118.0; CR-0046 in v0.119.0;
+> FEAT-0100 and CR-0047 to CR-0050 in v0.120.0; FEAT-0101 in v0.121.0;
+> FEAT-0102 in v0.122.0; CR-0051 and CR-0052 in v0.123.0; BUG-0044,
+> CR-0053 and CR-0054 in v0.124.0; CR-0055 and BUG-0045 in v0.125.0;
+> CR-0056, BUG-0046, CR-0057 and CR-0058 in v0.126.0; FEAT-0103 in
+> v0.127.0 (2026-11-06, merge `f8a7ecb`).
 
 ### CR-0040 · Workspace UI/UX Changes
 - **State:** Pending ·
@@ -471,6 +478,82 @@ Change Request : CR-0060
 - [ ] App: `--data-dir ./tmp-data` — toggle the setting and watch both lists change
 - [ ] Docs: CHANGELOG
 
+### CR-0061 · One layout standard for tables, inputs and pane spacing, written down and applied
+- **Also:** the owner's working role (Senior Rust Developer and Senior UI/UX Designer) written into `CLAUDE.md` → Role, so the standard is applied by default (owner, 2026-11-06)
+- **State:** In-Progress · the standard is in `.claude/rules/ui.md` (2026-11-06); the designer and the app-wide pass follow
+- **Source:** owner, 2026-11-06 ("Why in Database Activity → Work Pane → Design Tab the table not follow the rules for table before? … proper left/right/top/bottom padding/margin for all sections … text field same height with the dropdown … check other activities … update all rules … vertical middle align all the row that have multiple input … make it standard so that handover to other agent can understand it … vertical middle align all the row in table cells … some of the input text is not wide enough … proper top/bottom padding between form row")
+- **Scope:** `.claude/rules/ui.md` (Layout and controls standard), `docs/04-ui-design.md`, `hs_ui::form` (`line_edit`, `match_field_height`, `pick_field_width`, `pane`, `PANE_MARGIN`, `ROW_GAP`), `hs_ui::table` (`edit_table`, `EditColumn`, `edit_row_height`), the table designer, and every bare single-line text field and loose dropdown in the app.
+- **Parent:** CR-0025
+- **Depends on:** CR-0026, CR-0028, CR-0046, FEAT-0103
+- [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
+- [ ] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned
+- [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock
+- [ ] Every loose dropdown row gets `form::match_field_height`; no input row uses `horizontal_top`
+- [ ] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list
+- [ ] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS
+
+### CR-0062 · Devtools: every tool's form to the layout standard
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("In Devtools Activity Form in all tools, please check proper form, input, label, wording comply to a standard … many form in the tools is lousy and not up to standard")
+- **Scope:** every tool in `tool-devtools` (convert, cron, diff, envfile, generate, hash, jwt, net, ports, regex, snippets, url, base64, firebase, yaml …).
+- **Parent:** CR-0025
+- **Depends on:** CR-0061
+- [ ] Each tool's inputs in a `form::field_grid` (or an `edit_table` for rows), labels in Title Case beside their fields, hints in sentence case on their own row, outputs in a `form::well`
+- [ ] Wording reviewed per tool: one name per thing, no jargon where a plain word exists, the casing rules
+- [ ] Test: the bundled locale parses; no bare text field left in the crate
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — every Devtools tool opened and checked against the standard
+- [ ] Docs: CHANGELOG
+
+### CR-0063 · Every button an icon and a label, every button row wrapping
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("some of the button still dont have either label or icon. And if the row overflow, make the button wrap to next row")
+- **Scope:** about 300 label-only buttons across every activity and Settings (`ui.button(s.t(..))` with no glyph), and the button rows built with `ui.horizontal`; the rule is in `.claude/rules/ui.md` → Buttons and toolbars.
+- **Parent:** CR-0025
+- **Depends on:** CR-0061
+- [ ] Each label-only button gets a fitting Phosphor glyph (a row's small actions keep icon + tooltip)
+- [ ] Each row of more than two buttons, or of buttons beside a field, is `horizontal_wrapped`
+- [ ] Test: a grep finds no `ui.button(s.t(` without a glyph in the workspace
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — every activity at a narrow window: buttons wrap, none without a glyph
+- [ ] Docs: CHANGELOG
+
+### CR-0064 · Home dashboard: the activity rail shrinks to fit one row, and wraps when it cannot
+- **State:** In-Progress · built 2026-11-06; the app check follows
+- **Source:** owner, 2026-11-06 ("Make the card, icon and label smaller to accommodate the rail in one row (if possible), if not, make it wrap to next row")
+- **Scope:** `crates/hyperstack/src/tools/home.rs` (the dashboard toolbar's activity buttons).
+- **Parent:** CR-0025
+- **Depends on:** CR-0038
+- [x] The buttons shrink with the window (labelled 76 → 58 px, glyph 22 → 18, name 11 → 10; unlabelled 34 → 30) and the row wraps below that
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — names on and off, wide and narrow windows
+- [ ] Docs: CHANGELOG
+
+### CR-0065 · Coloured icons on every dashboard's saved cards, and inner tabs that follow Material icons
+- **State:** In-Progress · built 2026-11-06; the app check follows
+- **Source:** owner, 2026-11-06 ("Some of the dashboard page in activity dont have color icon on the Saved things. And the tab icon also not follow the color icon of the material icon (when enable)")
+- **Scope:** dashboard `Entry` in `tool-devtools` (a colour per category) and `tool-logs` (the sidebar's icon and blue, CR-0058); the inner tab strips of `tool-db` (query and design tabs) and `tool-git` (host repository tabs) draw the Material picture when Material icons are on for that activity.
+- **Parent:** CR-0025
+- **Depends on:** CR-0049, CR-0058
+- [x] Devtools and Logs dashboard cards carry a colour; the other activities already did
+- [x] Database query/design tabs and Git host tabs draw the Material icon when it is on
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Material icons on and off, Devtools and Logs dashboards
+- [ ] Docs: CHANGELOG, ui.md rule
+
+### CR-0066 · Quick Open and Commands: icons in their kind's colour and Material picture
+- **State:** In-Progress · built 2026-11-06; the app check follows
+- **Source:** owner, 2026-11-06 ("make the icon follow the kind/type colored in Quick Open dropdown list and Command drop down list (where applicable if enable material icon and color activity icon)")
+- **Scope:** `hs_ui::palette::PaletteItem` gains `image` and `colour`; `hyperstack::app::palette_items` fills them: activities and tool commands in the rail colour (Coloured Activity Icons), connections in their product mark, Quick Open files in their Material icon (Material icons on for that activity).
+- **Parent:** CR-0025
+- **Depends on:** CR-0043, CR-0065
+- [x] Palette rows draw an image or a coloured glyph
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Ctrl+P and Ctrl+Shift+P with Material and coloured icons on and off
+- [ ] Docs: CHANGELOG, ui.md rule
+
 ---
 
 ## v0.7.6 — Done 2026-11-06
@@ -479,9 +562,8 @@ Change Request : CR-0060
 > v0.115.0 (2026-11-02), merge `9dc90f2`; BUG-0040, the Scratchpad hang
 > that v0.115.0 introduced, in v0.115.1 (2026-11-03), merge `3fb81ac`;
 > CR-0026 to CR-0030, CR-0041 to CR-0043 and BUG-0041 in v0.115.2
-> (2026-11-03), merge `a54ceab`. The heading stays Planned because most
-> of CR-0025's children are still open: a release carried the finished
-> items, not the batch.
+> (2026-11-03), merge `a54ceab`. The rest of CR-0025's children shipped later,
+> and the heading is Done.
 
 > CR-0025 was split into the themed items below on the owner's decision
 > (2026-11-02); every box kept its original wording. The shared primitives
@@ -1464,6 +1546,17 @@ Change Request : CR-0060
 - **Notes:** Confluence needs a licence key and cannot run here; tested against a mock server only, and the App box stays open for that reason.
 
 ## Backlog
+
+### FEAT-0104 · Database: schema- and database-level DDL from the designer
+- **State:** Pending · **Spec:** docs/tools/database.md (Table designer, "Out of the first cut")
+- **Source:** split out of FEAT-0103 on the owner's decision of 2026-11-06 ("whether 'alter schema' means more than tables (create / rename / drop a schema or database)")
+- **Depends on:** FEAT-0103
+- [ ] Plan first: which engines create, rename and drop a schema or database, and how the designer offers it - agreed with the owner before code
+- [ ] Test: <what it asserts>
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — <what to click>
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** referenced by FEAT-0103 and `docs/tools/database.md` since 2026-11-06 but never written down as an item; filed 2026-11-06 so the id points at something. Scope beyond the plan box is the owner's to set.
 
 ### FEAT-0092 · Puppet (PuppetDB, Puppet Enterprise orchestrator)
 - **State:** Completed · built and verified on 2026-11-06 against recorded PuppetDB answers (`hs-puppetdb-fake`): three nodes, their reports and a failed report's log on screen, Run refused without an orchestrator and a deploy with one; gate green

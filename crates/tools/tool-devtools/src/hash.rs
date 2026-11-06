@@ -224,7 +224,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         ui.horizontal(|ui| {
             ui.label(s.t("dt-hash-compare"));
             ui.add(
-                egui::TextEdit::singleline(&mut st.expected)
+                hs_ui::form::line_edit(&mut st.expected)
                     .hint_text(s.t("dt-hash-compare-hint"))
                     .desired_width(f32::INFINITY),
             );

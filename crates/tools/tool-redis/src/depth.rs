@@ -453,9 +453,7 @@ impl RedisTool {
         };
         ui.horizontal(|ui| {
             ui.label(s.t("redis-bigkeys-pattern"));
-            ui.add(
-                egui::TextEdit::singleline(&mut self.depth.bigkeys_pattern).desired_width(200.0),
-            );
+            ui.add(hs_ui::form::line_edit(&mut self.depth.bigkeys_pattern).desired_width(200.0));
             ui.label(s.t("redis-bigkeys-top"));
             ui.add(egui::DragValue::new(&mut self.depth.bigkeys_top).range(5..=500));
             if running {
@@ -569,21 +567,19 @@ impl RedisTool {
         ui.horizontal(|ui| {
             ui.label(s.t("redis-bulk-pattern"));
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.bulk_pattern)
+                hs_ui::form::line_edit(&mut self.depth.bulk_pattern)
                     .hint_text("session:*")
                     .desired_width(240.0),
             );
             match self.depth.bulk_action {
                 BulkAction::Expire => {
                     ui.label(s.t("redis-bulk-seconds"));
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.depth.bulk_secs).desired_width(90.0),
-                    );
+                    ui.add(hs_ui::form::line_edit(&mut self.depth.bulk_secs).desired_width(90.0));
                 }
                 BulkAction::RenamePrefix => {
                     ui.label(s.t("redis-bulk-to"));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.depth.bulk_to)
+                        hs_ui::form::line_edit(&mut self.depth.bulk_to)
                             .hint_text("archive:session:")
                             .desired_width(200.0),
                     );
@@ -667,14 +663,14 @@ impl RedisTool {
             ui.label(s.t("redis-pubsub-channels"));
             ui.add_enabled(
                 !on,
-                egui::TextEdit::singleline(&mut self.depth.sub_channels)
+                hs_ui::form::line_edit(&mut self.depth.sub_channels)
                     .hint_text("events, orders")
                     .desired_width(220.0),
             );
             ui.label(s.t("redis-pubsub-patterns"));
             ui.add_enabled(
                 !on,
-                egui::TextEdit::singleline(&mut self.depth.sub_patterns)
+                hs_ui::form::line_edit(&mut self.depth.sub_patterns)
                     .hint_text("log:*")
                     .desired_width(160.0),
             );
@@ -719,12 +715,12 @@ impl RedisTool {
         ui.horizontal(|ui| {
             ui.label(s.t("redis-pubsub-publish"));
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.pub_channel)
+                hs_ui::form::line_edit(&mut self.depth.pub_channel)
                     .hint_text("channel")
                     .desired_width(160.0),
             );
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.pub_message)
+                hs_ui::form::line_edit(&mut self.depth.pub_message)
                     .hint_text("message")
                     .desired_width(320.0),
             );
@@ -792,6 +788,7 @@ impl RedisTool {
         let streams: Vec<String> = self.shared.lock().tree.keys_with_kind(&KeyType::Stream);
         ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
+            hs_ui::form::match_field_height(ui);
             ui.label(s.t("redis-streams-key"));
             let shown = if self.depth.stream_key.is_empty() {
                 s.t("redis-streams-pick")
@@ -813,7 +810,7 @@ impl RedisTool {
                     }
                 });
             ui.add(
-                egui::TextEdit::singleline(&mut self.depth.stream_key)
+                hs_ui::form::line_edit(&mut self.depth.stream_key)
                     .hint_text(s.t("redis-streams-typed"))
                     .desired_width(220.0),
             );

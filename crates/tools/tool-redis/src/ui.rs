@@ -1078,6 +1078,7 @@ impl RedisTool {
             _ => 16,
         };
         ui.horizontal_wrapped(|ui| {
+            hs_ui::form::match_field_height(ui);
             ui.label(s.t("redis-database"));
             let keys_here = keyspace
                 .iter()
@@ -1114,7 +1115,7 @@ impl RedisTool {
                 ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
                 let buttons = 2.0 * 110.0 + form::PANE_GAP;
                 let r = ui.add(
-                    egui::TextEdit::singleline(&mut self.state.pattern)
+                    hs_ui::form::line_edit(&mut self.state.pattern)
                         .hint_text(s.t("redis-pattern-hint"))
                         .desired_width((ui.available_width() - buttons).max(120.0)),
                 );
@@ -1670,7 +1671,7 @@ impl RedisTool {
         ui.separator();
         ui.horizontal(|ui| {
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.console_input)
+                hs_ui::form::line_edit(&mut self.console_input)
                     .hint_text(s.t("redis-console-input"))
                     .font(egui::TextStyle::Monospace)
                     .desired_width(ui.available_width() - 80.0),

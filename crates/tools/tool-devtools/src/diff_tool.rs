@@ -129,7 +129,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             ui.vertical(|ui| {
                 ui.set_width(half);
                 ui.add(
-                    egui::TextEdit::singleline(name)
+                    hs_ui::form::line_edit(name)
                         .hint_text(s.t(hint))
                         .desired_width(f32::INFINITY),
                 );

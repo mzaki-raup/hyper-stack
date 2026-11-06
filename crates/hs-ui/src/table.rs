@@ -137,7 +137,7 @@ impl DataTable<'_> {
             ui.horizontal(|ui| {
                 ui.label(crate::icons::SEARCH);
                 ui.add(
-                    egui::TextEdit::singleline(&mut state.filter)
+                    crate::form::line_edit(&mut state.filter)
                         .desired_width(220.0)
                         .hint_text("filter"),
                 );
@@ -317,6 +317,97 @@ pub fn header_band(ui: &mut egui::Ui, theme: &Theme) {
         band.bottom() - 0.5,
         egui::Stroke::new(1.0, theme.border),
     );
+}
+
+/// One column of an [`edit_table`]: its header and its narrowest width.
+/// Spare width is shared over the columns in proportion to it; a column
+/// with `width` 0 (row actions) keeps its content's width.
+pub struct EditColumn<'a> {
+    pub name: &'a str,
+    pub width: f32,
+}
+
+impl<'a> EditColumn<'a> {
+    pub fn new(name: &'a str, width: f32) -> Self {
+        Self { name, width }
+    }
+}
+
+/// How tall an [`edit_table`] row is: a field's height and air above and
+/// below it, so the inputs in a row sit in its middle with room between
+/// rows (CR-0061).
+pub fn edit_row_height(ui: &egui::Ui) -> f32 {
+    crate::form::field_height(ui) + 8.0
+}
+
+/// A table whose cells are inputs - a form laid out in rows (a table's
+/// columns, a list of rules). It follows the table standard every
+/// `DataTable` does: the header band, bold header text at [`HEADER_TEXT`]
+/// on a [`HEADER_HEIGHT`] row, striped rows, every cell laid out from the
+/// left and centred on the row ([`cell_layout`]); and every control in a
+/// cell - field, dropdown, checkbox, button - is a field's height, so the
+/// inputs of a row line up (CR-0061). `cell(ui, row, column)` draws one
+/// cell.
+pub fn edit_table(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    columns: &[EditColumn<'_>],
+    rows: usize,
+    mut cell: impl FnMut(&mut egui::Ui, usize, usize),
+) {
+    let field_h = crate::form::field_height(ui);
+    let row_h = edit_row_height(ui);
+    let avail = ui.available_width();
+    let spacing = ui.spacing().item_spacing.x * columns.len() as f32;
+    let mut builder = TableBuilder::new(ui)
+        .id_salt(id)
+        .striped(true)
+        .resizable(false)
+        .vscroll(false)
+        .cell_layout(cell_layout());
+    // A width is the column's floor; the spare width of the pane is
+    // shared out over the columns in proportion, so a field shows its
+    // value instead of a sliver of it (CR-0061). A width of 0 marks a
+    // column (row actions) that keeps its content's width.
+    let floor: f32 = columns.iter().map(|c| c.width).sum();
+    let grow = if floor > 0.0 {
+        ((avail - spacing - 90.0) / floor).max(1.0)
+    } else {
+        1.0
+    };
+    for c in columns {
+        builder = builder.column(if c.width > 0.0 {
+            Column::exact((c.width * grow).floor())
+        } else {
+            Column::auto().at_least(MIN_COLUMN)
+        });
+    }
+    builder
+        .header(HEADER_HEIGHT, |mut header| {
+            for c in columns {
+                header.col(|ui| {
+                    header_band(ui, theme);
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::Label::new(egui::RichText::new(c.name).strong().size(HEADER_TEXT))
+                            .selectable(false),
+                    );
+                });
+            }
+        })
+        .body(|body| {
+            body.rows(row_h, rows, |mut row| {
+                let r = row.index();
+                for c in 0..columns.len() {
+                    row.col(|ui| {
+                        ui.spacing_mut().interact_size.y = field_h;
+                        ui.add_space(4.0);
+                        cell(ui, r, c);
+                    });
+                }
+            });
+        });
 }
 
 #[cfg(test)]

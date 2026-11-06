@@ -12,7 +12,7 @@
 //! after the fact, so its keys are written inside the table.
 
 use crate::driver::Engine;
-use crate::schema::{ForeignKey, IndexDef, Snapshot, TableSchema};
+use crate::schema::{ColumnDef, ForeignKey, IndexDef, Snapshot, TableSchema};
 use crate::sql::quote_ident;
 
 /// What to include. The UI offers each as a checkbox.
@@ -256,10 +256,603 @@ pub fn script(snap: &Snapshot, engine: Engine, opts: &Options) -> String {
     out
 }
 
+// ---- the table designer's ALTER generator (FEAT-0103) -----------------------
+
+/// The table as the designer has it: the edited definition, and for each
+/// column the name it had when the table was read (`None` for a column the
+/// designer added), so a rename is a rename and not a drop and an add.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Edit {
+    pub table: TableSchema,
+    /// Parallel to `table.columns`.
+    pub original: Vec<Option<String>>,
+}
+
+impl Edit {
+    /// Start from the table as read: every column keeps its own name.
+    pub fn from_table(t: &TableSchema) -> Self {
+        Self {
+            table: t.clone(),
+            original: t.columns.iter().map(|c| Some(c.name.clone())).collect(),
+        }
+    }
+
+    /// A blank table in `schema`, for New Table.
+    pub fn blank(schema: &str) -> Self {
+        Self {
+            table: TableSchema {
+                schema: schema.to_string(),
+                ..Default::default()
+            },
+            original: Vec::new(),
+        }
+    }
+}
+
+/// What `alter_table` made of an edit: the statements to run, in order,
+/// and what the engine cannot do in place, said plainly rather than
+/// guessed around. A refusal keeps Apply off; the statements that are
+/// possible are still shown so the user sees what would run.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Script {
+    pub statements: Vec<String>,
+    pub refused: Vec<String>,
+}
+
+impl Script {
+    pub fn is_empty(&self) -> bool {
+        self.statements.is_empty() && self.refused.is_empty()
+    }
+
+    /// The statements as one script, the refusals as leading comments.
+    pub fn text(&self) -> String {
+        let mut out = String::new();
+        for r in &self.refused {
+            out.push_str("-- ");
+            out.push_str(r);
+            out.push('\n');
+        }
+        if !self.refused.is_empty() && !self.statements.is_empty() {
+            out.push('\n');
+        }
+        out.push_str(&self.statements.join("\n"));
+        out
+    }
+}
+
+/// One difference between the table as read and as edited.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Change {
+    RenameTable {
+        to: String,
+    },
+    AddColumn(ColumnDef),
+    DropColumn(String),
+    RenameColumn {
+        from: String,
+        to: String,
+    },
+    /// Type, nullability or default changed: the column before and after
+    /// (its name is the new one).
+    AlterColumn {
+        before: ColumnDef,
+        after: ColumnDef,
+    },
+    DropIndex(IndexDef),
+    AddIndex(IndexDef),
+    DropForeignKey(ForeignKey),
+    AddForeignKey(ForeignKey),
+    /// The primary key's columns changed; `old_name` is the key's index
+    /// name where the engine needs it to drop the old one.
+    PrimaryKey {
+        old_name: Option<String>,
+        columns: Vec<String>,
+    },
+}
+
+/// The differences, in the order they must run: renames first (so later
+/// statements use the new names), then columns, keys last.
+pub fn diff(before: &TableSchema, edit: &Edit) -> Vec<Change> {
+    let after = &edit.table;
+    let mut out = Vec::new();
+    if !after.name.is_empty() && after.name != before.name {
+        out.push(Change::RenameTable {
+            to: after.name.clone(),
+        });
+    }
+    // Columns: renames, then drops, adds and alterations.
+    let kept: Vec<&str> = edit.original.iter().flatten().map(String::as_str).collect();
+    for (c, orig) in after.columns.iter().zip(&edit.original) {
+        if let Some(o) = orig
+            && o != &c.name
+        {
+            out.push(Change::RenameColumn {
+                from: o.clone(),
+                to: c.name.clone(),
+            });
+        }
+    }
+    for c in &before.columns {
+        if !kept.contains(&c.name.as_str()) {
+            out.push(Change::DropColumn(c.name.clone()));
+        }
+    }
+    for (c, orig) in after.columns.iter().zip(&edit.original) {
+        match orig.as_deref().and_then(|o| before.column(o)) {
+            None => out.push(Change::AddColumn(c.clone())),
+            Some(b) => {
+                let same = b.data_type.trim().eq_ignore_ascii_case(c.data_type.trim())
+                    && b.nullable == c.nullable
+                    && b.default.as_deref().map(str::trim) == c.default.as_deref().map(str::trim)
+                    && b.auto_increment == c.auto_increment;
+                if !same {
+                    out.push(Change::AlterColumn {
+                        before: b.clone(),
+                        after: c.clone(),
+                    });
+                }
+            }
+        }
+    }
+    // Indexes by name (the primary key's own index is the key's business).
+    for ix in before.indexes.iter().filter(|i| !i.primary) {
+        let still = after
+            .indexes
+            .iter()
+            .any(|a| a.name == ix.name && a.columns == ix.columns && a.unique == ix.unique);
+        if !still {
+            out.push(Change::DropIndex(ix.clone()));
+        }
+    }
+    for ix in after.indexes.iter().filter(|i| !i.primary) {
+        let had = before
+            .indexes
+            .iter()
+            .any(|b| b.name == ix.name && b.columns == ix.columns && b.unique == ix.unique);
+        if !had {
+            out.push(Change::AddIndex(ix.clone()));
+        }
+    }
+    for fk in &before.foreign_keys {
+        if !after.foreign_keys.contains(fk) {
+            out.push(Change::DropForeignKey(fk.clone()));
+        }
+    }
+    for fk in &after.foreign_keys {
+        if !before.foreign_keys.contains(fk) {
+            out.push(Change::AddForeignKey(fk.clone()));
+        }
+    }
+    if before.primary_key != after.primary_key {
+        out.push(Change::PrimaryKey {
+            old_name: before
+                .indexes
+                .iter()
+                .find(|i| i.primary)
+                .map(|i| i.name.clone())
+                .filter(|n| !n.is_empty()),
+            columns: after.primary_key.clone(),
+        });
+    }
+    out
+}
+
+/// A column's definition after its name, as `CREATE TABLE` writes it.
+fn column_def(c: &ColumnDef, engine: Engine) -> String {
+    let mut s = c.data_type.trim().to_string();
+    if c.auto_increment {
+        s.push_str(auto_increment(engine));
+    }
+    if !c.nullable {
+        s.push_str(" NOT NULL");
+    }
+    if let Some(d) = &c.default {
+        s.push_str(&format!(" DEFAULT {d}"));
+    }
+    s
+}
+
+/// The statements for an edit of `before`, in the engine's dialect, with
+/// what the engine cannot do said as a refusal. A fresh table (no
+/// `before`) is a `CREATE TABLE` with its indexes and keys.
+pub fn alter_table(before: Option<&TableSchema>, edit: &Edit, engine: Engine) -> Script {
+    let mut script = Script::default();
+    let Some(before) = before else {
+        let t = &edit.table;
+        if t.name.trim().is_empty() || t.columns.is_empty() {
+            return script;
+        }
+        script
+            .statements
+            .push(create_table(t, engine, &Options::default()));
+        for ix in &t.indexes {
+            script.statements.extend(create_index(t, ix, engine));
+        }
+        for fk in &t.foreign_keys {
+            script.statements.extend(add_foreign_key(t, fk, engine));
+        }
+        return script;
+    };
+    // Statements name the table as it will be once a rename has run.
+    let name = if edit.table.name.trim().is_empty() {
+        before.name.as_str()
+    } else {
+        edit.table.name.as_str()
+    };
+    let schema = before.schema.as_str();
+    let t = table_ref(schema, name, engine);
+    let push = |script: &mut Script, s: String| script.statements.push(s);
+    let refuse = |script: &mut Script, s: String| script.refused.push(s);
+    let eng = engine_name(engine);
+    for ch in diff(before, edit) {
+        match ch {
+            Change::RenameTable { to } => {
+                let from = table_ref(schema, &before.name, engine);
+                let to_q = quote_ident(&to, engine);
+                push(
+                    &mut script,
+                    match engine {
+                        Engine::Mssql => format!("EXEC sp_rename '{from}', '{to}';"),
+                        Engine::Mysql | Engine::Db2 | Engine::ClickHouse => {
+                            format!("RENAME TABLE {from} TO {to_q};")
+                        }
+                        _ => format!("ALTER TABLE {from} RENAME TO {to_q};"),
+                    },
+                );
+            }
+            Change::AddColumn(c) => {
+                let def = column_def(&c, engine);
+                let col = quote_ident(&c.name, engine);
+                push(
+                    &mut script,
+                    match engine {
+                        Engine::Mssql => format!("ALTER TABLE {t} ADD {col} {def};"),
+                        Engine::Oracle => format!("ALTER TABLE {t} ADD ({col} {def});"),
+                        _ => format!("ALTER TABLE {t} ADD COLUMN {col} {def};"),
+                    },
+                );
+            }
+            Change::DropColumn(c) => {
+                let col = quote_ident(&c, engine);
+                push(&mut script, format!("ALTER TABLE {t} DROP COLUMN {col};"));
+            }
+            Change::RenameColumn { from, to } => {
+                let (f, n) = (quote_ident(&from, engine), quote_ident(&to, engine));
+                push(
+                    &mut script,
+                    match engine {
+                        Engine::Mssql => format!("EXEC sp_rename '{t}.{from}', '{to}', 'COLUMN';"),
+                        Engine::Db2 => format!("ALTER TABLE {t} RENAME COLUMN {f} TO {n};"),
+                        _ => format!("ALTER TABLE {t} RENAME COLUMN {f} TO {n};"),
+                    },
+                );
+            }
+            Change::AlterColumn {
+                before: b,
+                after: a,
+            } => {
+                let col = quote_ident(&a.name, engine);
+                let type_changed = !b.data_type.trim().eq_ignore_ascii_case(a.data_type.trim());
+                let null_changed = b.nullable != a.nullable;
+                let default_changed =
+                    b.default.as_deref().map(str::trim) != a.default.as_deref().map(str::trim);
+                match engine {
+                    Engine::Sqlite => {
+                        if type_changed || null_changed {
+                            refuse(
+                                &mut script,
+                                format!(
+                                    "{eng} cannot change the type or nullability of {} in place; the column is left as it is",
+                                    a.name
+                                ),
+                            );
+                        }
+                        if default_changed {
+                            refuse(
+                                &mut script,
+                                format!(
+                                    "{eng} cannot change a default in place; {} keeps its default",
+                                    a.name
+                                ),
+                            );
+                        }
+                    }
+                    Engine::Mysql => {
+                        // MySQL takes the whole definition again.
+                        push(
+                            &mut script,
+                            format!(
+                                "ALTER TABLE {t} MODIFY COLUMN {col} {};",
+                                column_def(&a, engine)
+                            ),
+                        );
+                    }
+                    Engine::Mssql => {
+                        if type_changed || null_changed {
+                            let null = if a.nullable { "NULL" } else { "NOT NULL" };
+                            push(
+                                &mut script,
+                                format!(
+                                    "ALTER TABLE {t} ALTER COLUMN {col} {} {null};",
+                                    a.data_type.trim()
+                                ),
+                            );
+                        }
+                        if default_changed {
+                            match &a.default {
+                                Some(d) if b.default.is_none() => push(
+                                    &mut script,
+                                    format!(
+                                        "ALTER TABLE {t} ADD CONSTRAINT {} DEFAULT {d} FOR {col};",
+                                        quote_ident(&format!("df_{name}_{}", a.name), engine)
+                                    ),
+                                ),
+                                _ => refuse(
+                                    &mut script,
+                                    format!(
+                                        "{eng} drops or replaces a default by its constraint name, which the designer does not know; {} keeps its default",
+                                        a.name
+                                    ),
+                                ),
+                            }
+                        }
+                    }
+                    Engine::Oracle => {
+                        let mut parts = Vec::new();
+                        if type_changed {
+                            parts.push(a.data_type.trim().to_string());
+                        }
+                        if default_changed {
+                            parts.push(format!(
+                                "DEFAULT {}",
+                                a.default.clone().unwrap_or_else(|| "NULL".into())
+                            ));
+                        }
+                        if null_changed {
+                            parts.push(if a.nullable {
+                                "NULL".into()
+                            } else {
+                                "NOT NULL".into()
+                            });
+                        }
+                        push(
+                            &mut script,
+                            format!("ALTER TABLE {t} MODIFY ({col} {});", parts.join(" ")),
+                        );
+                    }
+                    Engine::ClickHouse => {
+                        if null_changed {
+                            refuse(
+                                &mut script,
+                                format!(
+                                    "{eng} keeps nullability inside the type (Nullable(T)); change the type of {} instead",
+                                    a.name
+                                ),
+                            );
+                        }
+                        if type_changed {
+                            push(
+                                &mut script,
+                                format!(
+                                    "ALTER TABLE {t} MODIFY COLUMN {col} {};",
+                                    a.data_type.trim()
+                                ),
+                            );
+                        }
+                        if default_changed {
+                            push(
+                                &mut script,
+                                match &a.default {
+                                    Some(d) => {
+                                        format!("ALTER TABLE {t} MODIFY COLUMN {col} DEFAULT {d};")
+                                    }
+                                    None => format!(
+                                        "ALTER TABLE {t} MODIFY COLUMN {col} REMOVE DEFAULT;"
+                                    ),
+                                },
+                            );
+                        }
+                    }
+                    Engine::Postgres | Engine::DuckDb | Engine::Db2 => {
+                        if type_changed {
+                            push(
+                                &mut script,
+                                if engine == Engine::Db2 {
+                                    format!(
+                                        "ALTER TABLE {t} ALTER COLUMN {col} SET DATA TYPE {};",
+                                        a.data_type.trim()
+                                    )
+                                } else {
+                                    format!(
+                                        "ALTER TABLE {t} ALTER COLUMN {col} TYPE {};",
+                                        a.data_type.trim()
+                                    )
+                                },
+                            );
+                        }
+                        if null_changed {
+                            push(
+                                &mut script,
+                                if a.nullable {
+                                    format!("ALTER TABLE {t} ALTER COLUMN {col} DROP NOT NULL;")
+                                } else {
+                                    format!("ALTER TABLE {t} ALTER COLUMN {col} SET NOT NULL;")
+                                },
+                            );
+                        }
+                        if default_changed {
+                            push(
+                                &mut script,
+                                match &a.default {
+                                    Some(d) => format!(
+                                        "ALTER TABLE {t} ALTER COLUMN {col} SET DEFAULT {d};"
+                                    ),
+                                    None => {
+                                        format!("ALTER TABLE {t} ALTER COLUMN {col} DROP DEFAULT;")
+                                    }
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+            Change::DropIndex(ix) => {
+                let n = quote_ident(&ix.name, engine);
+                match engine {
+                    Engine::ClickHouse => refuse(
+                        &mut script,
+                        format!("{eng} has no B-tree indexes to drop; {} is left", ix.name),
+                    ),
+                    Engine::Mysql | Engine::Mssql => {
+                        push(&mut script, format!("DROP INDEX {n} ON {t};"))
+                    }
+                    _ => push(&mut script, format!("DROP INDEX {n};")),
+                }
+            }
+            Change::AddIndex(ix) => {
+                let after = TableSchema {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                    ..Default::default()
+                };
+                match create_index(&after, &ix, engine) {
+                    Some(s) => push(&mut script, s),
+                    None => refuse(
+                        &mut script,
+                        format!("{eng} has no B-tree indexes; {} is not created", ix.name),
+                    ),
+                }
+            }
+            Change::DropForeignKey(fk) => {
+                let n = quote_ident(&fk.name, engine);
+                match engine {
+                    Engine::Sqlite | Engine::DuckDb | Engine::ClickHouse => refuse(
+                        &mut script,
+                        format!(
+                            "{eng} cannot drop a foreign key after the table is made; {} is left",
+                            fk.name
+                        ),
+                    ),
+                    Engine::Mysql => push(
+                        &mut script,
+                        format!("ALTER TABLE {t} DROP FOREIGN KEY {n};"),
+                    ),
+                    _ => {
+                        if fk.name.is_empty() {
+                            refuse(
+                                &mut script,
+                                "a foreign key without a name cannot be dropped by the designer"
+                                    .into(),
+                            );
+                        } else {
+                            push(&mut script, format!("ALTER TABLE {t} DROP CONSTRAINT {n};"));
+                        }
+                    }
+                }
+            }
+            Change::AddForeignKey(fk) => {
+                let after = TableSchema {
+                    schema: schema.to_string(),
+                    name: name.to_string(),
+                    ..Default::default()
+                };
+                match add_foreign_key(&after, &fk, engine) {
+                    Some(s) => push(&mut script, s),
+                    None => refuse(
+                        &mut script,
+                        format!(
+                            "{eng} cannot add a foreign key after the table is made; the key on {} is not created",
+                            fk.columns.join(", ")
+                        ),
+                    ),
+                }
+            }
+            Change::PrimaryKey { old_name, columns } => match engine {
+                Engine::Sqlite | Engine::DuckDb | Engine::ClickHouse => {
+                    refuse(
+                        &mut script,
+                        format!(
+                            "{eng} cannot change a primary key in place; the key is left as it is"
+                        ),
+                    );
+                }
+                Engine::Mysql => {
+                    let mut s = format!("ALTER TABLE {t}");
+                    if !before.primary_key.is_empty() {
+                        s.push_str(" DROP PRIMARY KEY");
+                        if !columns.is_empty() {
+                            s.push(',');
+                        }
+                    }
+                    if !columns.is_empty() {
+                        s.push_str(&format!(
+                            " ADD PRIMARY KEY ({})",
+                            column_list(&columns, engine)
+                        ));
+                    }
+                    s.push(';');
+                    push(&mut script, s);
+                }
+                _ => {
+                    if !before.primary_key.is_empty() {
+                        match old_name {
+                            Some(n) => push(
+                                &mut script,
+                                format!(
+                                    "ALTER TABLE {t} DROP CONSTRAINT {};",
+                                    quote_ident(&n, engine)
+                                ),
+                            ),
+                            None => refuse(
+                                &mut script,
+                                format!(
+                                    "{eng} drops a primary key by its constraint name, which the catalog did not give; the key is left"
+                                ),
+                            ),
+                        }
+                    }
+                    if !columns.is_empty() {
+                        push(
+                            &mut script,
+                            format!(
+                                "ALTER TABLE {t} ADD PRIMARY KEY ({});",
+                                column_list(&columns, engine)
+                            ),
+                        );
+                    }
+                }
+            },
+        }
+    }
+    script
+}
+
+/// The engine's name as the refusals say it.
+fn engine_name(engine: Engine) -> &'static str {
+    match engine {
+        Engine::Sqlite => "SQLite",
+        Engine::Postgres => "PostgreSQL",
+        Engine::Mysql => "MySQL",
+        Engine::Mssql => "SQL Server",
+        Engine::ClickHouse => "ClickHouse",
+        Engine::DuckDb => "DuckDB",
+        Engine::Oracle => "Oracle",
+        Engine::Db2 => "Db2",
+    }
+}
+
+/// Whether a script drops something the user would want to confirm by
+/// name: a column, a key, or the table itself.
+pub fn drops_something(script: &Script) -> bool {
+    script.statements.iter().any(|s| {
+        let u = s.to_ascii_uppercase();
+        u.contains("DROP COLUMN") || u.contains("DROP TABLE") || u.contains("DROP PRIMARY KEY")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::ColumnDef;
 
     fn col(name: &str, ty: &str, nullable: bool) -> ColumnDef {
         ColumnDef {
@@ -445,5 +1038,271 @@ mod tests {
         let sql = script(&snap, Engine::Postgres, &opts);
         assert!(!sql.contains("CREATE INDEX"), "{sql}");
         assert!(!sql.contains("ALTER TABLE"), "{sql}");
+    }
+
+    // ---- the designer's ALTER generator (FEAT-0103) ------------------------
+
+    fn edit_of(t: &TableSchema) -> Edit {
+        Edit::from_table(t)
+    }
+
+    #[test]
+    fn no_change_means_no_statements() {
+        let t = orders();
+        let s = alter_table(Some(&t), &edit_of(&t), Engine::Postgres);
+        assert!(s.is_empty(), "{s:?}");
+    }
+
+    #[test]
+    fn a_renamed_column_is_a_rename_not_a_drop_and_an_add() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.columns[2].name = "comment".into();
+        let d = diff(&t, &e);
+        assert_eq!(
+            d,
+            vec![Change::RenameColumn {
+                from: "note".into(),
+                to: "comment".into()
+            }]
+        );
+        let pg = alter_table(Some(&t), &e, Engine::Postgres);
+        assert_eq!(
+            pg.statements,
+            vec!["ALTER TABLE public.orders RENAME COLUMN note TO comment;"]
+        );
+        let ms = alter_table(Some(&t), &e, Engine::Mssql);
+        assert_eq!(
+            ms.statements,
+            vec!["EXEC sp_rename 'public.orders.note', 'comment', 'COLUMN';"]
+        );
+    }
+
+    #[test]
+    fn added_and_dropped_columns_in_each_dialect() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.columns.remove(2);
+        e.original.remove(2);
+        e.table.columns.push(ColumnDef {
+            default: Some("0".into()),
+            ..col("total", "numeric(10,2)", false)
+        });
+        e.original.push(None);
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec![
+                "ALTER TABLE public.orders DROP COLUMN note;",
+                "ALTER TABLE public.orders ADD COLUMN total numeric(10,2) NOT NULL DEFAULT 0;",
+            ]
+        );
+        let ora = alter_table(Some(&t), &e, Engine::Oracle).statements;
+        // Oracle folds to upper case, so lower-case names come back quoted.
+        assert!(
+            ora[1]
+                .replace('"', "")
+                .starts_with("ALTER TABLE public.orders ADD (total "),
+            "{ora:?}"
+        );
+        let ms = alter_table(Some(&t), &e, Engine::Mssql).statements;
+        assert!(
+            ms[1].starts_with("ALTER TABLE public.orders ADD total "),
+            "{ms:?}"
+        );
+    }
+
+    #[test]
+    fn a_type_or_null_change_is_refused_on_sqlite_and_spelt_per_engine_elsewhere() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.columns[2].data_type = "varchar(200)".into();
+        e.table.columns[2].nullable = false;
+        let lite = alter_table(Some(&t), &e, Engine::Sqlite);
+        assert!(lite.statements.is_empty());
+        assert_eq!(lite.refused.len(), 1);
+        assert!(
+            lite.refused[0].starts_with("SQLite cannot change the type or nullability of note"),
+            "{:?}",
+            lite.refused
+        );
+        assert!(
+            lite.text().starts_with("-- SQLite cannot"),
+            "{}",
+            lite.text()
+        );
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec![
+                "ALTER TABLE public.orders ALTER COLUMN note TYPE varchar(200);",
+                "ALTER TABLE public.orders ALTER COLUMN note SET NOT NULL;",
+            ]
+        );
+        let my = alter_table(Some(&t), &e, Engine::Mysql).statements;
+        assert_eq!(
+            my,
+            vec!["ALTER TABLE public.orders MODIFY COLUMN note varchar(200) NOT NULL;"]
+        );
+        let ms = alter_table(Some(&t), &e, Engine::Mssql).statements;
+        assert_eq!(
+            ms,
+            vec!["ALTER TABLE public.orders ALTER COLUMN note varchar(200) NOT NULL;"]
+        );
+        let db2 = alter_table(Some(&t), &e, Engine::Db2).statements;
+        assert_eq!(
+            db2[0].replace('"', ""),
+            "ALTER TABLE public.orders ALTER COLUMN note SET DATA TYPE varchar(200);"
+        );
+        let ora = alter_table(Some(&t), &e, Engine::Oracle).statements;
+        assert_eq!(
+            ora[0].replace('"', ""),
+            "ALTER TABLE public.orders MODIFY (note varchar(200) NOT NULL);"
+        );
+    }
+
+    #[test]
+    fn a_default_change_sets_or_drops_it() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.columns[2].default = Some("''".into());
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec!["ALTER TABLE public.orders ALTER COLUMN note SET DEFAULT '';"]
+        );
+        let ch = alter_table(Some(&t), &e, Engine::ClickHouse).statements;
+        assert_eq!(
+            ch,
+            vec!["ALTER TABLE public.orders MODIFY COLUMN note DEFAULT '';"]
+        );
+        // SQL Server adds a named default constraint; a later change to
+        // it needs the name, which the designer refuses to guess.
+        let ms = alter_table(Some(&t), &e, Engine::Mssql);
+        assert_eq!(
+            ms.statements,
+            vec!["ALTER TABLE public.orders ADD CONSTRAINT df_orders_note DEFAULT '' FOR note;"]
+        );
+        let mut t2 = t.clone();
+        t2.columns[2].default = Some("'x'".into());
+        let e2 = edit_of(&t2);
+        let mut e2 = e2;
+        e2.table.columns[2].default = None;
+        let ms2 = alter_table(Some(&t2), &e2, Engine::Mssql);
+        assert!(
+            ms2.statements.is_empty() && ms2.refused.len() == 1,
+            "{ms2:?}"
+        );
+    }
+
+    #[test]
+    fn indexes_and_foreign_keys_come_and_go() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.indexes.remove(1);
+        e.table.indexes.push(IndexDef {
+            name: "orders_note".into(),
+            columns: vec!["note".into()],
+            unique: true,
+            primary: false,
+        });
+        e.table.foreign_keys.clear();
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec![
+                "DROP INDEX orders_customer;",
+                "CREATE UNIQUE INDEX orders_note ON public.orders (note);",
+                "ALTER TABLE public.orders DROP CONSTRAINT orders_customer_fk;",
+            ]
+        );
+        let my = alter_table(Some(&t), &e, Engine::Mysql).statements;
+        assert_eq!(my[0], "DROP INDEX orders_customer ON public.orders;");
+        assert_eq!(
+            my[2],
+            "ALTER TABLE public.orders DROP FOREIGN KEY orders_customer_fk;"
+        );
+        let lite = alter_table(Some(&t), &e, Engine::Sqlite);
+        assert_eq!(lite.statements.len(), 2, "{lite:?}");
+        assert_eq!(lite.refused.len(), 1, "the key cannot go on SQLite");
+    }
+
+    #[test]
+    fn the_primary_key_is_dropped_by_name_and_added_back() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.primary_key = vec!["id".into(), "customer_id".into()];
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec![
+                "ALTER TABLE public.orders DROP CONSTRAINT orders_pkey;",
+                "ALTER TABLE public.orders ADD PRIMARY KEY (id, customer_id);",
+            ]
+        );
+        let my = alter_table(Some(&t), &e, Engine::Mysql).statements;
+        assert_eq!(
+            my,
+            vec!["ALTER TABLE public.orders DROP PRIMARY KEY, ADD PRIMARY KEY (id, customer_id);"]
+        );
+        assert_eq!(alter_table(Some(&t), &e, Engine::Sqlite).refused.len(), 1);
+    }
+
+    #[test]
+    fn a_table_rename_runs_first_and_later_statements_use_the_new_name() {
+        let t = orders();
+        let mut e = edit_of(&t);
+        e.table.name = "sales".into();
+        e.table.columns.push(col("channel", "text", true));
+        e.original.push(None);
+        let pg = alter_table(Some(&t), &e, Engine::Postgres).statements;
+        assert_eq!(
+            pg,
+            vec![
+                "ALTER TABLE public.orders RENAME TO sales;",
+                "ALTER TABLE public.sales ADD COLUMN channel text;",
+            ]
+        );
+        assert_eq!(
+            alter_table(Some(&t), &e, Engine::Mysql).statements[0],
+            "RENAME TABLE public.orders TO sales;"
+        );
+        assert_eq!(
+            alter_table(Some(&t), &e, Engine::Mssql).statements[0],
+            "EXEC sp_rename 'public.orders', 'sales';"
+        );
+    }
+
+    #[test]
+    fn a_new_table_is_a_create_with_its_indexes_and_keys() {
+        let t = orders();
+        let e = edit_of(&t);
+        let pg = alter_table(None, &e, Engine::Postgres);
+        assert!(
+            pg.statements[0].starts_with("CREATE TABLE public.orders"),
+            "{pg:?}"
+        );
+        assert!(
+            pg.statements
+                .iter()
+                .any(|s| s.starts_with("CREATE INDEX orders_customer"))
+        );
+        assert!(
+            pg.statements
+                .iter()
+                .any(|s| s.contains("ADD CONSTRAINT orders_customer_fk"))
+        );
+        assert!(alter_table(None, &Edit::blank("public"), Engine::Postgres).is_empty());
+        assert!(drops_something(&alter_table(
+            Some(&t),
+            &Edit {
+                table: TableSchema {
+                    columns: vec![t.columns[0].clone()],
+                    ..t.clone()
+                },
+                original: vec![Some("id".into())]
+            },
+            Engine::Postgres
+        )));
     }
 }

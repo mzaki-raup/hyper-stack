@@ -184,7 +184,14 @@ Known mistakes and their fixes. Read the section for your area before starting w
   key and value renders as an ellipsis. Measure the row once
   (`ui.available_width()`) and place each field with `add_sized`, the way
   `hs_ui::kv_editor` does. The `.env` editor shipped with this bug and was
-  caught on screen, not by a test (2026-10-31).
+  caught on screen, not by a test (2026-10-31). Met again in the table
+  designer's column grid (FEAT-0103, 2026-11-06): read this entry first.
+- **A new `Buffer` under an old `EditorView` draws stale lines.** The view
+  caches per-line spans by buffer version, and `Buffer::from_text` starts
+  its versions again, so swapping the buffer leaves the old layout on
+  screen - the table designer's script panel showed one character of the
+  new script. Make a new `EditorView` with each new document, as the query
+  tabs do (FEAT-0103, 2026-11-06).
 - **Fixed slots in a row.** Two ways to reserve width, both with a catch.
   `allocate_ui_with_layout` allocates only what the child *used*, so call
   `ui.set_min_width(w)` inside it or the slot collapses to the content

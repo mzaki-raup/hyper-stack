@@ -58,6 +58,28 @@ impl Kind {
         }
     }
 
+    /// A colour per kind, so the sidebar's rows tell them apart at a
+    /// glance (BUG-0046): Docker's blue for Compose, a teal for a Swarm
+    /// stack, Kubernetes' blue for a manifest, a terminal green for a
+    /// command.
+    pub fn colour(self) -> egui::Color32 {
+        match self {
+            Kind::Compose => egui::Color32::from_rgb(0x24, 0x96, 0xed),
+            Kind::Stack => egui::Color32::from_rgb(0x0d, 0xb7, 0xed),
+            Kind::Manifest => egui::Color32::from_rgb(0x32, 0x6c, 0xe5),
+            Kind::Command => egui::Color32::from_rgb(0x16, 0xa3, 0x4a),
+        }
+    }
+
+    /// The row's mark: the kind's glyph in its colour.
+    pub fn conn_icon(self) -> hs_ui::icons::ConnIcon {
+        hs_ui::icons::ConnIcon {
+            glyph: self.icon(),
+            image: None,
+            tint: hs_ui::icons::ConnTint::Brand(self.colour()),
+        }
+    }
+
     /// A guess from a file name, so saving one does not start with a
     /// question the name already answers.
     pub fn of_path(path: &str) -> Self {
@@ -316,6 +338,19 @@ mod tests {
         assert_eq!(icons.len(), Kind::ALL.len(), "no two kinds share a glyph");
         for k in Kind::ALL {
             assert!(k.key().starts_with("container-config-"));
+        }
+    }
+
+    #[test]
+    fn every_kind_has_an_icon_and_a_colour() {
+        let mut seen = std::collections::HashSet::new();
+        for k in Kind::ALL {
+            assert!(!k.icon().is_empty());
+            assert!(seen.insert(k.colour()), "{k:?} shares a colour");
+            assert!(matches!(
+                k.conn_icon().tint,
+                hs_ui::icons::ConnTint::Brand(_)
+            ));
         }
     }
 }

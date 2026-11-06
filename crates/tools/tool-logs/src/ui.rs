@@ -975,11 +975,11 @@ impl LogsTool {
                     form::hint(ui, theme, &s.t("logs-no-services"));
                 }
                 for svc in &offered {
-                    let r = form::list_row(
+                    let r = form::conn_list_row(
                         ui,
                         theme,
                         false,
-                        service_icon(svc),
+                        tinted(service_icon(svc), SERVICE_GREEN),
                         &svc.name,
                         Some(&svc.describe()),
                     );
@@ -1138,6 +1138,22 @@ fn lists_version() -> u64 {
 /// found, so a row reads "a database" rather than "a container"
 /// (owner's request, 2026-10-24). The host's own glyph is the fallback
 /// for a kind the table does not know.
+/// The sidebar's row colours (CR-0058): one per section, so a running
+/// service, a saved source, an investigation and a preset read apart.
+const SERVICE_GREEN: egui::Color32 = egui::Color32::from_rgb(0x22, 0xc5, 0x5e);
+const SOURCE_BLUE: egui::Color32 = egui::Color32::from_rgb(0x3b, 0x82, 0xf6);
+const INVESTIGATION_AMBER: egui::Color32 = egui::Color32::from_rgb(0xf5, 0x9e, 0x0b);
+const PRESET_PURPLE: egui::Color32 = egui::Color32::from_rgb(0xa8, 0x55, 0xf7);
+
+/// A glyph in a section's colour, for the shared row.
+fn tinted(glyph: &'static str, colour: egui::Color32) -> hs_ui::icons::ConnIcon {
+    hs_ui::icons::ConnIcon {
+        glyph,
+        image: None,
+        tint: hs_ui::icons::ConnTint::Brand(colour),
+    }
+}
+
 fn service_icon(svc: &crate::services::Service) -> &'static str {
     if let Some(icon) = crate::services::icon_for(&svc.kind) {
         return icon;
@@ -1729,11 +1745,11 @@ impl Tool for LogsTool {
                 for (i, src) in shown.iter().enumerate() {
                     reorder.row(ui, i, |ui| {
                         let live = current_uri.as_deref() == Some(src.spec.uri().as_str());
-                        let r = form::list_row(
+                        let r = form::conn_list_row(
                             ui,
                             &theme,
                             live,
-                            saved_icon(src),
+                            tinted(saved_icon(src), SOURCE_BLUE),
                             &src.name,
                             Some(&src.spec.describe()),
                         );
@@ -1829,7 +1845,14 @@ impl Tool for LogsTool {
                     form::hint(ui, &theme, &s.t("logs-no-presets"));
                 }
                 for (i, p) in self.presets.iter().enumerate() {
-                    let r = ui.selectable_label(false, format!("{} {}", ph::FUNNEL, p.name));
+                    let r = form::conn_list_row(
+                        ui,
+                        &theme,
+                        false,
+                        tinted(ph::FUNNEL, PRESET_PURPLE),
+                        &p.name,
+                        None,
+                    );
                     if r.clicked() {
                         apply = Some(p.chips.clone());
                     }
@@ -2327,6 +2350,7 @@ impl LogsTool {
             salt: "logs-dashboard",
             tabs: &tabs,
             labels: &labels,
+            extra: None,
         };
         let pick = hs_ui::dashboard::saved_dashboard(
             ui,
@@ -2378,6 +2402,8 @@ impl LogsTool {
                     request: Some(hs_core::tool::OpenRequest::File { uri, line: None }),
                 });
             }
+            // No second grid on this dashboard (CR-0056).
+            Some(hs_ui::dashboard::Pick::OpenExtra(_)) => {}
             Some(hs_ui::dashboard::Pick::Focus(tab_id)) => {
                 cx.actions.push(hs_core::tool::Action::FocusTab { tab_id });
             }
@@ -2847,11 +2873,11 @@ impl LogsTool {
         let mut open: Option<crate::views::Investigation> = None;
         let mut delete: Option<String> = None;
         for v in &self.views {
-            let r = form::list_row(
+            let r = form::conn_list_row(
                 ui,
                 theme,
                 false,
-                ph::MAGNIFYING_GLASS,
+                tinted(ph::MAGNIFYING_GLASS, INVESTIGATION_AMBER),
                 &v.name,
                 Some(&v.describe()),
             );

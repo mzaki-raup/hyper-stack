@@ -110,14 +110,26 @@ pub fn sidebar(
     ui.horizontal(|ui| {
         // Each tab wears its glyph (CR-0048): a star for Favorites, a key
         // for Passwords.
-        for (tab, key, icon) in [
-            (SideTab::Favorites, "browser-favorites", ph::STAR),
-            (SideTab::Passwords, "browser-passwords", ph::KEY),
+        // Each glyph in a colour of its own (CR-0057): the star gold, the
+        // key the vault's teal.
+        for (tab, key, icon, colour) in [
+            (
+                SideTab::Favorites,
+                "browser-favorites",
+                ph::STAR,
+                egui::Color32::from_rgb(0xf5, 0xb3, 0x01),
+            ),
+            (
+                SideTab::Passwords,
+                "browser-passwords",
+                ph::KEY,
+                egui::Color32::from_rgb(0x14, 0xb8, 0xa6),
+            ),
         ] {
             if ui
                 .add(egui::Button::selectable(
                     t.side.tab == tab,
-                    format!("{icon} {}", s.t(key)),
+                    browser_tab_text(icon, colour, &s.t(key), theme.text),
                 ))
                 .clicked()
             {
@@ -1351,6 +1363,21 @@ fn fill_script(username: &str, password: &str, api_key: &str) -> String {
     format!(
         "(function(){{{body}  if (set(user, {u})) n++;\n  if (set(pw, {p})) n++;\n  if (set(key, {k})) n++;\n  return n;\n}})()"
     )
+}
+
+/// A tab label whose glyph carries a colour while the words keep the
+/// text colour (CR-0057).
+fn browser_tab_text(
+    icon: &str,
+    colour: egui::Color32,
+    label: &str,
+    text: egui::Color32,
+) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    let font = egui::FontId::proportional(14.0);
+    job.append(icon, 0.0, egui::TextFormat::simple(font.clone(), colour));
+    job.append(label, 5.0, egui::TextFormat::simple(font, text));
+    job
 }
 
 #[cfg(test)]

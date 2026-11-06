@@ -11,7 +11,18 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Git dashboard: a Saved Hosts card under Saved Repositories (a click opens the host tab) and an Add Host button in Start Here (CR-0056)
+
+### Changed
+
+- Browser sidebar: the Favorites tab's star is gold and the Passwords tab's key teal (CR-0057)
+- Logs sidebar: running services, saved sources, investigations and filter presets each wear their own colour (CR-0058)
+
+### Fixed
+
+- Containers sidebar: a saved Compose, Stack or Manifest entry opens its file in the Editor and a saved command opens a terminal with it typed, instead of a "not yet" toast; the rows are coloured by kind and their details are cut to the row (BUG-0046)
 
 ## 0.125.0 — 2026-11-05
 

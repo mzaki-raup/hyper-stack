@@ -494,6 +494,16 @@ pub struct Page<'a> {
     /// What this activity has open, for the Open Here grid.
     pub tabs: &'a [TabInfo],
     pub labels: &'a DashboardLabels<'a>,
+    /// A second grid of saved things under the first, with its own
+    /// heading (Git's Saved Hosts under Saved Repositories, CR-0056).
+    pub extra: Option<Extra<'a>>,
+}
+
+/// A second grid of saved things on a [`saved_dashboard`].
+pub struct Extra<'a> {
+    pub heading: &'a str,
+    pub empty: &'a str,
+    pub entries: &'a [Entry],
 }
 
 /// What the reader asked for.
@@ -502,6 +512,8 @@ pub enum Pick {
     Action(usize),
     /// The saved thing with this id.
     Open(String),
+    /// The thing with this id in the second grid ([`Page::extra`]).
+    OpenExtra(String),
     /// Go back to this open tab.
     Focus(u64),
 }
@@ -568,6 +580,34 @@ pub fn saved_dashboard(
                 },
             );
             rule(ui, theme);
+            if let Some(extra) = &page.extra {
+                section(ui, theme, extra.heading);
+                grid(
+                    ui,
+                    theme,
+                    &format!("{}-extra", page.salt),
+                    extra.entries.len(),
+                    extra.empty,
+                    |ui, i, w| {
+                        let e = &extra.entries[i];
+                        if item_button_art(
+                            ui,
+                            theme,
+                            e.image.as_deref(),
+                            &e.icon,
+                            e.tint,
+                            &e.name,
+                            &e.detail,
+                            w,
+                        )
+                        .clicked()
+                        {
+                            pick = Some(Pick::OpenExtra(e.id.clone()));
+                        }
+                    },
+                );
+                rule(ui, theme);
+            }
 
             if let Some(id) = open_tabs_section(ui, theme, page.tabs, page.labels) {
                 pick = Some(Pick::Focus(id));

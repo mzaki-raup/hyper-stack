@@ -306,14 +306,14 @@ Change Request : CR-0058
 - **Scope:** `tool-db` (a designer pane opened from the schema tree: columns, types, nullability, defaults, primary and foreign keys, indexes; a generated ALTER/CREATE script previewed before it runs, guarded on protected environments), per-engine DDL generation in the drivers, `docs/tools/database.md`.
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0068
-- [ ] Plan first: the designer's layout (grid of columns, keys and indexes panes, a script preview), which engines generate which DDL, and what stays read-only - agreed with the owner before code
+- [x] Plan first: the designer's layout (grid of columns, keys and indexes panes, a script preview), which engines generate which DDL, and what stays read-only - agreed with the owner before code (2026-11-06, see the plan note)
 - [ ] Alter Table: open a table in the designer, change columns, keys and indexes, preview the script, run it, the schema tree refreshes
-- [ ] Alter Schema / Create Table: a new table or schema from the designer; drop guarded by a typed confirmation
+- [ ] Create Table and Rename Table from the designer; drop guarded by a typed confirmation (schema-level DDL moved to FEAT-0104)
 - [ ] Test: the generated DDL per engine for add / rename / drop column, a key and an index; a protected environment refuses the run
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — alter a table on the bench SQLite and MySQL, see the script, run it, see the tree change
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
-- **Plan (2026-11-06, proposed to the owner, not yet agreed):** a *Designer* tab inside the connection tab (beside the query tabs), opened from a table's context menu (Design Table…) or a schema's (New Table…). Three sub-tabs - Columns (name, type through `pick_field` over the engine's types, length/precision, nullable, default, auto-increment, primary key; add, remove, reorder), Indexes (name, columns, unique) and Foreign Keys (name, columns, referenced table and columns from the catalog, on delete / on update) - over a read-only *Script* panel that shows the ALTER / CREATE statements regenerated from the diff between the table as read (`table_schema`) and as edited, cached on a hash of the edit. Apply runs the script through the existing runner (cancellable; one transaction where the engine's DDL is transactional - PostgreSQL, SQLite, SQL Server, DuckDB - and statement by statement with a stop-on-failure warning where it is not - MySQL, Oracle, ClickHouse, Db2), then refreshes the schema tree and re-reads the table; Copy SQL and Discard beside it. The generator is `ddlgen::alter_table(before, after, engine) -> Vec<String>` next to the existing `create_table`: add / drop / rename column, type, nullability and default changes, indexes, foreign keys, primary key, table rename, each in the engine's dialect, with a per-engine `Capability` table for what the engine cannot do in place (SQLite: no type or nullability change, no column drop before 3.35 - the script says so instead of guessing). Guards: a protected environment disables Apply with the reason and the driver refuses; dropping a column or a table asks for a typed confirmation; the preview is always shown first. Out of scope for the first cut: partitioning, triggers, check constraints, column comments, table options (engine, charset, collation), and schema-level DDL beyond the table (a later item if wanted). Tests: `ddlgen` alter tests per engine for each change kind; a diff test; `tests/engines.rs` creates, alters through the generated script and re-reads the table on SQLite always and on the bench engines under their `HS_*` variables. Four commits: the generator, the designer pane, the wiring and guards, the docs and app check. Open questions for the owner: whether SQLite type changes should be refused (proposed) or done by the rebuild-and-copy dance; whether "alter schema" means more than tables (create / rename / drop a schema or database); and whether a table rename belongs in the first cut.
+- **Plan (2026-11-06, agreed by the owner the same day: SQLite type and nullability changes are refused with a clear message; a table rename is in the first cut; schema-level DDL is FEAT-0104):** a *Designer* tab inside the connection tab (beside the query tabs), opened from a table's context menu (Design Table…) or a schema's (New Table…). Three sub-tabs - Columns (name, type through `pick_field` over the engine's types, length/precision, nullable, default, auto-increment, primary key; add, remove, reorder), Indexes (name, columns, unique) and Foreign Keys (name, columns, referenced table and columns from the catalog, on delete / on update) - over a read-only *Script* panel that shows the ALTER / CREATE statements regenerated from the diff between the table as read (`table_schema`) and as edited, cached on a hash of the edit. Apply runs the script through the existing runner (cancellable; one transaction where the engine's DDL is transactional - PostgreSQL, SQLite, SQL Server, DuckDB - and statement by statement with a stop-on-failure warning where it is not - MySQL, Oracle, ClickHouse, Db2), then refreshes the schema tree and re-reads the table; Copy SQL and Discard beside it. The generator is `ddlgen::alter_table(before, after, engine) -> Vec<String>` next to the existing `create_table`: add / drop / rename column, type, nullability and default changes, indexes, foreign keys, primary key, table rename, each in the engine's dialect, with a per-engine `Capability` table for what the engine cannot do in place (SQLite: no type or nullability change, no column drop before 3.35 - the script says so instead of guessing). Guards: a protected environment disables Apply with the reason and the driver refuses; dropping a column or a table asks for a typed confirmation; the preview is always shown first. Out of scope for the first cut: partitioning, triggers, check constraints, column comments, table options (engine, charset, collation), and schema-level DDL beyond the table (a later item if wanted). Tests: `ddlgen` alter tests per engine for each change kind; a diff test; `tests/engines.rs` creates, alters through the generated script and re-reads the table on SQLite always and on the bench engines under their `HS_*` variables. Four commits: the generator, the designer pane, the wiring and guards, the docs and app check. Open questions for the owner: whether SQLite type changes should be refused (proposed) or done by the rebuild-and-copy dance; whether "alter schema" means more than tables (create / rename / drop a schema or database); and whether a table rename belongs in the first cut.
 
 ### CR-0051 · Kafka's connection icon in a brand colour
 - **State:** Completed · the two SASL Kafka profiles' rows, tabs and header band in the teal on the v0.122.0 build, 2026-11-06; gate green
@@ -401,50 +401,50 @@ Change Request : CR-0058
 - [x] Docs: CHANGELOG
 
 ### CR-0056 · Git dashboard: a Saved Hosts card and an Add Host button in Start Here
-- **State:** Pending ·
+- **State:** Completed · the Saved Hosts card and Add Host seen on the Git dashboard, 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Add Section 'Saved Host' card below 'Saved Repositories' Card with list of Saved Git Host", "Add button 'Add Host' after the 'Add Repository' button, where the action is same function in the Sidebar Column Add Hosts")
 - **Scope:** `tool-git` dashboard (`hs_ui::dashboard` sections), reusing the sidebar's host rows (`host_conn_icon`) and its Add Host action (`settings:git:credentials`).
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0100
-- [ ] A Saved Hosts card under Saved Repositories listing the Git credentials with the forge's mark; a click opens the host tab
-- [ ] Start Here gains Add Host after Add Repository, running the sidebar's Add Host action
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the card lists Bench Forgejo and opens it; Add Host lands on Settings → Git → Git Credentials
-- [ ] Docs: spec · CHANGELOG
+- [x] A Saved Hosts card under Saved Repositories listing the Git credentials with the forge's mark; a click opens the host tab
+- [x] Start Here gains Add Host after Add Repository, running the sidebar's Add Host action
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the card lists Bench Forgejo and opens it; Add Host lands on Settings → Git → Git Credentials (the card and the button seen and clicked on 2026-11-06)
+- [x] Docs: spec · CHANGELOG
 
 ### BUG-0046 · Containers sidebar: saved commands and configs have plain icons, dead buttons and overflowing details
-- **State:** Pending ·
+- **State:** Completed · coloured, cut rows and a sample command opening a terminal, 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Put color for the icon for command, compose, etc. Please fix those button doesn't do anything. And please truncate the details of the saved command, compose, etc to avoid overflow")
 - **Scope:** `tool-containers` sidebar's Saved Commands and Configs section (its rows, their icons per kind and the row actions).
 - **Parent:** CR-0025
-- [ ] Reproduce: which buttons in the section do nothing on a click, and why
-- [ ] Each kind (command, compose, config, …) wears a coloured icon; the row actions do what their labels say
-- [ ] Details are cut to the row (the shared list row truncates since BUG-0045; any row of the section's own does the same)
-- [ ] Test: the kind → icon table covers every kind the section lists
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the bench Docker profile's saved commands: coloured rows, working buttons, no overflow
-- [ ] Docs: CHANGELOG · GOTCHAS
+- [x] Reproduce: which buttons in the section do nothing on a click, and why (a row's click only toasted "not yet": opening was left for the Compose and manifest phases and never wired after them)
+- [x] Each kind (command, compose, config, …) wears a coloured icon; the row actions do what their labels say
+- [x] Details are cut to the row (the shared list row truncates since BUG-0045; any row of the section's own does the same)
+- [x] Test: the kind → icon table covers every kind the section lists
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench Docker profile's saved commands: coloured rows, working buttons, no overflow (green command and blue Compose rows cut to the column; the sample command opened a PowerShell tab with `docker ps …` typed and run, 2026-11-06)
+- [x] Docs: CHANGELOG · GOTCHAS
 
 ### CR-0057 · Browser sidebar: the Favorites and Passwords tab icons in colour
-- **State:** Pending ·
+- **State:** Completed · gold star and teal key seen, 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Put suitable color for icon on the tab")
 - **Scope:** `tool-browser` side panel's tab strip (the star and key icons from CR-0048).
 - **Parent:** CR-0025
 - **Depends on:** CR-0048
-- [ ] The Favorites tab's star is gold and the Passwords tab's key is the vault's colour, in both themes
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — both tabs coloured
-- [ ] Docs: CHANGELOG
+- [x] The Favorites tab's star is gold and the Passwords tab's key is the vault's colour, in both themes
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — both tabs coloured (gold star, teal key, 2026-11-06)
+- [x] Docs: CHANGELOG
 
 ### CR-0058 · Logs sidebar: coloured icons on the Filters, Running Services, Investigations and Filter Presets rows
-- **State:** Pending ·
+- **State:** Completed · coloured service and source rows seen, 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("Add suitable icon for the list with multi color")
 - **Scope:** `tool-logs` sidebar sections and their list rows.
 - **Parent:** CR-0025
-- [ ] Each section's rows carry an icon in a colour of its own (a funnel for filters, a pulse for running services, a magnifier for investigations, a bookmark for presets), through the shared row helpers
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the four sections show their coloured icons
-- [ ] Docs: CHANGELOG
+- [x] Each section's rows carry an icon in a colour of its own (a funnel for filters, a pulse for running services, a magnifier for investigations, a bookmark for presets), through the shared row helpers
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — the four sections show their coloured icons (green running services and a blue saved source seen 2026-11-06; investigations and presets were empty in the scratch workspace and share the same row helper)
+- [x] Docs: CHANGELOG
 
 ---
 

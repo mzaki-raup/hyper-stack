@@ -590,9 +590,10 @@ fn workspace(
             let open = w.name == current;
             // A list to pick from, not a table: a larger logo and name
             // (owner's request, 2026-10-23).
+            let mut switch = false;
             let row = ui.scope(|ui| {
                 ui.add_space(3.0);
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_LIST);
                     ui.add_space(4.0);
                     ui.add(
@@ -611,6 +612,26 @@ fn workspace(
                                 .color(theme.success),
                         );
                     }
+                    // A Switch button in a fixed right-hand column, disabled
+                    // for the workspace already open (owner's CR-0040).
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let b = ui.add_enabled(
+                            !open,
+                            egui::Button::new(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+                                s.t("settings-workspace-switch")
+                            )),
+                        );
+                        let b = if open {
+                            b.on_disabled_hover_text(s.t("settings-workspace-current-tip"))
+                        } else {
+                            b.tip(s.t("settings-workspace-switch-hint"))
+                        };
+                        if b.clicked() {
+                            switch = true;
+                        }
+                    });
                 });
             });
             let r = ui.interact(
@@ -618,7 +639,7 @@ fn workspace(
                 ui.id().with(("ws-row", &w.name)),
                 egui::Sense::click(),
             );
-            if !open && r.clicked() {
+            if !open && (r.clicked() || switch) {
                 effects.push(SettingsEffect::RunAction(format!("ws:{}", w.name)));
             }
             if !open {
@@ -5477,9 +5498,13 @@ const CLI_CANDIDATES: &[(&str, &str, &str)] = &[
     ("docker", "Docker", "cloud"),
     ("claude", "Claude Code", "sparkle"),
     ("opencode", "OpenCode", "sparkle"),
+    ("codex", "Codex CLI", "sparkle"),
     ("gemini", "Gemini CLI", "sparkle"),
     ("aider", "Aider", "sparkle"),
     ("ollama", "Ollama", "sparkle"),
+    ("kilocode", "Kilo Code", "sparkle"),
+    ("cursor-agent", "Cursor CLI", "sparkle"),
+    ("deepseek", "DeepSeek CLI", "sparkle"),
 ];
 
 /// The Phosphor icon for a stored icon key.
@@ -5490,6 +5515,27 @@ fn cli_icon(key: &str) -> &'static str {
         "cloud" => ph::CLOUD,
         "sparkle" => ph::SPARKLE,
         _ => ph::TERMINAL_WINDOW,
+    }
+}
+
+/// A product's mark inline in a row: its logo, or its glyph in the
+/// product's colour (CR-0079) - a shell, a CLI.
+fn conn_mark(ui: &mut egui::Ui, theme: &Theme, icon: hs_ui::icons::ConnIcon) {
+    let size = egui::vec2(16.0, 16.0);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    match icon.image {
+        Some(uri) => egui::Image::from_uri(uri)
+            .fit_to_exact_size(size)
+            .paint_at(ui, rect),
+        None => {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                icon.glyph,
+                egui::FontId::proportional(15.0),
+                icon.glyph_colour(theme, theme.text_muted),
+            );
+        }
     }
 }
 
@@ -5670,6 +5716,7 @@ fn terminal(
                         {
                             move_shell = Some((i, i + 1));
                         }
+                        conn_mark(ui, theme, tool_terminal::shell_conn_icon(&profile.id));
                         ui.label(&profile.name);
                         ui.add(
                             egui::Label::new(
@@ -5723,6 +5770,14 @@ fn terminal(
                         changed |= ui
                             .checkbox(&mut settings.terminal.cli[i].enabled, "")
                             .changed();
+                        conn_mark(
+                            ui,
+                            theme,
+                            hs_ui::icons::cli_conn_icon(
+                                &settings.terminal.cli[i].command,
+                                cli_icon(&settings.terminal.cli[i].icon),
+                            ),
+                        );
                         ui.label(&settings.terminal.cli[i].name);
                         ui.add(
                             egui::Label::new(
@@ -5883,7 +5938,11 @@ fn terminal(
                 .map(|(_, l, i)| (*l, *i))
                 .unwrap_or((command.as_str(), "terminal"));
             ui.horizontal(|ui| {
-                ui.label(cli_icon(icon));
+                conn_mark(
+                    ui,
+                    theme,
+                    hs_ui::icons::cli_conn_icon(command, cli_icon(icon)),
+                );
                 ui.label(label);
                 ui.label(
                     egui::RichText::new(command)
@@ -7664,27 +7723,40 @@ fn editor(
                 .find(|p| p.id == settings.editor.terminal_profile)
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| s.t("settings-editor-terminal-shell-default"));
-            egui::ComboBox::from_id_salt("editor-terminal-shell")
-                .selected_text(current)
-                .width(260.0)
-                .show_ui(ui, |ui| {
-                    changed |= ui
-                        .selectable_value(
-                            &mut settings.editor.terminal_profile,
-                            String::new(),
-                            s.t("settings-editor-terminal-shell-default"),
-                        )
-                        .changed();
-                    for p in profiles.iter() {
+            // Each shell beside its mark, the chosen one's beside the box
+            // (CR-0079).
+            ui.horizontal(|ui| {
+                let chosen = profiles
+                    .iter()
+                    .find(|p| p.id == settings.editor.terminal_profile)
+                    .map(|p| tool_terminal::shell_conn_icon(&p.id))
+                    .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL));
+                conn_mark(ui, theme, chosen);
+                egui::ComboBox::from_id_salt("editor-terminal-shell")
+                    .selected_text(current)
+                    .width(260.0)
+                    .show_ui(ui, |ui| {
                         changed |= ui
                             .selectable_value(
                                 &mut settings.editor.terminal_profile,
-                                p.id.clone(),
-                                &p.name,
+                                String::new(),
+                                s.t("settings-editor-terminal-shell-default"),
                             )
                             .changed();
-                    }
-                });
+                        for p in profiles.iter() {
+                            ui.horizontal(|ui| {
+                                conn_mark(ui, theme, tool_terminal::shell_conn_icon(&p.id));
+                                changed |= ui
+                                    .selectable_value(
+                                        &mut settings.editor.terminal_profile,
+                                        p.id.clone(),
+                                        &p.name,
+                                    )
+                                    .changed();
+                            });
+                        }
+                    });
+            });
             ui.end_row();
         });
         form::hint(ui, theme, &s.t("settings-editor-terminal-hint"));
@@ -9964,5 +10036,22 @@ mod tests {
         assert!(text.contains("Archify"), "Archify notice missing");
         assert!(text.contains("MIT"), "MIT licence text missing");
         assert!(text.contains("208acba8"), "pinned commit missing");
+    }
+
+    /// CR-0079: every CLI the Terminal page suggests wears its product's
+    /// mark - a logo, or a glyph in a colour of its own - except Aider,
+    /// which has none bundled.
+    #[test]
+    fn every_suggested_cli_wears_its_product() {
+        for (command, _, key) in super::CLI_CANDIDATES {
+            if *command == "aider" {
+                continue;
+            }
+            let icon = hs_ui::icons::cli_conn_icon(command, super::cli_icon(key));
+            assert!(
+                icon.image.is_some() || icon.tint != hs_ui::icons::ConnTint::Default,
+                "{command} has no mark"
+            );
+        }
     }
 }

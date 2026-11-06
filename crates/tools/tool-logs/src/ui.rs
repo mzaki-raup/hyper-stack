@@ -15,6 +15,7 @@ use hs_core::tool::{
 };
 use hs_ui::form;
 use hs_ui::icons::ph;
+use hs_ui::loglevel::colour as level_colour;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 use parking_lot::Mutex;
@@ -1247,16 +1248,6 @@ fn saved_icon_for(spec: &SourceSpec) -> &'static str {
     crate::services::classify(text)
         .and_then(crate::services::icon_for)
         .unwrap_or_else(|| spec.icon())
-}
-
-fn level_colour(theme: &Theme, level: Level) -> egui::Color32 {
-    match level {
-        Level::Trace => theme.text_muted,
-        Level::Debug => theme.text_muted,
-        Level::Info => theme.accent,
-        Level::Warn => theme.warning,
-        Level::Error | Level::Fatal => theme.error,
-    }
 }
 
 fn status_label(s: &Services, st: &Status) -> String {
@@ -3972,6 +3963,9 @@ impl LogsTool {
                 sh.stderr.last().cloned(),
             )
         };
+        // Air above the status line, so it is not flush against the time
+        // strip (owner's CR-0040).
+        ui.add_space(form::PANE_GAP);
         ui.horizontal_wrapped(|ui| {
             if self.unseen > 0 {
                 if ui

@@ -636,6 +636,66 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
         "bytes://product/markdown.svg",
         include_bytes!("../../../assets/icons/material/markdown.svg"),
     ),
+    // Marks added for CR-0079: the forges, two operating systems, Nushell,
+    // MinIO and the coding-agent CLIs (LobeHub Icons, MIT; see
+    // `assets/icons/lobehub/README.md`).
+    (
+        "bytes://product/github-grey.svg",
+        include_bytes!("../../../assets/icons/devicon/github-grey.svg"),
+    ),
+    (
+        "bytes://product/gitea.svg",
+        include_bytes!("../../../assets/icons/devicon/gitea.svg"),
+    ),
+    (
+        "bytes://product/bitbucket.svg",
+        include_bytes!("../../../assets/icons/devicon/bitbucket.svg"),
+    ),
+    (
+        "bytes://product/azuredevops.svg",
+        include_bytes!("../../../assets/icons/devicon/azuredevops.svg"),
+    ),
+    (
+        "bytes://product/alpinelinux.svg",
+        include_bytes!("../../../assets/icons/simple/alpinelinux.svg"),
+    ),
+    (
+        "bytes://product/freebsd.svg",
+        include_bytes!("../../../assets/icons/simple/freebsd.svg"),
+    ),
+    (
+        "bytes://product/nushell.svg",
+        include_bytes!("../../../assets/icons/simple/nushell.svg"),
+    ),
+    (
+        "bytes://product/minio.svg",
+        include_bytes!("../../../assets/icons/simple/minio.svg"),
+    ),
+    (
+        "bytes://product/folder-shared.svg",
+        include_bytes!("../../../assets/icons/material/folder-shared.svg"),
+    ),
+    (
+        "bytes://product/claudecode.svg",
+        include_bytes!("../../../assets/icons/lobehub/claudecode.svg"),
+    ),
+    (
+        "bytes://product/opencode.svg",
+        include_bytes!("../../../assets/icons/lobehub/opencode.svg"),
+    ),
+    (
+        "bytes://product/kilocode.svg",
+        include_bytes!("../../../assets/icons/lobehub/kilocode.svg"),
+    ),
+    (
+        "bytes://product/cursor.svg",
+        include_bytes!("../../../assets/icons/lobehub/cursor.svg"),
+    ),
+    // Command Prompt has no logo: Material's console in Windows blue.
+    (
+        "bytes://product/console-windows.svg",
+        include_bytes!("../../../assets/icons/material/console-windows.svg"),
+    ),
 ];
 
 /// How a connection kind's glyph is coloured when it has no logo to draw.
@@ -756,6 +816,9 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "gitlab-ci" | "gitlab-issues" => "gitlab",
         "forgejo-actions" | "forgejo-issues" => "forgejo",
         "awx" => "ansible",
+        "github-issues" => "github-grey",
+        // A network share: Material's purple shared folder (owner, 2026-11-06).
+        "webdav" => "folder-shared",
         "puppet" => "puppet",
         // Simple Icons marks filled with the brand colour (CR-0052).
         "qdrant" => "qdrant",
@@ -858,8 +921,8 @@ pub fn os_conn_icon(id: &str) -> ConnIcon {
         "linux" => product_icon("linux", glyph),
         "macos" => product_icon("apple-rainbow", glyph),
         "windows" => product_icon("windows11", glyph),
-        "alpine" => branded(glyph, [0x0d, 0x59, 0x7f]),
-        "freebsd" => branded(glyph, [0xab, 0x2b, 0x28]),
+        "alpine" => product_icon("alpinelinux", glyph),
+        "freebsd" => product_icon("freebsd", glyph),
         _ => ConnIcon::glyph(glyph),
     }
 }
@@ -926,11 +989,20 @@ pub fn cli_conn_icon(command: &str, glyph: &'static str) -> ConnIcon {
         "terraform" | "tofu" => "terraform",
         "ansible" | "ansible-playbook" => "ansible",
         "node" | "npm" | "npx" => "nodejs",
-        "python" | "python3" | "py" | "ipython" => "python",
+        "python" | "python3" | "py" | "ipython" | "pip" | "pip3" => "python",
         "dotnet" => "dotnetcore",
-        "claude" => "claude",
-        "gh" => return plain_mark(ph::GITHUB_LOGO),
-        "aws" => return branded(ph::CLOUD, [0xff, 0x99, 0x00]),
+        // The coding-agent CLIs wear their own or their vendor's mark
+        // (CR-0079); `claude.svg` stays the AI Assistant's provider mark.
+        "claude" => "claudecode",
+        "opencode" => "opencode",
+        "kilo" | "kilocode" => "kilocode",
+        "cursor-agent" | "cursor" => "cursor",
+        "deepseek" => "deepseek",
+        "codex" => "openai",
+        "gemini" => "googlegemini",
+        "ollama" => "ollama",
+        "gh" => "github-grey",
+        "aws" => "amazonwebservices",
         _ => return ConnIcon::glyph(glyph),
     };
     product_icon(name, glyph)
@@ -947,11 +1019,9 @@ pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
         };
     }
     let tint = match (kind, engine) {
-        // Black logos: the mark in the theme's text colour.
         // MySQL's blue dolphin is a thin outline that all but vanishes
         // on the dark theme; MariaDB shares it here (the database tool
         // runs MariaDB through its MySQL engine).
-        ("github-issues", _) => ConnTint::Text,
         // MySQL's teal blue; MariaDB's sea green (CR-0052).
         ("db", "mysql") => ConnTint::Brand(egui::Color32::from_rgb(0x00, 0x75, 0x8f)),
         ("db", "mariadb") => ConnTint::Brand(egui::Color32::from_rgb(0x1f, 0x8a, 0x70)),
@@ -980,9 +1050,37 @@ pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
     }
 }
 
+/// A git host's mark by its kind (CR-0079): the forge's own logo, or the
+/// branch glyph for a generic remote.
+pub fn git_host_icon(kind: hs_core::git_hosts::HostKind) -> ConnIcon {
+    use hs_core::git_hosts::HostKind;
+    let glyph = ph::GIT_BRANCH;
+    match kind {
+        HostKind::GitHub => product_icon("github-grey", ph::GITHUB_LOGO),
+        HostKind::GitLab => conn_icon("gitlab-issues", ""),
+        HostKind::Forgejo => conn_icon("forgejo-issues", ""),
+        HostKind::Gitea => product_icon("gitea", glyph),
+        HostKind::Bitbucket => product_icon("bitbucket", glyph),
+        HostKind::Azure => product_icon("azuredevops", glyph),
+        HostKind::Generic => ConnIcon::glyph(glyph),
+    }
+}
+
 /// [`conn_icon`] for a saved profile: a database by its engine, an SSH
-/// host by its operating system ([`os_conn_icon`]).
+/// host by its operating system ([`os_conn_icon`]), an S3 store by its
+/// provider where that has a mark of its own (MinIO, CR-0079).
 pub fn profile_conn_icon(profile: &hs_core::connections::ConnectionProfile) -> ConnIcon {
+    if profile.kind == "s3"
+        && profile
+            .fields
+            .get("s3")
+            .and_then(|v| v.as_table())
+            .and_then(|t| t.get("provider"))
+            .and_then(|v| v.as_str())
+            == Some("minio")
+    {
+        return product_icon("minio", connection_icon("s3", ""));
+    }
     if profile.kind == "ssh" {
         let os = profile
             .fields
@@ -1181,12 +1279,17 @@ mod tests {
     /// their own, so the S3 sidebar and its tabs never show a plain glyph
     /// (S3 itself gained a mark in CR-0052 and is checked with the logos).
     #[test]
-    fn nexus_and_webdav_resolve_to_a_tinted_glyph() {
-        for k in ["nexus", "webdav"] {
-            let icon = conn_icon(k, "");
-            assert!(icon.image.is_none(), "{k} has no vendored logo");
-            assert!(icon.brand().is_some(), "{k} is tinted");
-        }
+    fn nexus_keeps_its_green_box_and_webdav_wears_the_shared_folder() {
+        // Nexus: the green package glyph (owner, 2026-11-06: "use the
+        // current green box"). WebDAV: Material's purple shared folder,
+        // which replaced its blue glyph the same day.
+        let nexus = conn_icon("nexus", "");
+        assert!(nexus.image.is_none(), "nexus has no vendored logo");
+        assert!(nexus.brand().is_some(), "nexus is tinted");
+        assert_eq!(
+            conn_icon("webdav", "").image,
+            Some("bytes://product/folder-shared.svg")
+        );
         assert_eq!(connection_icon("webdav", ""), ph::FOLDER_SIMPLE);
         assert_eq!(connection_icon("nexus", ""), ph::PACKAGE);
     }
@@ -1231,9 +1334,12 @@ mod tests {
                 "{engine}"
             );
         }
-        // GitHub's black mark keeps a glyph in the text colour, both
-        // themes; the kinds that gained a brand tint are checked here too.
-        assert_eq!(conn_icon("github-issues", "").tint, ConnTint::Text);
+        // GitHub wears its grey mark, which reads on both themes
+        // (CR-0079); the kinds that gained a brand tint are checked here too.
+        assert_eq!(
+            conn_icon("github-issues", "").image,
+            Some("bytes://product/github-grey.svg")
+        );
         assert!(matches!(conn_icon("kafka", "").tint, ConnTint::Brand(_)));
         // The Simple Icons marks are registered under their slugs.
         for (k, slug) in [
@@ -1263,7 +1369,36 @@ mod tests {
             os_conn_icon("ubuntu").image,
             Some("bytes://product/ubuntu.svg")
         );
-        assert!(os_conn_icon("alpine").brand().is_some());
+        assert_eq!(
+            os_conn_icon("alpine").image,
+            Some("bytes://product/alpinelinux.svg")
+        );
+        assert_eq!(
+            os_conn_icon("freebsd").image,
+            Some("bytes://product/freebsd.svg")
+        );
+        // Every git host kind but a generic remote wears its forge's logo.
+        for kind in hs_core::git_hosts::HostKind::all() {
+            assert_eq!(
+                git_host_icon(kind).image.is_some(),
+                kind != hs_core::git_hosts::HostKind::Generic,
+                "{kind:?}"
+            );
+        }
+        // A MinIO store wears MinIO's mark.
+        let mut minio = hs_core::connections::ConnectionProfile {
+            kind: "s3".into(),
+            ..Default::default()
+        };
+        hs_core::objstore::profile::S3Fields {
+            provider: "minio".into(),
+            ..Default::default()
+        }
+        .write_into(&mut minio.fields);
+        assert_eq!(
+            profile_conn_icon(&minio).image,
+            Some("bytes://product/minio.svg")
+        );
         for (id, _) in hs_core::projects::LANGUAGES {
             let icon = language_conn_icon(id);
             assert!(
@@ -1279,7 +1414,42 @@ mod tests {
             cli_conn_icon("C:/Program Files/PostgreSQL/17/bin/psql.exe", ph::DATABASE).image,
             Some("bytes://product/postgresql.svg")
         );
-        assert_eq!(cli_conn_icon("gh", ph::TERMINAL).tint, ConnTint::Text);
+        assert_eq!(
+            cli_conn_icon("gh", ph::TERMINAL).image,
+            Some("bytes://product/github-grey.svg")
+        );
+        // The catalogue's CLIs with a vendored mark wear it (CR-0079).
+        for (cmd, logo) in [
+            ("aws", "amazonwebservices"),
+            ("codex", "openai"),
+            ("gemini", "googlegemini"),
+            ("ollama", "ollama"),
+            ("claude", "claudecode"),
+            ("opencode", "opencode"),
+            ("kilo", "kilocode"),
+            ("kilocode", "kilocode"),
+            ("cursor-agent", "cursor"),
+            ("cursor", "cursor"),
+            ("deepseek", "deepseek"),
+            ("docker", "docker"),
+            ("podman", "podman"),
+            ("kubectl", "kubernetes"),
+            ("terraform", "terraform"),
+            ("node", "nodejs"),
+            ("npm", "nodejs"),
+            ("python", "python"),
+            ("pip", "python"),
+            ("dotnet", "dotnetcore"),
+            ("az", "azure"),
+            ("gcloud", "googlecloud"),
+            ("C:/tools/aws.exe", "amazonwebservices"),
+        ] {
+            assert_eq!(
+                cli_conn_icon(cmd, ph::TERMINAL).image,
+                Some(format!("bytes://product/{logo}.svg").as_str()),
+                "{cmd}"
+            );
+        }
         // An unknown command keeps the category the user picked.
         assert_eq!(
             cli_conn_icon("mytool", ph::DATABASE),
@@ -1335,14 +1505,32 @@ mod tests {
             used.extend(language_conn_icon(id).image);
         }
         for cmd in [
-            "az", "gcloud", "git", "dotnet", "claude", "pwsh", "bash", "zsh", "fish",
+            "az", "gcloud", "git", "dotnet", "claude", "pwsh", "bash", "zsh", "fish", "gh",
+            "opencode", "kilo", "cursor",
         ] {
             used.extend(cli_conn_icon(cmd, ph::TERMINAL).image);
         }
         // The shells' own marks (tool-terminal maps them by shell id).
-        for name in ["powershell", "bash", "zsh", "fish", "git"] {
+        for name in [
+            "powershell",
+            "bash",
+            "zsh",
+            "fish",
+            "git",
+            "nushell",
+            "console-windows",
+            // Claude's own mark, kept for the AI side now that the CLI
+            // wears Claude Code's (CR-0079).
+            "claude",
+        ] {
             used.extend(logo(name));
         }
+        for kind in hs_core::git_hosts::HostKind::all() {
+            used.extend(git_host_icon(kind).image);
+        }
+        used.extend(logo("minio"));
+        used.extend(os_conn_icon("alpine").image);
+        used.extend(os_conn_icon("freebsd").image);
         for name in PROVIDER_LOGOS {
             assert!(logo(name).is_some(), "{name} is named but not vendored");
             used.extend(logo(name));

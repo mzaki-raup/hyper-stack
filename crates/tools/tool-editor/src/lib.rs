@@ -3347,6 +3347,26 @@ impl Tool for EditorTool {
         {
             // nothing more: the flag is the state.
         }
+        // The other show/hide toggles follow it, before any action
+        // (CR-0073).
+        let mut open = self.terminal.open;
+        if hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut open,
+            ph::TERMINAL_WINDOW,
+            &s.t("editor-terminal"),
+        )
+        .tip(s.t("editor-terminal-tip"))
+        .clicked()
+        {
+            let cwd = self.terminal_cwd();
+            self.terminal.toggle(s, cwd.as_deref());
+        }
+        if self.doc().view.language.is_markdown {
+            let d = self.doc_mut();
+            hs_ui::toolbar::toggle(ui, &theme, &mut d.preview, ph::EYE, &s.t("editor-preview"));
+        }
         ui.separator();
         let read_only = self.doc().view.read_only;
         ui.add_enabled_ui(!read_only, |ui| {
@@ -3406,26 +3426,6 @@ impl Tool for EditorTool {
             ui.separator();
             self.debug
                 .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
-            ui.separator();
-            let mut open = self.terminal.open;
-            if hs_ui::toolbar::toggle(
-                ui,
-                &theme,
-                &mut open,
-                ph::TERMINAL_WINDOW,
-                &s.t("editor-terminal"),
-            )
-            .tip(s.t("editor-terminal-tip"))
-            .clicked()
-            {
-                let cwd = self.terminal_cwd();
-                self.terminal.toggle(s, cwd.as_deref());
-            }
-        }
-        if self.doc().view.language.is_markdown {
-            ui.separator();
-            let d = self.doc_mut();
-            hs_ui::toolbar::toggle(ui, &theme, &mut d.preview, ph::EYE, &s.t("editor-preview"));
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
@@ -3714,9 +3714,11 @@ impl Tool for EditorTool {
         let counts = self.lsp.counts();
         let mut status = StatusRow::default();
         egui::Panel::bottom(self.id.with("status"))
-            .exact_size(22.0)
+            .exact_size(22.0 + hs_ui::form::PANE_GAP)
             .resizable(false)
             .show(ui, |ui| {
+                // Air between the code and the status bar (CR-0040).
+                ui.add_space(hs_ui::form::PANE_GAP);
                 status = self.doc_mut().status_row(ui, s, lsp_badge.as_ref(), counts);
             });
         let encoding_error = status.encoding_error.take();

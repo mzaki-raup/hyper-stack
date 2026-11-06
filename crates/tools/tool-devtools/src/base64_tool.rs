@@ -212,6 +212,7 @@ fn encode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         }
         ui.horizontal(|ui| {
             ui.checkbox(&mut st.url_safe, s.t("dt-base64-url-safe"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.no_padding, s.t("dt-base64-no-padding"));
         });
     });

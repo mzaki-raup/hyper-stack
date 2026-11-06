@@ -157,9 +157,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
         );
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut st.case_insensitive, s.t("dt-regex-flag-i"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.multi_line, s.t("dt-regex-flag-m"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.dot_all, s.t("dt-regex-flag-s"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.ignore_whitespace, s.t("dt-regex-flag-x"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.first_only, s.t("dt-regex-first"));
         });
         form::hint(ui, theme, &s.t("dt-regex-hint"));

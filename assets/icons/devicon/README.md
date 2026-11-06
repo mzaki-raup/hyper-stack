@@ -66,3 +66,19 @@ services with no published mark: `comfyui` (a node graph), `sdwebui`
 (diffusion rings, for AUTOMATIC1111, SD.Next and Forge), `swarmui` (three
 hexagons), `onemin` (a teal one), `fal` (a violet tile with a bolt),
 `invokeai` and `fooocus`. The look-alikes are ours and carry no trademark.
+
+Added 2026-11-06 for CR-0079 (owner approved the download):
+
+- Devicon v2.18.0 originals: `gitea`, `bitbucket`, `azuredevops` (Git hosts).
+- `github-grey.svg` is ours, derived from Devicon's `github-original.svg`
+  (MIT): the same Octocat filled with GitHub's neutral `#8B949E` instead of
+  `#181616`, which is invisible on the dark theme. Used for GitHub hosts,
+  GitHub Issues and the `gh` CLI.
+- Simple Icons 13.21.0 (CC0) in `../simple/`, each filled with its brand
+  colour from Simple Icons' data: `alpinelinux` (#0D597F), `freebsd`
+  (#AB2B28), `nushell` (#4E9A06), `minio` (#C72E49).
+- LobeHub Icons (MIT) in `../lobehub/`: Claude Code, OpenCode, Kilo Code,
+  Cursor - see that folder's README.
+- Kafka keeps its blue Material glyph: Devicon's Kafka logo is near-black.
+- Command Prompt has no published logo; it uses the Material `console`
+  picture.

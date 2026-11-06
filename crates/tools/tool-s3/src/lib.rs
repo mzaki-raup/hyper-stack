@@ -187,6 +187,9 @@ pub struct S3Tool {
     /// The folder column's hierarchy and what is open in it (FEAT-0097).
     folders: FolderTree,
     folder_state: hs_ui::tree::TreeState,
+    /// The saved profile's own mark (a MinIO store shows MinIO), so the
+    /// tab wears what the sidebar row wears (CR-0079).
+    tab_mark: Option<hs_ui::icons::ConnIcon>,
 }
 
 impl S3Tool {
@@ -285,6 +288,7 @@ impl S3Tool {
             state,
             shared: Arc::new(Mutex::new(Shared::default())),
             client: None,
+            tab_mark: None,
             client_error: None,
             waiting_for_vault: false,
             table: TableState::default(),
@@ -694,6 +698,13 @@ impl S3Tool {
         let kind = self.kind(services);
         self.state.kind_label = hs_core::connections::kind_label(&kind).to_string();
         self.state.kind = kind.clone();
+        self.tab_mark = self.state.conn_id.as_ref().and_then(|id| {
+            services
+                .connections
+                .read()
+                .by_id(id)
+                .map(hs_ui::icons::profile_conn_icon)
+        });
         let found = {
             let conns = services.connections.read();
             self.state
@@ -2285,12 +2296,16 @@ impl Tool for S3Tool {
 
     fn tab_icon_uri(&self) -> Option<String> {
         self.tab_icon()?;
-        hs_ui::icons::conn_icon(self.tab_kind(), "").uri()
+        self.tab_mark
+            .unwrap_or_else(|| hs_ui::icons::conn_icon(self.tab_kind(), ""))
+            .uri()
     }
 
     fn tab_icon_colour(&self) -> Option<egui::Color32> {
         self.tab_icon()?;
-        hs_ui::icons::conn_icon(self.tab_kind(), "").brand()
+        self.tab_mark
+            .unwrap_or_else(|| hs_ui::icons::conn_icon(self.tab_kind(), ""))
+            .brand()
     }
 
     /// The connection's own name, as every other connection activity
@@ -2323,6 +2338,19 @@ impl Tool for S3Tool {
             ui.add_enabled(enabled, egui::Button::new(format!("{icon} {}", s.t(key))))
                 .clicked()
         };
+        // The Details pane is S3's (phase F); its show/hide toggle is the
+        // toolbar's first item (CR-0073).
+        if self.s3_client.is_some() {
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut self.details_open,
+                ph::INFO,
+                &s.t("s3-details"),
+            )
+            .tip(s.t("s3-details-tip"));
+            ui.separator();
+        }
         if btn(ui, self.client.is_some(), ph::ARROW_UP, "s3-up") {
             self.up(s);
         }
@@ -2373,14 +2401,6 @@ impl Tool for S3Tool {
         // and Nexus have no tagging, versions or bucket policy.
         if self.s3_client.is_some() {
             ui.separator();
-            hs_ui::toolbar::toggle(
-                ui,
-                &theme,
-                &mut self.details_open,
-                ph::INFO,
-                &s.t("s3-details"),
-            )
-            .tip(s.t("s3-details-tip"));
             if btn(ui, in_bucket, ph::ARROWS_LEFT_RIGHT, "s3-sync") {
                 self.dialog = Some(DialogState::Sync {
                     folder: PathBuf::new(),

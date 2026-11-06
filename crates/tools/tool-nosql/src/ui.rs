@@ -1288,7 +1288,7 @@ impl NoSqlTool {
             self.seen_run = run_id;
             self.table = TableState::default();
         }
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             for (view, icon, key) in [
                 (View::Table, ph::TABLE, "nosql-view-table"),
                 (View::Tree, ph::TREE_STRUCTURE, "nosql-view-tree"),

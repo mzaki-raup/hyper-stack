@@ -496,13 +496,8 @@ fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
 /// branch glyph otherwise. The sidebar's Hosts section, the host tab and
 /// Settings → Git's credential list all draw it (CR-0054).
 pub fn host_conn_icon(kind: hs_core::git_hosts::HostKind) -> hs_ui::icons::ConnIcon {
-    use hs_core::git_hosts::HostKind;
-    match kind {
-        HostKind::GitHub => hs_ui::icons::conn_icon("github-issues", ""),
-        HostKind::GitLab => hs_ui::icons::conn_icon("gitlab-issues", ""),
-        HostKind::Forgejo | HostKind::Gitea => hs_ui::icons::conn_icon("forgejo-issues", ""),
-        _ => hs_ui::icons::ConnIcon::glyph(ph::GIT_BRANCH),
-    }
+    // Every forge its own mark; Gitea no longer borrows Forgejo's (CR-0079).
+    hs_ui::icons::git_host_icon(kind)
 }
 
 /// What a repository wears in the sidebar, on its tab and in its header
@@ -1053,5 +1048,19 @@ mod tests {
         assert!(host_conn_icon(HostKind::GitLab).uri().is_some());
         assert!(host_conn_icon(HostKind::Forgejo).uri().is_some());
         assert_eq!(host_conn_icon(HostKind::Azure).glyph, ph::GIT_BRANCH);
+        // CR-0079: GitHub, Gitea, Bitbucket and Azure DevOps too, and
+        // Gitea no longer wears Forgejo's mark.
+        for kind in [
+            HostKind::GitHub,
+            HostKind::Gitea,
+            HostKind::Bitbucket,
+            HostKind::Azure,
+        ] {
+            assert!(host_conn_icon(kind).uri().is_some(), "{kind:?}");
+        }
+        assert_ne!(
+            host_conn_icon(HostKind::Gitea).uri(),
+            host_conn_icon(HostKind::Forgejo).uri()
+        );
     }
 }

@@ -1469,22 +1469,39 @@ fn cli_icon(key: &str) -> &'static str {
 /// ships. Nushell has no logo in Nerd Fonts at all, so it takes the
 /// windowed terminal rather than a borrowed brand.
 /// A shell profile's product (CR-0036): PowerShell's, Git's, bash's,
-/// zsh's or fish's logo; a WSL profile its distribution's; Nushell its
-/// glyph in its green. cmd has no product mark and keeps its glyph.
-fn shell_conn_icon(id: &str) -> hs_ui::icons::ConnIcon {
-    use hs_ui::icons::{ConnIcon, branded, os_conn_icon, product_icon};
+/// zsh's, fish's or Nushell's logo; a WSL profile its distribution's.
+/// cmd has no logo and wears Material's console in Windows blue; the
+/// plain POSIX shells (sh, dash, ksh) have no mark at all and take their
+/// glyph in the theme's text colour (CR-0079).
+/// A Unix shell detected by path (`sh:/usr/bin/zsh`) is told by its file
+/// name. Settings → Terminal and Settings → Editor draw the same marks.
+pub fn shell_conn_icon(id: &str) -> hs_ui::icons::ConnIcon {
+    use hs_ui::icons::{os_conn_icon, plain_mark, product_icon};
     if let Some(distro) = id.strip_prefix("wsl:") {
         return os_conn_icon(hs_ssh::os::HostOs::from_name(distro).id());
     }
     let glyph = shell_icon(id);
-    match id {
+    match shell_key(id).as_str() {
         "pwsh" | "powershell" => product_icon("powershell", glyph),
         "git-bash" => product_icon("git", glyph),
         "bash" => product_icon("bash", glyph),
         "zsh" => product_icon("zsh", glyph),
         "fish" => product_icon("fish", glyph),
-        "nu" | "nushell" => branded(glyph, [0x4e, 0x9a, 0x06]),
-        _ => ConnIcon::glyph(glyph),
+        "nu" | "nushell" => product_icon("nushell", glyph),
+        "cmd" => product_icon("console-windows", glyph),
+        _ => plain_mark(glyph),
+    }
+}
+
+/// A shell id as the icon tables name it: `sh:/bin/zsh` → `zsh`, any
+/// other id as it is.
+fn shell_key(id: &str) -> String {
+    match id.strip_prefix("sh:") {
+        Some(path) => std::path::Path::new(path.trim())
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default(),
+        None => id.to_string(),
     }
 }
 
@@ -1493,7 +1510,7 @@ fn shell_icon(id: &str) -> &'static str {
     if let Some(distro) = id.strip_prefix("wsl:") {
         return hs_ui::icons::os_icon(hs_ssh::os::HostOs::from_name(distro).id());
     }
-    match id {
+    match shell_key(id).as_str() {
         // nf-cod-terminal_powershell
         "pwsh" => "\u{ebc7}",
         // nf-seti-powershell
@@ -1518,6 +1535,47 @@ mod order_tests {
 
     fn p(id: &str) -> ShellProfile {
         ShellProfile::new(id, id, "", id, &[])
+    }
+
+    #[test]
+    fn every_shell_wears_a_logo_or_a_coloured_glyph() {
+        use hs_ui::icons::ConnTint;
+        for id in [
+            "pwsh",
+            "powershell",
+            "cmd",
+            "git-bash",
+            "wsl:Ubuntu-24.04",
+            "wsl:Debian",
+            "nu",
+            "sh:/bin/bash",
+            "sh:/usr/bin/zsh",
+            "sh:/usr/bin/fish",
+            "sh:/bin/sh",
+            "sh:/usr/bin/nu",
+        ] {
+            let icon = shell_conn_icon(id);
+            assert!(
+                icon.image.is_some() || icon.tint != ConnTint::Default,
+                "{id} has neither a logo nor a colour"
+            );
+        }
+        for (id, logo) in [
+            ("sh:/bin/bash", "bash"),
+            ("sh:/usr/bin/zsh", "zsh"),
+            ("sh:/usr/local/bin/fish", "fish"),
+            ("pwsh", "powershell"),
+            ("git-bash", "git"),
+            ("nu", "nushell"),
+            ("sh:/usr/bin/nu", "nushell"),
+            ("cmd", "console-windows"),
+        ] {
+            assert_eq!(
+                shell_conn_icon(id).image,
+                Some(format!("bytes://product/{logo}.svg").as_str()),
+                "{id}"
+            );
+        }
     }
 
     #[test]

@@ -141,6 +141,10 @@ pub fn show(
     resp
 }
 
+/// A closed tab as Recent lists it: (index, factory id, title, the icon
+/// the tab wore).
+pub type RecentTab = (usize, String, String, crate::tabspace::TabIcon);
+
 /// How wide one Recent entry is.
 const RECENT_WIDTH: f32 = 230.0;
 
@@ -153,7 +157,7 @@ pub fn side(
     theme: &Theme,
     services: &Services,
     tools: &[&ToolDescriptor],
-    closed: &[(usize, String, String)],
+    closed: &[RecentTab],
 ) -> LauncherResponse {
     let mut resp = LauncherResponse {
         open_tool: None,
@@ -242,23 +246,29 @@ pub fn side(
                     }
                 });
                 ui.add_space(4.0);
-                for (idx, factory, title) in recent {
-                    let icon = tools
-                        .iter()
-                        .find(|t| t.id == factory)
-                        .map(|t| t.icon)
-                        .unwrap_or("\u{2022}");
+                for (idx, factory, title, tab_icon) in recent {
                     // `add_sized` centres what it is given, which left a
                     // ragged column of titles down the middle of the
                     // sidebar. A growing spacer after the text holds the
                     // row at full width with the label against the left
                     // edge. Owner's report, 2026-10-17.
-                    // The activity's glyph in the activity's colour, as the
-                    // rail and Home's toolbar draw it (CR-0048).
-                    let colour = crate::app::activity_colour(factory);
+                    // The icon the tab wore when it was closed - its
+                    // product's logo, or its glyph in the tab's colour -
+                    // falling back to the activity's colour (CR-0079).
+                    let mark = match &tab_icon.uri {
+                        Some(uri) => egui::Atom::from(
+                            egui::Image::from_uri(uri.clone()).fit_to_exact_size(Vec2::splat(16.0)),
+                        ),
+                        None => {
+                            let colour = tab_icon
+                                .colour
+                                .unwrap_or_else(|| crate::app::activity_colour(factory));
+                            egui::Atom::from(egui::RichText::new(tab_icon.glyph).color(colour))
+                        }
+                    };
                     let r = ui.add(
                         egui::Button::new((
-                            egui::Atom::from(egui::RichText::new(icon).color(colour)),
+                            mark,
                             egui::Atom::from(title.as_str()),
                             egui::Atom::grow(),
                         ))

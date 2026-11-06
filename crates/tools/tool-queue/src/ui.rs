@@ -1149,7 +1149,7 @@ impl QueueTool {
         {
             self.load_detail();
         }
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             for (d, icon, key, shown) in [
                 (
                     Detail::Messages,
@@ -1378,6 +1378,26 @@ impl QueueTool {
         self.fill_publish(dest);
         let kind = self.kind.clone();
         let mut send = false;
+        // The broker's destinations behind the target's caret, where a
+        // destination is something to publish to: a RabbitMQ queue is not
+        // an exchange and a NATS stream is not a subject, so those two
+        // keep a plain field (CR-0038's pick_field rule).
+        let targets: Vec<String> = if matches!(kind.as_str(), "rabbitmq" | "nats") {
+            Vec::new()
+        } else {
+            self.shared
+                .lock()
+                .listing
+                .as_ref()
+                .map(|l| {
+                    l.destinations
+                        .iter()
+                        .filter(|d| d.scope == dest.scope)
+                        .map(|d| d.name.clone())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
         form::field_grid(ui, "queue-publish", |ui| {
             let target_key = match kind.as_str() {
                 "rabbitmq" => "queue-exchange",
@@ -1391,7 +1411,7 @@ impl QueueTool {
             } else {
                 String::new()
             };
-            form::text_field(ui, &mut self.publish.target, &hint);
+            form::pick_field(ui, theme, &mut self.publish.target, &targets, &hint);
             ui.end_row();
             match kind.as_str() {
                 "rabbitmq" | "kafka" => {

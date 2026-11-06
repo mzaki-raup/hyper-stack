@@ -604,6 +604,16 @@ impl DiagramState {
     pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        // A show/hide toggle is the toolbar's first item (CR-0073).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_props,
+            hs_ui::icons::ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-diagram-props-pane"),
+        )
+        .tip(s.t("gfx-diagram-props-pane-tip"));
+        ui.separator();
         if ui
             .button(format!(
                 "{} {}",
@@ -737,15 +747,6 @@ impl DiagramState {
         {
             self.redo();
         }
-        ui.separator();
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.show_props,
-            hs_ui::icons::ph::SIDEBAR_SIMPLE,
-            &s.t("gfx-diagram-props-pane"),
-        )
-        .tip(s.t("gfx-diagram-props-pane-tip"));
         // Everything below draws on, or adds to, the canvas: in the
         // Source view there is no canvas to act on, so the whole group
         // goes rather than sitting there inert (owner's requirement,

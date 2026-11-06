@@ -784,9 +784,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut st.pw_lower, "a-z");
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut st.pw_upper, "A-Z");
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut st.pw_digits, "0-9");
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut st.pw_symbols, s.t("dt-gen-symbols"));
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut st.pw_avoid_ambiguous, s.t("dt-gen-no-ambiguous"));
                 });
                 note = Some(s.i18n.t_args(
@@ -806,6 +810,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 });
                 ui.horizontal_wrapped(|ui| {
                     ui.checkbox(&mut st.phrase_capitalise, s.t("dt-gen-capitalise"));
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut st.phrase_number, s.t("dt-gen-add-number"));
                 });
                 note = Some(s.i18n.t_args(

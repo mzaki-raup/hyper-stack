@@ -33,6 +33,10 @@ pub const PANE_MARGIN: f32 = 12.0;
 /// The vertical space between two form rows, the same as
 /// [`field_grid`]'s row spacing (CR-0061).
 pub const ROW_GAP: f32 = 10.0;
+/// The gap between options sharing one row - checkboxes, radio buttons -
+/// so each reads as its own choice rather than one run of text (owner,
+/// 2026-11-06, CR-0078).
+pub const OPTION_GAP: f32 = 18.0;
 
 /// Draw a work pane's body [`PANE_MARGIN`] in from its left and right
 /// edges and [`PANE_GAP`] below what is above it (CR-0061).
@@ -295,6 +299,76 @@ pub fn pick_field_width(
         r
     })
     .inner
+}
+
+/// A comma-separated list of names with the known names behind a caret,
+/// each with a checkbox (CR-0072): an index's columns, a foreign key's
+/// referenced columns. Ticking a name adds it at the end of the list,
+/// unticking removes it, so the order is the order of picking; the field
+/// can still be typed. With no options it is a plain text field. Returns
+/// the text field's response; a tick counts as a change.
+pub fn multi_pick_field_width(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    value: &mut String,
+    options: &[String],
+    hint: &str,
+    width: f32,
+) -> egui::Response {
+    if options.is_empty() {
+        return text_field_width(ui, value, hint, width);
+    }
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        let w = (width - 32.0).max(80.0);
+        let mut r = text_field_width(ui, value, hint, w);
+        let caret = icon_button(ui, theme, crate::icons::CARET_DOWN, 14.0, false);
+        let mut changed = false;
+        egui::Popup::menu(&caret)
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                ui.set_min_width(w);
+                let picked: Vec<String> =
+                    list_items(value).into_iter().map(str::to_string).collect();
+                egui::ScrollArea::vertical()
+                    .max_height(240.0)
+                    .show(ui, |ui| {
+                        for o in options {
+                            let mut on = picked.iter().any(|p| p == o);
+                            if ui.checkbox(&mut on, o.as_str()).changed() {
+                                *value = toggle_list_item(value, o);
+                                changed = true;
+                            }
+                        }
+                    });
+            });
+        if changed {
+            r.mark_changed();
+        }
+        r
+    })
+    .inner
+}
+
+/// The names in a comma-separated list, trimmed, empty ones dropped.
+fn list_items(value: &str) -> Vec<&str> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// `value` with `name` removed when it is in the list, or appended at the
+/// end when it is not; written back as `a, b, c` ([`multi_pick_field_width`]).
+fn toggle_list_item(value: &str, name: &str) -> String {
+    let mut items = list_items(value);
+    if let Some(i) = items.iter().position(|s| *s == name) {
+        items.remove(i);
+    } else {
+        items.push(name);
+    }
+    items.join(", ")
 }
 
 /// A password-style field (see [`text_field`]).
@@ -1002,4 +1076,31 @@ pub fn primary_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Res
 /// A danger (error-coloured text) button.
 pub fn danger_button(ui: &mut egui::Ui, theme: &Theme, text: &str) -> egui::Response {
     ui.add(egui::Button::new(RichText::new(text).color(theme.error)).min_size(Vec2::new(0.0, 30.0)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ticking_appends_in_pick_order_and_unticking_removes() {
+        let v = toggle_list_item("", "id");
+        assert_eq!(v, "id");
+        let v = toggle_list_item(&v, "name");
+        assert_eq!(v, "id, name");
+        let v = toggle_list_item(&v, "age");
+        assert_eq!(v, "id, name, age");
+        let v = toggle_list_item(&v, "name");
+        assert_eq!(v, "id, age");
+        let v = toggle_list_item(&v, "id");
+        assert_eq!(v, "age");
+        assert_eq!(toggle_list_item(&v, "age"), "");
+    }
+
+    #[test]
+    fn typed_lists_are_normalised_on_toggle() {
+        assert_eq!(toggle_list_item(" a ,, b,", "c"), "a, b, c");
+        assert_eq!(toggle_list_item("a,b", "a"), "b");
+        assert_eq!(list_items(" x , ,y"), vec!["x", "y"]);
+    }
 }

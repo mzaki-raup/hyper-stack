@@ -36,15 +36,26 @@ impl Redactor {
 /// The last N log lines, for the Output dock.
 #[derive(Clone, Default)]
 pub struct LogBuffer {
-    lines: Arc<Mutex<VecDeque<String>>>,
+    lines: Arc<Mutex<LogLines>>,
+}
+
+#[derive(Default)]
+struct LogLines {
+    lines: VecDeque<String>,
+    /// Every line ever pushed, so a reader can tell which of its cached
+    /// lines were trimmed off the front.
+    pushed: usize,
 }
 
 impl LogBuffer {
-    pub fn snapshot(&self) -> Vec<String> {
-        self.lines.lock().iter().cloned().collect()
+    /// The lines, plus how many lines were ever pushed; the first line's
+    /// running index is `pushed - lines.len()`.
+    pub fn snapshot_counted(&self) -> (Vec<String>, usize) {
+        let g = self.lines.lock();
+        (g.lines.iter().cloned().collect(), g.pushed)
     }
     pub fn clear(&self) {
-        self.lines.lock().clear();
+        self.lines.lock().lines.clear();
     }
 }
 
@@ -60,12 +71,14 @@ impl Write for TeeWriter {
         if let Some(f) = &mut self.file {
             let _ = f.write_all(text.as_bytes());
         }
-        let mut lines = self.buffer.lines.lock();
+        let mut guard = self.buffer.lines.lock();
+        let buf_lines = &mut *guard;
         for l in text.lines() {
-            lines.push_back(l.to_string());
+            buf_lines.lines.push_back(l.to_string());
+            buf_lines.pushed += 1;
         }
-        while lines.len() > 5000 {
-            lines.pop_front();
+        while buf_lines.lines.len() > 5000 {
+            buf_lines.lines.pop_front();
         }
         Ok(buf.len())
     }
@@ -189,9 +202,12 @@ pub fn init(logs_dir: Option<&std::path::Path>, filter: &str) -> Logging {
 }
 
 /// The level a log line carries, from the `fmt` layer's layout
-/// (`<time>  LEVEL target: message`).
+/// (`<time>  LEVEL target: message`). Only the app's own level column
+/// counts: an uppercase level word between spaces in the head of the line.
+/// A continuation line ("Caused by: ... error ...") has no level.
 pub fn line_level(line: &str) -> Option<tracing::Level> {
-    let head: String = line.chars().take(48).collect();
+    let end = line.char_indices().nth(48).map_or(line.len(), |(i, _)| i);
+    let head = &line[..end];
     for (token, level) in [
         (" ERROR ", tracing::Level::ERROR),
         (" WARN ", tracing::Level::WARN),
@@ -224,6 +240,10 @@ mod tests {
             line_level(
                 "    at com.shop.OrderSvc.charge(OrderSvc.java:212) - a frame, no level; WARN far down"
             ),
+            None
+        );
+        assert_eq!(
+            line_level("Caused by: Access is denied. (os error 5) - error writing the file"),
             None
         );
     }

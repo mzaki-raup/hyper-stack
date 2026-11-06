@@ -30,6 +30,10 @@ pub struct DockState {
     /// How many buffer lines had been seen when the Logs tab was last
     /// shown, so errors since then count on the tab label.
     pub seen_lines: usize,
+    /// Each buffer line's level, read once as the line arrives and kept
+    /// parallel to the buffer; `levels[0]` is line number `levels_first`.
+    levels: std::collections::VecDeque<Option<tracing::Level>>,
+    levels_first: usize,
 }
 
 impl Default for DockState {
@@ -40,6 +44,8 @@ impl Default for DockState {
             level_synced: false,
             search: String::new(),
             seen_lines: 0,
+            levels: std::collections::VecDeque::new(),
+            levels_first: 0,
         }
     }
 }
@@ -52,6 +58,40 @@ pub const LEVELS: [(tracing::Level, &str); 5] = [
     (tracing::Level::DEBUG, "debug"),
     (tracing::Level::TRACE, "trace"),
 ];
+
+/// Bring the cached per-line levels in step with the buffer: drop the
+/// lines trimmed off its front, read the level of each new line once.
+fn sync_levels(state: &mut DockState, lines: &[String], pushed: usize) {
+    let first = pushed - lines.len();
+    let cached_end = state.levels_first + state.levels.len();
+    if state.levels_first > first || cached_end > pushed {
+        state.levels.clear();
+        state.levels_first = first;
+    }
+    while state.levels_first < first {
+        if state.levels.pop_front().is_none() {
+            state.levels_first = first;
+            break;
+        }
+        state.levels_first += 1;
+    }
+    let have = state.levels.len();
+    state
+        .levels
+        .extend(lines[have..].iter().map(|l| line_level(l)));
+}
+
+/// The shared level model's level for a `tracing` level, for its colour.
+fn shared_level(level: tracing::Level) -> hs_core::loglevel::Level {
+    use hs_core::loglevel::Level;
+    match level {
+        tracing::Level::ERROR => Level::Error,
+        tracing::Level::WARN => Level::Warn,
+        tracing::Level::INFO => Level::Info,
+        tracing::Level::DEBUG => Level::Debug,
+        _ => Level::Trace,
+    }
+}
 
 pub fn level_from_name(name: &str) -> tracing::Level {
     LEVELS
@@ -75,11 +115,13 @@ pub fn show(
         state.min_level = level_from_name(&services.settings.read().general.log_level);
         state.level_synced = true;
     }
-    let lines = logs.snapshot();
-    let unseen_errors = lines
+    let (lines, pushed) = logs.snapshot_counted();
+    sync_levels(state, &lines, pushed);
+    let unseen_errors = state
+        .levels
         .iter()
         .skip(state.seen_lines.min(lines.len()))
-        .filter(|l| line_level(l) == Some(tracing::Level::ERROR))
+        .filter(|l| **l == Some(tracing::Level::ERROR))
         .count();
     ui.horizontal(|ui| {
         let running = services.jobs.running_count();
@@ -142,17 +184,19 @@ pub fn show(
         DockTab::Logs => {
             state.seen_lines = lines.len();
             let needle = state.search.to_lowercase();
-            let shown: Vec<&String> = lines
+            let shown: Vec<(&String, Option<tracing::Level>)> = lines
                 .iter()
-                .filter(|l| {
+                .zip(state.levels.iter().copied())
+                .filter(|(_, lv)| {
                     // A continuation line (no level of its own) follows the
                     // record before it; it is shown whenever that one is,
                     // which the filter approximates by letting it through.
-                    line_level(l).is_none_or(|lv| lv <= state.min_level)
+                    lv.is_none_or(|lv| lv <= state.min_level)
                 })
-                .filter(|l| needle.is_empty() || l.to_lowercase().contains(&needle))
+                .filter(|(l, _)| needle.is_empty() || l.to_lowercase().contains(&needle))
                 .collect();
-            let shown: Vec<&String> = shown.into_iter().rev().take(2000).rev().collect();
+            let shown: Vec<(&String, Option<tracing::Level>)> =
+                shown.into_iter().rev().take(2000).rev().collect();
             if shown.is_empty() {
                 ui.colored_label(theme.text_muted, services.t("dock-logs-empty"));
             }
@@ -160,14 +204,11 @@ pub fn show(
                 .stick_to_bottom(true)
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
-                    for line in shown {
-                        let colour = match line_level(line) {
-                            Some(tracing::Level::ERROR) => theme.error,
-                            Some(tracing::Level::WARN) => theme.warning,
-                            Some(tracing::Level::INFO) => theme.text,
-                            Some(_) => theme.text_muted,
-                            None => theme.text_muted,
-                        };
+                    for (line, level) in shown {
+                        // The Logs activity's colours (CR-0077).
+                        let colour = level.map_or(theme.text_muted, |l| {
+                            hs_ui::loglevel::colour(theme, shared_level(l))
+                        });
                         ui.add(
                             egui::Label::new(
                                 egui::RichText::new(line)

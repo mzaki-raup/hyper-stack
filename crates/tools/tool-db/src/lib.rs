@@ -2721,8 +2721,11 @@ impl DbTool {
                     });
                     ui.horizontal_wrapped(|ui| {
                         ui.checkbox(&mut opts.if_not_exists, s.t("db-ddl-if-not-exists"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.drop_first, s.t("db-ddl-drop-first"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.indexes, s.t("db-ddl-indexes"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.foreign_keys, s.t("db-ddl-keys"));
                     });
                     // Only re-walk the schema when something actually changed.
@@ -3855,18 +3858,21 @@ impl DbTool {
 
     /// Plan / Raw for an EXPLAIN result.
     fn plan_toggle(&mut self, ui: &mut egui::Ui, s: &Services) {
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             if ui
                 .add(egui::Button::selectable(
                     !self.plan_raw,
-                    s.t("db-plan-tree"),
+                    format!("{} {}", ph::TREE_STRUCTURE, s.t("db-plan-tree")),
                 ))
                 .clicked()
             {
                 self.plan_raw = false;
             }
             if ui
-                .add(egui::Button::selectable(self.plan_raw, s.t("db-plan-raw")))
+                .add(egui::Button::selectable(
+                    self.plan_raw,
+                    format!("{} {}", ph::FILE_TEXT, s.t("db-plan-raw")),
+                ))
                 .clicked()
             {
                 self.plan_raw = true;
@@ -4218,6 +4224,18 @@ impl Tool for DbTool {
                 .tip(tip)
                 .clicked()
         };
+        // The schema column can be hidden, as the Editor's project column
+        // can (CR-0069); a show/hide toggle is the toolbar's first item
+        // (CR-0073).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_schema,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("db-schema-column"),
+        )
+        .tip(s.t("db-schema-column-tip"));
+        ui.separator();
         if btn(
             ui,
             ready && !running,
@@ -4372,16 +4390,6 @@ impl Tool for DbTool {
         ) {
             self.run_command("file.save", cx);
         }
-        // The schema column can be hidden, as the Editor's project column
-        // can (CR-0069).
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.show_schema,
-            ph::SIDEBAR_SIMPLE,
-            &s.t("db-schema-column"),
-        )
-        .tip(s.t("db-schema-column-tip"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.

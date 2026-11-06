@@ -201,6 +201,8 @@ pub struct SshTool {
     monitor_cpu: Option<f32>,
     monitor_at: Option<std::time::Instant>,
     monitor_error: Option<String>,
+    /// Sort of the Monitor's top-processes table (CR-0071).
+    monitor_table: TableState,
     /// Saved forwards are started on the Idle → Connected edge only.
     was_connected: bool,
     /// A kept forward's Delete waiting for its confirmation (CR-0067).
@@ -357,6 +359,7 @@ impl SshTool {
             monitor_cpu: None,
             monitor_at: None,
             monitor_error: None,
+            monitor_table: TableState::default(),
             was_connected: false,
             confirm_forward: None,
         };
@@ -1646,10 +1649,21 @@ impl SshTool {
             }
         }
         for (via, rows) in &by_host {
+            // The header wears the host's own coloured mark (CR-0071).
+            let mark = rows
+                .first()
+                .and_then(|t| {
+                    s.connections
+                        .read()
+                        .by_id(&t.spec.ssh_id)
+                        .map(hs_ui::icons::profile_conn_icon)
+                })
+                .unwrap_or_else(|| hs_ui::icons::ConnIcon::glyph(ph::COMPUTER_TOWER));
             ui.add_space(4.0);
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
+                host_mark(ui, theme, &mark);
                 ui.label(
-                    egui::RichText::new(format!("{} {via}", ph::COMPUTER_TOWER))
+                    egui::RichText::new(via.as_str())
                         .small()
                         .strong()
                         .color(theme.text_muted),
@@ -1831,15 +1845,21 @@ impl SshTool {
                 ],
             ),
         };
+        // The tunnel's own coloured picture, here and in the shell's
+        // Tunnels view alike; a failed one shows the warning in the error
+        // colour instead (CR-0071).
         let icon = match &t.state {
-            TunnelState::Failed(_) => ph::WARNING,
-            TunnelState::Starting => ph::HOURGLASS,
-            TunnelState::Listening { .. } => ph::PLUGS_CONNECTED,
+            TunnelState::Failed(_) => hs_ui::icons::ConnIcon {
+                glyph: ph::WARNING,
+                image: None,
+                tint: hs_ui::icons::ConnTint::Brand(theme.error),
+            },
+            TunnelState::Starting | TunnelState::Listening { .. } => tunnel_icon(),
         };
         // The row takes exactly the sidebar width (list_row paints its text);
         // the stop button is overlaid on its right end, never beside it, or
         // the side panel would grow a little every frame.
-        let r = form::list_row(ui, theme, false, icon, &title, Some(&detail));
+        let r = form::conn_list_row(ui, theme, false, icon, &title, Some(&detail));
         let stop_rect = egui::Rect::from_center_size(
             egui::pos2(r.rect.right() - 16.0, r.rect.center().y),
             egui::vec2(24.0, 24.0),
@@ -1878,6 +1898,28 @@ impl SshTool {
         {
             ui.ctx().copy_text(format!("127.0.0.1:{local_port}"));
             cx.toast(ToastLevel::Info, s.t("ssh-tunnel-copied"));
+        }
+    }
+}
+
+/// A tunnel's picture, the same wherever a tunnel is drawn: two plugs
+/// joined, in a teal of its own (CR-0071). No Material picture shows a
+/// tunnel, so it is the glyph in colour.
+fn tunnel_icon() -> hs_ui::icons::ConnIcon {
+    hs_ui::icons::branded(ph::PLUGS_CONNECTED, [0x26, 0xa6, 0x9a])
+}
+
+/// A host's coloured mark (its OS logo, or its glyph in its colour) drawn
+/// inline before a group header's name (CR-0071).
+fn host_mark(ui: &mut egui::Ui, theme: &Theme, icon: &hs_ui::icons::ConnIcon) {
+    match icon.image {
+        Some(uri) => {
+            ui.add(egui::Image::new(uri).fit_to_exact_size(egui::Vec2::splat(14.0)));
+        }
+        None => {
+            ui.label(
+                egui::RichText::new(icon.glyph).color(icon.glyph_colour(theme, theme.text_muted)),
+            );
         }
     }
 }
@@ -2070,13 +2112,16 @@ impl SshTool {
                     .max_height(max_h)
                     .show(ui, |ui| {
                         self.tunnels_section(ui, cx, theme);
-                        ui.add_space(6.0);
+                        // A gap above the heading and before its first
+                        // row, so the section reads apart (CR-0071).
+                        ui.add_space(form::ROW_GAP);
                         ui.label(
                             egui::RichText::new(s.t("ssh-saved-forwards"))
                                 .strong()
                                 .size(13.0),
                         );
                         form::hint(ui, theme, &s.t("ssh-saved-forwards-hint"));
+                        ui.add_space(form::ROW_GAP);
                         let (Some((_, _, f)), Some(id)) = (fields, conn_id) else {
                             return;
                         };
@@ -2088,8 +2133,9 @@ impl SshTool {
                         for (i, fw) in f.forwards.iter().enumerate() {
                             // The actions in a fixed column at the right
                             // edge, the same on every row; the name takes
-                            // what is left and truncates.
-                            ui.horizontal(|ui| {
+                            // what is left and truncates; all on one
+                            // middle line (CR-0071).
+                            form::centred_row(ui, |ui| {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
@@ -2137,6 +2183,7 @@ impl SshTool {
                                         ui.with_layout(
                                             egui::Layout::left_to_right(egui::Align::Center),
                                             |ui| {
+                                                host_mark(ui, theme, &tunnel_icon());
                                                 ui.add(
                                                     egui::Label::new(
                                                         egui::RichText::new(tunnel_title(
@@ -2275,75 +2322,109 @@ impl SshTool {
                     }
                     return;
                 };
-                let muted = |t: String| egui::RichText::new(t).small().color(theme.text_muted);
                 let strong = |t: String| egui::RichText::new(t).strong().monospace();
                 // Each reading wears an icon and its label in one colour
-                // of its own, so the strip scans by shape and hue rather
+                // of its own, so the figures scan by shape and hue rather
                 // than by reading every word (CR-0034).
                 let named =
                     |ui: &mut egui::Ui, icon: &str, label: String, colour: egui::Color32| {
                         ui.label(egui::RichText::new(icon).color(colour));
                         ui.label(egui::RichText::new(label).small().color(colour));
                     };
-                ui.horizontal_wrapped(|ui| {
-                    named(ui, ph::CPU, s.t("ssh-monitor-cpu"), theme.accent);
-                    ui.label(strong(match self.monitor_cpu {
-                        Some(c) => format!("{c:.0}%"),
-                        None => "…".into(),
-                    }));
-                    ui.separator();
-                    named(ui, ph::GAUGE, s.t("ssh-monitor-load"), theme.warning);
-                    ui.label(strong(format!(
-                        "{:.2} {:.2} {:.2}",
-                        m.load[0], m.load[1], m.load[2]
-                    )));
-                    ui.separator();
-                    named(ui, ph::MEMORY, s.t("ssh-monitor-mem"), theme.secondary);
-                    let used = m.mem_total_kb.saturating_sub(m.mem_avail_kb);
-                    ui.label(strong(format!(
-                        "{} / {}",
-                        monitor::human_kb(used),
-                        monitor::human_kb(m.mem_total_kb)
-                    )));
-                    ui.separator();
-                    named(ui, ph::HARD_DRIVES, s.t("ssh-monitor-disk"), theme.success);
-                    let pct = if m.disk_total_kb > 0 {
-                        100.0 * m.disk_used_kb as f64 / m.disk_total_kb as f64
-                    } else {
-                        0.0
-                    };
-                    ui.label(strong(format!(
-                        "{pct:.0}% of {}",
-                        monitor::human_kb(m.disk_total_kb)
-                    )));
-                    ui.separator();
-                    named(ui, ph::CLOCK, s.t("ssh-monitor-up"), theme.text);
-                    ui.label(strong(monitor::human_uptime(m.uptime_secs)));
-                });
-                if !m.procs.is_empty() {
-                    // One chip per process in a wrapping row, so a narrow
-                    // pane shows every process on a second line rather
-                    // than cutting the list off (owner's report,
-                    // 2026-10-30).
-                    ui.horizontal_wrapped(|ui| {
-                        named(
-                            ui,
-                            ph::LIST_NUMBERS,
-                            s.t("ssh-monitor-top"),
-                            theme.text_muted,
-                        );
-                        for (i, (c, mem, name)) in m.procs.iter().enumerate() {
-                            if i > 0 {
-                                ui.label(muted("·".into()));
-                            }
-                            ui.label(
-                                egui::RichText::new(format!("{name} {c:.1}% / {mem:.1}%"))
-                                    .small()
-                                    .monospace(),
-                            );
+                let used = m.mem_total_kb.saturating_sub(m.mem_avail_kb);
+                let pct = if m.disk_total_kb > 0 {
+                    100.0 * m.disk_used_kb as f64 / m.disk_total_kb as f64
+                } else {
+                    0.0
+                };
+                let figures: [(&str, String, egui::Color32, String); 5] = [
+                    (
+                        ph::CPU,
+                        s.t("ssh-monitor-cpu"),
+                        theme.accent,
+                        match self.monitor_cpu {
+                            Some(c) => format!("{c:.0}%"),
+                            None => "…".into(),
+                        },
+                    ),
+                    (
+                        ph::GAUGE,
+                        s.t("ssh-monitor-load"),
+                        theme.warning,
+                        format!("{:.2}  {:.2}  {:.2}", m.load[0], m.load[1], m.load[2]),
+                    ),
+                    (
+                        ph::MEMORY,
+                        s.t("ssh-monitor-mem"),
+                        theme.secondary,
+                        format!(
+                            "{} / {}",
+                            monitor::human_kb(used),
+                            monitor::human_kb(m.mem_total_kb)
+                        ),
+                    ),
+                    (
+                        ph::HARD_DRIVES,
+                        s.t("ssh-monitor-disk"),
+                        theme.success,
+                        format!("{pct:.0}% of {}", monitor::human_kb(m.disk_total_kb)),
+                    ),
+                    (
+                        ph::CLOCK,
+                        s.t("ssh-monitor-up"),
+                        theme.text,
+                        monitor::human_uptime(m.uptime_secs),
+                    ),
+                ];
+                // A grid of labelled figures, label and value each in its
+                // own aligned column, never one long line (CR-0071).
+                egui::Grid::new(("ssh-monitor-figures", self.serial))
+                    .num_columns(2)
+                    .spacing(egui::vec2(16.0, 4.0))
+                    .show(ui, |ui| {
+                        for (icon, label, colour, value) in figures {
+                            ui.horizontal(|ui| named(ui, icon, label, colour));
+                            ui.label(strong(value));
+                            ui.end_row();
                         }
                     });
+                ui.add_space(form::ROW_GAP);
+                ui.horizontal(|ui| {
+                    named(
+                        ui,
+                        ph::LIST_NUMBERS,
+                        s.t("ssh-monitor-top"),
+                        theme.text_muted,
+                    );
+                });
+                // The top processes as a table, sortable by either figure
+                // (CR-0071).
+                let columns = [
+                    ColumnSpec::new(s.t("ssh-monitor-process"), 220.0),
+                    ColumnSpec::new(s.t("ssh-monitor-cpu-pct"), 70.0).numeric(),
+                    ColumnSpec::new(s.t("ssh-monitor-mem-pct"), 70.0).numeric(),
+                ];
+                let rows: Vec<Vec<String>> = m
+                    .procs
+                    .iter()
+                    .map(|(c, mem, name)| {
+                        vec![name.clone(), format!("{c:.1}"), format!("{mem:.1}")]
+                    })
+                    .collect();
+                let empty = s.t("ssh-monitor-procs-none");
+                let copy = s.t("table-copy-row");
+                DataTable {
+                    theme,
+                    columns: &columns,
+                    rows: &rows,
+                    row_height: hs_ui::table::ROW_HEIGHT,
+                    show_filter: false,
+                    copy_row_label: &copy,
+                    built_in_menu: true,
+                    row_icons: None,
+                    empty_hint: Some(&empty),
                 }
+                .show(ui, &mut self.monitor_table);
             });
         ui.add_space(4.0);
     }
@@ -2407,8 +2488,26 @@ impl Tool for SshTool {
             Status::Failed(_) => (theme.error, s.t("ssh-failed")),
             Status::Disconnected => (theme.text_muted, s.t("ssh-disconnected")),
         };
-        // The host's name is in the header band above, so the toolbar
-        // starts with the light that says what the connection is doing
+        // The pane show/hide toggles come first, before any action
+        // (CR-0073, CR-0071).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.tunnels_open,
+            ph::ARROWS_LEFT_RIGHT,
+            &s.t("ssh-tunnels"),
+        )
+        .tip(s.t("ssh-tunnels-pane-tip"));
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.monitor_open,
+            ph::GAUGE,
+            &s.t("ssh-monitor"),
+        )
+        .tip(s.t("ssh-monitor-tip"));
+        // The host's name is in the header band above, so after the
+        // toggles comes the light that says what the connection is doing
         // (owner's requirement, 2026-10-26).
         hs_ui::toolbar::status(ui, &theme, dot, "●", &label);
         match self.status {
@@ -2436,16 +2535,6 @@ impl Tool for SshTool {
             format!("{} {}", ph::FOLDER_OPEN, s.t("ssh-sync-cwd")),
         )
         .tip(s.t("ssh-sync-cwd-hint"));
-        ui.toggle_value(
-            &mut self.tunnels_open,
-            format!("{} {}", ph::ARROWS_LEFT_RIGHT, s.t("ssh-tunnels")),
-        )
-        .tip(s.t("ssh-tunnels-pane-tip"));
-        ui.toggle_value(
-            &mut self.monitor_open,
-            format!("{} {}", ph::GAUGE, s.t("ssh-monitor")),
-        )
-        .tip(s.t("ssh-monitor-tip"));
         // Broadcast reads red while it is on: every keystroke here lands
         // on every other shell of this host, which is worth seeing.
         let peers = self

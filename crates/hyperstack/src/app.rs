@@ -3483,12 +3483,12 @@ impl HyperStackApp {
         if self.tabs.active.is_none() || self.tabs.tabs.is_empty() {
             let descs: Vec<&hs_core::tool::ToolDescriptor> =
                 self.factories.iter().map(|f| f.descriptor()).collect();
-            let closed: Vec<(usize, String, String)> = self
+            let closed: Vec<crate::launcher::RecentTab> = self
                 .tabs
                 .closed
                 .iter()
                 .enumerate()
-                .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone()))
+                .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone(), c.icon.clone()))
                 .collect();
             let mut r = launcher::show(ui, &self.theme, &self.services, &mut self.launcher, &descs);
             // With no tabs there is no Home sidebar either, so the column
@@ -4441,7 +4441,7 @@ impl eframe::App for HyperStackApp {
                 .closed
                 .iter()
                 .enumerate()
-                .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone()))
+                .map(|(i, c)| (i, c.factory_id.clone(), c.title.clone(), c.icon.clone()))
                 .collect();
             hub.workspaces = self.registry.names();
         }

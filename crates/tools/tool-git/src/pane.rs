@@ -519,7 +519,19 @@ impl RepoPane {
     pub fn toolbar(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
         let busy = self.busy.is_some();
-        // The branch, first: it is the one fact a person checks before
+        // A show/hide toggle is the toolbar's first item (CR-0073).
+        let mut shown = !self.hide_tree;
+        hs_ui::toolbar::toggle(
+            ui,
+            theme,
+            &mut shown,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("git-tree-column"),
+        )
+        .on_hover_text(s.t("git-tree-column-tip"));
+        self.hide_tree = !shown;
+        ui.separator();
+        // The branch, next: it is the one fact a person checks before
         // any of the verbs beside it.
         if let Some(st) = &self.status {
             hs_ui::toolbar::status(ui, theme, theme.accent, ph::GIT_BRANCH, &st.branch_label());
@@ -573,17 +585,6 @@ impl RepoPane {
             ui.spinner();
             ui.label(egui::RichText::new(label).color(theme.text_muted));
         }
-        ui.separator();
-        let mut shown = !self.hide_tree;
-        hs_ui::toolbar::toggle(
-            ui,
-            theme,
-            &mut shown,
-            ph::SIDEBAR_SIMPLE,
-            &s.t("git-tree-column"),
-        )
-        .on_hover_text(s.t("git-tree-column-tip"));
-        self.hide_tree = !shown;
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The same control in every tool, in the same place.
             if ui
@@ -1512,6 +1513,7 @@ impl RepoPane {
                 // that is less than the button needs (seen on screen).
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.amend, s.t("git-amend-check"));
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut self.push_after, s.t("git-push-after"));
                 });
                 ui.add_space(2.0);

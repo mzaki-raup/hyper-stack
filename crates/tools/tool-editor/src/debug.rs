@@ -102,7 +102,8 @@ pub struct Debugger {
     pub picker_open: bool,
     pub panel_open: bool,
     tab: PanelTab,
-    console: Vec<Line>,
+    /// Each line with the level it names, read once when it is pushed.
+    console: Vec<(Line, Option<hs_core::loglevel::Level>)>,
     console_input: String,
     threads: Vec<Thread>,
     current_thread: Option<i64>,
@@ -455,7 +456,11 @@ impl Debugger {
     }
 
     fn push(&mut self, line: Line) {
-        self.console.push(line);
+        let level = match &line {
+            Line::Out(t) | Line::Info(t) => hs_core::loglevel::level_span(t).map(|(_, l)| l),
+            Line::Err(_) | Line::Input(_) => None,
+        };
+        self.console.push((line, level));
         if self.console.len() > CONSOLE_CAP {
             let extra = self.console.len() - CONSOLE_CAP;
             self.console.drain(0..extra);
@@ -1113,17 +1118,21 @@ impl Debugger {
         // equal, so a dragged size survives.
         ui.set_min_height(ui.available_height());
         let mut close = false;
-        ui.horizontal(|ui| {
-            for (tab, key) in [
-                (PanelTab::Console, "debug-tab-console"),
-                (PanelTab::Variables, "debug-tab-variables"),
-                (PanelTab::Stack, "debug-tab-stack"),
-                (PanelTab::Breakpoints, "debug-tab-breakpoints"),
+        // Air above the tab row, and an icon and a label on each tab, as
+        // every other sub-toolbar has (owner's CR-0040).
+        ui.add_space(hs_ui::form::PANE_GAP);
+        hs_ui::form::centred_row(ui, |ui| {
+            for (tab, icon, key) in [
+                (PanelTab::Console, ph::TERMINAL_WINDOW, "debug-tab-console"),
+                (
+                    PanelTab::Variables,
+                    ph::BRACKETS_CURLY,
+                    "debug-tab-variables",
+                ),
+                (PanelTab::Stack, ph::STACK, "debug-tab-stack"),
+                (PanelTab::Breakpoints, ph::RECORD, "debug-tab-breakpoints"),
             ] {
-                if ui
-                    .add(egui::Button::selectable(self.tab == tab, s.t(key)))
-                    .clicked()
-                {
+                if hs_ui::toolbar::tab(ui, theme, self.tab == tab, icon, &s.t(key)).clicked() {
                     self.tab = tab;
                 }
             }
@@ -1168,11 +1177,14 @@ impl Debugger {
                     s.settings.read().editor.font_size,
                     hs_ui::fonts::editor_family(),
                 );
-                for line in &self.console {
+                for (line, level) in &self.console {
+                    // A line that names a level wears the Logs activity's
+                    // colour for it (CR-0077); the level was read on push.
+                    let level_colour = level.map(|l| hs_ui::loglevel::colour(theme, l));
                     let (text, colour) = match line {
-                        Line::Out(t) => (t.as_str(), theme.text),
+                        Line::Out(t) => (t.as_str(), level_colour.unwrap_or(theme.text)),
                         Line::Err(t) => (t.as_str(), theme.error),
-                        Line::Info(t) => (t.as_str(), theme.text_muted),
+                        Line::Info(t) => (t.as_str(), level_colour.unwrap_or(theme.text_muted)),
                         Line::Input(t) => (t.as_str(), theme.accent),
                     };
                     let prefix = if matches!(line, Line::Input(_)) {

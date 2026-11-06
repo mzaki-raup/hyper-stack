@@ -34,3 +34,12 @@ blue for infrastructure, green for relational objects, teal for documents,
 amber for object storage, purple for messaging. A new kind with no sensible
 picture gets **no** icon rather than a misleading one — `for_kind` returns
 `None` and the pane keeps its glyph.
+
+## Recoloured copies
+
+`console-windows.svg` is the theme's `console.svg` with its fill changed to
+Windows blue `#0078D4`: Command Prompt's mark, which has no logo of its own
+(`hs_ui::icons::PRODUCT_LOGOS`, CR-0079).
+
+`folder-shared.svg` (purple, #AB47BC) was added 2026-11-06 as the WebDAV
+connection's mark - a network share - in every list, tab and card (CR-0079).

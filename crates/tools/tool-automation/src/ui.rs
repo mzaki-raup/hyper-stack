@@ -152,7 +152,15 @@ fn log_line(ui: &mut egui::Ui, theme: &Theme, l: &crate::logfmt::Line) {
         Kind::Meta => egui::RichText::new(format!("{indent}{}", l.text))
             .monospace()
             .color(theme.text_muted),
-        Kind::Plain => egui::RichText::new(format!("{indent}{}", l.text)).monospace(),
+        Kind::Plain => {
+            let t = egui::RichText::new(format!("{indent}{}", l.text)).monospace();
+            // A line that names a level wears the Logs activity's colour
+            // for it (CR-0077).
+            match hs_ui::loglevel::line_colour(theme, &l.text) {
+                Some(c) => t.color(c),
+                None => t,
+            }
+        }
     };
     ui.add(egui::Label::new(text).selectable(true).extend());
 }
@@ -1114,7 +1122,7 @@ impl AutomationTool {
         if self.requested.as_ref() != Some(&(self.state.detail, job.id.clone())) {
             self.load_detail();
         }
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             for (d, icon, key, shown) in [
                 (Detail::Runs, ph::LIST_CHECKS, "automation-tab-runs", true),
                 (Detail::Log, ph::FILE_TEXT, "automation-tab-log", caps.log),

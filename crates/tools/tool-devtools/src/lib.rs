@@ -264,16 +264,21 @@ impl DevtoolsTool {
         let tabs = s.open_tabs.of("devtools");
         // The utilities, each under the category the sidebar files it
         // in, from the one table both read - so the two can never
-        // disagree about what Devtools offers.
+        // disagree about what Devtools offers. Each card wears the
+        // utility's own picture (CR-0076).
+        register_pictures(ui.ctx());
         let tools: Vec<hs_ui::dashboard::Entry> = Utility::ALL
             .iter()
-            .map(|(u, cat, title, icon)| hs_ui::dashboard::Entry {
-                id: u.key().to_string(),
-                name: s.t(title),
-                detail: s.t(cat),
-                icon: (*icon).to_string(),
-                image: None,
-                tint: Some(category_colour(cat)),
+            .map(|(u, cat, title, _)| {
+                let (picture, glyph, colour) = tool_picture(*u);
+                hs_ui::dashboard::Entry {
+                    id: u.key().to_string(),
+                    name: s.t(title),
+                    detail: s.t(cat),
+                    icon: glyph.to_string(),
+                    image: picture.as_ref().and_then(picture_uri),
+                    tint: Some(colour),
+                }
             })
             .collect();
         let labels = hs_ui::dashboard::DashboardLabels {
@@ -381,15 +386,22 @@ impl Tool for DevtoolsTool {
             .map(|(_, _, _, icon)| *icon)
     }
 
-    fn tab_icon_colour(&self) -> Option<egui::Color32> {
-        // The utility's category colour, as on its dashboard card.
+    /// The utility's own picture, as its sidebar row and dashboard card
+    /// draw it (CR-0076). The sidebar and the tab's `ui` register the
+    /// bytes behind this URI.
+    fn tab_icon_uri(&self) -> Option<String> {
         if self.is_home {
             return None;
         }
-        Utility::ALL
-            .iter()
-            .find(|(u, _, _, _)| *u == self.utility)
-            .map(|(_, cat, _, _)| category_colour(cat))
+        tool_picture(self.utility).0.as_ref().and_then(picture_uri)
+    }
+
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        // The utility's own colour, as on its dashboard card (CR-0076).
+        if self.is_home {
+            return None;
+        }
+        Some(tool_picture(self.utility).2)
     }
 
     fn home_is_dashboard(&self) -> bool {
@@ -427,6 +439,8 @@ impl Tool for DevtoolsTool {
                     .size(15.0),
             );
         });
+        // The tab strip draws these pictures by URI (CR-0076).
+        register_pictures(ui.ctx());
         egui::ScrollArea::vertical()
             .id_salt("devtools-utilities")
             .auto_shrink([false, false])
@@ -439,7 +453,7 @@ impl Tool for DevtoolsTool {
                 // already existed (owner's report, 2026-10-26).
                 let current = (!self.is_home).then_some(self.utility);
                 let mut last_cat = "";
-                for (u, cat, title, icon) in Utility::ALL {
+                for (u, cat, title, _) in Utility::ALL {
                     if cat != last_cat {
                         ui.add_space(6.0);
                         ui.label(
@@ -452,17 +466,33 @@ impl Tool for DevtoolsTool {
                     }
                     // Each utility has its own tab: clicking another one focuses
                     // that tab, or opens it.
-                    // The glyph in its category's colour, as the
-                    // dashboard card and the tab draw it.
-                    let art = hs_ui::icons::ConnIcon {
-                        glyph: icon,
-                        image: None,
-                        tint: hs_ui::icons::ConnTint::Brand(category_colour(cat)),
+                    // The utility's own picture, or its glyph in its own
+                    // colour, as the dashboard card and the tab draw it
+                    // (CR-0076).
+                    let (picture, glyph, colour) = tool_picture(u);
+                    let row = match picture {
+                        Some(src) => form::list_row_icon(
+                            ui,
+                            &theme,
+                            current == Some(u),
+                            &hs_ui::tree::TreeIcon::Image(src),
+                            &s.t(title),
+                            None,
+                        ),
+                        None => form::conn_list_row(
+                            ui,
+                            &theme,
+                            current == Some(u),
+                            hs_ui::icons::ConnIcon {
+                                glyph,
+                                image: None,
+                                tint: hs_ui::icons::ConnTint::Brand(colour),
+                            },
+                            &s.t(title),
+                            None,
+                        ),
                     };
-                    if form::conn_list_row(ui, &theme, current == Some(u), art, &s.t(title), None)
-                        .clicked()
-                        && current != Some(u)
-                    {
+                    if row.clicked() && current != Some(u) {
                         cx.open(
                             "devtools",
                             Some(OpenRequest::File {
@@ -485,6 +515,7 @@ impl Tool for DevtoolsTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.title = s.t(self.utility.title_key());
+        register_pictures(ui.ctx());
         egui::ScrollArea::vertical()
             .id_salt("hs-devtools")
             .auto_shrink([false, false])
@@ -680,23 +711,79 @@ impl Tool for DevtoolsTool {
     }
 }
 
-/// The dashboard card colour of a utility's category, so a saved card's
-/// icon is coloured like every other activity's (CR-0065).
-fn category_colour(cat: &str) -> egui::Color32 {
-    match cat {
-        "dt-cat-encoding" => egui::Color32::from_rgb(0x3b, 0x82, 0xf6),
-        "dt-cat-crypto" => egui::Color32::from_rgb(0xef, 0x44, 0x44),
-        "dt-cat-tokens" => egui::Color32::from_rgb(0xf5, 0x9e, 0x0b),
-        "dt-cat-generate" => egui::Color32::from_rgb(0x22, 0xc5, 0x5e),
-        "dt-cat-text" => egui::Color32::from_rgb(0xa8, 0x55, 0xf7),
-        "dt-cat-network" => egui::Color32::from_rgb(0x06, 0xb6, 0xd4),
-        _ => egui::Color32::from_rgb(0xec, 0x48, 0x99),
+/// Which bundled Material picture shows a utility, if one does, and the
+/// colour of its glyph (`0xRRGGBB`) - the glyph is what a utility with no
+/// fitting picture wears (CR-0076).
+fn picture_spec(u: Utility) -> (Option<&'static str>, u32) {
+    match u {
+        Utility::Base64 => (None, 0x3b82f6),
+        Utility::Url => (Some("http"), 0x0ea5e9),
+        Utility::Yaml => (Some("yaml"), 0xef4444),
+        Utility::Hash => (None, 0x8b5cf6),
+        Utility::Toml => (Some("toml"), 0x9ca3af),
+        Utility::Xml => (Some("xml"), 0xf97316),
+        Utility::Jwt => (None, 0xd946ef),
+        Utility::Firebase => (None, 0xf59e0b),
+        Utility::Jasypt => (Some("lock"), 0xeab308),
+        Utility::Pki => (Some("certificate"), 0xf43f5e),
+        Utility::Generate => (None, 0x22c55e),
+        Utility::Cron => (Some("history"), 0x84cc16),
+        Utility::Convert => (None, 0x14b8a6),
+        Utility::Regex => (None, 0xa855f7),
+        Utility::Diff => (Some("diff"), 0x10b981),
+        Utility::Net => (Some("network"), 0x06b6d4),
+        Utility::Ports => (None, 0x6366f1),
+        Utility::Snippets => (None, 0xec4899),
+        Utility::EnvFile => (Some("tune"), 0xfacc15),
+    }
+}
+
+/// A utility's own picture, the same in the sidebar row, the dashboard
+/// card and the tab (CR-0076): the Material picture when one fits, the
+/// utility's glyph, and that glyph's colour for when there is no picture.
+pub fn tool_picture(
+    u: Utility,
+) -> (
+    Option<egui::ImageSource<'static>>,
+    &'static str,
+    egui::Color32,
+) {
+    let (name, rgb) = picture_spec(u);
+    let glyph = Utility::ALL
+        .iter()
+        .find(|(x, _, _, _)| *x == u)
+        .map_or(DESCRIPTOR.icon, |(_, _, _, g)| *g);
+    let [_, r, g, b] = rgb.to_be_bytes();
+    (
+        name.and_then(hs_ui::fileicons::by_name),
+        glyph,
+        egui::Color32::from_rgb(r, g, b),
+    )
+}
+
+/// The URI a picture is drawn by where an API takes a string (the tab,
+/// a dashboard card).
+fn picture_uri(src: &egui::ImageSource<'static>) -> Option<String> {
+    match src {
+        egui::ImageSource::Bytes { uri, .. } | egui::ImageSource::Uri(uri) => Some(uri.to_string()),
+        egui::ImageSource::Texture(_) => None,
+    }
+}
+
+/// Hand every utility picture's bytes to `ctx`, so one drawn by bare URI
+/// (a tab, a dashboard card) loads even before its source was drawn.
+/// Cheap after the first call: the loader keeps the first copy.
+fn register_pictures(ctx: &egui::Context) {
+    for (u, _, _, _) in Utility::ALL {
+        if let Some(egui::ImageSource::Bytes { uri, bytes }) = tool_picture(u).0 {
+            ctx.include_bytes(uri, bytes);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::keep_reference;
+    use super::{Utility, keep_reference, picture_spec, picture_uri, tool_picture};
 
     #[test]
     fn typed_secrets_are_dropped_but_references_kept() {
@@ -704,5 +791,30 @@ mod tests {
         assert_eq!(keep_reference("  {{ k }} "), "{{ k }}");
         assert_eq!(keep_reference("sk-live-123"), "");
         assert_eq!(keep_reference("{{a}} and {{b}}"), "");
+    }
+
+    /// CR-0076: every utility wears a picture of its own, or its glyph in a
+    /// colour of its own, and no two utilities look alike.
+    #[test]
+    fn every_utility_has_its_own_picture_or_coloured_glyph() {
+        let mut seen = std::collections::HashSet::new();
+        for (u, _, _, _) in Utility::ALL {
+            let (name, _) = picture_spec(u);
+            let (picture, glyph, colour) = tool_picture(u);
+            assert_eq!(
+                name.is_some(),
+                picture.is_some(),
+                "{u:?}: {name:?} is bundled"
+            );
+            let look = match &picture {
+                Some(src) => picture_uri(src).expect("an embedded picture has a URI"),
+                None => {
+                    assert!(!glyph.is_empty(), "{u:?} has a glyph");
+                    assert_ne!(colour, egui::Color32::TRANSPARENT, "{u:?} has a colour");
+                    format!("{glyph}{colour:?}")
+                }
+            };
+            assert!(seen.insert(look), "{u:?} looks like another utility");
+        }
     }
 }

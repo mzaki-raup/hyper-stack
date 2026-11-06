@@ -112,10 +112,20 @@ pub struct Outcome {
     pub exchange: Result<Exchange, String>,
     pub prepared: Option<Prepared>,
     pub logs: Vec<String>,
+    /// The level each of `logs` names, read once when the outcome is made
+    /// so the console does not search every line each frame.
+    pub log_levels: Vec<Option<hs_core::loglevel::Level>>,
     pub tests: Vec<TestResult>,
     pub script_error: Option<String>,
     pub changes: Vec<Change>,
     pub scopes: Scopes,
+}
+
+/// The level each script log line names, for its colour (CR-0077).
+fn log_levels(logs: &[String]) -> Vec<Option<hs_core::loglevel::Level>> {
+    logs.iter()
+        .map(|l| hs_core::loglevel::level_span(l).map(|(_, lv)| lv))
+        .collect()
 }
 
 type Pending = Arc<Mutex<Option<Outcome>>>;
@@ -1072,6 +1082,7 @@ impl ApiTool {
                 self.last = Some(Outcome {
                     exchange: Err(e),
                     prepared: None,
+                    log_levels: log_levels(&logs),
                     logs,
                     tests: Vec::new(),
                     script_error,
@@ -1103,6 +1114,7 @@ impl ApiTool {
                 exchange,
                 prepared: Some(p2.clone()),
                 logs,
+                log_levels: Vec::new(),
                 tests: Vec::new(),
                 script_error,
                 changes: Vec::new(),
@@ -1145,6 +1157,7 @@ impl ApiTool {
                     outcome.script_error = r.error;
                 }
             }
+            outcome.log_levels = log_levels(&outcome.logs);
             *out.lock() = Some(outcome);
             waker.request_repaint();
         });

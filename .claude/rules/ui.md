@@ -97,6 +97,60 @@ look for it in `crates/hs-ui/src/` first.
   wears a multi-colour picture that shows what it does, and the same
   picture is used in the sidebar, the dashboard card and the tool's tab
   (owner, 2026-11-06) (CR-0076).
+- **One set of log-level colours:** every view that shows log lines - the
+  Logs activity, Automation run logs, container and pod logs, the Editor's
+  debug console and build output, the SSH monitor, the Redis/API consoles -
+  colours ERROR, WARN, INFO, DEBUG, TRACE and their aliases (ERR, FATAL,
+  CRIT, WARNING, NOTICE, VERBOSE …) with the Logs activity's colours,
+  through one shared function, never its own palette (owner, 2026-11-06)
+  (CR-0077).
+- **Options on one row are spaced apart:** checkboxes or radio buttons
+  sharing a row (Amend · Push After Commit; If Not Exists · Drop First;
+  regex flags) have `form::OPTION_GAP` (18 px) between them, so each reads
+  as its own choice; options in a form grid stay one per row (owner,
+  2026-11-06) (CR-0078).
+- **A product wears its real mark, everywhere:** a saved item that is a
+  known product - a shell (PowerShell, Command Prompt, Git Bash, a WSL
+  distro, zsh, fish, Nushell …), a database engine, a broker, a cloud, a
+  forge - wears that product's real multi-colour logo, the same in its
+  list row, its tab, the dashboard, Home's Recent, any history and its
+  Settings page; a plain glyph only for a product with no logo, then in
+  the product's colour (owner, 2026-11-06) (CR-0079).
+- **Settings forms are two left-aligned columns:** in every Settings page
+  (and any form built like one) each label is left-aligned in the first
+  column; a sub-setting's label (one that only applies when its parent is
+  on) is indented one step (`form::SUB_INDENT`) under its parent, still
+  left-aligned; every control - checkbox, radio buttons, text field,
+  dropdown, slider - starts at the same x in the second column, whatever
+  the label's length. Built with `form::field_grid` / `form::label` /
+  `form::sub_label`, never a hand-made row (owner, 2026-11-06) (CR-0080).
+  Every row of a Settings page - in the grid or outside it (a stacked
+  checkbox, a hint, a button row, a list) - has the same vertical air
+  (`form::ROW_GAP` between rows); no two rows touch (owner, 2026-11-06).
+  Text blocks count as rows: a description, a guide, a paragraph, a hint
+  or a standalone label has the same gap above and below as the controls
+  around it - it never sits flush against a field or a heading (owner,
+  2026-11-06).
+  Buttons in a Settings page are one size: every button - primary or
+  not - is a field's height with the same padding (`form::button` /
+  `form::primary_button`, never a bare `ui.button` or `small_button`),
+  and buttons side by side have `form::BUTTON_GAP` between them (owner,
+  2026-11-06).
+  A sub-section heading inside a Settings card (a group of rows under the
+  card's own title) is a step larger than body text and strong
+  (`form::subsection`), smaller than the card's title, so the hierarchy
+  card title > sub-section > row label reads at a glance (owner,
+  2026-11-06).
+  A list of checkboxes has `ROW_GAP` between items, and a checkbox's
+  description sits under its label (indented to the label's text) with
+  the gap after the description, not between the box and its text.
+  Reorder controls (move up / move down, drag handles) are standard-size
+  buttons in an aligned column, and the rows they reorder have `ROW_GAP`
+  between them (owner, 2026-11-06).
+  Suggestion lists (CLI suggestions, presets to add, discovered servers):
+  each row is a `centred_row` - icon, name, detail and its Add button on
+  one middle line - the button standard size in an aligned right column,
+  and `ROW_GAP` between rows (owner, 2026-11-06).
 - **What opens a tab shows it:** any action that opens, adds or fills a
   tab - New Query, Open Data, a saved item, a history entry, a template -
   brings that tab to the front, whatever kind of tab (a designer, a

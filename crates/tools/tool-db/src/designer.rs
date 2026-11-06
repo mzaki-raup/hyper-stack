@@ -582,6 +582,14 @@ impl Designer {
             EditColumn::new(&h_unique, 120.0),
             EditColumn::new("", 0.0),
         ];
+        let own_cols: Vec<String> = self
+            .edit
+            .table
+            .columns
+            .iter()
+            .map(|c| c.name.clone())
+            .filter(|n| !n.trim().is_empty())
+            .collect();
         let n = self.edit.table.indexes.len();
         let no_indexes = s.t("db-designer-no-indexes");
         let (indexes, index_cols) = (&mut self.edit.table.indexes, &mut self.index_cols);
@@ -613,13 +621,15 @@ impl Designer {
                             .changed()
                     }
                     1 => {
-                        if ui
-                            .add(
-                                form::line_edit(&mut index_cols[i])
-                                    .hint_text("a, b")
-                                    .desired_width(w),
-                            )
-                            .changed()
+                        if form::multi_pick_field_width(
+                            ui,
+                            theme,
+                            &mut index_cols[i],
+                            &own_cols,
+                            "a, b",
+                            w,
+                        )
+                        .changed()
                         {
                             ix.columns = split_list(&index_cols[i]);
                             changed = true;
@@ -703,6 +713,14 @@ impl Designer {
             EditColumn::new(&heads[5], 130.0),
             EditColumn::new("", 0.0),
         ];
+        let own_cols: Vec<String> = self
+            .edit
+            .table
+            .columns
+            .iter()
+            .map(|c| c.name.clone())
+            .filter(|n| !n.trim().is_empty())
+            .collect();
         let n = self.edit.table.foreign_keys.len();
         let no_keys = s.t("db-designer-no-keys");
         let (keys, key_cols) = (&mut self.edit.table.foreign_keys, &mut self.key_cols);
@@ -723,13 +741,15 @@ impl Designer {
                             .changed()
                     }
                     1 => {
-                        if ui
-                            .add(
-                                form::line_edit(&mut key_cols[i].0)
-                                    .hint_text("a, b")
-                                    .desired_width(w),
-                            )
-                            .changed()
+                        if form::multi_pick_field_width(
+                            ui,
+                            theme,
+                            &mut key_cols[i].0,
+                            &own_cols,
+                            "a, b",
+                            w,
+                        )
+                        .changed()
                         {
                             fk.columns = split_list(&key_cols[i].0);
                             changed = true;
@@ -765,8 +785,15 @@ impl Designer {
                             })
                             .map(|(_, _, cols)| cols.clone())
                             .unwrap_or_default();
-                        if form::pick_field_width(ui, theme, &mut key_cols[i].1, &ref_cols, "id", w)
-                            .changed()
+                        if form::multi_pick_field_width(
+                            ui,
+                            theme,
+                            &mut key_cols[i].1,
+                            &ref_cols,
+                            "id",
+                            w,
+                        )
+                        .changed()
                         {
                             fk.ref_columns = split_list(&key_cols[i].1);
                             changed = true;

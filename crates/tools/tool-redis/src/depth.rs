@@ -275,7 +275,7 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             for (v, icon, key) in [
                 (
                     ToolView::Slowlog,
@@ -556,7 +556,7 @@ impl RedisTool {
         let s = cx.services;
         form::hint(ui, theme, &s.t("redis-bulk-hint"));
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             ui.label(s.t("redis-bulk-action"));
             for (a, icon, key) in [
                 (BulkAction::Delete, ph::TRASH, "redis-bulk-delete"),

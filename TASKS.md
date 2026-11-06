@@ -153,7 +153,7 @@ Refs: BUG-0003
 Version : v0.7.7
 Features : FEAT-0104
 Bugs : BUG-0047
-Change Request : CR-0076
+Change Request : CR-0080
 ```
 
 ---
@@ -168,16 +168,16 @@ Change Request : CR-0076
 > v0.127.0 (2026-11-06, merge `f8a7ecb`).
 
 ### CR-0040 · Workspace UI/UX Changes
-- **State:** Pending ·
+- **State:** In-Progress · audited 2026-11-06: box 4 was delivered by CR-0044; boxes 1-3 and 5 built in the fix/ui-sweep-0611 batch
 - **Scope:** All Related Activities's Work Pane
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
-- [ ] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc.
-- [ ] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only.
-- [ ] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link.
-- [ ] Test: <what it asserts>
+- [x] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `PANE_GAP` above the Editor status bar and the Logs status line
+- [x] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `PANE_GAP` above the debug tab row
+- [x] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `toolbar::tab` with an icon each (terminal window, curly brackets, stack, record)
+- [x] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only. — delivered by CR-0044 (one Add button, kind in a dropdown, list left / form right; Settings → Queue seen in the app)
+- [x] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link. — a Switch button (icon and label) in a right column, disabled with a tooltip for the open workspace
+- [ ] Test: none headless for padding; the gate's existing settings and editor tests run against the change
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — <what to click>
+- [ ] App: `--data-dir ./tmp-data` — Editor status bar and Debug Panel, Logs status line, Settings → Workspace Switch (current one disabled); screenshots
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
 ### FEAT-0099 · fal.ai as an AI image provider
@@ -626,10 +626,10 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the Tunnels list and the shell's Tunnels view use a coloured tunnel picture; each host group header wears the host's OS mark in colour; the Monitor view is a table / grid of labelled figures; Kept Forwards has a gap above it and its rows are middle-aligned.
 - **Parent:** CR-0061
-- [ ] Tunnel picture in colour in the sidebar and the Tunnels view
-- [ ] Host group headers wear the host's coloured mark
-- [ ] Monitor laid out as a table of figures
-- [ ] Kept Forwards spacing and middle-aligned rows; the same layout checked in other activities
+- [x] Tunnel picture in colour in the sidebar and the Tunnels view
+- [x] Host group headers wear the host's coloured mark
+- [x] Monitor laid out as a table of figures
+- [x] Kept Forwards spacing and middle-aligned rows; the same layout checked in other activities
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -640,8 +640,8 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the table designer's Foreign Keys Columns and Referenced Columns pick from the table's / referenced table's columns; a sweep turns every text field that a known list can fill into `pick_field`.
 - **Parent:** CR-0061
-- [ ] Designer FK columns and referenced columns are pick fields
-- [ ] Sweep of other activities applied
+- [x] Designer FK columns and referenced columns are pick fields
+- [x] Sweep of other activities applied
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -652,8 +652,8 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** `hs_ui::toolbar` gets a main and a sub button height (main slightly bigger than today, sub with vertical air); every pane show/hide toggle moves to the far left of the activity's first toolbar row.
 - **Parent:** CR-0061
-- [ ] Main and sub toolbar sizes
-- [ ] Toggles at the far left in every activity
+- [x] Main and sub toolbar sizes
+- [x] Toggles at the far left in every activity
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -664,8 +664,8 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the Containers item column (Containers, Projects, Images, Volumes, Networks, Swarm …) and every column like it use 20 px coloured pictures and body text.
 - **Parent:** CR-0061
-- [ ] Containers item column
-- [ ] Other activities with the same column
+- [x] Containers item column
+- [x] Other activities with the same column
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -676,8 +676,8 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** a container's Ports beside Open in Browser, and every detail view row of a value with its action, open with `centred_row`.
 - **Parent:** CR-0061
-- [ ] Containers detail views
-- [ ] Every other activity's detail views
+- [x] Containers detail views
+- [x] Every other activity's detail views
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
 - [ ] Docs: CHANGELOG, ui.md rule
@@ -688,10 +688,67 @@ Change Request : CR-0076
 - **Source:** owner, 2026-11-06 ("In Devtools Activity -> Sidebar Column -> Tools Icon; If possible use multi color icon that represent the tool itself … In Graphics Activity -> Sidebar Column -> Tools Icon … Please use suitable multi color icon and it will reflect in the dashboard page and tab icon")
 - **Scope:** a coloured picture per Devtools utility and per Graphics tool (Image, Icon, Diagram Editor, Diagram Generator), used by the sidebar row, the dashboard card and the tab.
 - **Parent:** CR-0065
-- [ ] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
-- [ ] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
+- [x] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
+- [x] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0077 · Log-level colours follow the Logs activity everywhere
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In other activities that have logs, please follow Logs Activity Log color for Info, wan, debug, error, other alias, etc) the text color for those")
+- **Scope:** the Logs activity's level → colour mapping (with its aliases) moves to one shared `hs_ui` function; every other view that shows log lines uses it.
+- **Parent:** CR-0025
+- [x] Shared level-colour function with the aliases, unit-tested
+- [x] Every other log view uses it
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Logs, an Automation run log, a container log; screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0078 · Options sharing a row are spaced apart
+- **State:** In-Progress · built 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Git Activity -> Repository -> Work Pane -> Check box below Commit message text area; Please put some left/right margin/padding between Amend and Push after commit checkbox. Check if this characteristic in one row in other activities and apply it too. ANd write in the rule")
+- **Scope:** `hs_ui::form::OPTION_GAP`; the Git commit options and Merge options, the Editor merge row, the Database DDL options, Devtools Base64, the password and passphrase generators and the regex flags.
+- **Parent:** CR-0061
+- [x] `OPTION_GAP` between options on one row, in every row found (16 rows in 7 files)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the Git commit area; screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0079 · Saved shells and other products wear their real multi-colour marks everywhere
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Terminal Activity -> CLI Icon; Use actual multi color icon for cli that saved in the list. and it will reflect in all location that used it (Tab Icon, Dashboard Page, recent, history, Settings -> Terminal, etc). POlease check other activities that still not have the proper icon and multi color to apply it. Write it in the rule.")
+- **Scope:** the Terminal's saved shells resolve to real product logos (bundled SVG/PNG under the product-logo set), used by the sidebar list, the tab, the Terminal dashboard, Home's Recent, history and Settings → Terminal; an audit finds other activities' saved items still on a plain or wrong icon and fixes them.
+- **Parent:** CR-0036
+- [x] Terminal shell logos in every place a shell is drawn
+- [x] Other activities' saved items found by the audit
+- [x] Test: every built-in shell kind resolves to a logo or a coloured glyph
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — Terminal sidebar, tab, dashboard, Settings → Terminal; screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0080 · Settings forms: left-aligned labels, indented sub-settings, one control column
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In All Settings Form; Put the all the label, horizontal left align and sub setting indented left align too. The checkbox, radio button, text input, dropdown input put in the same column position of other horizontal left align too. Write tjhis in rules")
+- **Scope:** `hs_ui::form::field_grid` / `label` left-align labels and gain `sub_label` with `SUB_INDENT`; every Settings page (crates/hyperstack/src/settings_ui.rs, settings_ai.rs) and the connection forms built like them use it, with every control in the second column.
+- **Parent:** CR-0061
+- [ ] `field_grid` labels left-aligned; `sub_label` indents a sub-setting
+- [ ] Every Settings page converted: labels left, sub-settings indented, controls in one column
+- [ ] Every Settings row, in the grid or outside it, has `ROW_GAP` above and below (owner: "some of the row in settings still not having top/bottom margin/padding")
+- [ ] Descriptions, guides, paragraphs, hints and standalone labels in Settings have the same gap above and below as the rows around them (owner, 2026-11-06)
+- [ ] Every Settings button one size (field height, same padding) through `form::button` / `form::primary_button`, with `BUTTON_GAP` between buttons side by side (owner, 2026-11-06)
+- [ ] Sub-section headings inside Settings cards a step larger and strong (`form::subsection`), between the card title and row labels (owner, 2026-11-06)
+- [ ] Checkbox lists spaced with descriptions under their labels; reorder (rearrange order) buttons standard size, their rows spaced (owner, 2026-11-06)
+- [ ] Suggestion lists: rows middle-aligned, Add buttons standard size in an aligned column, rows spaced (owner, 2026-11-06)
+- [ ] Settings → About → Installed: the Data Folder value and Open Data Folder on one middle-aligned row with a gap (owner, 2026-11-06)
+- [ ] Settings → About: the Policy and Check for Updates cards merged into one card titled Updates - the policy settings, then Check for Updates and its status (owner, 2026-11-06)
+- [ ] Test: a label and a sub-label start left; their controls share one x
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — several Settings pages; screenshots
 - [ ] Docs: CHANGELOG, ui.md rule
 
 ---

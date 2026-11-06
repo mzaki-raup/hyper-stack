@@ -1545,15 +1545,15 @@ fn request_editor(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, them
         usize::from(!t.request.docs.trim().is_empty()),
     ];
     let labels = [
-        "api-tab-params",
-        "api-tab-headers",
-        "api-tab-body",
-        "api-tab-auth",
-        "api-tab-scripts",
-        "api-tab-docs",
+        (ph::SLIDERS_HORIZONTAL, "api-tab-params"),
+        (ph::LIST_BULLETS, "api-tab-headers"),
+        (ph::BRACKETS_CURLY, "api-tab-body"),
+        (ph::LOCK_KEY, "api-tab-auth"),
+        (ph::CODE, "api-tab-scripts"),
+        (ph::BOOK_OPEN, "api-tab-docs"),
     ];
-    ui.horizontal(|ui| {
-        for (i, key) in labels.iter().enumerate() {
+    hs_ui::toolbar::sub_strip(ui, |ui| {
+        for (i, (icon, key)) in labels.iter().enumerate() {
             let text = if counts[i] > 0 && i < 2 {
                 format!("{} ({})", s.t(key), counts[i])
             } else if counts[i] > 0 {
@@ -1561,7 +1561,7 @@ fn request_editor(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, them
             } else {
                 s.t(key)
             };
-            if ui.selectable_label(t.req_tab() == i, text).clicked() {
+            if hs_ui::toolbar::tab(ui, theme, t.req_tab() == i, icon, &text).clicked() {
                 t.set_req_tab(i);
             }
         }
@@ -1991,7 +1991,7 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
                 ui.colored_label(theme.error, format!("{} {err}", s.t("api-script-error")));
             }
             if !last.logs.is_empty() {
-                console(ui, theme, &last.logs);
+                console(ui, theme, &last.logs, &last.log_levels);
             }
         }
         Ok(ex) => {
@@ -2044,13 +2044,13 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
                 .iter()
                 .filter(|(k, _)| k.eq_ignore_ascii_case("set-cookie"))
                 .count();
-            ui.horizontal(|ui| {
-                for (i, (key, n)) in [
-                    ("api-resp-body", 0usize),
-                    ("api-resp-headers", ex.headers.len()),
-                    ("api-resp-cookies", cookies),
-                    ("api-resp-tests", last.tests.len()),
-                    ("api-resp-console", last.logs.len()),
+            hs_ui::toolbar::sub_strip(ui, |ui| {
+                for (i, (icon, key, n)) in [
+                    (ph::BRACKETS_CURLY, "api-resp-body", 0usize),
+                    (ph::LIST_BULLETS, "api-resp-headers", ex.headers.len()),
+                    (ph::COOKIE, "api-resp-cookies", cookies),
+                    (ph::CHECK_SQUARE, "api-resp-tests", last.tests.len()),
+                    (ph::TERMINAL, "api-resp-console", last.logs.len()),
                 ]
                 .iter()
                 .enumerate()
@@ -2060,7 +2060,7 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
                     } else {
                         s.t(key)
                     };
-                    if ui.selectable_label(resp_tab == i, text).clicked() {
+                    if hs_ui::toolbar::tab(ui, theme, resp_tab == i, icon, &text).clicked() {
                         new_tab = Some(i);
                     }
                 }
@@ -2136,7 +2136,7 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
                             }
                         });
                 }
-                _ => console(ui, theme, &last.logs),
+                _ => console(ui, theme, &last.logs, &last.log_levels),
             }
         }
     }
@@ -2145,15 +2145,26 @@ fn response_panel(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Them
     }
 }
 
-fn console(ui: &mut egui::Ui, theme: &Theme, logs: &[String]) {
+fn console(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    logs: &[String],
+    levels: &[Option<hs_core::loglevel::Level>],
+) {
     egui::ScrollArea::vertical()
         .auto_shrink([false, false])
         .show(ui, |ui| {
             if logs.is_empty() {
                 ui.colored_label(theme.text_muted, "—");
             }
-            for l in logs {
-                ui.add(egui::Label::new(egui::RichText::new(l).monospace()).wrap());
+            for (i, l) in logs.iter().enumerate() {
+                let mut text = egui::RichText::new(l).monospace();
+                // The Logs activity's level colours (CR-0077), read once
+                // when the outcome arrived.
+                if let Some(Some(lv)) = levels.get(i) {
+                    text = text.color(hs_ui::loglevel::colour(theme, *lv));
+                }
+                ui.add(egui::Label::new(text).wrap());
             }
         });
 }

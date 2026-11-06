@@ -2648,7 +2648,7 @@ impl GraphicsTool {
         // It also marks the tool this tab belongs to, as those lists do.
         let r = ui
             .add_enabled_ui(enabled, |ui| {
-                form::list_row(ui, theme, self.kind == f.kind(), f.icon(), &title, None)
+                function_list_row(ui, theme, self.kind == f.kind(), f, &title)
             })
             .inner
             .tip(if enabled {
@@ -2845,13 +2845,10 @@ impl GraphicsTool {
                             ui.vertical(|ui| {
                                 for f in Function::ALL {
                                     ui.horizontal_top(|ui| {
-                                        ui.add_sized(
-                                            [24.0, 24.0],
-                                            egui::Label::new(
-                                                egui::RichText::new(f.icon()).size(18.0),
-                                            )
-                                            .selectable(false),
-                                        );
+                                        // The tool's own picture, as its
+                                        // sidebar row and tab wear it
+                                        // (CR-0076).
+                                        paint_picture(ui, f, 24.0, 18.0);
                                         ui.allocate_ui_with_layout(
                                             egui::vec2(330.0, 58.0),
                                             egui::Layout::top_down(egui::Align::Min),
@@ -3027,6 +3024,24 @@ impl Tool for GraphicsTool {
         Some(self.kind.icon())
     }
 
+    /// The tool's own picture, as its sidebar row and the dashboard's
+    /// Functions card draw it (CR-0076). The sidebar and `ui` register
+    /// the bytes behind this URI.
+    fn tab_icon_uri(&self) -> Option<String> {
+        let (picture, _, _) = tool_picture(function_of(self.kind)?);
+        match picture? {
+            egui::ImageSource::Bytes { uri, .. } | egui::ImageSource::Uri(uri) => {
+                Some(uri.to_string())
+            }
+            egui::ImageSource::Texture(_) => None,
+        }
+    }
+
+    /// The tool's own colour for its glyph, where it has no picture.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        Some(tool_picture(function_of(self.kind)?).2)
+    }
+
     fn home_is_dashboard(&self) -> bool {
         self.kind == Kind::Home
     }
@@ -3155,6 +3170,8 @@ impl Tool for GraphicsTool {
             );
         });
         ui.add_space(4.0);
+        // The tab strip draws these pictures by URI (CR-0076).
+        register_pictures(ui.ctx());
         for f in Function::ALL {
             self.function_row(ui, cx, &theme, f);
             ui.add_space(2.0);
@@ -3411,6 +3428,7 @@ impl Tool for GraphicsTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.undo_limit = s.settings.read().general.undo_limit as usize;
+        register_pictures(ui.ctx());
         self.poll_generation(cx);
         self.new_image_dialog(ui.ctx(), cx, &theme);
         if matches!(self.kind, Kind::Image | Kind::Icon) && !ui.ctx().egui_wants_keyboard_input() {
@@ -3880,6 +3898,134 @@ impl Tool for GraphicsTool {
             subtitle: self.info_line(),
             html: format!("<img alt=\"\" src=\"data:image/png;base64,{b64}\">"),
         })
+    }
+}
+
+/// A Graphics tool's own picture, the same in the sidebar row, the
+/// dashboard's Functions card and the tab (CR-0076): the Material picture
+/// when one fits, the tool's glyph, and that glyph's own colour for when
+/// there is no picture.
+pub fn tool_picture(
+    f: Function,
+) -> (
+    Option<egui::ImageSource<'static>>,
+    &'static str,
+    egui::Color32,
+) {
+    let (name, colour) = match f {
+        Function::Image => (Some("image"), egui::Color32::from_rgb(0x26, 0xa6, 0x9a)),
+        Function::Icon => (None, egui::Color32::from_rgb(0xf5, 0x9e, 0x0b)),
+        Function::Diagram => (None, egui::Color32::from_rgb(0x3b, 0x82, 0xf6)),
+        Function::Generator => (None, egui::Color32::from_rgb(0xa8, 0x55, 0xf7)),
+    };
+    (name.and_then(hs_ui::fileicons::by_name), f.icon(), colour)
+}
+
+/// The tool a tab of `kind` belongs to; the dashboard belongs to none.
+fn function_of(kind: Kind) -> Option<Function> {
+    Function::ALL.into_iter().find(|f| f.kind() == kind)
+}
+
+/// Hand every tool picture's bytes to `ctx`, so the tab strip, which
+/// draws them by bare URI, loads them before their source was drawn.
+/// Cheap after the first call: the loader keeps the first copy.
+fn register_pictures(ctx: &egui::Context) {
+    for f in Function::ALL {
+        if let Some(egui::ImageSource::Bytes { uri, bytes }) = tool_picture(f).0 {
+            ctx.include_bytes(uri, bytes);
+        }
+    }
+}
+
+/// A sidebar row wearing the tool's picture, or its glyph in its colour.
+fn function_list_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    f: Function,
+    title: &str,
+) -> egui::Response {
+    let (picture, glyph, colour) = tool_picture(f);
+    match picture {
+        Some(src) => form::list_row_icon(
+            ui,
+            theme,
+            selected,
+            &hs_ui::tree::TreeIcon::Image(src),
+            title,
+            None,
+        ),
+        None => form::conn_list_row(
+            ui,
+            theme,
+            selected,
+            hs_ui::icons::ConnIcon {
+                glyph,
+                image: None,
+                tint: hs_ui::icons::ConnTint::Brand(colour),
+            },
+            title,
+            None,
+        ),
+    }
+}
+
+/// The tool's picture (or coloured glyph) at `size`, centred in a square
+/// `slot` - the dashboard's Functions card.
+fn paint_picture(ui: &mut egui::Ui, f: Function, slot: f32, size: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(slot), egui::Sense::hover());
+    let (picture, glyph, colour) = tool_picture(f);
+    match picture {
+        Some(src) => egui::Image::new(src)
+            .fit_to_exact_size(egui::Vec2::splat(size))
+            .paint_at(
+                ui,
+                egui::Rect::from_center_size(rect.center(), egui::Vec2::splat(size)),
+            ),
+        None => {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                glyph,
+                egui::FontId::proportional(size),
+                colour,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod picture_tests {
+    use super::*;
+
+    /// CR-0076: every Graphics tool wears a picture of its own, or its
+    /// glyph in a colour of its own, and no two tools look alike.
+    #[test]
+    fn every_tool_has_its_own_picture_or_coloured_glyph() {
+        let mut seen = std::collections::HashSet::new();
+        for f in Function::ALL {
+            let (picture, glyph, colour) = tool_picture(f);
+            let look = match picture {
+                Some(egui::ImageSource::Bytes { uri, .. }) => uri.to_string(),
+                Some(other) => panic!("{f:?}: an embedded picture, not {other:?}"),
+                None => {
+                    assert!(!glyph.is_empty(), "{f:?} has a glyph");
+                    assert_ne!(colour, egui::Color32::TRANSPARENT, "{f:?} has a colour");
+                    format!("{glyph}{colour:?}")
+                }
+            };
+            assert!(seen.insert(look), "{f:?} looks like another tool");
+            assert_eq!(function_of(f.kind()), Some(f), "{f:?}'s tab finds it");
+        }
+        assert_eq!(
+            function_of(Kind::Home),
+            None,
+            "the dashboard keeps the rail's icon"
+        );
+        assert!(
+            tool_picture(Function::Image).0.is_some(),
+            "Image wears Material's picture"
+        );
     }
 }
 

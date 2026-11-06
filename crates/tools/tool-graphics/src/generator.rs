@@ -125,6 +125,17 @@ impl GeneratorState {
     /// The output of an `Open in Editor` request, for the parent tab.
     pub fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
+        // A show/hide toggle is the toolbar's first item (CR-0073).
+        let theme = Theme::from_settings(&s.settings.read().appearance);
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_prompt,
+            hs_ui::icons::ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-gen-prompt-pane"),
+        )
+        .tip(s.t("gfx-gen-prompt-pane-tip"));
+        ui.separator();
         if ui
             .add_enabled(
                 self.doc.is_some(),
@@ -172,24 +183,17 @@ impl GeneratorState {
                     "gfx-view-split",
                 ),
             ] {
-                if ui
-                    .selectable_label(self.view == view, format!("{} {}", icon, s.t(key)))
-                    .clicked()
+                if hs_ui::form::selectable_label(
+                    ui,
+                    self.view == view,
+                    format!("{} {}", icon, s.t(key)),
+                )
+                .clicked()
                 {
                     self.view = view;
                 }
             }
         }
-        ui.separator();
-        let theme = Theme::from_settings(&s.settings.read().appearance);
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.show_prompt,
-            hs_ui::icons::ph::SIDEBAR_SIMPLE,
-            &s.t("gfx-gen-prompt-pane"),
-        )
-        .tip(s.t("gfx-gen-prompt-pane-tip"));
     }
 
     pub fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
@@ -234,22 +238,22 @@ impl GeneratorState {
                                 }
                             })
                             .show_ui(ui, |ui| {
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Flow,
                                     s.t("gfx-diagram-flow-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Architecture,
                                     s.t("gfx-diagram-arch-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Erd,
                                     s.t("gfx-diagram-erd-template"),
                                 );
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(ui,
                                     &mut self.kind,
                                     DiagramKind::Sequence,
                                     s.t("gfx-diagram-sequence-template"),
@@ -269,8 +273,7 @@ impl GeneratorState {
                             .selected_text(selected_name)
                             .show_ui(ui, |ui| {
                                 for p in &providers {
-                                    if ui
-                                        .selectable_label(
+                                    if hs_ui::form::selectable_label(ui,
                                             self.provider_id == p.id,
                                             &p.name,
                                         )

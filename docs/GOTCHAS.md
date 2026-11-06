@@ -118,6 +118,17 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 ## Shell and UI Layout (egui)
 
+- **Selectable rows and labels grow 1 px a side on hover, with expansion
+  at zero.** egui 0.35 sizes a button's inner margin as `button_padding +
+  expansion - bg_stroke.width` for its state, and a selectable button
+  (`Button::selectable`, `ui.selectable_label` / `selectable_value` /
+  `toggle_value`) draws no frame while inactive - so the theme's 1 px
+  inactive stroke is subtracted but never drawn, and the item jumps to full
+  size under the pointer. Zeroing `expansion` cannot fix it. Use
+  `hs_ui::form::selectable_label` / `selectable_value` / `toggle_value` /
+  `add_selectable`, which draw with no inactive stroke (owner's report,
+  2026-11-07: Containers, Redis, NoSQL).
+
 - **A label sits high beside a text field in a `ui.horizontal` row.** egui
   fixes a horizontal row's height from `spacing.interact_size.y` when the
   row opens; a `form::line_edit` is taller (FIELD_MARGIN), so the label is

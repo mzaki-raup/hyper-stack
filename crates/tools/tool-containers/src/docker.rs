@@ -98,6 +98,22 @@ impl Resource {
             Resource::Nodes => "node",
         }
     }
+
+    /// The colour this kind wears in the rail (CR-0074): each kind its
+    /// own, so the column reads at a glance.
+    pub fn colour(self) -> egui::Color32 {
+        let rgb = match self {
+            Resource::Containers => [0x24, 0x96, 0xed],
+            Resource::Projects => [0x8e, 0x6c, 0xef],
+            Resource::Images => [0x26, 0xa6, 0x9a],
+            Resource::Volumes => [0xf9, 0xa8, 0x25],
+            Resource::Networks => [0x43, 0xa0, 0x47],
+            Resource::Stacks => [0xef, 0x6c, 0x00],
+            Resource::Services => [0xd8, 0x1b, 0x60],
+            Resource::Nodes => [0x5c, 0x6b, 0xc0],
+        };
+        egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2])
+    }
 }
 
 /// Why a verb is not available. Saying which is the point: "you cannot"
@@ -161,6 +177,57 @@ pub struct Selection {
     pub container: Option<Container>,
 }
 
+/// One row of an item-kind rail (CR-0074): a 20 px picture - the
+/// Material one when `picture` is given, else `glyph` in the kind's
+/// `colour` - then the name in body text and the count, quieter, in a
+/// 30 px row. Shared by the engine and the cluster rails.
+#[allow(clippy::too_many_arguments)] // reason: one row's parts, each drawn
+pub fn rail_button<'a>(
+    ui: &egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    picture: Option<egui::ImageSource<'a>>,
+    glyph: &str,
+    colour: egui::Color32,
+    name: &str,
+    count: Option<usize>,
+) -> egui::Button<'a> {
+    const PICTURE: f32 = 20.0;
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    let format = |font: egui::FontId, color: egui::Color32| egui::TextFormat {
+        font_id: font,
+        color,
+        valign: egui::Align::Center,
+        ..Default::default()
+    };
+    let mut label = egui::text::LayoutJob::default();
+    if picture.is_none() {
+        label.append(
+            glyph,
+            0.0,
+            format(egui::FontId::proportional(PICTURE), colour),
+        );
+        label.append("  ", 0.0, format(body.clone(), theme.text));
+    }
+    // The count is the quieter half of the row: it changes on every
+    // refresh, and the name is what is being chosen.
+    label.append(&format!("{name}  "), 0.0, format(body.clone(), theme.text));
+    if let Some(n) = count {
+        label.append(&n.to_string(), 0.0, format(body, theme.text_muted));
+    }
+    let button = match picture {
+        Some(src) => egui::Button::selectable(
+            selected,
+            (
+                egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(PICTURE)),
+                label,
+            ),
+        ),
+        None => egui::Button::selectable(selected, label),
+    };
+    button.min_size(egui::vec2(140.0, 30.0))
+}
+
 /// Draw the resource rail. Returns the resource clicked, if any.
 ///
 /// `swarm` says whether the engine is a swarm manager: the three Swarm
@@ -176,6 +243,7 @@ pub fn resource_rail(
     swarm: hs_container::swarm::SwarmState,
 ) -> Option<Resource> {
     let mut picked = None;
+    let material = s.settings.read().appearance.material_icons("containers");
     ui.vertical(|ui| {
         ui.set_width(150.0);
         for (i, r) in Resource::ALL.into_iter().enumerate() {
@@ -188,27 +256,23 @@ pub fn resource_rail(
                 );
                 ui.add_space(2.0);
             }
-            // The count is the quieter half of the row: it changes on
-            // every refresh, and the name is what is being chosen.
-            let mut label = egui::text::LayoutJob::default();
-            let font = egui::FontId::proportional(14.0);
-            label.append(
-                &format!("{}  {}  ", r.icon(), s.t(r.key())),
-                0.0,
-                egui::TextFormat::simple(font.clone(), theme.text),
-            );
-            if let Some(n) = counts.get(i) {
-                label.append(
-                    &n.to_string(),
-                    0.0,
-                    egui::TextFormat::simple(font, theme.text_muted),
-                );
-            }
+            // Material icons on: the resource's picture leads the button
+            // in place of its glyph, as on the cluster rail.
+            let picture = hs_ui::fileicons::for_kind(r.kind()).filter(|_| material);
             let usable = !r.is_swarm() || swarm.can_manage();
-            let resp = ui.add_enabled(
-                usable,
-                egui::Button::selectable(current == r, label).min_size(egui::vec2(140.0, 0.0)),
+            let button = rail_button(
+                ui,
+                theme,
+                current == r,
+                picture,
+                r.icon(),
+                r.colour(),
+                &s.t(r.key()),
+                counts.get(i).copied(),
             );
+            let resp = ui
+                .add_enabled_ui(usable, |ui| hs_ui::form::add_selectable(ui, button))
+                .inner;
             let resp = if usable {
                 resp
             } else {

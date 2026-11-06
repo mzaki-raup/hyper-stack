@@ -1307,7 +1307,9 @@ impl TrackerTool {
         let mut save = false;
         let mut remove: Option<usize> = None;
         let mut pick: Option<String> = None;
-        ui.horizontal(|ui| {
+        // Field height for the icon buttons too, so they line up with the
+        // query field beside them.
+        hs_ui::form::centred_row(ui, |ui| {
             let width = (ui.available_width() - 120.0).max(120.0);
             let r = ui.add(
                 hs_ui::form::line_edit(&mut self.query_text)
@@ -1579,12 +1581,12 @@ impl TrackerTool {
                 )
                 .show_ui(ui, |ui| {
                     for sp in &spaces {
-                        if ui
-                            .selectable_label(
-                                current.as_ref() == Some(sp),
-                                format!("{} ({})", sp.name, sp.key),
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            current.as_ref() == Some(sp),
+                            format!("{} ({})", sp.name, sp.key),
+                        )
+                        .clicked()
                         {
                             picked = Some(sp.clone());
                         }
@@ -1633,9 +1635,12 @@ impl TrackerTool {
                     ui.horizontal(|ui| {
                         ui.add_space(depth as f32 * 14.0);
                         let selected = self.state.page.as_ref() == Some(&p.id);
-                        if ui
-                            .selectable_label(selected, format!("{} {}", ph::FILE_TEXT, p.title))
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            selected,
+                            format!("{} {}", ph::FILE_TEXT, p.title),
+                        )
+                        .clicked()
                             && !selected
                         {
                             open = Some(p.id.clone());
@@ -2102,7 +2107,7 @@ impl TrackerTool {
                     .selected_text(item.kind.clone())
                     .show_ui(ui, |ui| {
                         for k in &spec.kinds {
-                            ui.selectable_value(&mut item.kind, k.clone(), k);
+                            hs_ui::form::selectable_value(ui, &mut item.kind, k.clone(), k);
                         }
                     });
                 ui.end_row();
@@ -2113,9 +2118,9 @@ impl TrackerTool {
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(item.priority.clone())
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut item.priority, String::new(), "—");
+                        hs_ui::form::selectable_value(ui, &mut item.priority, String::new(), "—");
                         for p in &spec.priorities {
-                            ui.selectable_value(&mut item.priority, p.clone(), p);
+                            hs_ui::form::selectable_value(ui, &mut item.priority, p.clone(), p);
                         }
                     });
                 ui.end_row();

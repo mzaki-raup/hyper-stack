@@ -243,7 +243,9 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .selected_text(st.cfg.algo.name())
                 .show_ui(ui, |ui| {
                     for a in [Algo::HmacSha512Aes256, Algo::Md5Des] {
-                        if ui.selectable_value(&mut st.cfg.algo, a, a.name()).clicked() {
+                        if hs_ui::form::selectable_value(ui, &mut st.cfg.algo, a, a.name())
+                            .clicked()
+                        {
                             st.cfg.salt_bytes = 8;
                             st.cfg.iv_bytes = 16;
                         }
@@ -270,8 +272,8 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-output"));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut st.cfg.hex, false, "Base64");
-                ui.selectable_value(&mut st.cfg.hex, true, "hex");
+                hs_ui::form::selectable_value(ui, &mut st.cfg.hex, false, "Base64");
+                hs_ui::form::selectable_value(ui, &mut st.cfg.hex, true, "hex");
                 ui.checkbox(&mut st.cfg.enc_wrapper, s.t("dt-jasypt-enc"));
             });
             ui.end_row();

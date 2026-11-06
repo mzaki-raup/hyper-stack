@@ -65,8 +65,8 @@ pub enum HomeRequest {
 pub struct HomeHub {
     /// Filled by the shell once: every registered tool.
     pub tools: Vec<ToolDescriptor>,
-    /// Filled by the shell each frame: (index, factory id, title).
-    pub closed: Vec<(usize, String, String)>,
+    /// Filled by the shell each frame: (index, factory id, title, icon).
+    pub closed: Vec<crate::launcher::RecentTab>,
     /// Workspace names from the registry, current first.
     pub workspaces: Vec<String>,
     pub requests: Vec<HomeRequest>,

@@ -1313,13 +1313,19 @@ impl ContainersTool {
                 egui::ComboBox::from_id_salt("cluster-namespace")
                     .selected_text(current)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut self.state.namespace,
                             String::new(),
                             s.t("cluster-all-namespaces"),
                         );
                         for n in &inv.namespaces {
-                            ui.selectable_value(&mut self.state.namespace, n.clone(), n);
+                            hs_ui::form::selectable_value(
+                                ui,
+                                &mut self.state.namespace,
+                                n.clone(),
+                                n,
+                            );
                         }
                     });
             });
@@ -1482,7 +1488,7 @@ impl ContainersTool {
         let row_w = (ui.available_width() - 14.0).max(80.0);
         ui.scope(|ui| {
             ui.set_max_width(row_w);
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
                 ui.label(egui::RichText::new(&title).strong());
                 hs_ui::toolbar::hard_right(ui, |ui| {
                     if ui.button(s.t("cluster-detail-close")).clicked() {
@@ -1511,7 +1517,7 @@ impl ContainersTool {
         // out under a pointer egui still reports as clicking.
         let fresh = ui.input(|i| i.time) <= self.cluster_selected_at;
         let refusal = docker::guard(s, profile);
-        ui.horizontal_wrapped(|ui| {
+        form::centred_row_wrapped(ui, |ui| {
             let asked = self.yaml.is_some() || self.yaml_pending.is_some();
             if ui
                 .add_enabled(!fresh && !asked, egui::Button::new(s.t("cluster-yaml")))
@@ -1667,7 +1673,7 @@ impl ContainersTool {
         ui.add_space(4.0);
         let mut stop: Option<usize> = None;
         for (i, f) in self.forwards.iter().enumerate() {
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
                 ui.label(
                     egui::RichText::new(&f.target)
                         .small()
@@ -2525,7 +2531,7 @@ impl ContainersTool {
         // This block came into existence on the click that is still
         // being held; its buttons must not act on it.
         let fresh = ui.input(|i| i.time) == self.selected_at;
-        ui.horizontal(|ui| {
+        form::centred_row(ui, |ui| {
             ui.label(egui::RichText::new(&c.name).strong());
             ui.label(
                 egui::RichText::new(&c.image)
@@ -2615,7 +2621,14 @@ impl ContainersTool {
         }
         let fields = ContainerFields::from_table(&profile.fields);
         let reach = hs_container::Reachable::of(&fields, self.ssh_host(s, profile).as_deref());
-        ui.horizontal_wrapped(|ui| {
+        // The first address that opens in a browser, for the row's own
+        // Open in Browser button (CR-0075); each port's right-click offers
+        // the same for that port.
+        let first_url = c
+            .ports
+            .iter()
+            .find_map(|p| hs_container::port_url(p, &reach));
+        form::centred_row_wrapped(ui, |ui| {
             ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
             ui.spacing_mut().item_spacing.x = form::PANE_GAP;
             ui.label(
@@ -2655,6 +2668,19 @@ impl ContainersTool {
                         ui.close();
                     }
                 });
+            }
+            if let Some(url) = &first_url
+                && ui
+                    .button(format!(
+                        "{} {}",
+                        ph::GLOBE,
+                        s.t("container-open-in-browser")
+                    ))
+                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                    .tip(s.i18n.t_args("container-open-url", &[("url", url)]))
+                    .clicked()
+            {
+                open_url(cx_actions, url);
             }
         });
         ui.add_space(form::PANE_GAP);
@@ -3313,6 +3339,13 @@ impl Tool for ContainersTool {
     fn tab_icon_uri(&self) -> Option<String> {
         self.tab_icon()?;
         hs_ui::icons::conn_icon(&self.state.host_kind, "").uri()
+    }
+
+    /// The engine's colour for the glyph where it has no logo, as the
+    /// header band draws it.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        self.tab_icon()?;
+        hs_ui::icons::conn_icon(&self.state.host_kind, "").brand()
     }
 
     /// A dashboard reports **no** uri, or it takes every request for the

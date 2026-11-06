@@ -90,6 +90,21 @@ impl Resource {
         }
     }
 
+    /// The colour this kind wears in the rail (CR-0074).
+    pub fn colour(self) -> egui::Color32 {
+        let rgb = match self {
+            Resource::Pods => [0x24, 0x96, 0xed],
+            Resource::Workloads => [0xef, 0x6c, 0x00],
+            Resource::Services => [0xd8, 0x1b, 0x60],
+            Resource::Configs => [0x00, 0xac, 0xc1],
+            Resource::Claims => [0xf9, 0xa8, 0x25],
+            Resource::Nodes => [0x5c, 0x6b, 0xc0],
+            Resource::Events => [0xff, 0xb3, 0x00],
+            Resource::Custom => [0x8d, 0x6e, 0x63],
+        };
+        egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2])
+    }
+
     /// Whether this resource lives in a namespace. Nodes do not, so the
     /// namespace picker is irrelevant to them and saying otherwise
     /// would imply a filter that does nothing.
@@ -751,35 +766,17 @@ pub fn resource_rail(
                 .kind()
                 .filter(|_| material)
                 .and_then(hs_ui::fileicons::for_kind);
-            let mut label = egui::text::LayoutJob::default();
-            let font = egui::FontId::proportional(14.0);
-            let text = match picture {
-                Some(_) => format!("{}  ", s.t(r.key())),
-                None => format!("{}  {}  ", r.icon(), s.t(r.key())),
-            };
-            label.append(
-                &text,
-                0.0,
-                egui::TextFormat::simple(font.clone(), theme.text),
+            let button = crate::docker::rail_button(
+                ui,
+                theme,
+                current == r,
+                picture,
+                r.icon(),
+                r.colour(),
+                &s.t(r.key()),
+                counts.get(i).copied(),
             );
-            if let Some(n) = counts.get(i) {
-                label.append(
-                    &n.to_string(),
-                    0.0,
-                    egui::TextFormat::simple(font, theme.text_muted),
-                );
-            }
-            let button = match picture {
-                Some(src) => egui::Button::selectable(
-                    current == r,
-                    (
-                        egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(16.0)),
-                        label,
-                    ),
-                ),
-                None => egui::Button::selectable(current == r, label),
-            };
-            if ui.add(button.min_size(egui::vec2(140.0, 0.0))).clicked() {
+            if hs_ui::form::add_selectable(ui, button).clicked() {
                 picked = Some(r);
             }
             ui.add_space(2.0);

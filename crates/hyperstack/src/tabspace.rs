@@ -27,6 +27,34 @@ pub struct ClosedTab {
     pub factory_id: String,
     pub state: serde_json::Value,
     pub title: String,
+    /// The icon the tab wore when it was closed, so Home's Recent shows
+    /// the same mark (CR-0079).
+    pub icon: TabIcon,
+}
+
+/// A tab's icon as the strip drew it: the glyph, the picture drawn
+/// instead of it, and the glyph's own colour.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TabIcon {
+    pub glyph: &'static str,
+    pub uri: Option<String>,
+    pub colour: Option<Color32>,
+}
+
+impl TabIcon {
+    /// What `tool`'s tab shows. A workspace's logo is left out: it
+    /// belongs to the home tab, which is never closed.
+    pub fn of(tool: &dyn Tool) -> Self {
+        Self {
+            glyph: tool.tab_icon().unwrap_or(tool.descriptor().icon),
+            uri: if tool.tab_wears_workspace_logo() {
+                None
+            } else {
+                tool.tab_icon_uri()
+            },
+            colour: tool.tab_icon_colour(),
+        }
+    }
 }
 
 pub struct TabSpace {
@@ -332,11 +360,13 @@ impl TabSpace {
             factory_id: entry.factory_id.clone(),
             state: entry.tool.save_state(),
             title: entry.tool.title().to_string(),
+            icon: TabIcon::of(entry.tool.as_ref()),
         };
         self.closed.push(ClosedTab {
             factory_id: closed.factory_id.clone(),
             state: closed.state.clone(),
             title: closed.title.clone(),
+            icon: closed.icon.clone(),
         });
         if self.closed.len() > 20 {
             self.closed.remove(0);
@@ -707,6 +737,11 @@ mod tests {
                 factory_id: "devtools".into(),
                 state: serde_json::Value::Null,
                 title: title.into(),
+                icon: TabIcon {
+                    glyph: "x",
+                    uri: None,
+                    colour: None,
+                },
             });
         }
         space.remove_closed(1);

@@ -516,7 +516,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
     form::page_title(ui, theme, &s.t("dt-convert"), Some(&s.t("dt-convert-sub")));
     ui.horizontal_wrapped(|ui| {
         for p in Pane::ALL {
-            ui.selectable_value(&mut st.pane, p, s.t(p.label_key()));
+            hs_ui::form::selectable_value(ui, &mut st.pane, p, s.t(p.label_key()));
         }
     });
     ui.add_space(8.0);
@@ -543,7 +543,7 @@ fn unit_combo<T: PartialEq + Copy>(
         .selected_text(label(*value))
         .show_ui(ui, |ui| {
             for u in all {
-                ui.selectable_value(value, *u, label(*u));
+                hs_ui::form::selectable_value(ui, value, *u, label(*u));
             }
         });
 }
@@ -696,7 +696,7 @@ fn number_pane(
                     .desired_width(220.0),
             );
             for (base, label) in [(10u32, "DEC"), (2, "BIN"), (8, "OCT"), (16, "HEX")] {
-                ui.selectable_value(&mut st.number_base, base, label);
+                hs_ui::form::selectable_value(ui, &mut st.number_base, base, label);
             }
         });
         form::hint(ui, theme, &s.t("dt-conv-number-note"));
@@ -731,8 +731,14 @@ fn epoch_pane(
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-epoch"), |ui| {
         ui.horizontal(|ui| {
-            ui.selectable_value(&mut st.epoch_unit, EpochUnit::Seconds, s.t("dt-unit-s"));
-            ui.selectable_value(
+            hs_ui::form::selectable_value(
+                ui,
+                &mut st.epoch_unit,
+                EpochUnit::Seconds,
+                s.t("dt-unit-s"),
+            );
+            hs_ui::form::selectable_value(
+                ui,
                 &mut st.epoch_unit,
                 EpochUnit::Milliseconds,
                 s.t("dt-unit-ms"),

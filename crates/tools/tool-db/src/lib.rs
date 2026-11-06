@@ -1550,15 +1550,19 @@ impl DbTool {
                                     .and_then(hs_ui::fileicons::for_kind);
                                 let r = ui.horizontal(|ui| {
                                     let r = match picture {
-                                        Some(src) => ui.add(egui::Button::selectable(
-                                            i == p.selected,
-                                            (
-                                                egui::Image::new(src)
-                                                    .fit_to_exact_size(egui::Vec2::splat(14.0)),
-                                                it.label.as_str(),
+                                        Some(src) => hs_ui::form::add_selectable(
+                                            ui,
+                                            egui::Button::selectable(
+                                                i == p.selected,
+                                                (
+                                                    egui::Image::new(src)
+                                                        .fit_to_exact_size(egui::Vec2::splat(14.0)),
+                                                    it.label.as_str(),
+                                                ),
                                             ),
-                                        )),
-                                        None => ui.selectable_label(
+                                        ),
+                                        None => hs_ui::form::selectable_label(
+                                            ui,
                                             i == p.selected,
                                             format!("{icon} {}", it.label),
                                         ),
@@ -2465,9 +2469,11 @@ impl DbTool {
                         ui.separator();
                         ui.label(s.t("db-import-delimiter"));
                         for (d, label) in [(b',', ","), (b';', ";"), (b'\t', "Tab"), (b'|', "|")] {
-                            if ui
-                                .add(egui::Button::selectable(imp.opts.delimiter == d, label))
-                                .clicked()
+                            if hs_ui::form::add_selectable(
+                                ui,
+                                egui::Button::selectable(imp.opts.delimiter == d, label),
+                            )
+                            .clicked()
                             {
                                 imp.opts.delimiter = d;
                             }
@@ -2518,12 +2524,12 @@ impl DbTool {
                                                     .selected_text(shown)
                                                     .width(220.0)
                                                     .show_ui(ui, |ui| {
-                                                        if ui
-                                                            .selectable_label(
-                                                                m.is_none(),
-                                                                s.t("db-import-skip"),
-                                                            )
-                                                            .clicked()
+                                                        if hs_ui::form::selectable_label(
+                                                            ui,
+                                                            m.is_none(),
+                                                            s.t("db-import-skip"),
+                                                        )
+                                                        .clicked()
                                                             && let Some(slot) =
                                                                 imp.mapping.get_mut(ci)
                                                         {
@@ -2531,9 +2537,12 @@ impl DbTool {
                                                         }
                                                         for (fi, h) in p.headers.iter().enumerate()
                                                         {
-                                                            if ui
-                                                                .selectable_label(m == Some(fi), h)
-                                                                .clicked()
+                                                            if hs_ui::form::selectable_label(
+                                                                ui,
+                                                                m == Some(fi),
+                                                                h,
+                                                            )
+                                                            .clicked()
                                                                 && let Some(slot) =
                                                                     imp.mapping.get_mut(ci)
                                                             {
@@ -2715,14 +2724,17 @@ impl DbTool {
                             .selected_text(dialect.label())
                             .show_ui(ui, |ui| {
                                 for e in Engine::ALL {
-                                    ui.selectable_value(dialect, e, e.label());
+                                    hs_ui::form::selectable_value(ui, dialect, e, e.label());
                                 }
                             });
                     });
                     ui.horizontal_wrapped(|ui| {
                         ui.checkbox(&mut opts.if_not_exists, s.t("db-ddl-if-not-exists"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.drop_first, s.t("db-ddl-drop-first"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.indexes, s.t("db-ddl-indexes"));
+                        ui.add_space(hs_ui::form::OPTION_GAP);
                         ui.checkbox(&mut opts.foreign_keys, s.t("db-ddl-keys"));
                     });
                     // Only re-walk the schema when something actually changed.
@@ -2805,7 +2817,7 @@ impl DbTool {
                             .width(260.0)
                             .show_ui(ui, |ui| {
                                 for (id, name) in &others {
-                                    ui.selectable_value(conn_id, id.clone(), name);
+                                    hs_ui::form::selectable_value(ui, conn_id, id.clone(), name);
                                 }
                             });
                         ui.end_row();
@@ -3855,19 +3867,26 @@ impl DbTool {
 
     /// Plan / Raw for an EXPLAIN result.
     fn plan_toggle(&mut self, ui: &mut egui::Ui, s: &Services) {
-        ui.horizontal(|ui| {
-            if ui
-                .add(egui::Button::selectable(
+        hs_ui::toolbar::sub_strip(ui, |ui| {
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(
                     !self.plan_raw,
-                    s.t("db-plan-tree"),
-                ))
-                .clicked()
+                    format!("{} {}", ph::TREE_STRUCTURE, s.t("db-plan-tree")),
+                ),
+            )
+            .clicked()
             {
                 self.plan_raw = false;
             }
-            if ui
-                .add(egui::Button::selectable(self.plan_raw, s.t("db-plan-raw")))
-                .clicked()
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(
+                    self.plan_raw,
+                    format!("{} {}", ph::FILE_TEXT, s.t("db-plan-raw")),
+                ),
+            )
+            .clicked()
             {
                 self.plan_raw = true;
             }
@@ -4218,6 +4237,18 @@ impl Tool for DbTool {
                 .tip(tip)
                 .clicked()
         };
+        // The schema column can be hidden, as the Editor's project column
+        // can (CR-0069); a show/hide toggle is the toolbar's first item
+        // (CR-0073).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_schema,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("db-schema-column"),
+        )
+        .tip(s.t("db-schema-column-tip"));
+        ui.separator();
         if btn(
             ui,
             ready && !running,
@@ -4271,8 +4302,18 @@ impl Tool for DbTool {
             .selected_text(tx_label)
             .width(110.0)
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.state.manual_tx, false, s.t("db-tx-auto"));
-                ui.selectable_value(&mut self.state.manual_tx, true, s.t("db-tx-manual"));
+                hs_ui::form::selectable_value(
+                    ui,
+                    &mut self.state.manual_tx,
+                    false,
+                    s.t("db-tx-auto"),
+                );
+                hs_ui::form::selectable_value(
+                    ui,
+                    &mut self.state.manual_tx,
+                    true,
+                    s.t("db-tx-manual"),
+                );
             });
         if self.state.manual_tx || in_tx {
             if btn(
@@ -4317,7 +4358,7 @@ impl Tool for DbTool {
             .width(100.0)
             .show_ui(ui, |ui| {
                 for &l in LIMITS {
-                    ui.selectable_value(&mut self.state.limit, l, limit_text(l));
+                    hs_ui::form::selectable_value(ui, &mut self.state.limit, l, limit_text(l));
                 }
             });
         let timeout_text = |t: u64| {
@@ -4336,7 +4377,12 @@ impl Tool for DbTool {
             .width(100.0)
             .show_ui(ui, |ui| {
                 for &t in TIMEOUTS {
-                    ui.selectable_value(&mut self.state.timeout_secs, t, timeout_text(t));
+                    hs_ui::form::selectable_value(
+                        ui,
+                        &mut self.state.timeout_secs,
+                        t,
+                        timeout_text(t),
+                    );
                 }
             });
         ui.separator();
@@ -4372,16 +4418,6 @@ impl Tool for DbTool {
         ) {
             self.run_command("file.save", cx);
         }
-        // The schema column can be hidden, as the Editor's project column
-        // can (CR-0069).
-        hs_ui::toolbar::toggle(
-            ui,
-            &theme,
-            &mut self.show_schema,
-            ph::SIDEBAR_SIMPLE,
-            &s.t("db-schema-column"),
-        )
-        .tip(s.t("db-schema-column-tip"));
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
             // the same place: hard right of the toolbar.
@@ -4814,7 +4850,7 @@ impl DbTool {
                             } else {
                                 format!("{} {}", ph::FILE_SQL, q.name)
                             };
-                            ui.selectable_label(current, label)
+                            hs_ui::form::selectable_label(ui, current, label)
                         });
                         if r.clicked() {
                             open = Some(q.path.clone());
@@ -4852,6 +4888,7 @@ impl DbTool {
                 ui.add_space(6.0);
                 ui.separator();
                 ui.add_space(6.0);
+                let history_empty = self.history_rows.lock().is_empty();
                 egui::CollapsingHeader::new(format!(
                     "{} {}",
                     ph::CLOCK_COUNTER_CLOCKWISE,
@@ -4943,7 +4980,10 @@ impl DbTool {
                 .header_response
                 .context_menu(|ui| {
                     if ui
-                        .button(format!("{} {}", ph::BROOM, s.t("db-history-clear")))
+                        .add_enabled(
+                            !history_empty,
+                            egui::Button::new(format!("{} {}", ph::BROOM, s.t("db-history-clear"))),
+                        )
                         .clicked()
                     {
                         self.list_confirm = Some(ListConfirm::ClearHistory);
@@ -5079,6 +5119,7 @@ impl DbTool {
             dirty: bool,
             designer: bool,
             image: Option<egui::ImageSource<'static>>,
+            colour: Option<egui::Color32>,
         }
         impl hs_ui::tabs::TabItem for QueryTab {
             fn id(&self) -> u64 {
@@ -5097,6 +5138,9 @@ impl DbTool {
             fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
                 self.image.clone()
             }
+            fn icon_colour(&self) -> Option<egui::Color32> {
+                self.colour
+            }
             fn pinned(&self) -> bool {
                 false
             }
@@ -5111,6 +5155,14 @@ impl DbTool {
         let table_image = material
             .then(|| hs_ui::fileicons::for_kind("table"))
             .flatten();
+        // Off: the glyph in the colour of the picture it stands in for.
+        let query_colour = (!material)
+            .then(|| hs_ui::fileicons::picture_colour(&hs_ui::fileicons::for_file("query.sql")))
+            .flatten();
+        let table_colour = (!material)
+            .then(|| hs_ui::fileicons::for_kind("table"))
+            .flatten()
+            .and_then(|p| hs_ui::fileicons::picture_colour(&p));
         let untitled = s.t("db-untitled");
         let design = s.t("db-designer-tab");
         let new_table = s.t("db-designer-new");
@@ -5123,6 +5175,7 @@ impl DbTool {
                 dirty: d.buf.dirty(),
                 designer: false,
                 image: query_image.clone(),
+                colour: query_colour,
             })
             .collect();
         // Designers sit after the query tabs (FEAT-0103).
@@ -5132,6 +5185,7 @@ impl DbTool {
             dirty: false,
             designer: true,
             image: table_image.clone(),
+            colour: table_colour,
         }));
         let active = self.active_designer.unwrap_or(self.doc().uid);
         let labels = hs_ui::tabs::TabStripLabels {

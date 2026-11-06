@@ -472,8 +472,8 @@ pub fn page(
             changed |=
                 form::slider(ui, theme, egui::Slider::new(&mut st.ai.max_rounds, 1..=12)).changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-max-rounds-hint"));
         });
-        form::hint(ui, theme, &s.t("ai-max-rounds-hint"));
     });
     // Everything about providers in one card - Add, the list and the
     // configuration - so the page reads as sections rather than a card
@@ -481,7 +481,6 @@ pub fn page(
     form::section(ui, theme, &s.t("ai-section-providers"), |ui| {
         form::hint(ui, theme, &s.t("ai-providers-hint"));
         form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-privacy-note"));
-        ui.add_space(8.0);
         // The right column needs a real width: inside a horizontal layout
         // `available_width` is unbounded, and a wrapped row would never
         // wrap. Measured inside the card, so it is the card's width.
@@ -497,7 +496,6 @@ pub fn page(
                     state.draft = None;
                     state.selected = None;
                 }
-                ui.add_space(8.0);
                 let (list, default_id) = {
                     let st = s.settings.read();
                     (
@@ -516,18 +514,11 @@ pub fn page(
                     if rows.is_empty() {
                         continue;
                     }
-                    ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new(format!(
-                            "{} {}",
-                            capability_icon(cap),
-                            capability_label(s, cap)
-                        ))
-                        .small()
-                        .strong()
-                        .color(theme.text_muted),
+                    form::subsection(
+                        ui,
+                        theme,
+                        &format!("{} {}", capability_icon(cap), capability_label(s, cap)),
                     );
-                    ui.add_space(2.0);
                     for p in rows {
                         let star = if default_id.as_deref() == Some(&p.id) {
                             "★ "
@@ -559,7 +550,6 @@ pub fn page(
                             state.selected = Some(p.id.clone());
                             state.draft = Some(Draft::new(p.clone()));
                         }
-                        ui.add_space(2.0);
                     }
                 }
             });
@@ -611,7 +601,6 @@ fn prompt_buttons(
     }
     form::section(ui, theme, &s.t("ai-section-prompts"), |ui| {
         form::hint(ui, theme, &s.t("ai-prompts-hint"));
-        ui.add_space(8.0);
         form::field_grid(ui, "ai-prompt-activity", |ui| {
             form::label(ui, &s.t("ai-prompts-activity"));
             let here = state.prompt_activity.clone();
@@ -625,8 +614,7 @@ fn prompt_buttons(
                 .selected_text(name)
                 .show_ui(ui, |ui| {
                     for (id, key) in prompts::ACTIVITIES {
-                        if ui
-                            .selectable_label(state.prompt_activity == *id, s.t(key))
+                        if hs_ui::form::selectable_label(ui, state.prompt_activity == *id, s.t(key))
                             .clicked()
                         {
                             state.prompt_activity = (*id).to_string();
@@ -636,7 +624,6 @@ fn prompt_buttons(
                 });
             ui.end_row();
         });
-        ui.add_space(8.0);
 
         let activity = state.prompt_activity.clone();
         let text = |k: &str| s.t(k);
@@ -647,7 +634,7 @@ fn prompt_buttons(
         let mut reorder = hs_ui::reorder::Reorder::new("ai-prompt-list");
         for (i, b) in list.iter_mut().enumerate() {
             reorder.row(ui, i, |ui| {
-                ui.horizontal(|ui| {
+                form::centred_row(ui, |ui| {
                     // Show is a switch, not a delete: a shipped button
                     // cannot be removed, only put away.
                     let mut shown = !b.hidden;
@@ -656,15 +643,14 @@ fn prompt_buttons(
                         dirty = true;
                     }
                     let open = state.prompt_editing.as_deref() == Some(b.id.as_str());
-                    if ui
-                        .add(egui::Button::selectable(open, &b.label))
+                    if hs_ui::form::add_selectable(ui, egui::Button::selectable(open, &b.label))
                         .tip(&b.prompt)
                         .clicked()
                     {
                         state.prompt_editing = if open { None } else { Some(b.id.clone()) };
                     }
                     if !b.shipped
-                        && form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                        && form::button(ui, theme, hs_ui::icons::TRASH, "")
                             .tip(s.t("ai-prompts-delete"))
                             .clicked()
                     {
@@ -684,7 +670,6 @@ fn prompt_buttons(
                     });
                 });
             }
-            ui.add_space(2.0);
         }
         let moved = reorder.finish(ui, theme.accent);
 
@@ -696,9 +681,8 @@ fn prompt_buttons(
             list.remove(i);
             dirty = true;
         }
-        ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if ui.button(s.t("ai-prompts-add")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::PLUS, &s.t("ai-prompts-add")).clicked() {
                 let id = format!("user-{}", hs_core::new_id());
                 list.push(prompts::Resolved {
                     label: s.t("ai-prompts-new"),
@@ -710,10 +694,14 @@ fn prompt_buttons(
                 state.prompt_editing = Some(id);
                 dirty = true;
             }
-            if ui
-                .button(s.t("ai-prompts-reset"))
-                .tip(s.t("ai-prompts-reset-tip"))
-                .clicked()
+            if form::button(
+                ui,
+                theme,
+                ph::ARROW_COUNTER_CLOCKWISE,
+                &s.t("ai-prompts-reset"),
+            )
+            .tip(s.t("ai-prompts-reset-tip"))
+            .clicked()
             {
                 s.settings.write().ai.prompts.reset(&activity);
                 state.prompt_editing = None;
@@ -735,19 +723,11 @@ fn gallery(ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<AiProvider>
     form::section(ui, theme, &s.t("ai-add-title"), |ui| {
         form::hint(ui, theme, &s.t("ai-add-hint"));
         for (cap, groups) in CATALOGUE {
-            ui.add_space(10.0);
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(capability_icon(*cap))
-                        .size(16.0)
-                        .color(theme.accent),
-                );
-                ui.label(
-                    egui::RichText::new(capability_label(s, *cap))
-                        .size(14.0)
-                        .strong(),
-                );
-            });
+            form::subsection(
+                ui,
+                theme,
+                &format!("{} {}", capability_icon(*cap), capability_label(s, *cap)),
+            );
             form::hint(
                 ui,
                 theme,
@@ -757,14 +737,12 @@ fn gallery(ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<AiProvider>
                 }),
             );
             for (group, services) in *groups {
-                ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(s.t(group))
                         .small()
                         .strong()
                         .color(theme.text_muted),
                 );
-                ui.add_space(4.0);
                 // A computed grid, not `horizontal_wrapped`: that wraps on the
                 // size a widget reports *before* it is drawn, which a frame
                 // cannot do, so a row of cards would run past the panel.
@@ -790,10 +768,8 @@ fn gallery(ui: &mut egui::Ui, theme: &Theme, s: &Services) -> Option<AiProvider>
                             }
                         }
                     });
-                    ui.add_space(spacing);
                 }
             }
-            ui.add_space(4.0);
             ui.separator();
         }
     });
@@ -968,7 +944,12 @@ fn form_body(
                                 .color(theme.text_muted),
                         );
                         for k in Provider::all().into_iter().filter(|k| k.capability() == c) {
-                            ui.selectable_value(&mut d.provider.kind, k, kind_label(s, k));
+                            hs_ui::form::selectable_value(
+                                ui,
+                                &mut d.provider.kind,
+                                k,
+                                kind_label(s, k),
+                            );
                         }
                     }
                 });
@@ -985,6 +966,20 @@ fn form_body(
             );
             form::text_field(ui, &mut d.provider.base_url, d.provider.kind.default_base());
             ui.end_row();
+            if cap != Capability::Chat {
+                form::row_hint(
+                    ui,
+                    theme,
+                    &s.t(match kind {
+                        Provider::SdWebUi => "ai-server-hint-webui",
+                        Provider::ComfyUi => "ai-server-hint-comfyui",
+                        Provider::SwarmUi => "ai-server-hint-swarmui",
+                        Provider::InvokeAi => "ai-server-hint-invokeai",
+                        Provider::Fal => "ai-server-hint-fal",
+                        _ => "ai-server-hint-fooocus",
+                    }),
+                );
+            }
             if kind.needs_region() {
                 form::label(ui, &s.t("ai-region"));
                 form::text_field(ui, &mut d.provider.region, "us-east-1");
@@ -1041,6 +1036,18 @@ fn form_body(
                 );
                 model_field(ui, d, "ai-models", |p| &mut p.model, kind.default_model());
                 ui.end_row();
+                form::row_hint(
+                    ui,
+                    theme,
+                    &s.t(match kind {
+                        Provider::OneMin => "ai-model-hint-1min",
+                        Provider::Anthropic => "ai-model-hint-anthropic",
+                        Provider::Gemini => "ai-model-hint-gemini",
+                        Provider::Azure => "ai-model-hint-azure",
+                        Provider::Bedrock => "ai-model-hint-bedrock",
+                        _ => "ai-model-hint-openai",
+                    }),
+                );
                 // Whether a picture may go with a question. Auto reads the
                 // model's name, which is right for the models people
                 // configure and keeps a code model from being handed an
@@ -1052,48 +1059,19 @@ fn form_body(
                     .selected_text(s.t(here.key()))
                     .show_ui(ui, |ui| {
                         for v in ai::VisionSupport::ALL {
-                            if ui.selectable_label(here == v, s.t(v.key())).clicked() {
+                            if hs_ui::form::selectable_label(ui, here == v, s.t(v.key())).clicked()
+                            {
                                 d.provider.vision = v;
                             }
                         }
                     });
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("ai-vision-hint"));
             }
         });
-        if cap == Capability::Chat {
-            form::hint(ui, theme, &s.t("ai-vision-hint"));
-        }
-        if cap == Capability::Chat {
-            form::hint(
-                ui,
-                theme,
-                &s.t(match kind {
-                    Provider::OneMin => "ai-model-hint-1min",
-                    Provider::Anthropic => "ai-model-hint-anthropic",
-                    Provider::Gemini => "ai-model-hint-gemini",
-                    Provider::Azure => "ai-model-hint-azure",
-                    Provider::Bedrock => "ai-model-hint-bedrock",
-                    _ => "ai-model-hint-openai",
-                }),
-            );
-        } else {
-            form::hint(
-                ui,
-                theme,
-                &s.t(match kind {
-                    Provider::SdWebUi => "ai-server-hint-webui",
-                    Provider::ComfyUi => "ai-server-hint-comfyui",
-                    Provider::SwarmUi => "ai-server-hint-swarmui",
-                    Provider::InvokeAi => "ai-server-hint-invokeai",
-                    Provider::Fal => "ai-server-hint-fal",
-                    _ => "ai-server-hint-fooocus",
-                }),
-            );
-        }
         if kind.whole_answer_only() {
             form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-no-stream-note"));
         }
-        ui.add_space(6.0);
         ui.horizontal(|ui| {
             let fetch_label = if cap == Capability::Image && kind != Provider::Fal {
                 s.t("ai-fetch-checkpoints")
@@ -1105,20 +1083,20 @@ fn form_body(
                 // known to work: a list is of no use to a key fal.ai
                 // rejects, and the user should learn that first.
                 if ui
-                    .add_enabled(
-                        d.tested_ok(),
-                        egui::Button::new(format!("{} {}", ph::LIST, fetch_label)),
-                    )
+                    .add_enabled_ui(d.tested_ok(), |ui| {
+                        form::button(ui, theme, ph::LIST, &fetch_label)
+                    })
+                    .inner
                     .tip(s.t("ai-fetch-models-tip-fal"))
                     .clicked()
                 {
                     d.fal_models = Some(fal_probe(s, d));
                 }
             } else if ui
-                .add_enabled(
-                    kind.lists_models(),
-                    egui::Button::new(format!("{} {}", ph::LIST, fetch_label)),
-                )
+                .add_enabled_ui(kind.lists_models(), |ui| {
+                    form::button(ui, theme, ph::LIST, &fetch_label)
+                })
+                .inner
                 .tip(s.t("ai-fetch-models-tip"))
                 .clicked()
             {
@@ -1126,15 +1104,13 @@ fn form_body(
             }
             if !kind.lists_models()
                 && cap == Capability::Chat
-                && ui
-                    .button(format!("{} {}", ph::LIST, s.t("ai-known-models")))
+                && form::button(ui, theme, ph::LIST, &s.t("ai-known-models"))
                     .tip(s.t("ai-known-models-tip"))
                     .clicked()
             {
                 d.models = Some(probe(s, d, false));
             }
-            if ui
-                .button(format!("{} {}", ph::PLUGS_CONNECTED, s.t("ai-test")))
+            if form::button(ui, theme, ph::PLUGS_CONNECTED, &s.t("ai-test"))
                 .tip(s.t(match (kind, cap) {
                     (Provider::Fal, _) => "ai-test-tip-fal",
                     (_, Capability::Image) => "ai-test-tip-image",
@@ -1175,7 +1151,9 @@ fn form_body(
         workflow_section(ui, theme, s, d);
     }
     ui.horizontal(|ui| {
-        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+        if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
+            .clicked()
+        {
             save(s, d, effects, changed);
         }
         let exists = s
@@ -1187,15 +1165,18 @@ fn form_body(
             .any(|p| p.id == d.provider.id);
         if exists
             && cap == Capability::Chat
-            && ui.button(format!("★ {}", s.t("ai-make-default"))).clicked()
+            && form::button(ui, theme, "★", &s.t("ai-make-default")).clicked()
         {
             s.settings.write().ai.default_provider = d.provider.id.clone();
             *changed = true;
         }
-        if ui.button(s.t("cancel")).clicked() {
+        if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
             *close = true;
         }
-        if exists && form::danger_button(ui, theme, &s.t("ai-remove")).clicked() {
+        if exists
+            && form::danger_button(ui, theme, &format!("{} {}", ph::TRASH, s.t("ai-remove")))
+                .clicked()
+        {
             let mut st = s.settings.write();
             st.ai.providers.retain(|p| p.id != d.provider.id);
             drop(st);
@@ -1243,7 +1224,7 @@ fn pick_field(
                 .selected_text("")
                 .show_ui(ui, |ui| {
                     for m in options {
-                        ui.selectable_value(value, m.clone(), m);
+                        hs_ui::form::selectable_value(ui, value, m.clone(), m);
                     }
                 });
         }
@@ -1256,7 +1237,6 @@ fn pick_field(
 fn fal_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft) {
     form::section(ui, theme, &s.t("ai-section-fal-models"), |ui| {
         form::hint(ui, theme, &s.t("ai-fal-models-hint"));
-        ui.add_space(4.0);
         let fetched: Option<Result<Vec<Vec<String>>, String>> =
             d.fal_models.as_ref().and_then(|p| p.lock().clone());
         let lists = match &fetched {
@@ -1339,7 +1319,6 @@ fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draf
     let kind = d.provider.kind;
     form::section(ui, theme, &s.t("ai-section-workflow"), |ui| {
         form::hint(ui, theme, &s.t("ai-workflow-hint"));
-        ui.add_space(4.0);
         form::field_grid(ui, "ai-workflow", |ui| {
             form::label(ui, &s.t("ai-checkpoint"));
             model_field(
@@ -1386,8 +1365,8 @@ fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draf
             form::label(ui, &s.t("ai-seed"));
             ui.add(egui::DragValue::new(&mut w.seed).range(-1..=i64::MAX));
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-seed-hint"));
         });
-        form::hint(ui, theme, &s.t("ai-seed-hint"));
         if kind == Provider::ComfyUi {
             comfy_workflow(
                 ui,
@@ -1406,9 +1385,8 @@ fn workflow_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draf
                 hs_core::ai_local::COMFY_EDIT,
             );
         }
-        ui.add_space(8.0);
         let w = &mut d.provider.image;
-        ui.label(egui::RichText::new(s.t("ai-extra-json")).strong());
+        form::subsection(ui, theme, &s.t("ai-extra-json"));
         form::hint(
             ui,
             theme,
@@ -1438,7 +1416,6 @@ fn upscale_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
     let kind = d.provider.kind;
     form::section(ui, theme, &s.t("ai-section-upscale"), |ui| {
         form::hint(ui, theme, &s.t("ai-upscale-hint"));
-        ui.add_space(4.0);
         form::field_grid(ui, "ai-upscale", |ui| {
             let w = &mut d.provider.image;
             // A plain field, not `model_field`: the probe lists
@@ -1461,11 +1438,12 @@ fn upscale_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
                         (UpscaleMode::Ratio, "ai-upscale-mode-ratio"),
                         (UpscaleMode::Dimensions, "ai-upscale-mode-dimensions"),
                     ] {
-                        ui.selectable_value(&mut w.upscale_mode, mode, s.t(key));
+                        hs_ui::form::selectable_value(ui, &mut w.upscale_mode, mode, s.t(key));
                     }
                 });
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-upscale-mode-hint"));
             if w.upscale_mode == UpscaleMode::Ratio {
                 form::label(ui, &s.t("ai-upscale-factor"));
                 ui.add(
@@ -1481,12 +1459,9 @@ fn upscale_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
                 form::label(ui, &s.t("ai-upscale-height"));
                 ui.add(egui::DragValue::new(&mut w.upscale_height).range(0..=16384));
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("ai-upscale-size-hint"));
             }
         });
-        form::hint(ui, theme, &s.t("ai-upscale-mode-hint"));
-        if d.provider.image.upscale_mode == UpscaleMode::Dimensions {
-            form::hint(ui, theme, &s.t("ai-upscale-size-hint"));
-        }
         if kind == Provider::ComfyUi {
             comfy_workflow(
                 ui,
@@ -1505,7 +1480,6 @@ fn enhance_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
     let kind = d.provider.kind;
     form::section(ui, theme, &s.t("ai-section-enhance"), |ui| {
         form::hint(ui, theme, &s.t("ai-enhance-hint"));
-        ui.add_space(4.0);
         let w = &mut d.provider.image;
         form::field_grid(ui, "ai-enhance", |ui| {
             form::label(ui, &s.t("ai-enhance-denoise"));
@@ -1515,16 +1489,19 @@ fn enhance_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
                 egui::Slider::new(&mut w.enhance_denoise, 0.0..=1.0).fixed_decimals(2),
             );
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-enhance-denoise-hint"));
             form::label(ui, &s.t("ai-enhance-steps"));
             ui.add(egui::DragValue::new(&mut w.enhance_steps).range(0..=150));
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-enhance-steps-hint"));
             form::label(ui, &s.t("ai-enhance-face"));
             form::field_row(ui, |ui| {
                 ui.checkbox(&mut w.enhance_face_restore, "");
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("ai-enhance-face-hint"));
             if w.enhance_face_restore {
-                form::label(ui, &s.t("ai-enhance-face-strength"));
+                form::sub_label(ui, &s.t("ai-enhance-face-strength"));
                 form::slider(
                     ui,
                     theme,
@@ -1533,9 +1510,6 @@ fn enhance_section(ui: &mut egui::Ui, theme: &Theme, s: &Services, d: &mut Draft
                 ui.end_row();
             }
         });
-        form::hint(ui, theme, &s.t("ai-enhance-denoise-hint"));
-        form::hint(ui, theme, &s.t("ai-enhance-steps-hint"));
-        form::hint(ui, theme, &s.t("ai-enhance-face-hint"));
         if kind == Provider::ComfyUi {
             comfy_workflow(
                 ui,
@@ -1559,9 +1533,8 @@ fn comfy_workflow(
     text: &mut String,
     builtin: &str,
 ) {
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(s.t("ai-comfy-workflows")).strong());
+    form::subsection(ui, theme, &s.t("ai-comfy-workflows"));
+    form::centred_row(ui, |ui| {
         ui.label(
             egui::RichText::new(s.t(label))
                 .small()
@@ -1573,10 +1546,17 @@ fn comfy_workflow(
                     .small()
                     .color(theme.text_muted),
             );
-            if ui.small_button(s.t("ai-comfy-customise")).clicked() {
+            if form::button(ui, theme, ph::PENCIL_SIMPLE, &s.t("ai-comfy-customise")).clicked() {
                 *text = builtin.to_string();
             }
-        } else if ui.small_button(s.t("ai-comfy-reset")).clicked() {
+        } else if form::button(
+            ui,
+            theme,
+            ph::ARROW_COUNTER_CLOCKWISE,
+            &s.t("ai-comfy-reset"),
+        )
+        .clicked()
+        {
             text.clear();
         }
     });

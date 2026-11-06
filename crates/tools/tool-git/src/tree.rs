@@ -128,16 +128,35 @@ impl Tree {
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 section(ui, theme, &s.t("git-tree-workspace"), None);
-                for (view, icon, key) in [
-                    (View::Status, ph::FILES, "git-tree-file-status"),
+                // The Workspace views are an item-kind column: larger
+                // pictures, body text, each kind in its own colour (CR-0074).
+                for (view, kind, icon, rgb, key) in [
+                    (
+                        View::Status,
+                        "source-control",
+                        ph::FILES,
+                        [0xf0, 0x50, 0x33],
+                        "git-tree-file-status",
+                    ),
                     (
                         View::History,
+                        "history",
                         ph::CLOCK_COUNTER_CLOCKWISE,
+                        [0x5c, 0x6b, 0xc0],
                         "git-tree-history",
                     ),
-                    (View::Files, ph::FOLDERS, "git-tree-files"),
+                    (
+                        View::Files,
+                        "workspace",
+                        ph::FOLDERS,
+                        [0xf9, 0xa8, 0x25],
+                        "git-tree-files",
+                    ),
                 ] {
-                    if row(ui, theme, self.view == view, icon, &s.t(key), None).clicked() {
+                    let colour = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+                    let picture = art(kind, icon);
+                    if kind_row(ui, theme, self.view == view, &picture, colour, &s.t(key)).clicked()
+                    {
                         self.view = view;
                         pick = Some(Pick::View(view));
                     }
@@ -418,6 +437,62 @@ fn row(
         label,
         detail,
     )
+}
+
+/// A row of an item-kind column (CR-0074): a 20 px picture - the
+/// Material one, or the glyph in the kind's `colour` - and the label in
+/// body text, in a 30 px row.
+fn kind_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    icon: &TreeIcon,
+    colour: egui::Color32,
+    label: &str,
+) -> egui::Response {
+    const PICTURE: f32 = 20.0;
+    let (rect, resp) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 30.0), egui::Sense::click());
+    let fill = if selected {
+        theme.accent.linear_multiply(0.30)
+    } else if resp.hovered() {
+        theme.surface_hover
+    } else {
+        egui::Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, 3.0, fill);
+    let p = ui.painter().with_clip_rect(rect);
+    let centre = egui::pos2(rect.left() + 10.0 + PICTURE / 2.0, rect.center().y);
+    match icon {
+        TreeIcon::Glyph(g) => {
+            p.text(
+                centre,
+                egui::Align2::CENTER_CENTER,
+                g,
+                egui::FontId::proportional(PICTURE),
+                colour,
+            );
+        }
+        TreeIcon::Image(src) => {
+            egui::Image::new(src.clone())
+                .fit_to_exact_size(egui::Vec2::splat(PICTURE))
+                .paint_at(
+                    ui,
+                    egui::Rect::from_center_size(centre, egui::Vec2::splat(PICTURE)),
+                );
+        }
+    }
+    let body = egui::TextStyle::Body.resolve(ui.style());
+    let galley = p.layout_no_wrap(label.to_string(), body, theme.text);
+    p.galley(
+        egui::pos2(
+            rect.left() + 18.0 + PICTURE,
+            rect.center().y - galley.size().y / 2.0,
+        ),
+        galley,
+        theme.text,
+    );
+    resp
 }
 
 /// [`row`] whose icon may be a Material picture rather than a glyph

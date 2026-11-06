@@ -368,12 +368,11 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         form::hint(ui, theme, &s.t("dt-net-hint"));
         ui.horizontal_wrapped(|ui| {
             for c in Check::ALL {
-                if ui
-                    .add(egui::Button::selectable(
-                        state.check == c,
-                        s.t(c.label_key()),
-                    ))
-                    .clicked()
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(state.check == c, s.t(c.label_key())),
+                )
+                .clicked()
                 {
                     state.check = c;
                     state.outcome = None;
@@ -405,9 +404,11 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     go |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     if state.check == Check::Dns {
                         for rec in Record::ALL {
-                            if ui
-                                .add(egui::Button::selectable(state.record == rec, rec.label()))
-                                .clicked()
+                            if hs_ui::form::add_selectable(
+                                ui,
+                                egui::Button::selectable(state.record == rec, rec.label()),
+                            )
+                            .clicked()
                             {
                                 state.record = rec;
                             }

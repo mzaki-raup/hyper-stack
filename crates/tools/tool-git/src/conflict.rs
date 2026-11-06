@@ -206,12 +206,11 @@ impl ConflictView {
                                             ),
                                             (s.t("git-conflict-both"), Choice::Both),
                                         ] {
-                                            if ui
-                                                .add(egui::Button::selectable(
-                                                    choice == want,
-                                                    label,
-                                                ))
-                                                .clicked()
+                                            if hs_ui::form::add_selectable(
+                                                ui,
+                                                egui::Button::selectable(choice == want, label),
+                                            )
+                                            .clicked()
                                                 && let Some(slot) = self.choices.get_mut(i)
                                             {
                                                 *slot = want;

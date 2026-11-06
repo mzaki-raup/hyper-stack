@@ -1036,6 +1036,8 @@ fn rebase_panel(
         let Some(panel) = &mut ops.rebase_ui else {
             return;
         };
+        // Built only while the panel is open, not every frame.
+        let branch_names: Vec<String> = ops.lists.branches.iter().map(|b| b.name.clone()).collect();
         panel.poll();
         ui.separator();
         ui.horizontal(|ui| {
@@ -1053,10 +1055,14 @@ fn rebase_panel(
         form_hint_line(ui, theme, &s.t("git-rebase-interactive-hint"));
         // The field takes the row on its own: an infinite width beside a
         // button in a narrow sidebar pushes the button out of sight.
-        ui.add(
-            hs_ui::form::line_edit(&mut panel.base)
-                .hint_text(s.t("git-rebase-base-hint"))
-                .desired_width(f32::INFINITY),
+        let w = ui.available_width();
+        hs_ui::form::pick_field_width(
+            ui,
+            theme,
+            &mut panel.base,
+            &branch_names,
+            &s.t("git-rebase-base-hint"),
+            w,
         );
         if ui
             .add_enabled(!panel.loading, egui::Button::new(s.t("git-rebase-load")))
@@ -1107,7 +1113,8 @@ fn rebase_panel(
                                         {
                                             continue;
                                         }
-                                        ui.selectable_value(
+                                        hs_ui::form::selectable_value(
+                                            ui,
                                             &mut panel.actions[i],
                                             action,
                                             action_label(action, s),
@@ -1604,12 +1611,20 @@ fn branch_menu(
                 if ops.operation.is_none() {
                     ui.label(egui::RichText::new(s.t("git-merge-heading")).strong());
                 }
-                ui.add(
-                    hs_ui::form::line_edit(&mut ops.merge_input.source)
-                        .hint_text(s.t("git-merge-source")),
+                let branch_names: Vec<String> =
+                    ops.lists.branches.iter().map(|b| b.name.clone()).collect();
+                hs_ui::form::pick_field_width(
+                    ui,
+                    theme,
+                    &mut ops.merge_input.source,
+                    &branch_names,
+                    &s.t("git-merge-source"),
+                    220.0,
                 );
                 ui.checkbox(&mut ops.merge_input.no_commit, s.t("git-merge-no-commit"));
+                ui.add_space(hs_ui::form::OPTION_GAP);
                 ui.checkbox(&mut ops.merge_input.squash, s.t("git-merge-squash"));
+                ui.add_space(hs_ui::form::OPTION_GAP);
                 if ui.button(s.t("git-merge-run")).clicked()
                     && !ops.merge_input.source.trim().is_empty()
                 {
@@ -1623,8 +1638,13 @@ fn branch_menu(
                 }
                 ui.separator();
                 ui.label(egui::RichText::new(s.t("git-rebase-heading")).strong());
-                ui.add(
-                    hs_ui::form::line_edit(&mut ops.rebase_onto).hint_text(s.t("git-rebase-onto")),
+                hs_ui::form::pick_field_width(
+                    ui,
+                    theme,
+                    &mut ops.rebase_onto,
+                    &branch_names,
+                    &s.t("git-rebase-onto"),
+                    220.0,
                 );
                 if ui.button(s.t("git-rebase-run")).clicked() && !ops.rebase_onto.trim().is_empty()
                 {

@@ -973,9 +973,57 @@ pub fn for_kind(kind: &str) -> Option<ImageSource<'static>> {
     by_name(name)
 }
 
+/// The colour a bundled picture is drawn in: its first `fill="#rrggbb"`.
+///
+/// What a tab's glyph wears when Material icons are off, so the plain
+/// glyph keeps the colour of the picture it stands in for. Read once per
+/// picture and kept, not re-scanned every frame.
+pub fn picture_colour(src: &ImageSource<'_>) -> Option<egui::Color32> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+    static SEEN: OnceLock<Mutex<HashMap<String, Option<egui::Color32>>>> = OnceLock::new();
+    let ImageSource::Bytes { uri, bytes } = src else {
+        return None;
+    };
+    let seen = SEEN.get_or_init(Default::default);
+    let mut seen = seen.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(c) = seen.get(&**uri) {
+        return *c;
+    }
+    let c = first_fill(bytes.as_ref());
+    seen.insert(uri.to_string(), c);
+    c
+}
+
+/// The first `fill="#rrggbb"` in an SVG's text.
+fn first_fill(svg: &[u8]) -> Option<egui::Color32> {
+    const NEEDLE: &[u8] = b"fill=\"#";
+    let at = svg.windows(NEEDLE.len()).position(|w| w == NEEDLE)? + NEEDLE.len();
+    let hex = std::str::from_utf8(svg.get(at..at + 6)?).ok()?;
+    let v = u32::from_str_radix(hex, 16).ok()?;
+    Some(egui::Color32::from_rgb(
+        (v >> 16) as u8,
+        (v >> 8) as u8,
+        v as u8,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_colour_is_its_first_fill() {
+        assert_eq!(
+            first_fill(br##"<svg><path fill="#ff7043" d="m0"/><path fill="#000000"/></svg>"##),
+            Some(egui::Color32::from_rgb(0xff, 0x70, 0x43))
+        );
+        assert_eq!(first_fill(b"<svg fill=\"none\"/>"), None);
+        // A bundled picture is read through the cache, twice alike.
+        let note = for_kind("note").expect("note is bundled");
+        assert!(picture_colour(&note).is_some());
+        assert_eq!(picture_colour(&note), picture_colour(&note));
+    }
 
     #[test]
     fn every_mapped_name_is_bundled() {

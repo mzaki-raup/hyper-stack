@@ -1816,19 +1816,19 @@ fn conflict_block(
         ui.add_space(8.0);
         ui.horizontal_wrapped(|ui| {
             let mut pick = |ui: &mut egui::Ui, value: Choice, key: &str| {
-                if ui.selectable_label(*choice == value, s.t(key)).clicked() {
+                if hs_ui::form::selectable_label(ui, *choice == value, s.t(key)).clicked() {
                     *choice = value.clone();
                 }
             };
             pick(ui, Choice::Ours, "git-conflict-ours");
             pick(ui, Choice::Theirs, "git-conflict-theirs");
             pick(ui, Choice::Both, "git-conflict-both");
-            if ui
-                .selectable_label(
-                    matches!(choice, Choice::Custom(_)),
-                    s.t("git-conflict-custom"),
-                )
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                matches!(choice, Choice::Custom(_)),
+                s.t("git-conflict-custom"),
+            )
+            .clicked()
             {
                 *choice = Choice::Custom(block.ours.clone());
             }
@@ -1952,12 +1952,14 @@ fn header(
 }
 
 fn mode_toggle(ui: &mut egui::Ui, s: &Services, side_by_side: &mut bool) {
-    ui.selectable_value(
+    hs_ui::form::selectable_value(
+        ui,
         side_by_side,
         true,
         format!("{} {}", ph::COLUMNS, s.t("git-side-by-side")),
     );
-    ui.selectable_value(
+    hs_ui::form::selectable_value(
+        ui,
         side_by_side,
         false,
         format!("{} {}", ph::ROWS, s.t("git-inline")),

@@ -231,7 +231,11 @@ impl Verbs {
             (Panel::Flow, ph::FLOW_ARROW, "git-verb-flow"),
         ] {
             let b = egui::Button::selectable(self.panel == p, format!("{icon} {}", s.t(key)));
-            if ui.add_enabled(!busy, b).clicked() {
+            if ui
+                .add_enabled_ui(!busy, |ui| hs_ui::form::add_selectable(ui, b))
+                .inner
+                .clicked()
+            {
                 self.toggle(p);
             }
         }
@@ -284,7 +288,7 @@ impl Verbs {
                     Panel::Rebase => self.rebase_panel(ui, s, facts, busy),
                     Panel::Interactive => self.interactive_panel(ui, theme, s, facts, busy),
                     Panel::Stash => self.stash_panel(ui, s, busy),
-                    Panel::Tag => self.tag_panel(ui, s, facts, busy),
+                    Panel::Tag => self.tag_panel(ui, theme, s, facts, busy),
                     Panel::Flow => self.flow_panel(ui, theme, s, facts, busy),
                     Panel::Rename => self.rename_panel(ui, s, busy),
                     Panel::Remote => self.remote_panel(ui, s, busy),
@@ -314,7 +318,7 @@ impl Verbs {
             .width(220.0)
             .show_ui(ui, |ui| {
                 for b in facts.branches {
-                    if ui.selectable_label(*value == b.name, &b.name).clicked() {
+                    if hs_ui::form::selectable_label(ui, *value == b.name, &b.name).clicked() {
                         *value = b.name.clone();
                     }
                 }
@@ -393,7 +397,9 @@ impl Verbs {
                 facts.current.unwrap_or("HEAD")
             )));
             ui.checkbox(&mut self.merge_no_ff, s.t("git-merge-no-ff"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut self.merge_squash, s.t("git-panel-squash"));
+            ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut self.merge_no_commit, s.t("git-panel-no-commit"));
             let source = self.merge_source.clone();
             if Self::apply(ui, s, !busy && !source.is_empty(), "git-verb-merge") {
@@ -512,7 +518,7 @@ impl Verbs {
                                     RebaseAction::Fixup,
                                     RebaseAction::Drop,
                                 ] {
-                                    ui.selectable_value(action, a, a.as_str());
+                                    hs_ui::form::selectable_value(ui, action, a, a.as_str());
                                 }
                             });
                         ui.label(
@@ -583,6 +589,7 @@ impl Verbs {
     fn tag_panel(
         &mut self,
         ui: &mut egui::Ui,
+        theme: &Theme,
         s: &Services,
         facts: &Facts<'_>,
         busy: bool,
@@ -602,10 +609,14 @@ impl Verbs {
                     .desired_width(240.0),
             );
             ui.label(s.t("git-tag-target"));
-            ui.add(
-                hs_ui::form::line_edit(&mut self.tag_target)
-                    .hint_text(facts.current.unwrap_or("HEAD"))
-                    .desired_width(110.0),
+            let refs: Vec<String> = facts.branches.iter().map(|b| b.name.clone()).collect();
+            hs_ui::form::pick_field_width(
+                ui,
+                theme,
+                &mut self.tag_target,
+                &refs,
+                facts.current.unwrap_or("HEAD"),
+                180.0,
             );
             ui.checkbox(&mut self.tag_push, s.t("git-panel-tag-push"));
             let name = self.tag_name.trim().to_string();
@@ -647,29 +658,29 @@ impl Verbs {
         let mut op = None;
         hs_ui::form::centred_row(ui, |ui| {
             for k in [FlowKind::Feature, FlowKind::Release, FlowKind::Hotfix] {
-                if ui
-                    .add(egui::Button::selectable(self.flow_kind == k, s.t(k.key())))
-                    .clicked()
+                if hs_ui::form::add_selectable(
+                    ui,
+                    egui::Button::selectable(self.flow_kind == k, s.t(k.key())),
+                )
+                .clicked()
                 {
                     self.flow_kind = k;
                 }
             }
             ui.separator();
-            if ui
-                .add(egui::Button::selectable(
-                    !self.flow_finish,
-                    s.t("git-flow-start"),
-                ))
-                .clicked()
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(!self.flow_finish, s.t("git-flow-start")),
+            )
+            .clicked()
             {
                 self.flow_finish = false;
             }
-            if ui
-                .add(egui::Button::selectable(
-                    self.flow_finish,
-                    s.t("git-flow-finish"),
-                ))
-                .clicked()
+            if hs_ui::form::add_selectable(
+                ui,
+                egui::Button::selectable(self.flow_finish, s.t("git-flow-finish")),
+            )
+            .clicked()
             {
                 self.flow_finish = true;
             }

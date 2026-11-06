@@ -193,8 +193,13 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         });
     });
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut st.flow, Flow::Request, s.t("dt-pki-flow-request"));
-        ui.selectable_value(&mut st.flow, Flow::Response, s.t("dt-pki-flow-response"));
+        hs_ui::form::selectable_value(ui, &mut st.flow, Flow::Request, s.t("dt-pki-flow-request"));
+        hs_ui::form::selectable_value(
+            ui,
+            &mut st.flow,
+            Flow::Response,
+            s.t("dt-pki-flow-response"),
+        );
     });
     let (seal_key, open_key, seal_title, open_title) = match st.flow {
         Flow::Request => (

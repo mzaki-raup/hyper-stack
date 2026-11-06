@@ -554,9 +554,12 @@ impl Doc {
                 let lang_name = self.view.language.name.to_string();
                 ui.menu_button(small(lang_name), |ui| {
                     for (name, ext) in LANGUAGE_MENU {
-                        if ui
-                            .selectable_label(self.view.language.name == *name, *name)
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            self.view.language.name == *name,
+                            *name,
+                        )
+                        .clicked()
                         {
                             self.view.set_language(languages::by_extension(ext));
                             ui.close();
@@ -566,8 +569,7 @@ impl Doc {
                 // EOL.
                 ui.menu_button(small(self.buf.eol.label().into()), |ui| {
                     for eol in [Eol::Lf, Eol::CrLf] {
-                        if ui
-                            .selectable_label(self.buf.eol == eol, eol.label())
+                        if hs_ui::form::selectable_label(ui, self.buf.eol == eol, eol.label())
                             .clicked()
                         {
                             if self.buf.eol != eol {
@@ -581,8 +583,7 @@ impl Doc {
                 // Encoding.
                 ui.menu_button(small(self.buf.encoding.label().into()), |ui| {
                     for enc in Encoding::all() {
-                        if ui
-                            .selectable_label(self.buf.encoding == enc, enc.label())
+                        if hs_ui::form::selectable_label(ui, self.buf.encoding == enc, enc.label())
                             .clicked()
                         {
                             if self.buf.encoding != enc {
@@ -632,21 +633,24 @@ impl Doc {
                 ui.menu_button(small(indent_label), |ui| {
                     for n in [2usize, 4, 8] {
                         let label = s.i18n.t_args("editor-spaces", &[("n", &n.to_string())]);
-                        if ui
-                            .selectable_label(
-                                self.view.tab_inserts_spaces && self.view.language.indent == n,
-                                label,
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            self.view.tab_inserts_spaces && self.view.language.indent == n,
+                            label,
+                        )
+                        .clicked()
                         {
                             self.view.tab_inserts_spaces = true;
                             self.view.language.indent = n;
                             ui.close();
                         }
                     }
-                    if ui
-                        .selectable_label(!self.view.tab_inserts_spaces, s.t("editor-tabs"))
-                        .clicked()
+                    if hs_ui::form::selectable_label(
+                        ui,
+                        !self.view.tab_inserts_spaces,
+                        s.t("editor-tabs"),
+                    )
+                    .clicked()
                     {
                         self.view.tab_inserts_spaces = false;
                         ui.close();
@@ -1800,6 +1804,9 @@ impl EditorTool {
             /// (CR-0035).
             glyph: String,
             image: Option<egui::ImageSource<'static>>,
+            /// With Material icons off, the glyph wears the colour of the
+            /// language's picture.
+            colour: Option<egui::Color32>,
         }
         impl hs_ui::tabs::TabItem for FileTab {
             fn id(&self) -> u64 {
@@ -1813,6 +1820,9 @@ impl EditorTool {
             }
             fn icon_image(&self) -> Option<egui::ImageSource<'static>> {
                 self.image.clone()
+            }
+            fn icon_colour(&self) -> Option<egui::Color32> {
+                self.colour
             }
             fn pinned(&self) -> bool {
                 false
@@ -1844,10 +1854,15 @@ impl EditorTool {
                     hs_ui::tree::TreeIcon::Image(src) => (ph::FILE.to_string(), Some(src)),
                     hs_ui::tree::TreeIcon::Glyph(g) => (g, None),
                 };
+                let colour = image
+                    .is_none()
+                    .then(|| fileicons::picture_colour(&fileicons::for_file(&title)))
+                    .flatten();
                 FileTab {
                     id: d.uid,
                     glyph,
                     image,
+                    colour,
                     tooltip: d
                         .path
                         .as_ref()
@@ -2888,7 +2903,14 @@ impl EditorTool {
                                     // has it; the shell asks first and
                                     // never touches the folder (CR-0067).
                                     card.context_menu(|ui| {
-                                        if ui.button(s.t("settings-project-remove")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                hs_ui::icons::TRASH,
+                                                s.t("settings-project-remove")
+                                            ))
+                                            .clicked()
+                                        {
                                             remove = Some(id.clone());
                                             ui.close();
                                         }
@@ -3226,10 +3248,15 @@ impl Tool for EditorTool {
             Some(v) if !language.is_empty() => format!("{language} {v}"),
             _ => String::new(),
         };
+        // A tab with no language wears the activity's glyph, so the band
+        // does too rather than `language_icon`'s folder fallback.
+        let head = if self.proj_lang.is_empty() {
+            hs_core::tool::ToolHeader::new(DESCRIPTOR.icon, name)
+        } else {
+            hs_ui::icons::language_conn_icon(&self.proj_lang).header(name)
+        };
         Some(
-            hs_ui::icons::language_conn_icon(&self.proj_lang)
-                .header(name)
-                .fact("Language", language)
+            head.fact("Language", language)
                 .fact("Version", version)
                 // Where the project actually lives, last in the band
                 // (owner's requirement, 2026-10-27). A tab with no root
@@ -3262,6 +3289,15 @@ impl Tool for EditorTool {
             return None;
         }
         hs_ui::icons::language_conn_icon(&self.proj_lang).uri()
+    }
+
+    /// The language's colour for the glyph where it has no logo, as the
+    /// header band draws it.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        if self.is_home || self.proj_lang.is_empty() {
+            return None;
+        }
+        hs_ui::icons::language_conn_icon(&self.proj_lang).brand()
     }
 
     /// The dashboard is the workspace's front page, so it wears the
@@ -3340,6 +3376,26 @@ impl Tool for EditorTool {
         {
             // nothing more: the flag is the state.
         }
+        // The other show/hide toggles follow it, before any action
+        // (CR-0073).
+        let mut open = self.terminal.open;
+        if hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut open,
+            ph::TERMINAL_WINDOW,
+            &s.t("editor-terminal"),
+        )
+        .tip(s.t("editor-terminal-tip"))
+        .clicked()
+        {
+            let cwd = self.terminal_cwd();
+            self.terminal.toggle(s, cwd.as_deref());
+        }
+        if self.doc().view.language.is_markdown {
+            let d = self.doc_mut();
+            hs_ui::toolbar::toggle(ui, &theme, &mut d.preview, ph::EYE, &s.t("editor-preview"));
+        }
         ui.separator();
         let read_only = self.doc().view.read_only;
         ui.add_enabled_ui(!read_only, |ui| {
@@ -3399,26 +3455,6 @@ impl Tool for EditorTool {
             ui.separator();
             self.debug
                 .toolbar(ui, s, &theme, root.as_deref(), file.as_deref());
-            ui.separator();
-            let mut open = self.terminal.open;
-            if hs_ui::toolbar::toggle(
-                ui,
-                &theme,
-                &mut open,
-                ph::TERMINAL_WINDOW,
-                &s.t("editor-terminal"),
-            )
-            .tip(s.t("editor-terminal-tip"))
-            .clicked()
-            {
-                let cwd = self.terminal_cwd();
-                self.terminal.toggle(s, cwd.as_deref());
-            }
-        }
-        if self.doc().view.language.is_markdown {
-            ui.separator();
-            let d = self.doc_mut();
-            hs_ui::toolbar::toggle(ui, &theme, &mut d.preview, ph::EYE, &s.t("editor-preview"));
         }
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The assistant is the same control in every tool, so it sits in
@@ -3503,12 +3539,26 @@ impl Tool for EditorTool {
                             open = Some(id.clone());
                         }
                         row.context_menu(|ui| {
-                            if ui.button(s.t("editor-project-edit")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::EDIT,
+                                    s.t("editor-project-edit")
+                                ))
+                                .clicked()
+                            {
                                 edit = Some(id.clone());
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("settings-project-remove")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("settings-project-remove")
+                                ))
+                                .clicked()
+                            {
                                 remove = Some(id.clone());
                                 ui.close();
                             }
@@ -3693,9 +3743,11 @@ impl Tool for EditorTool {
         let counts = self.lsp.counts();
         let mut status = StatusRow::default();
         egui::Panel::bottom(self.id.with("status"))
-            .exact_size(22.0)
+            .exact_size(22.0 + hs_ui::form::PANE_GAP)
             .resizable(false)
             .show(ui, |ui| {
+                // Air between the code and the status bar (CR-0040).
+                ui.add_space(hs_ui::form::PANE_GAP);
                 status = self.doc_mut().status_row(ui, s, lsp_badge.as_ref(), counts);
             });
         let encoding_error = status.encoding_error.take();

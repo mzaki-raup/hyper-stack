@@ -167,6 +167,9 @@ enum CropGrip {
 
 pub struct GraphicsTool {
     hub: SharedGraphics,
+    /// Whether the Image / Icon editor's Properties column is shown; its
+    /// toggle is the first item of the toolbar (owner, 2026-11-06).
+    show_settings: bool,
     kind: Kind,
     path: Option<PathBuf>,
     original: Option<DynamicImage>,
@@ -383,6 +386,7 @@ impl Default for GraphicsTool {
             original_bytes: Vec::new(),
             ops: Vec::new(),
             undo_stack: Vec::new(),
+            show_settings: true,
             redo_stack: Vec::new(),
             undo_limit: 20,
             current: None,
@@ -780,7 +784,7 @@ impl GraphicsTool {
                             GenJob::Describe if fal => "gfx-ai-job-describe",
                             GenJob::Describe => continue,
                         };
-                        ui.selectable_value(&mut self.generate.job, job, s.t(key));
+                        hs_ui::form::selectable_value(ui, &mut self.generate.job, job, s.t(key));
                     }
                 });
             });
@@ -819,7 +823,8 @@ impl GraphicsTool {
                         .selected_text(provider.name.clone())
                         .show_ui(ui, |ui| {
                             for p in providers {
-                                ui.selectable_value(
+                                hs_ui::form::selectable_value(
+                                    ui,
                                     &mut self.generate.provider,
                                     p.id.clone(),
                                     &p.name,
@@ -1549,13 +1554,13 @@ impl GraphicsTool {
                     rows.title(&s.t("gfx-crop"));
                     let (iw, ih) = (ow, oh);
                     rows.row(&s.t("gfx-crop-select"), None, |ui| {
-                        if ui
-                            .selectable_label(
-                                self.crop_select,
-                                format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
-                            )
-                            .tip(s.t("gfx-crop-on-canvas-tip"))
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            self.crop_select,
+                            format!("{} {}", ph::SELECTION, s.t("gfx-crop-on-canvas")),
+                        )
+                        .tip(s.t("gfx-crop-on-canvas-tip"))
+                        .clicked()
                         {
                             self.crop_select = !self.crop_select;
                             let [_, _, w, h] = self.controls.crop;
@@ -1713,10 +1718,10 @@ impl GraphicsTool {
                             egui::RichText::new(s.t("gfx-colour")).color(theme.text_muted),
                         ),
                     );
-                    if ui.selectable_label(gray_on, s.t("gfx-grayscale")).clicked() {
+                    if hs_ui::form::selectable_label(ui, gray_on, s.t("gfx-grayscale")).clicked() {
                         toggle = Some(Op::Grayscale);
                     }
-                    if ui.selectable_label(inv_on, s.t("gfx-invert")).clicked() {
+                    if hs_ui::form::selectable_label(ui, inv_on, s.t("gfx-invert")).clicked() {
                         toggle = Some(Op::Invert);
                     }
                 });
@@ -1860,7 +1865,12 @@ impl GraphicsTool {
                             .selected_text(self.format.label())
                             .show_ui(ui, |ui| {
                                 for f in Format::ALL {
-                                    ui.selectable_value(&mut self.format, f, f.label());
+                                    hs_ui::form::selectable_value(
+                                        ui,
+                                        &mut self.format,
+                                        f,
+                                        f.label(),
+                                    );
                                 }
                             });
                     });
@@ -2648,7 +2658,7 @@ impl GraphicsTool {
         // It also marks the tool this tab belongs to, as those lists do.
         let r = ui
             .add_enabled_ui(enabled, |ui| {
-                form::list_row(ui, theme, self.kind == f.kind(), f.icon(), &title, None)
+                function_list_row(ui, theme, self.kind == f.kind(), f, &title)
             })
             .inner
             .tip(if enabled {
@@ -2845,13 +2855,10 @@ impl GraphicsTool {
                             ui.vertical(|ui| {
                                 for f in Function::ALL {
                                     ui.horizontal_top(|ui| {
-                                        ui.add_sized(
-                                            [24.0, 24.0],
-                                            egui::Label::new(
-                                                egui::RichText::new(f.icon()).size(18.0),
-                                            )
-                                            .selectable(false),
-                                        );
+                                        // The tool's own picture, as its
+                                        // sidebar row and tab wear it
+                                        // (CR-0076).
+                                        paint_picture(ui, f, 24.0, 18.0);
                                         ui.allocate_ui_with_layout(
                                             egui::vec2(330.0, 58.0),
                                             egui::Layout::top_down(egui::Align::Min),
@@ -3027,6 +3034,24 @@ impl Tool for GraphicsTool {
         Some(self.kind.icon())
     }
 
+    /// The tool's own picture, as its sidebar row and the dashboard's
+    /// Functions card draw it (CR-0076). The sidebar and `ui` register
+    /// the bytes behind this URI.
+    fn tab_icon_uri(&self) -> Option<String> {
+        let (picture, _, _) = tool_picture(function_of(self.kind)?);
+        match picture? {
+            egui::ImageSource::Bytes { uri, .. } | egui::ImageSource::Uri(uri) => {
+                Some(uri.to_string())
+            }
+            egui::ImageSource::Texture(_) => None,
+        }
+    }
+
+    /// The tool's own colour for its glyph, where it has no picture.
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        Some(tool_picture(function_of(self.kind)?).2)
+    }
+
     fn home_is_dashboard(&self) -> bool {
         self.kind == Kind::Home
     }
@@ -3155,6 +3180,8 @@ impl Tool for GraphicsTool {
             );
         });
         ui.add_space(4.0);
+        // The tab strip draws these pictures by URI (CR-0076).
+        register_pictures(ui.ctx());
         for f in Function::ALL {
             self.function_row(ui, cx, &theme, f);
             ui.add_space(2.0);
@@ -3162,7 +3189,9 @@ impl Tool for GraphicsTool {
         ui.add_space(6.0);
         ui.separator();
         ui.add_space(4.0);
-        let clear = s.t("gfx-clear-recent");
+        let hub = self.hub.clone();
+        let recents = hub.lock().recents();
+        let clear = format!("{} {}", ph::BROOM, s.t("gfx-clear-recent"));
         ui.add(
             egui::Label::new(
                 egui::RichText::new(s.t("gfx-recent"))
@@ -3174,7 +3203,10 @@ impl Tool for GraphicsTool {
             .sense(egui::Sense::click()),
         )
         .context_menu(|ui| {
-            if ui.button(&clear).clicked() {
+            if ui
+                .add_enabled(!recents.is_empty(), egui::Button::new(&clear))
+                .clicked()
+            {
                 self.confirm_recent = Some(None);
                 ui.close();
             }
@@ -3183,8 +3215,6 @@ impl Tool for GraphicsTool {
         // About half the remaining column: the function list keeps its
         // natural height and only Recent scrolls (owner's request).
         let h = (ui.available_height() * 0.55).clamp(80.0, 360.0);
-        let hub = self.hub.clone();
-        let recents = hub.lock().recents();
         egui::ScrollArea::vertical()
             .id_salt("gfx-recent")
             .max_height(h)
@@ -3197,13 +3227,17 @@ impl Tool for GraphicsTool {
                 ui.indent("gfx-recent-indent", |ui| {
                     for r in recents {
                         let Some(path) = r.path.clone() else { continue };
-                        let row = ui
-                            .selectable_label(false, format!("{}  {}", r.kind.icon(), r.title))
-                            .tip(path.clone());
+                        let row = hs_ui::form::selectable_label(
+                            ui,
+                            false,
+                            format!("{}  {}", r.kind.icon(), r.title),
+                        )
+                        .tip(path.clone());
                         if row.clicked() {
                             open_recent(cx, &path, r.kind);
                         }
-                        let remove = s.t("gfx-remove-recent");
+                        let remove =
+                            format!("{} {}", hs_ui::icons::TRASH, s.t("gfx-remove-recent"));
                         row.context_menu(|ui| {
                             if ui.button(&remove).clicked() {
                                 self.confirm_recent = Some(Some(path.clone()));
@@ -3288,6 +3322,17 @@ impl Tool for GraphicsTool {
         }
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        // The Properties column's toggle comes first, as every pane toggle
+        // does (CR-0073).
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_settings,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("gfx-diagram-props-pane"),
+        )
+        .tip(s.t("gfx-image-props-pane-tip"));
+        ui.separator();
         if hs_ui::toolbar::btn_enabled(
             ui,
             &theme,
@@ -3358,6 +3403,15 @@ impl Tool for GraphicsTool {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| self.title().to_string());
         let icon = self.kind.icon();
+        // The tool's own picture and colour, as its sidebar row, dashboard
+        // card and tab wear them (CR-0076; owner, 2026-11-06).
+        let paint = |h: hs_core::tool::ToolHeader| match function_of(self.kind).map(tool_picture) {
+            Some((Some(egui::ImageSource::Bytes { uri, .. }), _, _)) => {
+                h.icon_image(uri.to_string())
+            }
+            Some((_, _, c)) => h.icon_hex(format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b())),
+            None => h,
+        };
         match self.kind {
             Kind::Diagram | Kind::Generator => {
                 // A diagram has no pixels and no size on disk worth
@@ -3366,10 +3420,10 @@ impl Tool for GraphicsTool {
                     Kind::Diagram => self.diagram.as_ref().map(|d| d.doc.kind),
                     _ => self.generator.as_ref().map(|g| g.kind),
                 };
-                Some(
-                    hs_core::tool::ToolHeader::new(icon, name)
-                        .fact("Type", doc_kind.map(|k| k.label()).unwrap_or_default()),
-                )
+                Some(paint(hs_core::tool::ToolHeader::new(icon, name).fact(
+                    "Type",
+                    doc_kind.map(|k| k.label()).unwrap_or_default(),
+                )))
             }
             _ => {
                 // The *current* dimensions: an image that has been
@@ -3380,7 +3434,7 @@ impl Tool for GraphicsTool {
                     .as_ref()
                     .map(|c| format!("{}×{}", c.width(), c.height()))
                     .unwrap_or_default();
-                Some(
+                Some(paint(
                     hs_core::tool::ToolHeader::new(icon, name)
                         .fact("Dimension", dims)
                         .fact(
@@ -3398,7 +3452,7 @@ impl Tool for GraphicsTool {
                                 .map(|p| p.display().to_string())
                                 .unwrap_or_default(),
                         ),
-                )
+                ))
             }
         }
     }
@@ -3407,6 +3461,7 @@ impl Tool for GraphicsTool {
         let s = cx.services.clone();
         let theme = Theme::from_settings(&s.settings.read().appearance);
         self.undo_limit = s.settings.read().general.undo_limit as usize;
+        register_pictures(ui.ctx());
         self.poll_generation(cx);
         self.new_image_dialog(ui.ctx(), cx, &theme);
         if matches!(self.kind, Kind::Image | Kind::Icon) && !ui.ctx().egui_wants_keyboard_input() {
@@ -3476,11 +3531,18 @@ impl Tool for GraphicsTool {
         }
         // The picture keeps the tab, but its controls move into this panel so
         // the activity sidebar can list the four tools (owner's request).
-        egui::Panel::left("gfx-settings")
+        let mut column = egui::Panel::left("gfx-settings")
             .default_size(300.0)
             .size_range(220.0..=460.0)
-            .resizable(true)
-            .show(ui, |ui| self.settings_panel(ui, cx, &theme));
+            .resizable(true);
+        if !self.show_settings {
+            column = column.exact_size(0.0).resizable(false);
+        }
+        column.show(ui, |ui| {
+            if self.show_settings {
+                self.settings_panel(ui, cx, &theme);
+            }
+        });
         // The shared split: the assistant column shrinks to keep room for
         // the picture and steps aside in a narrow window, like every other
         // tool, instead of a fixed cut that read as a floating card.
@@ -3876,6 +3938,134 @@ impl Tool for GraphicsTool {
             subtitle: self.info_line(),
             html: format!("<img alt=\"\" src=\"data:image/png;base64,{b64}\">"),
         })
+    }
+}
+
+/// A Graphics tool's own picture, the same in the sidebar row, the
+/// dashboard's Functions card and the tab (CR-0076): the Material picture
+/// when one fits, the tool's glyph, and that glyph's own colour for when
+/// there is no picture.
+pub fn tool_picture(
+    f: Function,
+) -> (
+    Option<egui::ImageSource<'static>>,
+    &'static str,
+    egui::Color32,
+) {
+    let (name, colour) = match f {
+        Function::Image => (Some("image"), egui::Color32::from_rgb(0x26, 0xa6, 0x9a)),
+        Function::Icon => (None, egui::Color32::from_rgb(0xf5, 0x9e, 0x0b)),
+        Function::Diagram => (None, egui::Color32::from_rgb(0x3b, 0x82, 0xf6)),
+        Function::Generator => (None, egui::Color32::from_rgb(0xa8, 0x55, 0xf7)),
+    };
+    (name.and_then(hs_ui::fileicons::by_name), f.icon(), colour)
+}
+
+/// The tool a tab of `kind` belongs to; the dashboard belongs to none.
+fn function_of(kind: Kind) -> Option<Function> {
+    Function::ALL.into_iter().find(|f| f.kind() == kind)
+}
+
+/// Hand every tool picture's bytes to `ctx`, so the tab strip, which
+/// draws them by bare URI, loads them before their source was drawn.
+/// Cheap after the first call: the loader keeps the first copy.
+fn register_pictures(ctx: &egui::Context) {
+    for f in Function::ALL {
+        if let Some(egui::ImageSource::Bytes { uri, bytes }) = tool_picture(f).0 {
+            ctx.include_bytes(uri, bytes);
+        }
+    }
+}
+
+/// A sidebar row wearing the tool's picture, or its glyph in its colour.
+fn function_list_row(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    selected: bool,
+    f: Function,
+    title: &str,
+) -> egui::Response {
+    let (picture, glyph, colour) = tool_picture(f);
+    match picture {
+        Some(src) => form::list_row_icon(
+            ui,
+            theme,
+            selected,
+            &hs_ui::tree::TreeIcon::Image(src),
+            title,
+            None,
+        ),
+        None => form::conn_list_row(
+            ui,
+            theme,
+            selected,
+            hs_ui::icons::ConnIcon {
+                glyph,
+                image: None,
+                tint: hs_ui::icons::ConnTint::Brand(colour),
+            },
+            title,
+            None,
+        ),
+    }
+}
+
+/// The tool's picture (or coloured glyph) at `size`, centred in a square
+/// `slot` - the dashboard's Functions card.
+fn paint_picture(ui: &mut egui::Ui, f: Function, slot: f32, size: f32) {
+    let (rect, _) = ui.allocate_exact_size(egui::Vec2::splat(slot), egui::Sense::hover());
+    let (picture, glyph, colour) = tool_picture(f);
+    match picture {
+        Some(src) => egui::Image::new(src)
+            .fit_to_exact_size(egui::Vec2::splat(size))
+            .paint_at(
+                ui,
+                egui::Rect::from_center_size(rect.center(), egui::Vec2::splat(size)),
+            ),
+        None => {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                glyph,
+                egui::FontId::proportional(size),
+                colour,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod picture_tests {
+    use super::*;
+
+    /// CR-0076: every Graphics tool wears a picture of its own, or its
+    /// glyph in a colour of its own, and no two tools look alike.
+    #[test]
+    fn every_tool_has_its_own_picture_or_coloured_glyph() {
+        let mut seen = std::collections::HashSet::new();
+        for f in Function::ALL {
+            let (picture, glyph, colour) = tool_picture(f);
+            let look = match picture {
+                Some(egui::ImageSource::Bytes { uri, .. }) => uri.to_string(),
+                Some(other) => panic!("{f:?}: an embedded picture, not {other:?}"),
+                None => {
+                    assert!(!glyph.is_empty(), "{f:?} has a glyph");
+                    assert_ne!(colour, egui::Color32::TRANSPARENT, "{f:?} has a colour");
+                    format!("{glyph}{colour:?}")
+                }
+            };
+            assert!(seen.insert(look), "{f:?} looks like another tool");
+            assert_eq!(function_of(f.kind()), Some(f), "{f:?}'s tab finds it");
+        }
+        assert_eq!(
+            function_of(Kind::Home),
+            None,
+            "the dashboard keeps the rail's icon"
+        );
+        assert!(
+            tool_picture(Function::Image).0.is_some(),
+            "Image wears Material's picture"
+        );
     }
 }
 

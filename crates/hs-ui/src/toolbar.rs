@@ -133,15 +133,56 @@ pub fn outer_rect(ui: &egui::Ui) -> Option<Rect> {
 /// than as text that happens to be clickable (owner's report, CR-0027).
 pub const BUTTON_PADDING: egui::Vec2 = egui::vec2(10.0, 6.0);
 
+/// How tall the activity's main toolbar buttons are at least: a little
+/// taller than a form field, so the first row under the pane title reads
+/// as the activity's own toolbar (owner, 2026-11-06, CR-0073). A larger
+/// font still grows them to the field height.
+pub const MAIN_BUTTON_HEIGHT: f32 = 36.0;
+
+/// How tall a sub-toolbar's buttons are - a sub-tab's own row or a
+/// panel's header - always smaller than [`MAIN_BUTTON_HEIGHT`] (CR-0073).
+pub const SUB_BUTTON_HEIGHT: f32 = 26.0;
+
+/// A sub-toolbar button's padding: tighter than [`BUTTON_PADDING`].
+pub const SUB_BUTTON_PADDING: egui::Vec2 = egui::vec2(8.0, 3.0);
+
+/// The air above and below a sub-toolbar's row.
+pub const SUB_STRIP_AIR: f32 = 4.0;
+
 /// The toolbar's own metrics, applied once to the strip: medium buttons,
-/// and every control in the row as tall as a form field so buttons,
-/// dropdowns and status chips share one line.
+/// and every control in the row [`MAIN_BUTTON_HEIGHT`] tall (or a form
+/// field's height, if that is more) so buttons, dropdowns and status
+/// chips share one line.
 pub fn strip_style(ui: &mut egui::Ui) {
-    let h = crate::form::field_height(ui);
+    let h = crate::form::field_height(ui).max(MAIN_BUTTON_HEIGHT);
     let s = ui.spacing_mut();
     s.item_spacing.x = 8.0;
     s.button_padding = BUTTON_PADDING;
     s.interact_size.y = h;
+}
+
+/// A sub-toolbar's metrics: [`SUB_BUTTON_HEIGHT`] buttons with
+/// [`SUB_BUTTON_PADDING`], smaller than the main toolbar's (CR-0073).
+pub fn sub_strip_style(ui: &mut egui::Ui) {
+    let s = ui.spacing_mut();
+    s.item_spacing.x = 6.0;
+    s.button_padding = SUB_BUTTON_PADDING;
+    s.interact_size.y = SUB_BUTTON_HEIGHT;
+}
+
+/// A sub-toolbar row: [`sub_strip_style`] in a wrapping row with
+/// [`SUB_STRIP_AIR`] above and below it. The buttons inside are the
+/// usual [`btn`], [`tab`] and [`toggle`]; the style sizes them.
+pub fn sub_strip<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.add_space(SUB_STRIP_AIR);
+    let r = ui
+        .horizontal_wrapped(|ui| {
+            sub_strip_style(ui);
+            add(ui)
+        })
+        .inner;
+    ui.add_space(SUB_STRIP_AIR);
+    r
 }
 
 /// A toolbar item's text: the icon in the accent, the label in the
@@ -308,4 +349,27 @@ pub fn status(
             ui.label(text);
         })
         .response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_main_toolbar_button_is_taller_than_a_sub_toolbar_one() {
+        let theme = crate::theme::Theme::dark();
+        let ctx = egui::Context::default();
+        let (mut main, mut sub) = (Rect::NOTHING, Rect::NOTHING);
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.horizontal_wrapped(|ui| {
+                strip_style(ui);
+                main = btn(ui, &theme, "", "Run").rect;
+            });
+            sub = sub_strip(ui, |ui| btn(ui, &theme, "", "Log").rect);
+        });
+        assert!(
+            main.height() > sub.height(),
+            "main {main:?} is taller than sub {sub:?}"
+        );
+    }
 }

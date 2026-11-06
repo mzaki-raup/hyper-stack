@@ -275,7 +275,7 @@ impl RedisTool {
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             for (v, icon, key) in [
                 (
                     ToolView::Slowlog,
@@ -556,7 +556,7 @@ impl RedisTool {
         let s = cx.services;
         form::hint(ui, theme, &s.t("redis-bulk-hint"));
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        hs_ui::toolbar::sub_strip(ui, |ui| {
             ui.label(s.t("redis-bulk-action"));
             for (a, icon, key) in [
                 (BulkAction::Delete, ph::TRASH, "redis-bulk-delete"),
@@ -812,8 +812,7 @@ impl RedisTool {
                 .width(320.0)
                 .show_ui(ui, |ui| {
                     for k in &streams {
-                        if ui
-                            .selectable_label(self.depth.stream_key == *k, k)
+                        if hs_ui::form::selectable_label(ui, self.depth.stream_key == *k, k)
                             .clicked()
                         {
                             picked = Some(k.clone());

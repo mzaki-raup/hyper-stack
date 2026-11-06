@@ -53,6 +53,112 @@ look for it in `crates/hs-ui/src/` first.
   project column, a side pane that is not the work itself has a
   toolbar toggle that hides it, where the activity has room for one
   (CR-0069).
+- **Menu items carry a glyph:** every item of a right-click menu we build
+  has a glyph before its label (Remove and Delete a trash can, Clear a
+  broom, Open an arrow), the same glyph for the same verb in every
+  activity; an item that cannot act (Clear History on an empty list) is
+  disabled, not hidden (owner, 2026-11-06).
+- **A selected row stays readable:** a selected table or list row keeps
+  the normal text colour on the selection fill; never accent text on an
+  accent fill (owner, 2026-11-06).
+- **A tab's title never runs under its close button:** the title
+  truncates before the close button's slot, with a gap (owner,
+  2026-11-06).
+- **A panel's content scrolls rather than clips:** a list inside a
+  fixed-height panel (the SSH Kept Forwards) scrolls when it is longer
+  than the panel; a row is never cut off at the panel's edge (owner,
+  2026-11-06).
+- **A section is set apart from its rows:** a heading inside a panel (Kept
+  Forwards, Headers, Indexes) has a gap above it and a gap before its
+  first row (`form::ROW_GAP`), and each row of a field or label with its
+  options (port, Auto, Start, delete) is a `centred_row` on one middle
+  line (owner, 2026-11-06) (CR-0071).
+- **A label beside a button sits on its middle line too:** in a detail
+  view (a container's Ports beside Open in Browser, any value with its
+  action) the row is a `centred_row`, label and button on one middle
+  line (owner, 2026-11-06) (CR-0075).
+- **An item-kind column is easy to read:** a column that lists the kinds
+  of thing a pane shows (Containers, Projects, Images, Volumes, Networks,
+  Swarm …) has larger icons and labels than an ordinary list (20 px
+  icon, body text, a 30 px row) and each kind wears its own colour and
+  fitting picture (Material when on) (owner, 2026-11-06) (CR-0074).
+- **Status figures are laid out, not strung together:** monitoring values
+  (CPU, memory, disks, load) are a table or a grid of labelled figures,
+  aligned in columns, never one long line of text (owner, 2026-11-06)
+  (CR-0071).
+- **A host's mark follows the host:** wherever a host or a host's
+  children are grouped (the SSH Tunnels list, the shell's Tunnels view),
+  the group header wears that host's coloured mark (Ubuntu, macOS, …), and
+  an item kind with its own picture (a tunnel) wears it in colour too
+  (owner, 2026-11-06) (CR-0071).
+- **Each tool has its own coloured picture, the same everywhere:** in an
+  activity that offers several tools (Devtools' Base64, JWT, Cron …;
+  Graphics' Image, Icon, Diagram Editor, Diagram Generator), each tool
+  wears a multi-colour picture that shows what it does, and the same
+  picture is used in the sidebar, the dashboard card and the tool's tab
+  (owner, 2026-11-06) (CR-0076).
+- **One set of log-level colours:** every view that shows log lines - the
+  Logs activity, Automation run logs, container and pod logs, the Editor's
+  debug console and build output, the SSH monitor, the Redis/API consoles -
+  colours ERROR, WARN, INFO, DEBUG, TRACE and their aliases (ERR, FATAL,
+  CRIT, WARNING, NOTICE, VERBOSE …) with the Logs activity's colours,
+  through one shared function, never its own palette (owner, 2026-11-06)
+  (CR-0077). Only the level word itself is coloured (`ERROR`, `WARN`,
+  `level=error` …), exactly as the Logs activity paints it; the rest of
+  the line keeps the normal text colour (owner, 2026-11-07).
+- **Options on one row are spaced apart:** checkboxes or radio buttons
+  sharing a row (Amend · Push After Commit; If Not Exists · Drop First;
+  regex flags) have `form::OPTION_GAP` (18 px) between them, so each reads
+  as its own choice; options in a form grid stay one per row (owner,
+  2026-11-06) (CR-0078).
+- **A product wears its real mark, everywhere:** a saved item that is a
+  known product - a shell (PowerShell, Command Prompt, Git Bash, a WSL
+  distro, zsh, fish, Nushell …), a database engine, a broker, a cloud, a
+  forge - wears that product's real multi-colour logo, the same in its
+  list row, its tab, the dashboard, Home's Recent, any history and its
+  Settings page; a plain glyph only for a product with no logo, then in
+  the product's colour (owner, 2026-11-06) (CR-0079).
+- **Settings forms are two left-aligned columns:** in every Settings page
+  (and any form built like one) each label is left-aligned in the first
+  column; a sub-setting's label (one that only applies when its parent is
+  on) is indented one step (`form::SUB_INDENT`) under its parent, still
+  left-aligned; every control - checkbox, radio buttons, text field,
+  dropdown, slider - starts at the same x in the second column, whatever
+  the label's length. Built with `form::field_grid` / `form::label` /
+  `form::sub_label`, never a hand-made row (owner, 2026-11-06) (CR-0080).
+  Every row of a Settings page - in the grid or outside it (a stacked
+  checkbox, a hint, a button row, a list) - has the same vertical air
+  (`form::ROW_GAP` between rows); no two rows touch (owner, 2026-11-06).
+  Text blocks count as rows: a description, a guide, a paragraph, a hint
+  or a standalone label has the same gap above and below as the controls
+  around it - it never sits flush against a field or a heading (owner,
+  2026-11-06).
+  Buttons in a Settings page are one size: every button - primary or
+  not - is a field's height with the same padding (`form::button` /
+  `form::primary_button`, never a bare `ui.button` or `small_button`),
+  and buttons side by side have `form::BUTTON_GAP` between them (owner,
+  2026-11-06).
+  A sub-section heading inside a Settings card (a group of rows under the
+  card's own title) is a step larger than body text and strong
+  (`form::subsection`), smaller than the card's title, so the hierarchy
+  card title > sub-section > row label reads at a glance (owner,
+  2026-11-06).
+  A list of checkboxes has `ROW_GAP` between items, and a checkbox's
+  description sits under its label (indented to the label's text) with
+  the gap after the description, not between the box and its text.
+  Reorder controls (move up / move down, drag handles) are standard-size
+  buttons in an aligned column, and the rows they reorder have `ROW_GAP`
+  between them (owner, 2026-11-06).
+  Suggestion lists (CLI suggestions, presets to add, discovered servers):
+  each row is a `centred_row` - icon, name, detail and its Add button on
+  one middle line - the button standard size in an aligned right column,
+  and `ROW_GAP` between rows (owner, 2026-11-06).
+- **The work-pane header wears the tab's mark:** the header band at the
+  top of a work pane (`hs_core::tool::ToolHeader`) leads with the same
+  picture and colour as that tab's icon and its sidebar row - a
+  product's logo, a tool's picture, a Material item icon, a rotating
+  source colour - never a generic or uncoloured glyph, in every activity
+  (owner, 2026-11-06).
 - **What opens a tab shows it:** any action that opens, adds or fills a
   tab - New Query, Open Data, a saved item, a history entry, a template -
   brings that tab to the front, whatever kind of tab (a designer, a
@@ -116,6 +222,11 @@ look for it in `crates/hs-ui/src/` first.
   is a plain text field, so the form still works. Dates are
   `hs_ui::datefield::date_field`, `YYYY-MM-DD` text with a calendar; it
   writes the format the server takes.
+  The same holds for any list the app already knows: a referenced
+  table's columns from the catalog, a schema's tables, saved profiles,
+  branches - a field that can be filled from one is a `pick_field`, for
+  a list of values one per pick (owner, 2026-11-06: the designer's
+  Foreign Keys columns) (CR-0072).
 - **Folders first, then items, each by name**, in every list that mixes
   them (the Redis key tree is the model).
 - **Anything a user makes several of takes an optional name**, shown first
@@ -218,6 +329,22 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
 
 ### Buttons and toolbars
 
+- **Two toolbar sizes:** the activity's main toolbar (the first row under
+  the pane title) has the larger buttons; a sub-toolbar inside the pane
+  (a sub-tab's own row, a panel's header) has smaller buttons with a
+  little air above and below, never as large as the main ones
+  (`toolbar::MAIN_BUTTON_HEIGHT` > `toolbar::SUB_BUTTON_HEIGHT`) (owner,
+  2026-11-06) (CR-0073).
+- **Show/hide toggles come first:** every toggle that shows or hides a
+  column of the work pane - the left browse column (Folder, Schema, Tree)
+  and the side panels (Graphics' Properties for the diagram, image and
+  icon editors, the generator's Prompt) - is the left-most item of the
+  first row of the activity's toolbar, before any action, in every
+  activity. This places existing toggles; it does not add one to every
+  column (owner, 2026-11-06: "placement only") (CR-0073). A toggle for a
+  view of the session itself - SSH's Tunnels and Monitor - is not a
+  column: it stays with that session's actions, just before Broadcast
+  (owner, 2026-11-06).
 - **Every button has an icon and a label** - `format!("{icon} {label}")`.
   The only exception is a row's own small actions (move, remove) in a
   fixed, aligned column: an icon with a tooltip (CR-0027, CR-0030,
@@ -227,7 +354,15 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
   than two buttons or sits beside a field. Only the AI Assistant corner
   uses `toolbar::hard_right` (CR-0027, CR-0061).
 - Hover highlights a control; it never grows or moves (`Theme::apply`
-  zeroes widget expansion) (CR-0026, CR-0050).
+  zeroes widget expansion) (CR-0026, CR-0050). This holds for every
+  hand-painted row, card, tree node, link and button too: hover changes
+  the fill or draws a border, it never paints a larger rect, a bigger font
+  or a scaled icon, and no scope may reset the style to egui's default
+  (which brings expansion back). Owner, 2026-11-07, seen again in
+  Containers, Redis and NoSQL.
+  Selectable items go through `form::selectable_label` /
+  `selectable_value` / `toggle_value` / `add_selectable`, never egui's own
+  (see GOTCHAS: they grow 1 px a side on hover).
 - Toolbar buttons and dropdowns are the field height with
   `toolbar::BUTTON_PADDING` (10 x 6); the AI Assistant control is the
   hard-right item through `toolbar::hard_right`; a toolbar that wraps

@@ -519,7 +519,19 @@ impl RepoPane {
     pub fn toolbar(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
         let busy = self.busy.is_some();
-        // The branch, first: it is the one fact a person checks before
+        // A show/hide toggle is the toolbar's first item (CR-0073).
+        let mut shown = !self.hide_tree;
+        hs_ui::toolbar::toggle(
+            ui,
+            theme,
+            &mut shown,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("git-tree-column"),
+        )
+        .on_hover_text(s.t("git-tree-column-tip"));
+        self.hide_tree = !shown;
+        ui.separator();
+        // The branch, next: it is the one fact a person checks before
         // any of the verbs beside it.
         if let Some(st) = &self.status {
             hs_ui::toolbar::status(ui, theme, theme.accent, ph::GIT_BRANCH, &st.branch_label());
@@ -573,26 +585,15 @@ impl RepoPane {
             ui.spinner();
             ui.label(egui::RichText::new(label).color(theme.text_muted));
         }
-        ui.separator();
-        let mut shown = !self.hide_tree;
-        hs_ui::toolbar::toggle(
-            ui,
-            theme,
-            &mut shown,
-            ph::SIDEBAR_SIMPLE,
-            &s.t("git-tree-column"),
-        )
-        .on_hover_text(s.t("git-tree-column-tip"));
-        self.hide_tree = !shown;
         hs_ui::toolbar::hard_right(ui, |ui| {
             // The same control in every tool, in the same place.
-            if ui
-                .selectable_label(
-                    self.assistant.open,
-                    format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
-                )
-                .on_hover_text(s.t("git-ai-tip"))
-                .clicked()
+            if hs_ui::form::selectable_label(
+                ui,
+                self.assistant.open,
+                format!("{} {}", ph::SPARKLE, s.t("ai-assistant")),
+            )
+            .on_hover_text(s.t("git-ai-tip"))
+            .clicked()
             {
                 self.assistant.toggle("git");
                 if self.assistant.open {
@@ -1315,6 +1316,7 @@ impl RepoPane {
             discard: s.t("git-discard-button"),
             blame: s.t("git-blame"),
             history: s.t("git-file-history"),
+            material: s.settings.read().appearance.material_icons("git"),
         };
         egui::ScrollArea::vertical()
             .id_salt(ui.id().with("git-lists"))
@@ -1511,6 +1513,7 @@ impl RepoPane {
                 // that is less than the button needs (seen on screen).
                 ui.horizontal(|ui| {
                     ui.checkbox(&mut self.amend, s.t("git-amend-check"));
+                    ui.add_space(hs_ui::form::OPTION_GAP);
                     ui.checkbox(&mut self.push_after, s.t("git-push-after"));
                 });
                 ui.add_space(2.0);
@@ -1661,6 +1664,8 @@ struct RowTips {
     discard: String,
     blame: String,
     history: String,
+    /// Draw each file's Material picture after its status letter.
+    material: bool,
 }
 
 /// One file in a list: its status letter, its path, and the verbs for
@@ -1707,8 +1712,21 @@ fn file_row(
         colour,
     );
     let verbs_w = 96.0;
+    // With Material icons on, the file's Material picture sits between
+    // the status letter and the name, as in every other file list.
+    let mut text_left = 30.0;
+    if tips.material {
+        let icon = 16.0;
+        let at = egui::Rect::from_center_size(
+            egui::pos2(rect.left() + text_left + icon / 2.0, rect.center().y),
+            egui::Vec2::splat(icon),
+        );
+        let name = f.path.rsplit('/').next().unwrap_or(&f.path);
+        egui::Image::new(hs_ui::fileicons::for_file(name)).paint_at(ui, at);
+        text_left += icon + 6.0;
+    }
     let text_rect = egui::Rect::from_min_max(
-        rect.left_top() + egui::vec2(30.0, 0.0),
+        rect.left_top() + egui::vec2(text_left, 0.0),
         rect.right_bottom() - egui::vec2(verbs_w, 0.0),
     );
     let label = match &f.orig_path {

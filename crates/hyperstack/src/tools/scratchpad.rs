@@ -93,6 +93,11 @@ impl Scratchpad {
             filter: String::new(),
             last_edit: None,
             confirm_delete: None,
+            material: services
+                .settings
+                .read()
+                .appearance
+                .material_icons("scratchpad"),
         }
     }
 }
@@ -175,6 +180,10 @@ pub struct Scratchpad {
     filter: String,
     last_edit: Option<Instant>,
     confirm_delete: Option<String>,
+    /// Whether this activity draws Material item icons, so the header
+    /// band wears the same note picture as the tab; `header()` is handed
+    /// no services, so it is read in `ui()`.
+    material: bool,
 }
 
 fn notes_dir(s: &Services) -> PathBuf {
@@ -1605,9 +1614,21 @@ impl Tool for Scratchpad {
         } else {
             "Draft"
         };
+        // The note's Material picture when the tab wears it, else the
+        // tab's own glyph (ui.md, "The work-pane header wears the tab's
+        // mark").
+        let head = hs_core::tool::ToolHeader::new(DESCRIPTOR.icon, self.title().to_string());
+        let head = match self
+            .material
+            .then(|| hs_ui::fileicons::for_kind("note"))
+            .flatten()
+        {
+            Some(egui::ImageSource::Bytes { uri, .. }) => head.icon_image(uri.to_string()),
+            Some(egui::ImageSource::Uri(uri)) => head.icon_image(uri.to_string()),
+            _ => head,
+        };
         Some(
-            hs_core::tool::ToolHeader::new(ph::NOTE_PENCIL, self.title().to_string())
-                .fact("Date Created", hs_core::tool::stamp(self.created))
+            head.fact("Date Created", hs_core::tool::stamp(self.created))
                 .fact("Date Modified", hs_core::tool::stamp(self.modified))
                 .fact("Note Status", status),
         )
@@ -1925,6 +1946,12 @@ impl Tool for Scratchpad {
             return;
         }
         self.refresh_stamps(cx.services);
+        self.material = cx
+            .services
+            .settings
+            .read()
+            .appearance
+            .material_icons("scratchpad");
         // Autosave a moment after typing stops. A brand-new empty note is
         // not written: it only becomes a file once it has content.
         if self.dirty()

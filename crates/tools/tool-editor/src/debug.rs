@@ -102,7 +102,9 @@ pub struct Debugger {
     pub picker_open: bool,
     pub panel_open: bool,
     tab: PanelTab,
-    console: Vec<Line>,
+    /// Each line with where it names its level, read once when it is
+    /// pushed.
+    console: Vec<(Line, Option<hs_ui::loglevel::Span>)>,
     console_input: String,
     threads: Vec<Thread>,
     current_thread: Option<i64>,
@@ -455,7 +457,11 @@ impl Debugger {
     }
 
     fn push(&mut self, line: Line) {
-        self.console.push(line);
+        let level = match &line {
+            Line::Out(t) | Line::Info(t) => hs_core::loglevel::level_span(t),
+            Line::Err(_) | Line::Input(_) => None,
+        };
+        self.console.push((line, level));
         if self.console.len() > CONSOLE_CAP {
             let extra = self.console.len() - CONSOLE_CAP;
             self.console.drain(0..extra);
@@ -1113,17 +1119,21 @@ impl Debugger {
         // equal, so a dragged size survives.
         ui.set_min_height(ui.available_height());
         let mut close = false;
-        ui.horizontal(|ui| {
-            for (tab, key) in [
-                (PanelTab::Console, "debug-tab-console"),
-                (PanelTab::Variables, "debug-tab-variables"),
-                (PanelTab::Stack, "debug-tab-stack"),
-                (PanelTab::Breakpoints, "debug-tab-breakpoints"),
+        // Air above the tab row, and an icon and a label on each tab, as
+        // every other sub-toolbar has (owner's CR-0040).
+        ui.add_space(hs_ui::form::PANE_GAP);
+        hs_ui::form::centred_row(ui, |ui| {
+            for (tab, icon, key) in [
+                (PanelTab::Console, ph::TERMINAL_WINDOW, "debug-tab-console"),
+                (
+                    PanelTab::Variables,
+                    ph::BRACKETS_CURLY,
+                    "debug-tab-variables",
+                ),
+                (PanelTab::Stack, ph::STACK, "debug-tab-stack"),
+                (PanelTab::Breakpoints, ph::RECORD, "debug-tab-breakpoints"),
             ] {
-                if ui
-                    .add(egui::Button::selectable(self.tab == tab, s.t(key)))
-                    .clicked()
-                {
+                if hs_ui::toolbar::tab(ui, theme, self.tab == tab, icon, &s.t(key)).clicked() {
                     self.tab = tab;
                 }
             }
@@ -1168,10 +1178,15 @@ impl Debugger {
                     s.settings.read().editor.font_size,
                     hs_ui::fonts::editor_family(),
                 );
-                for line in &self.console {
+                for (line, span) in &self.console {
+                    // A line that names a level wears the Logs activity's
+                    // colour for it on the level word only (CR-0077); the
+                    // span was read on push. Only Out and Info lines carry
+                    // one; the stream colours stay whole-line without it.
                     let (text, colour) = match line {
                         Line::Out(t) => (t.as_str(), theme.text),
                         Line::Err(t) => (t.as_str(), theme.error),
+                        Line::Info(t) if span.is_some() => (t.as_str(), theme.text),
                         Line::Info(t) => (t.as_str(), theme.text_muted),
                         Line::Input(t) => (t.as_str(), theme.accent),
                     };
@@ -1180,14 +1195,14 @@ impl Debugger {
                     } else {
                         ""
                     };
-                    ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(format!("{prefix}{text}"))
-                                .font(font.clone())
-                                .color(colour),
-                        )
-                        .wrap(),
+                    let job = hs_ui::loglevel::line_job(
+                        theme,
+                        &format!("{prefix}{text}"),
+                        span.as_ref(),
+                        font.clone(),
+                        colour,
                     );
+                    ui.add(egui::Label::new(job).wrap());
                 }
             });
         hs_ui::form::centred_row(ui, |ui| {
@@ -1346,12 +1361,11 @@ impl Debugger {
                     } else {
                         egui::RichText::new(text)
                     };
-                    if ui
-                        .add(egui::Button::selectable(
-                            self.selected_frame == Some(i),
-                            rich,
-                        ))
-                        .clicked()
+                    if hs_ui::form::add_selectable(
+                        ui,
+                        egui::Button::selectable(self.selected_frame == Some(i), rich),
+                    )
+                    .clicked()
                     {
                         pick = Some(i);
                     }

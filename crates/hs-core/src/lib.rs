@@ -37,6 +37,7 @@ pub mod i18n;
 pub mod jobs;
 pub mod langver;
 pub mod logging;
+pub mod loglevel;
 pub mod objstore;
 pub mod open_tabs;
 pub mod paths;

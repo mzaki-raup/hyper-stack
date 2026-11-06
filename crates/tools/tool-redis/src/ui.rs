@@ -1103,8 +1103,7 @@ impl RedisTool {
                             .find(|(x, _)| *x == n)
                             .map(|(_, k)| *k)
                             .unwrap_or(0);
-                        if ui
-                            .selectable_label(n == db, format!("{n} ({count})"))
+                        if hs_ui::form::selectable_label(ui, n == db, format!("{n} ({count})"))
                             .clicked()
                             && n != db
                         {
@@ -1213,13 +1212,21 @@ impl RedisTool {
                             }
                         });
                         let label = match (&picture, row.is_group) {
-                            (Some(_), true) => format!("{icon} {} ({})", row.label, row.count),
+                            (Some(_), true) => format!("{} ({})", row.label, row.count),
                             (Some(_), false) => row.label.clone(),
                             (None, true) => format!("{icon} {} ({})", row.label, row.count),
                             (None, false) => format!("{icon} {}", row.label),
                         };
-                        // The picture is part of the row's click target, so
-                        // clicking the icon selects as clicking the name does.
+                        // Caret, then picture, then name, as in every other
+                        // tree (owner, 2026-11-06). Both are part of the
+                        // row's click target, as the name is.
+                        let caret_r = (picture.is_some() && row.is_group).then(|| {
+                            ui.add(
+                                egui::Label::new(icon)
+                                    .selectable(false)
+                                    .sense(egui::Sense::click()),
+                            )
+                        });
                         let pic_r = picture.map(|src| {
                             ui.add(
                                 egui::Image::new(src)
@@ -1230,9 +1237,13 @@ impl RedisTool {
                         // A selectable label sizes to its text, so every row
                         // starts at the same left edge; a stretched button
                         // centres its text and makes the list look ragged.
-                        let r = ui.selectable_label(is_selected, label);
+                        let r = hs_ui::form::selectable_label(ui, is_selected, label);
                         let r = match pic_r {
                             Some(p) => r | p,
+                            None => r,
+                        };
+                        let r = match caret_r {
+                            Some(c) => r | c,
                             None => r,
                         };
                         if r.clicked() {
@@ -2101,7 +2112,7 @@ impl RedisTool {
                                     KeyType::Hash,
                                 ] {
                                     let label = k.badge().to_string();
-                                    ui.selectable_value(kind, k, label);
+                                    hs_ui::form::selectable_value(ui, kind, k, label);
                                 }
                             });
                         ui.end_row();

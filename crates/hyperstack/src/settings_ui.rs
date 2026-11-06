@@ -17,7 +17,7 @@ use hs_ui::tip::TipExt;
 use secrecy::SecretString;
 use tool_db::profile::DbFields;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Page {
     #[default]
     General,
@@ -541,6 +541,25 @@ pub fn page(
     state: &mut SettingsState,
     effects: &mut Vec<SettingsEffect>,
 ) {
+    // Every row of a Settings page - a stacked checkbox, a hint, a button
+    // row, a paragraph - has the grid's row gap above and below, so no two
+    // rows touch; buttons side by side keep the button gap (CR-0080).
+    let saved = ui.spacing().item_spacing;
+    ui.spacing_mut().item_spacing = egui::vec2(form::BUTTON_GAP, form::ROW_GAP);
+    // One label column per page, across all its cards, so controls line
+    // up from card to card (owner, 2026-11-06).
+    let id = ("settings-page", state.page);
+    form::page_labels(ui, id, |ui| page_inner(ui, theme, services, state, effects));
+    ui.spacing_mut().item_spacing = saved;
+}
+
+fn page_inner(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    services: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
     match state.page {
         Page::General => general(ui, theme, services, effects),
         Page::Appearance => appearance(ui, theme, services, state, effects),
@@ -590,9 +609,9 @@ fn workspace(
             let open = w.name == current;
             // A list to pick from, not a table: a larger logo and name
             // (owner's request, 2026-10-23).
+            let mut switch = false;
             let row = ui.scope(|ui| {
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
+                hs_ui::form::centred_row(ui, |ui| {
                     ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_LIST);
                     ui.add_space(4.0);
                     ui.add(
@@ -611,6 +630,28 @@ fn workspace(
                                 .color(theme.success),
                         );
                     }
+                    // A Switch button in a fixed right-hand column, disabled
+                    // for the workspace already open (owner's CR-0040).
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let b = ui
+                            .add_enabled_ui(!open, |ui| {
+                                form::button(
+                                    ui,
+                                    theme,
+                                    hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+                                    &s.t("settings-workspace-switch"),
+                                )
+                            })
+                            .inner;
+                        let b = if open {
+                            b.on_disabled_hover_text(s.t("settings-workspace-current-tip"))
+                        } else {
+                            b.tip(s.t("settings-workspace-switch-hint"))
+                        };
+                        if b.clicked() {
+                            switch = true;
+                        }
+                    });
                 });
             });
             let r = ui.interact(
@@ -618,16 +659,20 @@ fn workspace(
                 ui.id().with(("ws-row", &w.name)),
                 egui::Sense::click(),
             );
-            if !open && r.clicked() {
+            if !open && (r.clicked() || switch) {
                 effects.push(SettingsEffect::RunAction(format!("ws:{}", w.name)));
             }
             if !open {
                 r.tip(s.t("settings-workspace-switch-hint"));
             }
-            ui.add_space(2.0);
         }
-        ui.add_space(4.0);
-        if form::primary_button(ui, theme, &s.t("workspace-new")).clicked() {
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("workspace-new")),
+        )
+        .clicked()
+        {
             effects.push(SettingsEffect::RunAction("ws.new".into()));
         }
     });
@@ -648,23 +693,28 @@ fn workspace(
         |ui| {
             form::field_grid(ui, "ws-identity", |ui| {
                 form::label(ui, &s.t("workspace-name"));
-                ui.vertical(|ui| {
-                    form::text_field(ui, draft, &s.t("workspace-name-hint"));
-                    let changed = draft.trim() != current && !draft.trim().is_empty();
+                form::text_field(ui, draft, &s.t("workspace-name-hint"));
+                ui.end_row();
+                let changed = draft.trim() != current && !draft.trim().is_empty();
+                form::control_row(ui, |ui| {
                     if ui
-                        .add_enabled(
-                            changed && current != "default",
-                            egui::Button::new(s.t("settings-workspace-rename")),
-                        )
+                        .add_enabled_ui(changed && current != "default", |ui| {
+                            form::button(
+                                ui,
+                                theme,
+                                hs_ui::icons::ph::PENCIL_SIMPLE,
+                                &s.t("settings-workspace-rename"),
+                            )
+                        })
+                        .inner
                         .clicked()
                     {
                         effects.push(SettingsEffect::RenameWorkspace(draft.trim().to_string()));
                     }
-                    if current == "default" {
-                        form::hint(ui, theme, &s.t("settings-workspace-default-name-hint"));
-                    }
                 });
-                ui.end_row();
+                if current == "default" {
+                    form::row_hint(ui, theme, &s.t("settings-workspace-default-name-hint"));
+                }
                 form::label(ui, &s.t("workspace-logo"));
                 ui.vertical(|ui| {
                     ui.horizontal(|ui| {
@@ -688,7 +738,13 @@ fn workspace(
                             }
                         }
                         ui.add_space(8.0);
-                        if ui.button(s.t("workspace-logo-choose")).clicked()
+                        if form::button(
+                            ui,
+                            theme,
+                            hs_ui::icons::ph::IMAGE,
+                            &s.t("workspace-logo-choose"),
+                        )
+                        .clicked()
                             && let Some(p) = rfd::FileDialog::new()
                                 .add_filter("Image", hs_core::workspace::ICON_EXTS)
                                 .pick_file()
@@ -708,7 +764,13 @@ fn workspace(
                             }
                         }
                         if let Some(existing) = hs_core::workspace::workspace_icon_file(&root)
-                            && ui.button(s.t("workspace-logo-remove")).clicked()
+                            && form::button(
+                                ui,
+                                theme,
+                                hs_ui::icons::ph::X,
+                                &s.t("workspace-logo-remove"),
+                            )
+                            .clicked()
                         {
                             match std::fs::remove_file(&existing) {
                                 Ok(()) => {
@@ -725,9 +787,9 @@ fn workspace(
                             }
                         }
                     });
-                    form::hint(ui, theme, &s.t("workspace-logo-hint"));
                 });
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("workspace-logo-hint"));
                 form::label(ui, &s.t("settings-workspace-delete-label"));
                 ui.vertical(|ui| {
                     let others = hs_core::workspace::Registry::load(&s.paths)
@@ -736,31 +798,31 @@ fn workspace(
                         .filter(|n| n != &current)
                         .count();
                     if ui
-                        .add_enabled(
-                            others > 0,
-                            egui::Button::new(
-                                egui::RichText::new(format!(
+                        .add_enabled_ui(others > 0, |ui| {
+                            form::danger_button(
+                                ui,
+                                theme,
+                                &format!(
                                     "{} {}",
                                     hs_ui::icons::TRASH,
                                     s.t("settings-workspace-delete")
-                                ))
-                                .color(theme.error),
-                            ),
-                        )
+                                ),
+                            )
+                        })
+                        .inner
                         .clicked()
                     {
                         effects.push(SettingsEffect::DeleteWorkspace);
                     }
-                    form::hint(ui, theme, &s.t("settings-workspace-delete-hint"));
                 });
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("settings-workspace-delete-hint"));
             });
         },
     );
 
     form::section(ui, theme, &s.t("settings-workspace-section-envs"), |ui| {
         form::hint(ui, theme, &s.t("settings-workspace-envs-hint"));
-        ui.add_space(6.0);
         let registry = hs_core::workspace::Registry::load(&s.paths);
         let others: Vec<String> = registry
             .names()
@@ -778,7 +840,6 @@ fn workspace(
             form::field_grid(ui, "ws-compare", |ui| {
                 form::label(ui, &s.t("settings-workspace-compare-with"));
                 ui.horizontal(|ui| {
-                    ws_icon(ui, s, &registry, &state.ws_compare, crate::app::WS_MARK_ROW);
                     egui::ComboBox::from_id_salt("ws-compare-with")
                         .width(form::FIELD_MIN_WIDTH)
                         .selected_text(state.ws_compare.clone())
@@ -786,14 +847,21 @@ fn workspace(
                             for n in &others {
                                 ui.horizontal(|ui| {
                                     ws_icon(ui, s, &registry, n, crate::app::WS_MARK_ROW);
-                                    ui.selectable_value(&mut state.ws_compare, n.clone(), n);
+                                    hs_ui::form::selectable_value(
+                                        ui,
+                                        &mut state.ws_compare,
+                                        n.clone(),
+                                        n,
+                                    );
                                 });
                             }
                         });
+                    // The mark after the dropdown, so the dropdown starts
+                    // at the control column (owner, 2026-11-06).
+                    ws_icon(ui, s, &registry, &state.ws_compare, crate::app::WS_MARK_ROW);
                 });
                 ui.end_row();
             });
-            ui.add_space(6.0);
             let here: Vec<(String, usize, bool)> = s
                 .environments
                 .read()
@@ -855,8 +923,7 @@ fn workspace(
                         ui.end_row();
                     }
                 });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
                 let missing_here = names
                     .iter()
                     .filter(|n| !here.iter().any(|(x, _, _)| x == *n))
@@ -866,17 +933,18 @@ fn workspace(
                     .filter(|n| !there.iter().any(|(x, _, _)| x == *n))
                     .count();
                 if ui
-                    .add_enabled(
-                        missing_here > 0,
-                        egui::Button::new(format!(
-                            "{} {}",
+                    .add_enabled_ui(missing_here > 0, |ui| {
+                        form::button(
+                            ui,
+                            theme,
                             hs_ui::icons::ph::DOWNLOAD_SIMPLE,
-                            s.i18n.t_args(
+                            &s.i18n.t_args(
                                 "settings-workspace-copy-here",
-                                &[("count", &missing_here.to_string())]
-                            )
-                        )),
-                    )
+                                &[("count", &missing_here.to_string())],
+                            ),
+                        )
+                    })
+                    .inner
                     .clicked()
                 {
                     effects.push(SettingsEffect::SyncEnvironments {
@@ -885,17 +953,18 @@ fn workspace(
                     });
                 }
                 if ui
-                    .add_enabled(
-                        missing_there > 0,
-                        egui::Button::new(format!(
-                            "{} {}",
+                    .add_enabled_ui(missing_there > 0, |ui| {
+                        form::button(
+                            ui,
+                            theme,
                             hs_ui::icons::ph::UPLOAD_SIMPLE,
-                            s.i18n.t_args(
+                            &s.i18n.t_args(
                                 "settings-workspace-copy-there",
-                                &[("count", &missing_there.to_string())]
-                            )
-                        )),
-                    )
+                                &[("count", &missing_there.to_string())],
+                            ),
+                        )
+                    })
+                    .inner
                     .clicked()
                 {
                     effects.push(SettingsEffect::SyncEnvironments {
@@ -912,14 +981,13 @@ fn workspace(
         ui.add(
             egui::Label::new(egui::RichText::new(root.display().to_string()).monospace()).wrap(),
         );
-        ui.add_space(6.0);
-        if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::FOLDER_OPEN,
-                s.t("settings-workspace-open-folder")
-            ))
-            .clicked()
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::FOLDER_OPEN,
+            &s.t("settings-workspace-open-folder"),
+        )
+        .clicked()
         {
             open_folder(s, &root);
         }
@@ -953,8 +1021,7 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         monitor.y.max(inner.y).max(WindowState::MIN_SIZE[1]),
     );
 
-    ui.label(egui::RichText::new(s.t("settings-window-size")).strong());
-    ui.add_space(6.0);
+    form::subsection(ui, theme, &s.t("settings-window-size"));
 
     let mut apply: Option<SizePreset> = None;
     let mut resize: Option<egui::Vec2> = None;
@@ -966,9 +1033,11 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
             .selected_text(s.t(current.key()))
             .show_ui(ui, |ui| {
                 for p in SizePreset::ALL {
-                    if ui
-                        .add(egui::Button::selectable(current == p, s.t(p.key())))
-                        .clicked()
+                    if hs_ui::form::add_selectable(
+                        ui,
+                        egui::Button::selectable(current == p, s.t(p.key())),
+                    )
+                    .clicked()
                     {
                         apply = Some(p);
                         ui.close();
@@ -999,6 +1068,17 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
             }
         });
         ui.end_row();
+        form::row_hint(
+            ui,
+            theme,
+            &s.i18n.t_args(
+                "settings-window-size-hint",
+                &[
+                    ("w", &WindowState::MIN_SIZE[0].to_string()),
+                    ("h", &WindowState::MIN_SIZE[1].to_string()),
+                ],
+            ),
+        );
     });
 
     let ctx = ui.ctx().clone();
@@ -1015,18 +1095,6 @@ fn window_size(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
     }
-
-    form::hint(
-        ui,
-        theme,
-        &s.i18n.t_args(
-            "settings-window-size-hint",
-            &[
-                ("w", &WindowState::MIN_SIZE[0].to_string()),
-                ("h", &WindowState::MIN_SIZE[1].to_string()),
-            ],
-        ),
-    );
 }
 
 fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<SettingsEffect>) {
@@ -1044,13 +1112,6 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             let registry = hs_core::workspace::Registry::load(&s.paths);
             let names: Vec<String> = registry.workspaces.iter().map(|w| w.name.clone()).collect();
             ui.horizontal(|ui| {
-                ws_icon(
-                    ui,
-                    s,
-                    &registry,
-                    &settings.general.startup_workspace,
-                    crate::app::WS_MARK_ROW,
-                );
                 egui::ComboBox::from_id_salt("startup-ws")
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(settings.general.startup_workspace.clone())
@@ -1058,9 +1119,12 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                         for n in names {
                             ui.horizontal(|ui| {
                                 ws_icon(ui, s, &registry, &n, crate::app::WS_MARK_ROW);
-                                if ui
-                                    .selectable_label(settings.general.startup_workspace == n, &n)
-                                    .clicked()
+                                if hs_ui::form::selectable_label(
+                                    ui,
+                                    settings.general.startup_workspace == n,
+                                    &n,
+                                )
+                                .clicked()
                                 {
                                     settings.general.startup_workspace = n.clone();
                                     changed = true;
@@ -1068,8 +1132,18 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                             });
                         }
                     });
+                // The mark after the dropdown, so the dropdown starts at
+                // the control column (owner, 2026-11-06).
+                ws_icon(
+                    ui,
+                    s,
+                    &registry,
+                    &settings.general.startup_workspace,
+                    crate::app::WS_MARK_ROW,
+                );
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-startup-workspace-hint"));
             form::label(ui, &s.t("settings-language"));
             let mut lang = settings.general.language.clone();
             let auto = s.t("settings-language-auto");
@@ -1081,30 +1155,26 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                     lang.clone()
                 })
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_value(&mut lang, String::new(), auto.clone())
+                    if hs_ui::form::selectable_value(ui, &mut lang, String::new(), auto.clone())
                         .clicked()
                     {
                         changed = true;
                     }
                     for l in hs_core::i18n::I18n::available() {
-                        if ui.selectable_value(&mut lang, l.clone(), l).clicked() {
+                        if hs_ui::form::selectable_value(ui, &mut lang, l.clone(), l).clicked() {
                             changed = true;
                         }
                     }
                 });
             settings.general.language = lang;
             ui.end_row();
-        });
-        form::hint(ui, theme, &s.t("settings-startup-workspace-hint"));
-        ui.add_space(6.0);
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.general.restore_tabs,
-                s.t("settings-restore-tabs"),
+                &s.t("settings-restore-tabs"),
             )
             .changed();
-        ui.add_space(8.0);
+        });
         window_size(ui, theme, s);
     });
     form::section(ui, theme, &s.t("settings-section-behaviour"), |ui| {
@@ -1121,6 +1191,7 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 changed = true;
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-undo-limit-hint"));
             form::label(ui, &s.t("settings-log-level"));
             let current = crate::dock::level_from_name(&settings.general.log_level);
             let mut chosen = current;
@@ -1132,7 +1203,12 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 )))
                 .show_ui(ui, |ui| {
                     for (level, name) in crate::dock::LEVELS {
-                        ui.selectable_value(&mut chosen, level, s.t(&format!("log-level-{name}")));
+                        hs_ui::form::selectable_value(
+                            ui,
+                            &mut chosen,
+                            level,
+                            s.t(&format!("log-level-{name}")),
+                        );
                     }
                 });
             if chosen != current {
@@ -1144,32 +1220,24 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 changed = true;
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-log-level-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-undo-limit-hint"));
-        form::hint(ui, theme, &s.t("settings-log-level-hint"));
     });
     drop(settings);
     form::section(ui, theme, &s.t("settings-section-portable"), |ui| {
         form::hint(ui, theme, &s.t("settings-portable-hint"));
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::EXPORT,
-                    s.t("settings-export")
-                ))
-                .clicked()
+        form::centred_row(ui, |ui| {
+            if form::button(ui, theme, hs_ui::icons::ph::EXPORT, &s.t("settings-export")).clicked()
             {
                 effects.push(SettingsEffect::ExportSettings);
             }
-            if ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::DOWNLOAD_SIMPLE,
-                    s.t("settings-import")
-                ))
-                .clicked()
+            if form::button(
+                ui,
+                theme,
+                hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                &s.t("settings-import"),
+            )
+            .clicked()
             {
                 effects.push(SettingsEffect::ImportSettings);
             }
@@ -1198,16 +1266,15 @@ fn accessibility(
     let mut settings = s.settings.write();
     let mut changed = false;
     form::section(ui, theme, &s.t("settings-section-tts"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "tts-grid", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.accessibility.tts_enabled,
-                s.t("settings-tts-enabled"),
+                &s.t("settings-tts-enabled"),
+                &s.t("settings-tts-enabled-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-tts-enabled-hint"));
-        ui.add_space(6.0);
-        form::field_grid(ui, "tts-grid", |ui| {
-            form::label(ui, &s.t("settings-tts-rate"));
+            form::sub_label(ui, &s.t("settings-tts-rate"));
             changed |= ui
                 .add(egui::Slider::new(
                     &mut settings.accessibility.tts_rate,
@@ -1215,56 +1282,54 @@ fn accessibility(
                 ))
                 .changed();
             ui.end_row();
+            form::control_row(ui, |ui| {
+                form::centred_row(ui, |ui| {
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::SPEAKER_HIGH,
+                        &s.t("settings-tts-test"),
+                    )
+                    .clicked()
+                    {
+                        effects.push(SettingsEffect::SpeakSample(s.t("settings-tts-sample")));
+                    }
+                    if form::button(ui, theme, hs_ui::icons::ph::STOP, &s.t("tts-stop")).clicked() {
+                        effects.push(SettingsEffect::StopSpeaking);
+                    }
+                });
+                if !hs_core::tts::Tts::available() {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::WARNING,
+                        &s.t("settings-tts-unavailable"),
+                    );
+                }
+            });
+            form::row_hint(ui, theme, &s.t("settings-tts-hint"));
         });
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::SPEAKER_HIGH,
-                    s.t("settings-tts-test")
-                ))
-                .clicked()
-            {
-                effects.push(SettingsEffect::SpeakSample(s.t("settings-tts-sample")));
-            }
-            if ui
-                .button(format!("{} {}", hs_ui::icons::ph::STOP, s.t("tts-stop")))
-                .clicked()
-            {
-                effects.push(SettingsEffect::StopSpeaking);
-            }
-        });
-        if !hs_core::tts::Tts::available() {
-            ui.add_space(6.0);
-            form::note(
-                ui,
-                theme,
-                hs_ui::icons::WARNING,
-                &s.t("settings-tts-unavailable"),
-            );
-        }
-        form::hint(ui, theme, &s.t("settings-tts-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-stt"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "stt-grid", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.accessibility.stt_enabled,
-                s.t("settings-stt-enabled"),
+                &s.t("settings-stt-enabled"),
+                &s.t("settings-stt-enabled-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-stt-enabled-hint"));
-        if !hs_core::stt::Stt::available() {
-            form::note(
-                ui,
-                theme,
-                hs_ui::icons::INFO,
-                &s.t("settings-stt-unavailable"),
-            );
-        }
-        ui.add_space(6.0);
-        form::field_grid(ui, "stt-grid", |ui| {
-            form::label(ui, &s.t("settings-stt-language"));
+            if !hs_core::stt::Stt::available() {
+                form::control_row(ui, |ui| {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-stt-unavailable"),
+                    );
+                });
+            }
+            form::sub_label(ui, &s.t("settings-stt-language"));
             changed |= form::text_field(
                 ui,
                 &mut settings.accessibility.stt_language,
@@ -1272,7 +1337,7 @@ fn accessibility(
             )
             .changed();
             ui.end_row();
-            form::label(ui, &s.t("settings-stt-max"));
+            form::sub_label(ui, &s.t("settings-stt-max"));
             changed |= ui
                 .add(
                     egui::Slider::new(&mut settings.accessibility.stt_max_secs, 5..=600)
@@ -1280,17 +1345,19 @@ fn accessibility(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-stt-max-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-stt-max-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-motion"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "motion-grid", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.accessibility.reduce_motion,
-                s.t("settings-reduce-motion"),
+                &s.t("settings-reduce-motion"),
+                &s.t("settings-reduce-motion-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-reduce-motion-hint"));
+        });
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -1307,29 +1374,29 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             ui.end_row();
             form::label(ui, &s.t("settings-data-folder"));
             ui.vertical(|ui| {
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(s.paths.root().display().to_string()).monospace(),
-                    )
-                    .wrap(),
-                );
-                if ui
-                    .button(format!(
-                        "{} {}",
+                // The folder and the button that opens it on one middle
+                // line, a gap between them (owner, 2026-11-06, CR-0080).
+                form::centred_row(ui, |ui| {
+                    ui.monospace(s.paths.root().display().to_string());
+                    ui.add_space(form::BUTTON_GAP);
+                    if form::button(
+                        ui,
+                        theme,
                         hs_ui::icons::ph::FOLDER_OPEN,
-                        s.t("settings-data-open-folder")
-                    ))
+                        &s.t("settings-data-open-folder"),
+                    )
                     .tip(s.t("settings-data-open-folder-tip"))
                     .clicked()
-                {
-                    open_folder(s, s.paths.root());
-                }
+                    {
+                        open_folder(s, s.paths.root());
+                    }
+                });
                 if let Some(r) = &s.paths.fallback_reason {
                     ui.colored_label(theme.warning, r);
                 }
-                form::hint(ui, theme, &s.t("settings-data-reset"));
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-data-reset"));
             form::label(ui, &s.t("settings-updates-exe-folder"));
             match s.updater.exe_dir_writable() {
                 Ok(dir) => {
@@ -1349,7 +1416,11 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
         });
     });
 
-    form::section(ui, theme, &s.t("settings-section-update-policy"), |ui| {
+    let status = s.updater.status();
+    let last = s.settings.read().updates.last_check.clone();
+    // One Updates card: the policy first, then Check for Updates and its
+    // status (owner, 2026-11-06, CR-0080).
+    form::section(ui, theme, &s.t("settings-section-updates"), |ui| {
         let mut settings = s.settings.write();
         form::field_grid(ui, "updates-policy", |ui| {
             form::label(ui, &s.t("settings-updates-channel"));
@@ -1381,18 +1452,17 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 }
             });
             ui.end_row();
-        });
-        ui.add_space(6.0);
-        changed |= ui
-            .checkbox(&mut settings.updates.enabled, s.t("settings-updates-auto"))
+            changed |= form::checkbox_row_with_description(
+                ui,
+                &mut settings.updates.enabled,
+                &s.t("settings-updates-auto"),
+                &s.t("settings-updates-auto-hint"),
+            )
             .changed();
-        form::hint(ui, theme, &s.t("settings-updates-auto-hint"));
-    });
-
-    let status = s.updater.status();
-    let last = s.settings.read().updates.last_check.clone();
-    form::section(ui, theme, &s.t("settings-section-check"), |ui| {
-        ui.horizontal(|ui| {
+        });
+        drop(settings);
+        form::subsection(ui, theme, &s.t("settings-section-check"));
+        form::centred_row(ui, |ui| {
             match &status {
                 UpdateStatus::Checking => {
                     ui.spinner();
@@ -1436,11 +1506,18 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                 status,
                 UpdateStatus::Checking | UpdateStatus::Downloading { .. }
             );
-            if !busy && ui.button(s.t("settings-updates-check-now")).clicked() {
+            if !busy
+                && form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::ARROWS_CLOCKWISE,
+                    &s.t("settings-updates-check-now"),
+                )
+                .clicked()
+            {
                 effects.push(SettingsEffect::CheckUpdates);
             }
         });
-        ui.add_space(6.0);
         match &status {
             UpdateStatus::Available {
                 candidate, asset, ..
@@ -1464,20 +1541,31 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                                 ui.add(egui::Label::new(candidate.notes.as_str()).wrap());
                             });
                     });
-                ui.horizontal(|ui| {
+                form::centred_row(ui, |ui| {
                     let size = format!("{:.1} MB", asset.size as f64 / 1_048_576.0);
                     if form::primary_button(
                         ui,
                         theme,
-                        &s.i18n
-                            .t_args("settings-updates-download", &[("size", &size)]),
+                        &format!(
+                            "{} {}",
+                            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                            s.i18n
+                                .t_args("settings-updates-download", &[("size", &size)])
+                        ),
                     )
                     .clicked()
                     {
                         effects.push(SettingsEffect::DownloadUpdate);
                     }
                     ui.hyperlink_to(s.t("settings-updates-view"), &candidate.html_url);
-                    if ui.button(s.t("settings-updates-skip")).clicked() {
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::SKIP_FORWARD,
+                        &s.t("settings-updates-skip"),
+                    )
+                    .clicked()
+                    {
                         effects.push(SettingsEffect::SkipUpdate(candidate.tag.clone()));
                     }
                 });
@@ -1518,7 +1606,17 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
                             .t_args("settings-updates-ready", &[("version", version)])
                     ),
                 );
-                if form::primary_button(ui, theme, &s.t("settings-updates-install")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::ROCKET_LAUNCH,
+                        s.t("settings-updates-install")
+                    ),
+                )
+                .clicked()
+                {
                     effects.push(SettingsEffect::InstallUpdate);
                 }
             }
@@ -1542,14 +1640,16 @@ fn updates(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
 
     if let Some((_, prev)) = s.updater.previous_exe() {
         form::section(ui, theme, &s.t("settings-updates-previous"), |ui| {
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
                 ui.monospace(&prev);
-                if ui
-                    .button(
-                        s.i18n
-                            .t_args("settings-updates-revert", &[("version", &prev)]),
-                    )
-                    .clicked()
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE,
+                    &s.i18n
+                        .t_args("settings-updates-revert", &[("version", &prev)]),
+                )
+                .clicked()
                 {
                     effects.push(SettingsEffect::RevertUpdate);
                 }
@@ -1593,7 +1693,8 @@ fn appearance(
                     let selected = mode == id
                         || (mode.is_empty() && id == "dark" && legacy_dark)
                         || (mode.is_empty() && id == "light" && !legacy_dark);
-                    if ui.selectable_label(selected, s.t(key)).clicked() && !selected {
+                    if hs_ui::form::selectable_label(ui, selected, s.t(key)).clicked() && !selected
+                    {
                         if mode.is_empty() && !legacy_dark {
                             // Keep the light scheme the user had before modes existed.
                             settings.appearance.light_theme = settings.appearance.theme.clone();
@@ -1605,6 +1706,7 @@ fn appearance(
                 }
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-theme-mode-hint"));
             for (dark_slot, label_key, salt) in [
                 (true, "settings-dark-scheme", "dark-scheme"),
                 (false, "settings-light-scheme", "light-scheme"),
@@ -1624,7 +1726,7 @@ fn appearance(
                             if *dark != dark_slot {
                                 continue;
                             }
-                            if ui.selectable_label(slot == id, *name).clicked() {
+                            if hs_ui::form::selectable_label(ui, slot == id, *name).clicked() {
                                 *slot = (*id).to_string();
                                 theme_changed = true;
                             }
@@ -1633,17 +1735,10 @@ fn appearance(
                 ui.end_row();
             }
         });
-        form::hint(ui, theme, &s.t("settings-theme-mode-hint"));
-        ui.add_space(10.0);
         // Every scheme as a clickable row of its own swatches. Clicking a
         // dark scheme selects it for dark mode (and switches to dark mode
         // unless the OS is in charge); a light one likewise for light mode.
-        ui.label(
-            egui::RichText::new(s.t("settings-color-palette"))
-                .size(13.0)
-                .color(theme.text_muted),
-        );
-        ui.add_space(6.0);
+        form::subsection(ui, theme, &s.t("settings-color-palette"));
         let active_id = hs_ui::theme::scheme_id(&settings.appearance).to_string();
         for (id, name, dark) in Theme::schemes() {
             let scheme = Theme::by_name(id);
@@ -1725,9 +1820,7 @@ fn appearance(
                 }
                 theme_changed = true;
             }
-            ui.add_space(2.0);
         }
-        ui.add_space(4.0);
         form::hint(ui, theme, &s.t("settings-color-scheme-hint"));
     });
 
@@ -1757,6 +1850,7 @@ fn appearance(
                 theme_changed = true;
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-font-size-hint"));
             form::label(ui, &s.t("settings-ui-zoom"));
             if ui
                 .add(egui::Slider::new(&mut settings.appearance.ui_zoom, 0.75..=2.0).step_by(0.05))
@@ -1765,34 +1859,38 @@ fn appearance(
                 theme_changed = true;
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-ui-zoom-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-font-size-hint"));
-        form::hint(ui, theme, &s.t("settings-ui-zoom-hint"));
     });
 
     form::section(ui, theme, &s.t("settings-section-sidebar"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "appearance-sidebar", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.appearance.rail_coloured,
-                s.t("settings-rail-coloured"),
+                &s.t("settings-rail-coloured"),
+                &s.t("settings-rail-coloured-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-rail-coloured-hint"));
-        ui.add_space(6.0);
-        // Only meaningful with the colours on, so it says so rather than
-        // sitting there doing nothing.
-        let coloured = settings.appearance.rail_coloured;
-        changed |= ui
-            .add_enabled(
-                coloured,
-                egui::Checkbox::new(
-                    &mut settings.appearance.rail_icon_outline,
-                    s.t("settings-rail-icon-outline"),
-                ),
-            )
+            // Only meaningful with the colours on, so it says so rather than
+            // sitting there doing nothing; a sub-setting, so it is indented.
+            let coloured = settings.appearance.rail_coloured;
+            changed |= form::control_row(ui, |ui| {
+                sub_block(ui, |ui| {
+                    ui.add_enabled_ui(coloured, |ui| {
+                        form::checkbox_with_description(
+                            ui,
+                            &mut settings.appearance.rail_icon_outline,
+                            &s.t("settings-rail-icon-outline"),
+                            &s.t("settings-rail-icon-outline-hint"),
+                        )
+                    })
+                    .inner
+                })
+            })
             .tip_disabled(s.t("settings-rail-icon-outline-needs-colour"))
             .changed();
-        form::hint(ui, theme, &s.t("settings-rail-icon-outline-hint"));
+        });
     });
 
     form::section(ui, theme, &s.t("settings-section-tabs"), |ui| {
@@ -1813,6 +1911,7 @@ fn appearance(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-min-file-tab-width-hint"));
             form::label(ui, &s.t("settings-tab-height"));
             changed |= ui
                 .add(
@@ -1835,14 +1934,13 @@ fn appearance(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-sub-tab-height-hint"));
             form::label(ui, &s.t("settings-tab-gap"));
             changed |= ui
                 .add(egui::Slider::new(&mut settings.appearance.tab_gap, 0.0..=24.0).suffix(" px"))
                 .changed();
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("settings-min-file-tab-width-hint"));
-        form::hint(ui, theme, &s.t("settings-sub-tab-height-hint"));
     });
 
     // The Scratchpad's own card: the pin mark it draws in the sidebar
@@ -1884,29 +1982,29 @@ fn appearance(
                 });
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-pin-colour-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-pin-colour-hint"));
     });
 
     form::section(ui, theme, &s.t("settings-section-rail"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "rail-labels", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.appearance.rail_labels,
-                s.t("settings-rail-labels"),
+                &s.t("settings-rail-labels"),
+                &s.t("settings-rail-labels-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-rail-labels-hint"));
-        ui.add_space(6.0);
-        // The same choice for Home's toolbar, which is the rail's set of
-        // icons laid across the page (CR-0038).
-        changed |= ui
-            .checkbox(
+            // The same choice for Home's toolbar, which is the rail's set of
+            // icons laid across the page (CR-0038).
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.appearance.home_toolbar_labels,
-                s.t("settings-home-toolbar-labels"),
+                &s.t("settings-home-toolbar-labels"),
+                &s.t("settings-home-toolbar-labels-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-home-toolbar-labels-hint"));
-        ui.add_space(8.0);
+        });
         // Which workspace's rail is being edited: the open one unless the
         // picker says otherwise. Order and visibility are per workspace
         // (owner's requirement, 2026-10-23); labels above stay global.
@@ -1920,7 +2018,6 @@ fn appearance(
         form::field_grid(ui, "rail-ws-pick", |ui| {
             form::label(ui, &s.t("settings-rail-workspace"));
             ui.horizontal(|ui| {
-                ws_icon(ui, s, &registry, &selected, crate::app::WS_MARK_ROW);
                 egui::ComboBox::from_id_salt("rail-ws")
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(selected.clone())
@@ -1928,17 +2025,21 @@ fn appearance(
                         for w in &registry.workspaces {
                             ui.horizontal(|ui| {
                                 ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_ROW);
-                                if ui.selectable_label(selected == w.name, &w.name).clicked() {
+                                if hs_ui::form::selectable_label(ui, selected == w.name, &w.name)
+                                    .clicked()
+                                {
                                     state.rail_ws = Some(w.name.clone());
                                 }
                             });
                         }
                     });
+                // The mark after the dropdown, so the dropdown starts at
+                // the control column (owner, 2026-11-06).
+                ws_icon(ui, s, &registry, &selected, crate::app::WS_MARK_ROW);
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-rail-workspace-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-rail-workspace-hint"));
-        ui.add_space(8.0);
         let is_open = selected == open_name;
         // A workspace that is not open is edited through its folder.
         let mut other = if is_open {
@@ -1954,12 +2055,7 @@ fn appearance(
                 .map(|w| w.meta.rail_prefs(&settings.appearance))
                 .unwrap_or_default()
         };
-        ui.label(
-            egui::RichText::new(s.t("settings-rail-order"))
-                .size(13.0)
-                .color(theme.text_muted),
-        );
-        ui.add_space(4.0);
+        form::subsection(ui, theme, &s.t("settings-rail-order"));
         // The movable tools in their current rail order; Home and Settings
         // are fixed at the ends and not listed.
         let ids: Vec<&str> = state.rail_tools.iter().map(|(id, _)| id.as_str()).collect();
@@ -1969,59 +2065,62 @@ fn appearance(
             .collect();
         let mut moved = None;
         let mut toggled: Option<(String, bool)> = None;
-        // Header, so the checkbox column says what it is.
-        ui.horizontal(|ui| {
-            ui.add_space(52.0);
-            ui.label(
-                egui::RichText::new(s.t("settings-rail-show"))
-                    .size(12.0)
-                    .color(theme.text_muted),
-            );
-            ui.add_space(6.0);
-            ui.label(
-                egui::RichText::new(s.t("settings-rail-tool"))
-                    .size(12.0)
-                    .color(theme.text_muted),
-            );
-        });
-        for (i, id) in order.iter().enumerate() {
-            let title = state
-                .rail_tools
-                .iter()
-                .find(|(t, _)| t == id)
-                .map(|(_, n)| n.clone())
-                .unwrap_or_else(|| id.clone());
-            let mut shown = !prefs.hidden.iter().any(|h| h == id);
-            ui.horizontal(|ui| {
-                ui.set_min_width(300.0);
-                ui.add_enabled_ui(i > 0, |ui| {
+        // A grid, so the move buttons, the Show column and the names line
+        // up, with the header over the checkbox column saying what it is;
+        // standard-size move buttons, rows a row gap apart (CR-0080).
+        egui::Grid::new("rail-order")
+            .num_columns(4)
+            .spacing([form::BUTTON_GAP, form::ROW_GAP])
+            .show(ui, |ui| {
+                form::match_field_height(ui);
+                ui.label("");
+                ui.label("");
+                ui.label(
+                    egui::RichText::new(s.t("settings-rail-show"))
+                        .size(12.0)
+                        .color(theme.text_muted),
+                );
+                ui.label(
+                    egui::RichText::new(s.t("settings-rail-tool"))
+                        .size(12.0)
+                        .color(theme.text_muted),
+                );
+                ui.end_row();
+                for (i, id) in order.iter().enumerate() {
+                    let title = state
+                        .rail_tools
+                        .iter()
+                        .find(|(t, _)| t == id)
+                        .map(|(_, n)| n.clone())
+                        .unwrap_or_else(|| id.clone());
+                    let mut shown = !prefs.hidden.iter().any(|h| h == id);
+                    ui.add_enabled_ui(i > 0, |ui| {
+                        if form::button(ui, theme, hs_ui::icons::ph::ARROW_UP, "")
+                            .tip(s.t("settings-rail-move-up"))
+                            .clicked()
+                        {
+                            moved = Some((i, i - 1));
+                        }
+                    });
+                    ui.add_enabled_ui(i + 1 < order.len(), |ui| {
+                        if form::button(ui, theme, hs_ui::icons::ph::ARROW_DOWN, "")
+                            .tip(s.t("settings-rail-move-down"))
+                            .clicked()
+                        {
+                            moved = Some((i, i + 1));
+                        }
+                    });
                     if ui
-                        .small_button(hs_ui::icons::ph::ARROW_UP)
-                        .tip(s.t("settings-rail-move-up"))
-                        .clicked()
+                        .checkbox(&mut shown, "")
+                        .tip(s.t("settings-rail-show-tip"))
+                        .changed()
                     {
-                        moved = Some((i, i - 1));
+                        toggled = Some((id.clone(), shown));
                     }
-                });
-                ui.add_enabled_ui(i + 1 < order.len(), |ui| {
-                    if ui
-                        .small_button(hs_ui::icons::ph::ARROW_DOWN)
-                        .tip(s.t("settings-rail-move-down"))
-                        .clicked()
-                    {
-                        moved = Some((i, i + 1));
-                    }
-                });
-                if ui
-                    .checkbox(&mut shown, "")
-                    .tip(s.t("settings-rail-show-tip"))
-                    .changed()
-                {
-                    toggled = Some((id.clone(), shown));
+                    ui.label(title);
+                    ui.end_row();
                 }
-                ui.label(title);
             });
-        }
         let mut dirty = false;
         if let Some((from, to)) = moved {
             let t = order.remove(from);
@@ -2063,15 +2162,16 @@ fn appearance(
     // rest have nothing to draw them for.
     form::section(ui, theme, &s.t("settings-section-material-icons"), |ui| {
         form::hint(ui, theme, &s.t("settings-material-icons-hint"));
-        ui.add_space(8.0);
-        for tool in hs_core::settings::MATERIAL_ICON_TOOLS {
-            let mut on = settings.appearance.material_icons(tool);
-            let label = s.t(&format!("tool-{tool}"));
-            if ui.checkbox(&mut on, label).changed() {
-                settings.appearance.set_material_icons(tool, on);
-                changed = true;
+        form::field_grid(ui, "material-icons", |ui| {
+            for tool in hs_core::settings::MATERIAL_ICON_TOOLS {
+                let mut on = settings.appearance.material_icons(tool);
+                let label = s.t(&format!("tool-{tool}"));
+                if form::checkbox_row(ui, &mut on, &label).changed() {
+                    settings.appearance.set_material_icons(tool, on);
+                    changed = true;
+                }
             }
-        }
+        });
     });
 
     if theme_changed {
@@ -2104,7 +2204,14 @@ fn shortcuts(
                 &s.t("settings-shortcut-filter"),
                 form::FIELD_MIN_WIDTH,
             );
-            if ui.button(s.t("settings-shortcut-reset")).clicked() {
+            if form::button(
+                ui,
+                theme,
+                hs_ui::icons::ph::ARROW_COUNTER_CLOCKWISE,
+                &s.t("settings-shortcut-reset"),
+            )
+            .clicked()
+            {
                 let _ = std::fs::remove_file(s.paths.shortcuts_file());
                 *s.shortcuts.write() = hs_core::shortcuts::Keymap::load(&s.paths.shortcuts_file());
                 state.shortcut_edit.clear();
@@ -2112,7 +2219,6 @@ fn shortcuts(
         });
         let conflicts = s.shortcuts.read().conflicts();
         if !conflicts.is_empty() {
-            ui.add_space(6.0);
             form::note(
                 ui,
                 theme,
@@ -2128,7 +2234,6 @@ fn shortcuts(
                 ),
             );
         }
-        ui.add_space(8.0);
         let bindings: Vec<(String, String)> = s
             .shortcuts
             .read()
@@ -2138,7 +2243,7 @@ fn shortcuts(
         egui::Grid::new("shortcuts")
             .num_columns(2)
             .striped(true)
-            .spacing([18.0, 6.0])
+            .spacing([18.0, form::ROW_GAP])
             .min_col_width(220.0)
             .show(ui, |ui| {
                 ui.label(egui::RichText::new(s.t("settings-shortcut-action")).strong());
@@ -2236,7 +2341,6 @@ fn environments(
                     state.env_draft = Some((e, Vec::new()));
                     state.var_source = None;
                 }
-                ui.add_space(8.0);
                 let envs: Vec<(String, String, Option<String>, bool)> = s
                     .environments
                     .read()
@@ -2277,7 +2381,6 @@ fn environments(
                             state.env_draft = Some((e.clone(), vars));
                         }
                     }
-                    ui.add_space(2.0);
                 }
             });
             // The variables an API collection carries: the same card
@@ -2323,7 +2426,6 @@ fn environments(
                         state.env_selected = None;
                         state.env_draft = None;
                     }
-                    ui.add_space(2.0);
                 }
             });
             // The application-wide set: one row, because there is one
@@ -2403,13 +2505,18 @@ fn environments(
                         .width(form::FIELD_MIN_WIDTH)
                         .selected_text(current)
                         .show_ui(ui, |ui| {
-                            if ui.selectable_label(draft.parent.is_none(), "—").clicked() {
+                            if hs_ui::form::selectable_label(ui, draft.parent.is_none(), "—")
+                                .clicked()
+                            {
                                 draft.parent = None;
                             }
                             for (id, name) in parents {
-                                if ui
-                                    .selectable_label(draft.parent.as_deref() == Some(&id), name)
-                                    .clicked()
+                                if hs_ui::form::selectable_label(
+                                    ui,
+                                    draft.parent.as_deref() == Some(&id),
+                                    name,
+                                )
+                                .clicked()
                                 {
                                     draft.parent = Some(id);
                                 }
@@ -2423,39 +2530,38 @@ fn environments(
                 });
             });
             form::section(ui, theme, &s.t("env-variables"), |ui| {
-                ui.horizontal(|ui| {
-                    if ui
-                        .button(format!(
-                            "{} {}",
-                            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
-                            s.t("env-import")
-                        ))
-                        .clicked()
+                form::centred_row(ui, |ui| {
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                        &s.t("env-import"),
+                    )
+                    .clicked()
                     {
                         effects.push(SettingsEffect::ImportEnvironment);
                     }
-                    ui.menu_button(
-                        format!("{} {}", hs_ui::icons::ph::UPLOAD_SIMPLE, s.t("env-export")),
-                        |ui| {
-                            ui.set_min_width(160.0);
-                            for format in tool_api::env_export::Format::ALL {
-                                if ui.button(format.label()).clicked() {
-                                    effects.push(SettingsEffect::ExportEnvironment(format));
-                                    ui.close();
-                                }
+                    let export = form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::UPLOAD_SIMPLE,
+                        &s.t("env-export"),
+                    );
+                    egui::Popup::menu(&export).show(|ui| {
+                        ui.set_min_width(160.0);
+                        for format in tool_api::env_export::Format::ALL {
+                            if ui.button(format.label()).clicked() {
+                                effects.push(SettingsEffect::ExportEnvironment(format));
+                                ui.close();
                             }
-                        },
-                    )
-                    .response
-                    .tip(s.t("env-export-hint"));
-                    if ui
-                        .button(format!("{} {}", hs_ui::icons::COPY, s.t("env-copy-from")))
-                        .clicked()
+                        }
+                    });
+                    export.tip(s.t("env-export-hint"));
+                    if form::button(ui, theme, hs_ui::icons::COPY, &s.t("env-copy-from")).clicked()
                     {
                         open_copy = true;
                     }
                 });
-                ui.add_space(6.0);
                 KvEditor {
                     theme,
                     key_hint: &s.t("env-var-name"),
@@ -2467,7 +2573,13 @@ fn environments(
                 form::hint(ui, theme, &s.t("env-variables-hint"));
             });
             ui.horizontal(|ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+                )
+                .clicked()
+                {
                     let mut env = draft.clone();
                     env.variables.clear();
                     let vault_locked = s.secrets.is_locked();
@@ -2511,7 +2623,13 @@ fn environments(
                         )),
                     }
                 }
-                if form::danger_button(ui, theme, &s.t("delete")).clicked() {
+                if form::danger_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", hs_ui::icons::ph::TRASH, s.t("delete")),
+                )
+                .clicked()
+                {
                     state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), true));
                 }
             });
@@ -2552,18 +2670,17 @@ fn variable_set_detail(
     form::section(ui, theme, &title, |ui| {
         form::hint(ui, theme, &hint);
         if matches!(source, VarSource::Collection(..))
-            && ui
-                .button(format!(
-                    "{} {}",
-                    hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
-                    s.t("col-compare")
-                ))
-                .tip(s.t("col-compare-hint"))
-                .clicked()
+            && form::button(
+                ui,
+                theme,
+                hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+                &s.t("col-compare"),
+            )
+            .tip(s.t("col-compare-hint"))
+            .clicked()
         {
             open_compare = true;
         }
-        ui.add_space(6.0);
         KvEditor {
             theme,
             key_hint: &s.t("env-var-name"),
@@ -2581,7 +2698,13 @@ fn variable_set_detail(
     }
     collection_copy_dialog(ui, theme, s, state, effects);
     ui.horizontal(|ui| {
-        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+        )
+        .clicked()
+        {
             let values = rows_to_kv(&state.var_draft);
             let result = match &source {
                 VarSource::Collection(id, _) => {
@@ -2629,7 +2752,7 @@ fn variable_set_detail(
                 )),
             }
         }
-        if ui.button(s.t("close")).clicked() {
+        if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("close")).clicked() {
             state.var_source = None;
             state.var_draft.clear();
         }
@@ -2753,7 +2876,7 @@ fn collection_copy_dialog(
                     .selected_text(&cp.source_ws)
                     .show_ui(ui, |ui| {
                         for n in &ws_names {
-                            ui.selectable_value(&mut cp.source_ws, n.clone(), n);
+                            hs_ui::form::selectable_value(ui, &mut cp.source_ws, n.clone(), n);
                         }
                     });
                 ui.end_row();
@@ -2768,7 +2891,7 @@ fn collection_copy_dialog(
                     .selected_text(sel_name)
                     .show_ui(ui, |ui| {
                         for (id, name, _) in &sources {
-                            ui.selectable_value(&mut cp.source_col, id.clone(), name);
+                            hs_ui::form::selectable_value(ui, &mut cp.source_col, id.clone(), name);
                         }
                     });
                 ui.end_row();
@@ -2779,17 +2902,38 @@ fn collection_copy_dialog(
             form::hint(ui, theme, &s.t("col-compare-empty"));
         } else {
             ui.horizontal(|ui| {
-                if ui.button(s.t("env-copy-all")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::CHECK_SQUARE,
+                    &s.t("env-copy-all"),
+                )
+                .clicked()
+                {
                     cp.selected = source_vars.iter().map(|(k, _)| k.clone()).collect();
                 }
-                if ui.button(s.t("col-compare-changed")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::GIT_DIFF,
+                    &s.t("col-compare-changed"),
+                )
+                .clicked()
+                {
                     cp.selected = source_vars
                         .iter()
                         .filter(|(k, v)| target.get(k) != Some(v))
                         .map(|(k, _)| k.clone())
                         .collect();
                 }
-                if ui.button(s.t("env-copy-none-btn")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::SQUARE,
+                    &s.t("env-copy-none-btn"),
+                )
+                .clicked()
+                {
                     cp.selected.clear();
                 }
             });
@@ -2845,7 +2989,13 @@ fn collection_copy_dialog(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let n = cp.selected.len();
             let label = s.i18n.t_args("env-copy-apply", &[("n", &n.to_string())]);
-            if ui.add_enabled(n > 0, egui::Button::new(label)).clicked() {
+            if ui
+                .add_enabled_ui(n > 0, |ui| {
+                    form::button(ui, theme, hs_ui::icons::ph::COPY, &label)
+                })
+                .inner
+                .clicked()
+            {
                 apply = Some(
                     source_vars
                         .iter()
@@ -2855,16 +3005,21 @@ fn collection_copy_dialog(
                 );
             }
             if ui
-                .add_enabled(
-                    !source_vars.is_empty(),
-                    egui::Button::new(s.t("col-sync-all")),
-                )
+                .add_enabled_ui(!source_vars.is_empty(), |ui| {
+                    form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::ARROWS_CLOCKWISE,
+                        &s.t("col-sync-all"),
+                    )
+                })
+                .inner
                 .tip(s.t("col-sync-all-hint"))
                 .clicked()
             {
                 apply = Some(source_vars.clone());
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                 cancel = true;
             }
         });
@@ -3017,7 +3172,7 @@ fn env_copy_dialog(
                     .selected_text(&cp.source_ws)
                     .show_ui(ui, |ui| {
                         for n in &ws_names {
-                            ui.selectable_value(&mut cp.source_ws, n.clone(), n);
+                            hs_ui::form::selectable_value(ui, &mut cp.source_ws, n.clone(), n);
                         }
                     });
                 ui.end_row();
@@ -3032,7 +3187,7 @@ fn env_copy_dialog(
                     .selected_text(sel_name)
                     .show_ui(ui, |ui| {
                         for (id, name, _) in &source_envs {
-                            ui.selectable_value(&mut cp.source_env, id.clone(), name);
+                            hs_ui::form::selectable_value(ui, &mut cp.source_env, id.clone(), name);
                         }
                     });
                 ui.end_row();
@@ -3043,17 +3198,38 @@ fn env_copy_dialog(
             form::hint(ui, theme, &s.t("env-copy-empty"));
         } else {
             ui.horizontal(|ui| {
-                if ui.button(s.t("env-copy-all")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::CHECK_SQUARE,
+                    &s.t("env-copy-all"),
+                )
+                .clicked()
+                {
                     cp.selected = source_vars.iter().map(|(k, _)| k.clone()).collect();
                 }
-                if ui.button(s.t("env-copy-missing")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::PLUS_SQUARE,
+                    &s.t("env-copy-missing"),
+                )
+                .clicked()
+                {
                     cp.selected = source_vars
                         .iter()
                         .filter(|(k, _)| !target_keys.contains(k))
                         .map(|(k, _)| k.clone())
                         .collect();
                 }
-                if ui.button(s.t("env-copy-none-btn")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::SQUARE,
+                    &s.t("env-copy-none-btn"),
+                )
+                .clicked()
+                {
                     cp.selected.clear();
                 }
             });
@@ -3094,7 +3270,13 @@ fn env_copy_dialog(
             let n = cp.selected.len();
             let label = s.i18n.t_args("env-copy-apply", &[("n", &n.to_string())]);
             let enabled = n > 0;
-            if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+            if ui
+                .add_enabled_ui(enabled, |ui| {
+                    form::button(ui, theme, hs_ui::icons::ph::COPY, &label)
+                })
+                .inner
+                .clicked()
+            {
                 apply = Some(
                     source_vars
                         .iter()
@@ -3103,7 +3285,7 @@ fn env_copy_dialog(
                         .collect(),
                 );
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                 cancel = true;
             }
         });
@@ -3181,7 +3363,6 @@ fn container_list(
     use hs_core::connections::CONTAINER_KINDS;
     form::section(ui, theme, &s.t("settings-container-list"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-list-hint"));
-        ui.add_space(8.0);
         // The right column needs a real width: inside a horizontal
         // layout `available_width` is unbounded and a wrapped row would
         // never wrap.
@@ -3203,7 +3384,6 @@ fn container_list(
             state.open_kind_draft(CONTAINER_KINDS[0]);
             state.focus_form = true;
         }
-        ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_width);
@@ -3240,7 +3420,6 @@ fn container_list(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.connections.write().reorder(CONTAINER_KINDS, from, to)
@@ -3314,6 +3493,11 @@ fn container_defaults(
                 .tip(s.t("settings-container-protected-read-only-hint"))
                 .changed();
             ui.end_row();
+            form::row_hint(
+                ui,
+                theme,
+                &s.t("settings-container-protected-read-only-hint"),
+            );
             form::label(ui, &s.t("settings-container-mask-secrets"));
             changed |= ui.checkbox(&mut c.mask_secret_values, "").changed();
             ui.end_row();
@@ -3321,12 +3505,6 @@ fn container_defaults(
             changed |= ui.checkbox(&mut c.allow_prune, "").changed();
             ui.end_row();
         });
-        form::hint(
-            ui,
-            theme,
-            &s.t("settings-container-protected-read-only-hint"),
-        );
-        ui.add_space(8.0);
         form::field_grid(ui, "container-limits", |ui| {
             form::label(ui, &s.t("settings-container-refresh"));
             changed |= ui
@@ -3359,6 +3537,7 @@ fn container_defaults(
                 .tip(s.t("settings-container-dry-run-first-hint"))
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-container-dry-run-first-hint"));
             form::label(ui, &s.t("settings-container-manifest-dir"));
             changed |= form::text_field(ui, &mut c.manifest_dir, "").changed();
             ui.end_row();
@@ -3367,9 +3546,8 @@ fn container_defaults(
                 .tip(s.t("settings-container-exec-shell-hint"))
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-container-exec-shell-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-container-exec-shell-hint"));
-        form::hint(ui, theme, &s.t("settings-container-dry-run-first-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -3393,7 +3571,6 @@ fn container_registries(
     let mut changed = false;
     form::section(ui, theme, &s.t("settings-container-registries"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-registries-hint"));
-        ui.add_space(6.0);
         let mut remove: Option<usize> = None;
         let mut sign_in: Option<usize> = None;
         {
@@ -3430,20 +3607,26 @@ fn container_registries(
                     });
                     ui.horizontal(|ui| {
                         if ui
-                            .add_enabled(
-                                r.is_usable(),
-                                egui::Button::new(s.t("settings-container-sign-in")),
-                            )
+                            .add_enabled_ui(r.is_usable(), |ui| {
+                                form::button(
+                                    ui,
+                                    theme,
+                                    hs_ui::icons::ph::SIGN_IN,
+                                    &s.t("settings-container-sign-in"),
+                                )
+                            })
+                            .inner
                             .tip_disabled(s.t("settings-container-sign-in-needs-user"))
                             .clicked()
                         {
                             sign_in = Some(i);
                         }
-                        if ui.button(s.t("remove")).clicked() {
+                        if form::button(ui, theme, hs_ui::icons::ph::TRASH, &s.t("remove"))
+                            .clicked()
+                        {
                             remove = Some(i);
                         }
                     });
-                    ui.add_space(4.0);
                     ui.separator();
                 });
             }
@@ -3455,7 +3638,14 @@ fn container_registries(
         if let Some(i) = sign_in {
             effects.push(SettingsEffect::RegistrySignIn(i));
         }
-        if ui.button(s.t("settings-container-add-registry")).clicked() {
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::PLUS,
+            &s.t("settings-container-add-registry"),
+        )
+        .clicked()
+        {
             s.settings
                 .write()
                 .containers
@@ -3467,7 +3657,6 @@ fn container_registries(
 
     form::section(ui, theme, &s.t("settings-container-charts"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-charts-hint"));
-        ui.add_space(6.0);
         let mut remove: Option<usize> = None;
         let mut add_repo: Option<usize> = None;
         {
@@ -3500,20 +3689,29 @@ fn container_registries(
                     });
                     ui.horizontal(|ui| {
                         if ui
-                            .add_enabled(
+                            .add_enabled_ui(
                                 !r.name.trim().is_empty() && !r.url.trim().is_empty(),
-                                egui::Button::new(s.t("settings-container-add-repo")),
+                                |ui| {
+                                    form::button(
+                                        ui,
+                                        theme,
+                                        hs_ui::icons::ph::PLUS,
+                                        &s.t("settings-container-add-repo"),
+                                    )
+                                },
                             )
+                            .inner
                             .tip_disabled(s.t("settings-container-add-repo-needs"))
                             .clicked()
                         {
                             add_repo = Some(i);
                         }
-                        if ui.button(s.t("remove")).clicked() {
+                        if form::button(ui, theme, hs_ui::icons::ph::TRASH, &s.t("remove"))
+                            .clicked()
+                        {
                             remove = Some(i);
                         }
                     });
-                    ui.add_space(4.0);
                     ui.separator();
                 });
             }
@@ -3525,7 +3723,14 @@ fn container_registries(
         if let Some(i) = add_repo {
             effects.push(SettingsEffect::ChartRepoAdd(i));
         }
-        if ui.button(s.t("settings-container-add-chart")).clicked() {
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::PLUS,
+            &s.t("settings-container-add-chart"),
+        )
+        .clicked()
+        {
             s.settings
                 .write()
                 .containers
@@ -3552,7 +3757,6 @@ fn container_tools(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
     ];
     form::section(ui, theme, &s.t("settings-container-tools"), |ui| {
         form::hint(ui, theme, &s.t("settings-container-tools-hint"));
-        ui.add_space(8.0);
         form::field_grid(ui, "container-tools", |ui| {
             for (cmd, label) in TOOLS {
                 form::label(ui, label);
@@ -3602,7 +3806,6 @@ fn queue(
             state.open_kind_draft(QUEUE_KINDS[0]);
             state.focus_form = true;
         }
-        ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_width);
@@ -3642,7 +3845,6 @@ fn queue(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.connections.write().reorder(QUEUE_KINDS, from, to)
@@ -3708,8 +3910,8 @@ fn queue(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-queue-limits-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-queue-limits-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -3749,7 +3951,6 @@ fn automation(
             state.open_kind_draft(AUTOMATION_KINDS[0]);
             state.focus_form = true;
         }
-        ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_width);
@@ -3790,7 +3991,6 @@ fn automation(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.connections.write().reorder(AUTOMATION_KINDS, from, to)
@@ -3851,8 +4051,8 @@ fn automation(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-automation-limits-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-automation-limits-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -3892,7 +4092,6 @@ fn tracker(
             state.open_kind_draft(TRACKER_KINDS[0]);
             state.focus_form = true;
         }
-        ui.add_space(10.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_width);
@@ -3932,7 +4131,6 @@ fn tracker(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.connections.write().reorder(TRACKER_KINDS, from, to)
@@ -3984,8 +4182,8 @@ fn tracker(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-tracker-limits-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-tracker-limits-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -4030,7 +4228,6 @@ fn connections(
                     state.conn_selected = Some(c.id.clone());
                     state.conn_draft = Some((c, String::new()));
                 }
-                ui.add_space(8.0);
                 // The engine travels with the kind: a `db` profile's
                 // icon is PostgreSQL's or MySQL's, not a generic plug.
                 let conns: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
@@ -4069,7 +4266,6 @@ fn connections(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.connections.write().reorder(&[], from, to)
@@ -4304,7 +4500,8 @@ fn conn_detail(
                 .selected_text(hs_core::connections::kind_label(&draft.kind))
                 .show_ui(ui, |ui| {
                     for k in family {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut draft.kind,
                             (*k).to_string(),
                             hs_core::connections::kind_label(k),
@@ -4353,16 +4550,17 @@ fn conn_detail(
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(cur)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(draft.environment.is_none(), "—")
-                        .clicked()
+                    if hs_ui::form::selectable_label(ui, draft.environment.is_none(), "—").clicked()
                     {
                         draft.environment = None;
                     }
                     for (id, name) in envs {
-                        if ui
-                            .selectable_label(draft.environment.as_deref() == Some(&id), name)
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            draft.environment.as_deref() == Some(&id),
+                            name,
+                        )
+                        .clicked()
                         {
                             draft.environment = Some(id);
                         }
@@ -4413,10 +4611,16 @@ fn conn_detail(
     let mut do_connect = false;
     let mut close = false;
     ui.horizontal(|ui| {
-        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+        )
+        .clicked()
+        {
             do_save = true;
         }
-        if ui.button(s.t("close")).clicked() {
+        if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("close")).clicked() {
             close = true;
         }
 
@@ -4433,7 +4637,10 @@ fn conn_detail(
             s.t("conn-test")
         };
         if ui
-            .add_enabled(can_test && !busy, egui::Button::new(label))
+            .add_enabled_ui(can_test && !busy, |ui| {
+                form::button(ui, theme, hs_ui::icons::ph::PLUGS, &label)
+            })
+            .inner
             .tip_disabled(if can_test {
                 s.t("conn-test-running")
             } else {
@@ -4447,14 +4654,23 @@ fn conn_detail(
         // opens is the profile on the form rather than a stale copy of it.
         let can_open = crate::launcher::tool_for_kind(&draft.kind).is_some();
         if ui
-            .add_enabled(can_open, egui::Button::new(s.t("conn-connect")))
+            .add_enabled_ui(can_open, |ui| {
+                form::button(ui, theme, hs_ui::icons::ph::PLUG, &s.t("conn-connect"))
+            })
+            .inner
             .tip(s.t("conn-connect-tip"))
             .tip_disabled(s.t("conn-connect-not-openable"))
             .clicked()
         {
             do_connect = true;
         }
-        if form::danger_button(ui, theme, &s.t("delete")).clicked() {
+        if form::danger_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::TRASH, s.t("delete")),
+        )
+        .clicked()
+        {
             state.confirm_delete = Some((draft.id.clone(), draft.name.clone(), false));
         }
     });
@@ -4483,7 +4699,6 @@ fn conn_detail(
     if let Some(test) = &state.conn_test
         && test.profile_id == draft.id
     {
-        ui.add_space(6.0);
         match test.outcome() {
             crate::conn_test::Outcome::Running => {
                 ui.horizontal(|ui| {
@@ -4566,7 +4781,7 @@ fn security(
         Some(&s.t("settings-security-sub")),
     );
     form::section(ui, theme, &s.t("settings-vault-status"), |ui| {
-        ui.horizontal(|ui| {
+        form::centred_row(ui, |ui| {
             if s.secrets.is_locked() {
                 ui.colored_label(
                     theme.warning,
@@ -4581,10 +4796,24 @@ fn security(
                         s.t("settings-vault-unlocked")
                     ),
                 );
-                if ui.button(s.t("settings-vault-lock")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::LOCK,
+                    &s.t("settings-vault-lock"),
+                )
+                .clicked()
+                {
                     effects.push(SettingsEffect::LockVault);
                 }
-                if ui.button(s.t("settings-vault-change")).clicked() {
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::KEY,
+                    &s.t("settings-vault-change"),
+                )
+                .clicked()
+                {
                     effects.push(SettingsEffect::ChangeMasterPassword);
                 }
             }
@@ -4611,8 +4840,8 @@ fn security(
                 )
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-timers-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-timers-hint"));
     });
     if changed {
         effects.push(SettingsEffect::SettingsChanged);
@@ -4661,11 +4890,9 @@ fn credentials_section(
         |ui| {
             form::hint(ui, theme, &s.t("settings-credentials-hint"));
             if rows.is_empty() {
-                ui.add_space(4.0);
                 form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-none"));
                 return;
             }
-            ui.add_space(6.0);
             // Username and Password share one width — the wider of the two —
             // so the two columns a reader compares line up instead of jumping
             // about with the length of each value. Every other column is left
@@ -4678,7 +4905,7 @@ fn credentials_section(
                 .show(ui, |ui| {
                     egui::Grid::new("sec-cred-grid")
                         .num_columns(if show_key { 8 } else { 7 })
-                        .spacing([18.0, 6.0])
+                        .spacing([18.0, form::ROW_GAP])
                         .striped(true)
                         .show(ui, |ui| {
                             for key in [
@@ -4743,7 +4970,7 @@ fn credentials_section(
                                         r.key.clone()
                                     });
                                 }
-                                actions_cell(ui, s, state, r, now);
+                                actions_cell(ui, s, theme, state, r, now);
                                 ui.end_row();
                             }
                         });
@@ -4870,8 +5097,7 @@ fn cred_cell(
         if value.is_empty() {
             return;
         }
-        if ui
-            .small_button(hs_ui::icons::COPY)
+        if form::button(ui, theme, hs_ui::icons::COPY, "")
             .tip(s.t("dt-copy"))
             .clicked()
         {
@@ -4946,8 +5172,7 @@ fn secret_cell(
                 }
             }
         });
-        if ui
-            .small_button(hs_ui::icons::COPY)
+        if form::button(ui, theme, hs_ui::icons::COPY, "")
             .tip(s.t("dt-copy"))
             .clicked()
         {
@@ -4976,6 +5201,7 @@ fn secret_cell(
 fn actions_cell(
     ui: &mut egui::Ui,
     s: &Services,
+    theme: &Theme,
     state: &mut SettingsState,
     row: &crate::credentials::Row,
     now: f64,
@@ -4990,8 +5216,7 @@ fn actions_cell(
         } else {
             hs_ui::icons::EYE
         };
-        if ui
-            .small_button(eye)
+        if form::button(ui, theme, eye, "")
             .tip(if revealed {
                 s.t("settings-cred-hide")
             } else {
@@ -5010,9 +5235,7 @@ fn actions_cell(
                 });
             }
         }
-        ui.add_space(8.0);
-        if ui
-            .small_button(hs_ui::icons::EDIT)
+        if form::button(ui, theme, hs_ui::icons::EDIT, "")
             .tip(s.t("settings-cred-edit"))
             .clicked()
         {
@@ -5098,10 +5321,16 @@ fn reveal_dialog(
                 } else {
                     "settings-cred-reveal-go"
                 };
-                if form::primary_button(ui, theme, &s.t(go)).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", hs_ui::icons::ph::CHECK, s.t(go)),
+                )
+                .clicked()
+                {
                     accept = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                     close = true;
                 }
             });
@@ -5201,10 +5430,16 @@ fn edit_secret_dialog(
         }
         ui.add_space(10.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if form::primary_button(ui, theme, &s.t("save")).clicked() {
+            if form::primary_button(
+                ui,
+                theme,
+                &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+            )
+            .clicked()
+            {
                 save = true;
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                 close = true;
             }
         });
@@ -5477,9 +5712,13 @@ const CLI_CANDIDATES: &[(&str, &str, &str)] = &[
     ("docker", "Docker", "cloud"),
     ("claude", "Claude Code", "sparkle"),
     ("opencode", "OpenCode", "sparkle"),
+    ("codex", "Codex CLI", "sparkle"),
     ("gemini", "Gemini CLI", "sparkle"),
     ("aider", "Aider", "sparkle"),
     ("ollama", "Ollama", "sparkle"),
+    ("kilocode", "Kilo Code", "sparkle"),
+    ("cursor-agent", "Cursor CLI", "sparkle"),
+    ("deepseek", "DeepSeek CLI", "sparkle"),
 ];
 
 /// The Phosphor icon for a stored icon key.
@@ -5490,6 +5729,27 @@ fn cli_icon(key: &str) -> &'static str {
         "cloud" => ph::CLOUD,
         "sparkle" => ph::SPARKLE,
         _ => ph::TERMINAL_WINDOW,
+    }
+}
+
+/// A product's mark inline in a row: its logo, or its glyph in the
+/// product's colour (CR-0079) - a shell, a CLI.
+fn conn_mark(ui: &mut egui::Ui, theme: &Theme, icon: hs_ui::icons::ConnIcon) {
+    let size = egui::vec2(16.0, 16.0);
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    match icon.image {
+        Some(uri) => egui::Image::from_uri(uri)
+            .fit_to_exact_size(size)
+            .paint_at(ui, rect),
+        None => {
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                icon.glyph,
+                egui::FontId::proportional(15.0),
+                icon.glyph_colour(theme, theme.text_muted),
+            );
+        }
     }
 }
 
@@ -5565,10 +5825,13 @@ fn terminal(
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for p in profiles.iter() {
-                        if ui
-                            .selectable_label(settings.terminal.default_profile == p.id, &p.name)
-                            .tip(&p.exe)
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            settings.terminal.default_profile == p.id,
+                            &p.name,
+                        )
+                        .tip(&p.exe)
+                        .clicked()
                         {
                             settings.terminal.default_profile = p.id.clone();
                             changed = true;
@@ -5606,30 +5869,32 @@ fn terminal(
                 .add(egui::Slider::new(&mut settings.terminal.font_size, 9.0..=24.0).suffix(" px"))
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-terminal-font-size-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-terminal-font-size-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-behaviour"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-terminal-copy-on-select-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.terminal.copy_on_select,
-                s.t("settings-terminal-copy-on-select"),
+                &s.t("settings-terminal-copy-on-select"),
             )
             .changed();
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.terminal.right_click_copy_paste,
-                s.t("settings-terminal-right-click"),
+                &s.t("settings-terminal-right-click"),
+                &s.t("settings-terminal-right-click-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-terminal-right-click-hint"));
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.terminal.link_detection,
-                s.t("settings-terminal-links"),
+                &s.t("settings-terminal-links"),
+                &s.t("settings-terminal-links-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-terminal-links-hint"));
+        });
     });
     form::section(ui, theme, &s.t("settings-terminal-list"), |ui| {
         form::hint(ui, theme, &s.t("settings-terminal-list-hint"));
@@ -5641,35 +5906,35 @@ fn terminal(
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(list_w);
-                ui.add_space(4.0);
-                ui.label(
-                    egui::RichText::new(s.t("settings-terminal-shells"))
-                        .small()
-                        .strong()
-                        .color(theme.text_muted),
-                );
+                form::subsection(ui, theme, &s.t("settings-terminal-shells"));
                 let ids = ordered_shell_ids(&profiles, &settings.terminal.shell_order);
                 let mut move_shell: Option<(usize, usize)> = None;
                 for (i, id) in ids.iter().enumerate() {
                     let Some(profile) = profiles.iter().find(|p| p.id == *id) else {
                         continue;
                     };
-                    ui.horizontal(|ui| {
+                    // Standard-size move buttons first, so they form one
+                    // aligned column down the list (CR-0080).
+                    form::centred_row(ui, |ui| {
                         if ui
-                            .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                            .add_enabled_ui(i > 0, |ui| {
+                                form::button(ui, theme, hs_ui::icons::ph::ARROW_UP, "")
+                            })
+                            .inner
                             .clicked()
                         {
                             move_shell = Some((i, i - 1));
                         }
                         if ui
-                            .add_enabled(
-                                i + 1 < ids.len(),
-                                egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
-                            )
+                            .add_enabled_ui(i + 1 < ids.len(), |ui| {
+                                form::button(ui, theme, hs_ui::icons::ph::ARROW_DOWN, "")
+                            })
+                            .inner
                             .clicked()
                         {
                             move_shell = Some((i, i + 1));
                         }
+                        conn_mark(ui, theme, tool_terminal::shell_conn_icon(&profile.id));
                         ui.label(&profile.name);
                         ui.add(
                             egui::Label::new(
@@ -5689,13 +5954,7 @@ fn terminal(
                     changed = true;
                 }
 
-                ui.add_space(8.0);
-                ui.label(
-                    egui::RichText::new(s.t("settings-terminal-cli"))
-                        .small()
-                        .strong()
-                        .color(theme.text_muted),
-                );
+                form::subsection(ui, theme, &s.t("settings-terminal-cli"));
                 if settings.terminal.cli.is_empty() {
                     form::hint(ui, theme, &s.t("settings-terminal-cli-empty"));
                 }
@@ -5704,18 +5963,21 @@ fn terminal(
                 let mut edit_cli: Option<String> = None;
                 let mut remove_cli: Option<String> = None;
                 for i in 0..count {
-                    ui.horizontal(|ui| {
+                    form::centred_row(ui, |ui| {
                         if ui
-                            .add_enabled(i > 0, egui::Button::new(hs_ui::icons::ph::ARROW_UP))
+                            .add_enabled_ui(i > 0, |ui| {
+                                form::button(ui, theme, hs_ui::icons::ph::ARROW_UP, "")
+                            })
+                            .inner
                             .clicked()
                         {
                             move_cli = Some((i, i - 1));
                         }
                         if ui
-                            .add_enabled(
-                                i + 1 < count,
-                                egui::Button::new(hs_ui::icons::ph::ARROW_DOWN),
-                            )
+                            .add_enabled_ui(i + 1 < count, |ui| {
+                                form::button(ui, theme, hs_ui::icons::ph::ARROW_DOWN, "")
+                            })
+                            .inner
                             .clicked()
                         {
                             move_cli = Some((i, i + 1));
@@ -5723,6 +5985,14 @@ fn terminal(
                         changed |= ui
                             .checkbox(&mut settings.terminal.cli[i].enabled, "")
                             .changed();
+                        conn_mark(
+                            ui,
+                            theme,
+                            hs_ui::icons::cli_conn_icon(
+                                &settings.terminal.cli[i].command,
+                                cli_icon(&settings.terminal.cli[i].icon),
+                            ),
+                        );
                         ui.label(&settings.terminal.cli[i].name);
                         ui.add(
                             egui::Label::new(
@@ -5736,10 +6006,12 @@ fn terminal(
                         );
                         let id = settings.terminal.cli[i].id.clone();
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui.small_button(hs_ui::icons::ph::TRASH).clicked() {
+                            if form::button(ui, theme, hs_ui::icons::ph::TRASH, "").clicked() {
                                 remove_cli = Some(id.clone());
                             }
-                            if ui.small_button(hs_ui::icons::ph::PENCIL_SIMPLE).clicked() {
+                            if form::button(ui, theme, hs_ui::icons::ph::PENCIL_SIMPLE, "")
+                                .clicked()
+                            {
                                 edit_cli = Some(id.clone());
                             }
                         });
@@ -5765,29 +6037,34 @@ fn terminal(
                         .find(|c| c.id == id)
                         .map(|c| c.name.clone())
                         .unwrap_or_default();
-                    ui.horizontal(|ui| {
+                    form::centred_row(ui, |ui| {
                         ui.label(
                             s.i18n
                                 .t_args("settings-terminal-remove-cli", &[("name", &name)]),
                         );
-                        if ui.button(s.t("delete")).clicked() {
+                        if form::danger_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", hs_ui::icons::ph::TRASH, s.t("delete")),
+                        )
+                        .clicked()
+                        {
                             settings.terminal.cli.retain(|c| c.id != id);
                             state.cli_confirm = None;
                             changed = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                             state.cli_confirm = None;
                         }
                     });
                 }
-                ui.add_space(4.0);
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::PLUS,
-                        s.t("settings-terminal-add-cli")
-                    ))
-                    .clicked()
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::PLUS,
+                    &s.t("settings-terminal-add-cli"),
+                )
+                .clicked()
                 {
                     state.cli_draft = Some(hs_core::settings::CliProfile::default());
                 }
@@ -5795,7 +6072,7 @@ fn terminal(
             ui.add_space(12.0);
             ui.vertical(|ui| {
                 if let Some(draft) = &mut state.cli_draft {
-                    ui.label(egui::RichText::new(s.t("settings-terminal-cli-edit")).strong());
+                    form::subsection(ui, theme, &s.t("settings-terminal-cli-edit"));
                     form::field_grid(ui, "cli-editor", |ui| {
                         form::label(ui, &s.t("settings-terminal-cli-name"));
                         let name = form::text_field(
@@ -5820,24 +6097,36 @@ fn terminal(
                             .selected_text(cli_icon_label(&draft.icon, s))
                             .show_ui(ui, |ui| {
                                 for key in ["terminal", "database", "cloud", "sparkle"] {
-                                    if ui
-                                        .selectable_label(draft.icon == key, cli_icon_label(key, s))
-                                        .clicked()
+                                    if hs_ui::form::selectable_label(
+                                        ui,
+                                        draft.icon == key,
+                                        cli_icon_label(key, s),
+                                    )
+                                    .clicked()
                                     {
                                         draft.icon = key.to_string();
                                     }
                                 }
                             });
                         ui.end_row();
-                    });
-                    changed |= ui
-                        .checkbox(&mut draft.enabled, s.t("settings-terminal-cli-enabled"))
+                        changed |= form::checkbox_row(
+                            ui,
+                            &mut draft.enabled,
+                            &s.t("settings-terminal-cli-enabled"),
+                        )
                         .changed();
+                    });
                     ui.horizontal(|ui| {
-                        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             save = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                             cancel = true;
                         }
                     });
@@ -5882,8 +6171,14 @@ fn terminal(
                 .find(|(c, _, _)| c == command)
                 .map(|(_, l, i)| (*l, *i))
                 .unwrap_or((command.as_str(), "terminal"));
-            ui.horizontal(|ui| {
-                ui.label(cli_icon(icon));
+            // Icon, name, command and Add on one middle line, Add in an
+            // aligned right-hand column (CR-0080).
+            form::centred_row(ui, |ui| {
+                conn_mark(
+                    ui,
+                    theme,
+                    hs_ui::icons::cli_conn_icon(command, cli_icon(icon)),
+                );
                 ui.label(label);
                 ui.label(
                     egui::RichText::new(command)
@@ -5891,9 +6186,18 @@ fn terminal(
                         .small()
                         .color(theme.text_muted),
                 );
-                if ui.button(s.t("settings-terminal-add")).clicked() {
-                    add = Some(command.clone());
-                }
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::PLUS,
+                        &s.t("settings-terminal-add"),
+                    )
+                    .clicked()
+                    {
+                        add = Some(command.clone());
+                    }
+                });
             });
         }
         if let Some(command) = add {
@@ -5913,7 +6217,14 @@ fn terminal(
             state.cli_suggestions = None;
             changed = true;
         }
-        if ui.button(s.t("settings-terminal-refresh")).clicked() {
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::ARROWS_CLOCKWISE,
+            &s.t("settings-terminal-refresh"),
+        )
+        .clicked()
+        {
             // A CLI installed while the app is open is not in the inherited
             // PATH; re-read the system value before scanning again.
             hs_core::env_path::refresh();
@@ -6015,7 +6326,6 @@ fn project_list(
                     state.project_selected = None;
                     state.project_draft = Some(ProjectDraft::blank());
                 }
-                ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-project-list-hint"));
                 let rows: Vec<(String, String, String, hs_ui::icons::ConnIcon)> = s
                     .projects
@@ -6045,7 +6355,6 @@ fn project_list(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.projects.write().reorder(from, to)
@@ -6112,13 +6421,7 @@ fn project_detail(
                 if form::text_field(ui, &mut root, "").changed() {
                     draft.entry.root = std::path::PathBuf::from(root);
                 }
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::FOLDER_OPEN,
-                        s.t("browse")
-                    ))
-                    .clicked()
+                if form::button(ui, theme, hs_ui::icons::ph::FOLDER_OPEN, &s.t("browse")).clicked()
                     && let Some(p) = rfd::FileDialog::new().pick_folder()
                 {
                     draft.entry.root = p;
@@ -6158,13 +6461,15 @@ fn project_detail(
                 ))
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(
+                    hs_ui::form::selectable_value(
+                        ui,
                         &mut draft.entry.language,
                         String::new(),
                         s.t("settings-project-language-auto"),
                     );
                     for (id, name) in hs_core::projects::LANGUAGES {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut draft.entry.language,
                             (*id).to_string(),
                             format!("{} {name}", hs_ui::icons::language_icon(id)),
@@ -6173,12 +6478,7 @@ fn project_detail(
                 });
             ui.end_row();
         });
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(s.t("settings-project-git"))
-                .strong()
-                .color(theme.text),
-        );
+        form::subsection(ui, theme, &s.t("settings-project-git"));
         if !draft.is_repo {
             form::hint(ui, theme, &s.t("settings-project-not-a-repo"));
         }
@@ -6218,13 +6518,24 @@ fn project_detail(
                 egui::ComboBox::from_id_salt("project-git-sign")
                     .selected_text(label)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(
+                        hs_ui::form::selectable_value(
+                            ui,
                             &mut draft.git.sign_commits,
                             None,
                             s.t("settings-project-git-inherit"),
                         );
-                        ui.selectable_value(&mut draft.git.sign_commits, Some(true), s.t("yes"));
-                        ui.selectable_value(&mut draft.git.sign_commits, Some(false), s.t("no"));
+                        hs_ui::form::selectable_value(
+                            ui,
+                            &mut draft.git.sign_commits,
+                            Some(true),
+                            s.t("yes"),
+                        );
+                        hs_ui::form::selectable_value(
+                            ui,
+                            &mut draft.git.sign_commits,
+                            Some(false),
+                            s.t("no"),
+                        );
                     });
                 ui.end_row();
                 form::label(ui, &s.t("settings-project-git-branch"));
@@ -6241,15 +6552,10 @@ fn project_detail(
                     &s.t("settings-project-git-remote-hint"),
                 );
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("settings-project-git-hint"));
             });
         });
-        form::hint(ui, theme, &s.t("settings-project-git-hint"));
-        ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(s.t("settings-project-run"))
-                .strong()
-                .color(theme.text),
-        );
+        form::subsection(ui, theme, &s.t("settings-project-run"));
         form::hint(ui, theme, &s.t("settings-project-run-hint"));
         form::field_grid(ui, "project-run", |ui| {
             form::label(ui, &s.t("settings-project-run-spring"));
@@ -6293,20 +6599,35 @@ fn project_detail(
             form::label(ui, &s.t("settings-project-run-env"));
             form::code_field(ui, &mut draft.entry.run.env, 4);
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-project-run-env-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-project-run-env-hint"));
-        ui.add_space(10.0);
         ui.horizontal(|ui| {
-            if form::primary_button(ui, theme, &s.t("save")).clicked() {
+            if form::primary_button(
+                ui,
+                theme,
+                &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+            )
+            .clicked()
+            {
                 save = true;
             }
-            if ui.button(s.t("close")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("close")).clicked() {
                 close = true;
             }
             // A plain right-aligned scope: `toolbar::hard_right` is for a
             // tool's toolbar, where the shell reserves it a corner.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::danger_button(ui, theme, &s.t("settings-project-remove")).clicked() {
+                if form::danger_button(
+                    ui,
+                    theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::TRASH,
+                        s.t("settings-project-remove")
+                    ),
+                )
+                .clicked()
+                {
                     remove = true;
                 }
             });
@@ -6473,17 +6794,12 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                 changed = true;
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-git-protected-hint"));
 
             form::label(ui, &s.t("settings-git-clone-folder"));
             ui.horizontal(|ui| {
                 changed |= form::text_field(ui, &mut settings.git.clone_folder, "").changed();
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::FOLDER_OPEN,
-                        s.t("browse")
-                    ))
-                    .clicked()
+                if form::button(ui, theme, hs_ui::icons::ph::FOLDER_OPEN, &s.t("browse")).clicked()
                     && let Some(p) = rfd::FileDialog::new().pick_folder()
                 {
                     settings.git.clone_folder = p.display().to_string();
@@ -6491,6 +6807,7 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                 }
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-git-clone-folder-hint"));
 
             form::label(ui, &s.t("settings-git-terminal-profile"));
             let clis: Vec<(String, String)> = settings
@@ -6508,20 +6825,23 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                 .selected_text(current)
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(
-                            settings.git.terminal_profile.is_empty(),
-                            s.t("settings-git-terminal-default"),
-                        )
-                        .clicked()
+                    if hs_ui::form::selectable_label(
+                        ui,
+                        settings.git.terminal_profile.is_empty(),
+                        s.t("settings-git-terminal-default"),
+                    )
+                    .clicked()
                     {
                         settings.git.terminal_profile.clear();
                         changed = true;
                     }
                     for (id, name) in &clis {
-                        if ui
-                            .selectable_label(settings.git.terminal_profile == *id, name)
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            settings.git.terminal_profile == *id,
+                            name,
+                        )
+                        .clicked()
                         {
                             settings.git.terminal_profile = id.clone();
                             changed = true;
@@ -6529,37 +6849,35 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                     }
                 });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-git-terminal-profile-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-git-protected-hint"));
-        form::hint(ui, theme, &s.t("settings-git-clone-folder-hint"));
-        form::hint(ui, theme, &s.t("settings-git-terminal-profile-hint"));
-        ui.add_space(6.0);
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-git-pull-rebase-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.git.pull_rebase,
-                s.t("settings-git-pull-rebase"),
+                &s.t("settings-git-pull-rebase"),
             )
             .changed();
-        changed |= ui
-            .checkbox(&mut settings.git.signoff, s.t("settings-git-signoff"))
-            .changed();
-        changed |= ui
-            .checkbox(
+            changed |=
+                form::checkbox_row(ui, &mut settings.git.signoff, &s.t("settings-git-signoff"))
+                    .changed();
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.git.shallow_clones,
-                s.t("settings-git-shallow-clones"),
+                &s.t("settings-git-shallow-clones"),
+                &s.t("settings-git-shallow-clones-hint"),
             )
-            .on_hover_text(s.t("settings-git-shallow-clones-hint"))
             .changed();
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.git.stash_untracked,
-                s.t("settings-git-stash-untracked"),
+                &s.t("settings-git-stash-untracked"),
             )
             .changed();
+        });
     });
     form::section(ui, theme, &s.t("settings-git-flow"), |ui| {
         form::hint(ui, theme, &s.t("settings-git-flow-hint"));
-        ui.add_space(4.0);
         let flow = &mut settings.git.flow;
         form::field_grid(ui, "git-flow", |ui| {
             for (key, value) in [
@@ -6613,7 +6931,6 @@ fn credential_list(
                     state.cred_draft = Some(hs_core::git_hosts::GitCredential::default());
                     state.cred_confirm_remove = false;
                 }
-                ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-git-cred-hint"));
                 let rows: Vec<(String, String, String, hs_core::git_hosts::HostKind)> = s
                     .git_credentials
@@ -6649,7 +6966,6 @@ fn credential_list(
                     {
                         pick = Some(id.clone());
                     }
-                    ui.add_space(2.0);
                 }
                 if let Some(id) = pick {
                     state.cred_selected = Some(id.clone());
@@ -6721,7 +7037,7 @@ fn credential_detail(
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
                     for k in hs_core::git_hosts::HostKind::all() {
-                        if ui.selectable_label(cred.kind == k, k.name()).clicked() {
+                        if hs_ui::form::selectable_label(ui, cred.kind == k, k.name()).clicked() {
                             // The public host's address follows the kind
                             // until the user has typed one of their own.
                             let was_default = cred.base_url.is_empty()
@@ -6755,18 +7071,24 @@ fn credential_detail(
                 0,
             );
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-git-cred-token-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-git-cred-token-hint"));
-        ui.add_space(10.0);
         ui.horizontal(|ui| {
             let can = !cred.base_url.trim().is_empty() || cred.kind.default_url().is_empty();
             if ui
-                .add_enabled(can, egui::Button::new(s.t("save")).fill(theme.accent))
+                .add_enabled_ui(can, |ui| {
+                    form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, s.t("save")),
+                    )
+                })
+                .inner
                 .clicked()
             {
                 save = true;
             }
-            if ui.button(s.t("close")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("close")).clicked() {
                 close = true;
             }
             // Test asks the host who the token belongs to.
@@ -6775,10 +7097,15 @@ fn credential_detail(
                 .as_ref()
                 .is_some_and(|(id, _)| *id == cred.id);
             if ui
-                .add_enabled(
-                    cred.kind.lists_projects() && !testing,
-                    egui::Button::new(s.t("settings-git-cred-test")),
-                )
+                .add_enabled_ui(cred.kind.lists_projects() && !testing, |ui| {
+                    form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::PLUGS,
+                        &s.t("settings-git-cred-test"),
+                    )
+                })
+                .inner
                 .clicked()
             {
                 match tool_git::auth::resolve_cred(s, cred) {
@@ -6806,8 +7133,16 @@ fn credential_detail(
             if !is_new {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if state.cred_confirm_remove {
-                        if form::danger_button(ui, theme, &s.t("settings-git-cred-remove"))
-                            .clicked()
+                        if form::danger_button(
+                            ui,
+                            theme,
+                            &format!(
+                                "{} {}",
+                                hs_ui::icons::ph::TRASH,
+                                s.t("settings-git-cred-remove")
+                            ),
+                        )
+                        .clicked()
                         {
                             remove = true;
                         }
@@ -6818,7 +7153,14 @@ fn credential_detail(
                             ))
                             .color(theme.warning),
                         );
-                    } else if ui.button(s.t("settings-git-cred-remove")).clicked() {
+                    } else if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::TRASH,
+                        &s.t("settings-git-cred-remove"),
+                    )
+                    .clicked()
+                    {
                         state.cred_confirm_remove = true;
                     }
                 });
@@ -6913,7 +7255,6 @@ fn repo_list(
                     state.repo_selected = None;
                     state.repo_draft = Some(RepoDraft::blank(hs_core::git_repos::Source::Local));
                 }
-                ui.add_space(8.0);
                 form::hint(ui, theme, &s.t("settings-git-repos-hint"));
                 // The same mark as the Git sidebar row: the picture, else
                 // the chosen glyph, else the language's logo (CR-0054).
@@ -6964,7 +7305,6 @@ fn repo_list(
                             pick = Some(id.clone());
                         }
                     });
-                    ui.add_space(2.0);
                 }
                 if let Some((from, to)) = reorder.finish(ui, theme.accent)
                     && let Err(e) = s.git_repos.write().reorder(from, to)
@@ -7089,8 +7429,7 @@ fn repo_detail(
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
                     for src in Source::all() {
-                        if ui
-                            .selectable_label(e.source == src, s.t(src.label_key()))
+                        if hs_ui::form::selectable_label(ui, e.source == src, s.t(src.label_key()))
                             .clicked()
                         {
                             e.source = src;
@@ -7132,13 +7471,13 @@ fn repo_detail(
                         );
                     }
                 }
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::UPLOAD_SIMPLE,
-                        s.t("settings-git-repo-icon-upload")
-                    ))
-                    .clicked()
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::UPLOAD_SIMPLE,
+                    &s.t("settings-git-repo-icon-upload"),
+                )
+                .clicked()
                     && let Some(src) = rfd::FileDialog::new()
                         .add_filter("Image", hs_core::workspace::ICON_EXTS)
                         .pick_file()
@@ -7154,7 +7493,15 @@ fn repo_detail(
                         )),
                     }
                 }
-                if image.is_some() && ui.button(s.t("settings-git-repo-icon-remove")).clicked() {
+                if image.is_some()
+                    && form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::X,
+                        &s.t("settings-git-repo-icon-remove"),
+                    )
+                    .clicked()
+                {
                     s.git_repos.read().remove_icon(&e.id);
                 }
             });
@@ -7168,22 +7515,29 @@ fn repo_detail(
                 .selected_text(current)
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(e.icon.is_empty(), s.t("settings-git-repo-icon-auto"))
-                        .clicked()
+                    if hs_ui::form::selectable_label(
+                        ui,
+                        e.icon.is_empty(),
+                        s.t("settings-git-repo-icon-auto"),
+                    )
+                    .clicked()
                     {
                         e.icon.clear();
                     }
                     for (key, glyph) in hs_ui::icons::REPO_ICONS {
-                        if ui
-                            .selectable_label(e.icon == *key, format!("{glyph}  {key}"))
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            e.icon == *key,
+                            format!("{glyph}  {key}"),
+                        )
+                        .clicked()
                         {
                             e.icon = key.to_string();
                         }
                     }
                 });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-git-repo-icon-hint"));
 
             if e.source != Source::Local {
                 form::label(ui, &s.t("settings-git-repo-url"));
@@ -7207,17 +7561,19 @@ fn repo_detail(
                     .selected_text(current)
                     .width(form::FIELD_MIN_WIDTH)
                     .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(
-                                e.credential.is_empty(),
-                                s.t("settings-git-repo-credential-none"),
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            e.credential.is_empty(),
+                            s.t("settings-git-repo-credential-none"),
+                        )
+                        .clicked()
                         {
                             e.credential.clear();
                         }
                         for (id, name) in &creds {
-                            if ui.selectable_label(e.credential == *id, name).clicked() {
+                            if hs_ui::form::selectable_label(ui, e.credential == *id, name)
+                                .clicked()
+                            {
                                 e.credential = id.clone();
                                 if let Some(c) = s.git_credentials.read().by_id(id) {
                                     e.host_url = c.host();
@@ -7235,14 +7591,15 @@ fn repo_detail(
                     let cred = s.git_credentials.read().by_id(&e.credential).cloned();
                     let lists = cred.as_ref().is_some_and(|c| c.kind.lists_projects());
                     let fetch = ui
-                        .add_enabled(
-                            lists && !state.repo_projects_busy,
-                            egui::Button::new(format!(
-                                "{} {}",
+                        .add_enabled_ui(lists && !state.repo_projects_busy, |ui| {
+                            form::button(
+                                ui,
+                                theme,
                                 hs_ui::icons::ph::CLOUD_ARROW_DOWN,
-                                s.t("settings-git-repo-fetch")
-                            )),
-                        )
+                                &s.t("settings-git-repo-fetch"),
+                            )
+                        })
+                        .inner
                         .on_disabled_hover_text(s.t("settings-git-repo-fetch-first"))
                         .clicked();
                     if state.repo_projects_busy {
@@ -7296,8 +7653,11 @@ fn repo_detail(
                                             } else {
                                                 p.full_name.clone()
                                             };
-                                            let r = ui
-                                                .selectable_label(e.project == p.full_name, label);
+                                            let r = hs_ui::form::selectable_label(
+                                                ui,
+                                                e.project == p.full_name,
+                                                label,
+                                            );
                                             let r = if p.description.is_empty() {
                                                 r
                                             } else {
@@ -7379,13 +7739,7 @@ fn repo_detail(
                 if form::text_field(ui, &mut path, "").changed() {
                     e.path = std::path::PathBuf::from(path);
                 }
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::FOLDER_OPEN,
-                        s.t("browse")
-                    ))
-                    .clicked()
+                if form::button(ui, theme, hs_ui::icons::ph::FOLDER_OPEN, &s.t("browse")).clicked()
                     && let Some(p) = rfd::FileDialog::new().pick_folder()
                 {
                     // A different folder is a different repository: its
@@ -7418,22 +7772,22 @@ fn repo_detail(
                 ))
                 .width(form::FIELD_MIN_WIDTH)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(
-                            e.language.is_empty(),
-                            s.t("settings-project-language-auto"),
-                        )
-                        .clicked()
+                    if hs_ui::form::selectable_label(
+                        ui,
+                        e.language.is_empty(),
+                        s.t("settings-project-language-auto"),
+                    )
+                    .clicked()
                     {
                         e.language = hs_core::projects::detect_language(&e.path).to_string();
                     }
                     for (id, name) in hs_core::projects::LANGUAGES {
-                        if ui
-                            .selectable_label(
-                                e.language == *id,
-                                format!("{} {name}", hs_ui::icons::language_icon(id)),
-                            )
-                            .clicked()
+                        if hs_ui::form::selectable_label(
+                            ui,
+                            e.language == *id,
+                            format!("{} {name}", hs_ui::icons::language_icon(id)),
+                        )
+                        .clicked()
                         {
                             e.language = id.to_string();
                         }
@@ -7441,7 +7795,6 @@ fn repo_detail(
                 });
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("settings-git-repo-icon-hint"));
         let has_path = !e.path.as_os_str().is_empty();
         // A folder that is not a repository: for a host source Save
         // clones into it (it must not exist yet, as git requires); for
@@ -7456,7 +7809,6 @@ fn repo_detail(
         // under it names what is missing (owner's requirement).
         let missing: Vec<String> = e.missing().iter().map(|k| s.t(k)).collect();
         let can_save = missing.is_empty() && (e.is_cloned() || will_clone) && !cloning;
-        ui.add_space(10.0);
         ui.horizontal(|ui| {
             let save_label = if will_clone {
                 s.t("settings-git-repo-clone-and-save")
@@ -7464,7 +7816,14 @@ fn repo_detail(
                 s.t("save")
             };
             if ui
-                .add_enabled(can_save, egui::Button::new(save_label).fill(theme.accent))
+                .add_enabled_ui(can_save, |ui| {
+                    form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", hs_ui::icons::ph::FLOPPY_DISK, save_label),
+                    )
+                })
+                .inner
                 .clicked()
             {
                 save = true;
@@ -7475,12 +7834,18 @@ fn repo_detail(
                     egui::RichText::new(s.t("settings-git-repo-cloning")).color(theme.text_muted),
                 );
             }
-            if ui.button(s.t("close")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::ph::X, &s.t("close")).clicked() {
                 close = true;
             }
             if !is_new {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::danger_button(ui, theme, &s.t("git-repo-remove")).clicked() {
+                    if form::danger_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", hs_ui::icons::ph::TRASH, s.t("git-repo-remove")),
+                    )
+                    .clicked()
+                    {
                         remove = true;
                     }
                 });
@@ -7616,44 +7981,48 @@ fn editor(
                 .add(egui::Slider::new(&mut settings.editor.font_size, 9.0..=28.0).suffix(" px"))
                 .changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-editor-font-size-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-editor-font-size-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-behaviour"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-editor-right-click-checks", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.editor.right_click_copy_paste,
-                s.t("settings-editor-right-click"),
+                &s.t("settings-editor-right-click"),
+                &s.t("settings-terminal-right-click-hint"),
             )
             .changed();
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.editor.auto_reload,
-                s.t("settings-editor-auto-reload"),
+                &s.t("settings-editor-auto-reload"),
             )
             .changed();
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.editor.format_minified_on_open,
-                s.t("settings-editor-format-minified"),
+                &s.t("settings-editor-format-minified"),
+                &s.t("settings-editor-format-minified-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-editor-format-minified-hint"));
-        form::hint(ui, theme, &s.t("settings-terminal-right-click-hint"));
+        });
     });
     form::section(ui, theme, &s.t("settings-section-on-save"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-editor-trim-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.editor.trim_trailing_whitespace,
-                s.t("settings-editor-trim"),
+                &s.t("settings-editor-trim"),
             )
             .changed();
-        changed |= ui
-            .checkbox(
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.editor.insert_final_newline,
-                s.t("settings-editor-final-newline"),
+                &s.t("settings-editor-final-newline"),
             )
             .changed();
+        });
     });
     form::section(ui, theme, &s.t("settings-section-editor-terminal"), |ui| {
         form::field_grid(ui, "editor-terminal-shell", |ui| {
@@ -7664,30 +8033,43 @@ fn editor(
                 .find(|p| p.id == settings.editor.terminal_profile)
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| s.t("settings-editor-terminal-shell-default"));
-            egui::ComboBox::from_id_salt("editor-terminal-shell")
-                .selected_text(current)
-                .width(260.0)
-                .show_ui(ui, |ui| {
-                    changed |= ui
-                        .selectable_value(
+            // Each shell beside its mark, the chosen one's beside the box
+            // (CR-0079).
+            ui.horizontal(|ui| {
+                let chosen = profiles
+                    .iter()
+                    .find(|p| p.id == settings.editor.terminal_profile)
+                    .map(|p| tool_terminal::shell_conn_icon(&p.id))
+                    .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL));
+                conn_mark(ui, theme, chosen);
+                egui::ComboBox::from_id_salt("editor-terminal-shell")
+                    .selected_text(current)
+                    .width(260.0)
+                    .show_ui(ui, |ui| {
+                        changed |= hs_ui::form::selectable_value(
+                            ui,
                             &mut settings.editor.terminal_profile,
                             String::new(),
                             s.t("settings-editor-terminal-shell-default"),
                         )
                         .changed();
-                    for p in profiles.iter() {
-                        changed |= ui
-                            .selectable_value(
-                                &mut settings.editor.terminal_profile,
-                                p.id.clone(),
-                                &p.name,
-                            )
-                            .changed();
-                    }
-                });
+                        for p in profiles.iter() {
+                            ui.horizontal(|ui| {
+                                conn_mark(ui, theme, tool_terminal::shell_conn_icon(&p.id));
+                                changed |= hs_ui::form::selectable_value(
+                                    ui,
+                                    &mut settings.editor.terminal_profile,
+                                    p.id.clone(),
+                                    &p.name,
+                                )
+                                .changed();
+                            });
+                        }
+                    });
+            });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-editor-terminal-hint"));
         });
-        form::hint(ui, theme, &s.t("settings-editor-terminal-hint"));
     });
     form::section(ui, theme, &s.t("settings-section-editor-build"), |ui| {
         form::field_grid(ui, "editor-build-tools", |ui| {
@@ -7710,40 +8092,43 @@ fn editor(
                 .changed();
             ui.end_row();
         });
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-editor-prefer-wrapper-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.editor.prefer_wrapper,
-                s.t("settings-editor-prefer-wrapper"),
+                &s.t("settings-editor-prefer-wrapper"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-editor-build-hint"));
+            form::row_hint(ui, theme, &s.t("settings-editor-build-hint"));
+        });
     });
     form::section(ui, theme, &s.t("settings-section-language-servers"), |ui| {
-        changed |= ui
-            .checkbox(&mut settings.editor.lsp_enabled, s.t("settings-editor-lsp"))
-            .changed();
-        changed |= ui
-            .checkbox(
-                &mut settings.editor.completion_on_type,
-                s.t("settings-editor-complete-on-type"),
+        form::field_grid(ui, "settings-editor-lsp-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
+                &mut settings.editor.lsp_enabled,
+                &s.t("settings-editor-lsp"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-editor-lsp-hint"));
+            changed |= form::checkbox_row(
+                ui,
+                &mut settings.editor.completion_on_type,
+                &s.t("settings-editor-complete-on-type"),
+            )
+            .changed();
+            form::row_hint(ui, theme, &s.t("settings-editor-lsp-hint"));
+        });
         // PATH is read once at start, but it can be read again: the button
         // does that and forgets what the table decided about each command.
         form::hint(ui, theme, &s.t("settings-editor-lsp-path-hint"));
-        ui.add_space(2.0);
         refresh_button(ui, theme, s);
-        ui.add_space(4.0);
         changed |=
             language_server_table(ui, theme, s, &mut settings.editor.language_servers, effects);
     });
     form::section(ui, theme, &s.t("settings-section-debug-adapters"), |ui| {
         form::hint(ui, theme, &s.t("settings-editor-dap-hint"));
         form::hint(ui, theme, &s.t("settings-editor-dap-path-hint"));
-        ui.add_space(2.0);
         refresh_button(ui, theme, s);
-        ui.add_space(4.0);
         changed |= debug_adapter_table(ui, theme, s, &mut settings.editor.debug_adapters, effects);
     });
     if changed {
@@ -7793,15 +8178,15 @@ const REFRESH_NOTE_SECS: f64 = 8.0;
 
 /// The button that does it, for one extension section.
 fn refresh_button(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
-    ui.horizontal(|ui| {
-        if ui
-            .small_button(format!(
-                "{} {}",
-                hs_ui::icons::ph::ARROWS_CLOCKWISE,
-                s.t("settings-extensions-refresh")
-            ))
-            .tip(s.t("settings-extensions-refresh-tip"))
-            .clicked()
+    form::centred_row(ui, |ui| {
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::ARROWS_CLOCKWISE,
+            &s.t("settings-extensions-refresh"),
+        )
+        .tip(s.t("settings-extensions-refresh-tip"))
+        .clicked()
         {
             refresh_extension_status(ui);
         }
@@ -7834,6 +8219,7 @@ fn refresh_button(ui: &mut egui::Ui, theme: &Theme, s: &Services) {
 
 fn install_button(
     ui: &mut egui::Ui,
+    theme: &Theme,
     s: &Services,
     command: &str,
     url: &str,
@@ -7849,14 +8235,14 @@ fn install_button(
         s.i18n
             .t_args("editor-lsp-install-run-tip", &[("command", command)])
     };
-    if ui
-        .small_button(format!(
-            "{} {}",
-            hs_ui::icons::ph::DOWNLOAD_SIMPLE,
-            s.t("editor-lsp-install")
-        ))
-        .tip(tip)
-        .clicked()
+    if form::button(
+        ui,
+        theme,
+        hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+        &s.t("editor-lsp-install"),
+    )
+    .tip(tip)
+    .clicked()
     {
         if command.is_empty() {
             effects.push(SettingsEffect::OpenUrl(url.to_string()));
@@ -7885,7 +8271,7 @@ fn debug_adapter_table(
     let (command_w, args_w) = extension_field_widths(ui);
     egui::Grid::new("settings-dap-table")
         .num_columns(5)
-        .spacing([12.0, 6.0])
+        .spacing([12.0, form::ROW_GAP])
         .striped(true)
         .show(ui, |ui| {
             for key in [
@@ -7973,7 +8359,14 @@ fn debug_adapter_table(
                                 "settings-editor-lsp-install-tip",
                                 &[("command", spec.install)],
                             ));
-                            install_button(ui, s, spec.install_command, spec.install_url, effects);
+                            install_button(
+                                ui,
+                                theme,
+                                s,
+                                spec.install_command,
+                                spec.install_url,
+                                effects,
+                            );
                         });
                     }
                 }
@@ -8020,7 +8413,7 @@ fn language_server_table(
     let (command_w, args_w) = extension_field_widths(ui);
     egui::Grid::new("settings-lsp-table")
         .num_columns(5)
-        .spacing([12.0, 6.0])
+        .spacing([12.0, form::ROW_GAP])
         .striped(true)
         .show(ui, |ui| {
             for key in [
@@ -8112,7 +8505,14 @@ fn language_server_table(
                                 "settings-editor-lsp-install-tip",
                                 &[("command", spec.install)],
                             ));
-                            install_button(ui, s, spec.install_command, spec.install_url, effects);
+                            install_button(
+                                ui,
+                                theme,
+                                s,
+                                spec.install_command,
+                                spec.install_url,
+                                effects,
+                            );
                         });
                     }
                 }
@@ -8153,40 +8553,54 @@ fn browser(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             changed |= form::text_field(ui, &mut settings.browser.home_url, "https://…").changed();
             ui.end_row();
         });
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-browser-adblock-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.browser.adblock,
-                s.t("settings-browser-adblock"),
+                &s.t("settings-browser-adblock"),
             )
             .changed();
-        changed |= ui
-            .checkbox(&mut settings.browser.javascript, s.t("settings-browser-js"))
+            changed |= form::checkbox_row(
+                ui,
+                &mut settings.browser.javascript,
+                &s.t("settings-browser-js"),
+            )
             .changed();
-        changed |= ui
-            .checkbox(&mut settings.browser.dark, s.t("settings-browser-dark"))
+            changed |= form::checkbox_row(
+                ui,
+                &mut settings.browser.dark,
+                &s.t("settings-browser-dark"),
+            )
             .changed();
-        form::hint(ui, theme, &s.t("settings-browser-pages-hint"));
-        changed |= ui
-            .checkbox(
+            form::row_hint(ui, theme, &s.t("settings-browser-pages-hint"));
+        });
+        form::field_grid(ui, "settings-browser-devtools-panel-checks", |ui| {
+            changed |= form::checkbox_row(
+                ui,
                 &mut settings.browser.devtools_panel,
-                s.t("settings-browser-devtools-panel"),
+                &s.t("settings-browser-devtools-panel"),
             )
             .changed();
-        form::note(
-            ui,
-            theme,
-            hs_ui::icons::ph::WARNING,
-            &s.t("settings-browser-devtools-panel-hint"),
-        );
+            form::control_row(ui, |ui| {
+                form::note(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::WARNING,
+                    &s.t("settings-browser-devtools-panel-hint"),
+                );
+            });
+        });
     });
     form::section(ui, theme, &s.t("settings-browser-section-favbar"), |ui| {
-        changed |= ui
-            .checkbox(
+        form::field_grid(ui, "settings-browser-favbar-checks", |ui| {
+            changed |= form::checkbox_row_with_description(
+                ui,
                 &mut settings.browser.favorites_bar,
-                s.t("settings-browser-favbar"),
+                &s.t("settings-browser-favbar"),
+                &s.t("settings-browser-favbar-hint"),
             )
             .changed();
-        form::hint(ui, theme, &s.t("settings-browser-favbar-hint"));
+        });
     });
     form::section(
         ui,
@@ -8254,7 +8668,6 @@ fn about(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Setti
             ui.hyperlink(hs_core::update::FORGE_URL);
             ui.end_row();
         });
-        ui.add_space(6.0);
         form::hint(ui, theme, &s.t("settings-about-license"));
         form::hint(ui, theme, &s.t("settings-about-fonts"));
         form::hint(ui, theme, &s.t("settings-about-icons"));
@@ -8356,8 +8769,8 @@ fn ssh_form(
                 new_vars.push(kv);
             }
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ssh-startup-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-ssh-startup-hint"));
     });
     if !new_vars.is_empty() {
         let mut envs = s.environments.write();
@@ -8392,7 +8805,7 @@ fn ssh_form(
                         ("key", "conn-ssh-auth-key"),
                         ("agent", "conn-ssh-auth-agent"),
                     ] {
-                        if ui.selectable_label(f.auth == id, s.t(key)).clicked() {
+                        if hs_ui::form::selectable_label(ui, f.auth == id, s.t(key)).clicked() {
                             f.auth = id.into();
                             changed = true;
                         }
@@ -8406,7 +8819,13 @@ fn ssh_form(
                         changed |=
                             form::text_field_width(ui, &mut f.key_path, "~/.ssh/id_ed25519", 320.0)
                                 .changed();
-                        if ui.button(s.t("conn-ssh-browse")).clicked()
+                        if form::button(
+                            ui,
+                            theme,
+                            hs_ui::icons::ph::FOLDER_OPEN,
+                            &s.t("conn-ssh-browse"),
+                        )
+                        .clicked()
                             && let Some(p) = rfd::FileDialog::new().pick_file()
                         {
                             f.key_path = p.to_string_lossy().to_string();
@@ -8438,8 +8857,8 @@ fn ssh_form(
                     ui.end_row();
                 }
             }
+            form::row_hint(ui, theme, &s.t("conn-ssh-secret-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -8517,8 +8936,7 @@ fn s3_form(
                 .selected_text(provider_label(&f.provider))
                 .show_ui(ui, |ui| {
                     for p in PROVIDERS {
-                        if ui
-                            .selectable_label(f.provider == *p, provider_label(p))
+                        if hs_ui::form::selectable_label(ui, f.provider == *p, provider_label(p))
                             .clicked()
                             && f.provider != *p
                         {
@@ -8535,19 +8953,16 @@ fn s3_form(
             changed |=
                 form::text_field(ui, &mut f.endpoint, &s.t("conn-s3-endpoint-hint")).changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-s3-endpoint-help"));
             form::label(ui, &s.t("conn-s3-region"));
             changed |= form::text_field(ui, &mut f.region, "us-east-1").changed();
             ui.end_row();
-            form::label(ui, "");
-            changed |= ui
-                .checkbox(&mut f.path_style, s.t("conn-s3-path-style"))
-                .changed();
-            ui.end_row();
+            changed |=
+                form::checkbox_row(ui, &mut f.path_style, &s.t("conn-s3-path-style")).changed();
             form::label(ui, &s.t("conn-s3-default-bucket"));
             changed |= form::text_field(ui, &mut f.default_bucket, "").changed();
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("conn-s3-endpoint-help"));
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "s3-auth", |ui| {
@@ -8560,8 +8975,8 @@ fn s3_form(
             form::label(ui, &s.t("conn-s3-session-token"));
             changed |= secret_field(ui, theme, s, "s3-token", &mut f.session_token, scratch, 1);
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ssh-secret-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -8585,6 +9000,7 @@ fn webdav_form(
             form::label(ui, &s.t("conn-webdav-url"));
             changed |= form::text_field(ui, &mut f.url, &s.t("conn-webdav-url-hint")).changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-webdav-url-help"));
             form::label(ui, &s.t("conn-user"));
             changed |= form::text_field(ui, &mut f.user, "").changed();
             ui.end_row();
@@ -8598,7 +9014,6 @@ fn webdav_form(
                 .changed();
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("conn-webdav-url-help"));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -8623,6 +9038,7 @@ fn nexus_form(
             form::label(ui, &s.t("conn-nexus-url"));
             changed |= form::text_field(ui, &mut f.url, "https://nexus.example.com").changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-nexus-help"));
             form::label(ui, &s.t("conn-user"));
             changed |= form::text_field(ui, &mut f.user, "").changed();
             ui.end_row();
@@ -8640,7 +9056,6 @@ fn nexus_form(
                 .changed();
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("conn-nexus-help"));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -8675,7 +9090,13 @@ fn container_form(
                 ui.horizontal(|ui| {
                     changed |=
                         form::text_field(ui, &mut f.kubeconfig_path, "~/.kube/config").changed();
-                    if ui.button(s.t("settings-container-browse")).clicked()
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        &s.t("settings-container-browse"),
+                    )
+                    .clicked()
                         && let Some(p) = rfd::FileDialog::new().pick_file()
                     {
                         f.kubeconfig_path = p.to_string_lossy().to_string();
@@ -8692,7 +9113,6 @@ fn container_form(
             });
             // Why a path and not a copy, said where the choice is made.
             form::hint(ui, theme, &s.t("conn-container-kubeconfig-hint"));
-            ui.add_space(6.0);
             form::field_grid(ui, "container-cluster-auth", |ui| {
                 form::label(ui, &s.t("conn-container-paste-kubeconfig"));
                 changed |= form::code_field(ui, &mut f.kubeconfig_inline, 4).changed();
@@ -8708,7 +9128,6 @@ fn container_form(
                 hs_ui::icons::INFO,
                 &s.t("conn-container-paste-kubeconfig-note"),
             );
-            ui.add_space(6.0);
             form::field_grid(ui, "container-cluster-extra", |ui| {
                 form::label(ui, &s.t("conn-container-impersonate-user"));
                 changed |= form::text_field(ui, &mut f.impersonate_user, "").changed();
@@ -8725,8 +9144,8 @@ fn container_form(
                     .tip(s.t("conn-container-use-kubectl-hint"))
                     .changed();
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-container-use-kubectl-hint"));
             });
-            form::hint(ui, theme, &s.t("conn-container-use-kubectl-hint"));
         });
     } else {
         form::section(ui, theme, &s.t("conn-container-section-engine"), |ui| {
@@ -8737,8 +9156,7 @@ fn container_form(
                     .selected_text(s.t(f.transport.key()))
                     .show_ui(ui, |ui| {
                         for t in Transport::ALL {
-                            if ui
-                                .selectable_label(f.transport == t, s.t(t.key()))
+                            if hs_ui::form::selectable_label(ui, f.transport == t, s.t(t.key()))
                                 .clicked()
                             {
                                 f.transport = t;
@@ -8747,6 +9165,7 @@ fn container_form(
                         }
                     });
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-container-transport-hint"));
                 // Only the fields the chosen transport actually uses, so
                 // the form says what matters rather than everything.
                 match f.transport {
@@ -8781,7 +9200,6 @@ fn container_form(
                 changed |= form::text_field(ui, &mut f.api_version, "").changed();
                 ui.end_row();
             });
-            form::hint(ui, theme, &s.t("conn-container-transport-hint"));
         });
         if f.transport == Transport::Tcp {
             form::section(ui, theme, &s.t("conn-container-section-tls"), |ui| {
@@ -8789,18 +9207,18 @@ fn container_form(
                     form::label(ui, &s.t("conn-container-tls"));
                     changed |= ui.checkbox(&mut f.tls, "").changed();
                     ui.end_row();
-                    form::label(ui, &s.t("conn-container-tls-ca"));
+                    form::sub_label(ui, &s.t("conn-container-tls-ca"));
                     changed |= form::text_field(ui, &mut f.tls_ca, "").changed();
                     ui.end_row();
-                    form::label(ui, &s.t("conn-container-tls-cert"));
+                    form::sub_label(ui, &s.t("conn-container-tls-cert"));
                     changed |= form::text_field(ui, &mut f.tls_cert, "").changed();
                     ui.end_row();
-                    form::label(ui, &s.t("conn-container-tls-key"));
+                    form::sub_label(ui, &s.t("conn-container-tls-key"));
                     changed |=
                         form::secret_field(ui, &mut f.tls_key, "", form::FIELD_MIN_WIDTH).changed();
                     ui.end_row();
+                    form::row_hint(ui, theme, &s.t("conn-container-tls-hint"));
                 });
-                form::hint(ui, theme, &s.t("conn-container-tls-hint"));
             });
         }
         form::section(ui, theme, &s.t("conn-container-section-registry"), |ui| {
@@ -8870,15 +9288,14 @@ fn ssh_profile_picker(ui: &mut egui::Ui, s: &Services, chosen: &mut String) -> b
         .width(form::FIELD_MIN_WIDTH)
         .selected_text(label)
         .show_ui(ui, |ui| {
-            if ui
-                .selectable_label(chosen.is_empty(), s.t("conn-container-no-ssh"))
+            if hs_ui::form::selectable_label(ui, chosen.is_empty(), s.t("conn-container-no-ssh"))
                 .clicked()
             {
                 chosen.clear();
                 changed = true;
             }
             for (id, name) in &profiles {
-                if ui.selectable_label(chosen == id, name).clicked() {
+                if hs_ui::form::selectable_label(ui, chosen == id, name).clicked() {
                     *chosen = id.clone();
                     changed = true;
                 }
@@ -8912,10 +9329,10 @@ fn db_form(
                         .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                 );
                 if ui
-                    .add_enabled(
-                        !url.trim().is_empty(),
-                        egui::Button::new(s.t("conn-db-apply-url")),
-                    )
+                    .add_enabled_ui(!url.trim().is_empty(), |ui| {
+                        form::button(ui, theme, hs_ui::icons::ph::LINK, &s.t("conn-db-apply-url"))
+                    })
+                    .inner
                     .clicked()
                 {
                     if let Some((parsed, password)) = parse_url(&url) {
@@ -8956,7 +9373,9 @@ fn db_form(
                 .selected_text(current)
                 .show_ui(ui, |ui| {
                     for (id, label) in engines {
-                        if ui.selectable_label(f.engine == id, label).clicked() && f.engine != id {
+                        if hs_ui::form::selectable_label(ui, f.engine == id, label).clicked()
+                            && f.engine != id
+                        {
                             let old_default = f.engine().map(Engine::default_port);
                             f.engine = id.to_string();
                             if old_default == Some(f.port) || f.port == 0 {
@@ -8982,7 +9401,13 @@ fn db_form(
                                 .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                         )
                         .changed();
-                    if ui.button(s.t("conn-db-browse")).clicked()
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        &s.t("conn-db-browse"),
+                    )
+                    .clicked()
                         && let Some(p) = rfd::FileDialog::new().pick_file()
                     {
                         f.path = p.to_string_lossy().to_string();
@@ -9033,7 +9458,9 @@ fn db_form(
                         .selected_text(shown)
                         .show_ui(ui, |ui| {
                             for d in &drivers {
-                                if ui.selectable_label(&f.odbc_driver == d, d).clicked() {
+                                if hs_ui::form::selectable_label(ui, &f.odbc_driver == d, d)
+                                    .clicked()
+                                {
                                     f.odbc_driver = d.clone();
                                     changed = true;
                                 }
@@ -9043,7 +9470,7 @@ fn db_form(
                     // What these engines need on this machine, said every
                     // time rather than only once the driver is missing
                     // (CR-0038): the client is the user's to install.
-                    form::field_hint_row(
+                    form::row_hint(
                         ui,
                         theme,
                         &s.t(if engine == Engine::Oracle {
@@ -9066,8 +9493,8 @@ fn db_form(
                     }
                 }
             }
+            form::row_hint(ui, theme, &s.t("conn-db-server-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-db-server-hint"));
     });
     if !f.engine().is_some_and(Engine::is_file) {
         form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
@@ -9084,7 +9511,7 @@ fn db_form(
                     .selected_text(f.ssl.clone())
                     .show_ui(ui, |ui| {
                         for m in SSL_MODES {
-                            if ui.selectable_label(f.ssl == *m, *m).clicked() {
+                            if hs_ui::form::selectable_label(ui, f.ssl == *m, *m).clicked() {
                                 f.ssl = (*m).to_string();
                                 changed = true;
                             }
@@ -9092,7 +9519,7 @@ fn db_form(
                     });
                 ui.end_row();
                 if f.ssl.starts_with("verify") {
-                    form::label(ui, &s.t("conn-db-ssl-ca"));
+                    form::sub_label(ui, &s.t("conn-db-ssl-ca"));
                     changed |=
                         form::text_field(ui, &mut f.ssl_ca, &s.t("conn-db-ssl-ca-hint")).changed();
                     ui.end_row();
@@ -9114,23 +9541,23 @@ fn db_form(
                     .width(form::FIELD_MIN_WIDTH)
                     .selected_text(current)
                     .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
                             .clicked()
                         {
                             f.tunnel_ssh.clear();
                             changed = true;
                         }
                         for (id, name) in hosts {
-                            if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                            if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked()
+                            {
                                 f.tunnel_ssh = id;
                                 changed = true;
                             }
                         }
                     });
                 ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-db-auth-hint"));
             });
-            form::hint(ui, theme, &s.t("conn-db-auth-hint"));
         });
     }
     ui.data_mut(|d| d.insert_temp(url_id, url));
@@ -9164,10 +9591,10 @@ fn redis_form(
                         .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                 );
                 if ui
-                    .add_enabled(
-                        !url.trim().is_empty(),
-                        egui::Button::new(s.t("conn-redis-import")),
-                    )
+                    .add_enabled_ui(!url.trim().is_empty(), |ui| {
+                        form::button(ui, theme, hs_ui::icons::ph::LINK, &s.t("conn-redis-import"))
+                    })
+                    .inner
                     .clicked()
                 {
                     if let Some(parsed) = parse_url(&url) {
@@ -9184,6 +9611,7 @@ fn redis_form(
                 }
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-redis-url-hint"));
             form::label(ui, &s.t("conn-redis-host"));
             changed |= form::text_field(ui, &mut f.host, "127.0.0.1").changed();
             ui.end_row();
@@ -9207,7 +9635,8 @@ fn redis_form(
                 .selected_text(mode_label(&f.mode))
                 .show_ui(ui, |ui| {
                     for m in MODES {
-                        if ui.selectable_label(f.mode == *m, mode_label(m)).clicked() {
+                        if hs_ui::form::selectable_label(ui, f.mode == *m, mode_label(m)).clicked()
+                        {
                             f.mode = (*m).to_string();
                             changed = true;
                         }
@@ -9215,7 +9644,6 @@ fn redis_form(
                 });
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("conn-redis-url-hint"));
         if f.mode != "standalone" {
             form::note(
                 ui,
@@ -9237,7 +9665,7 @@ fn redis_form(
             changed |= ui.checkbox(&mut f.tls, "").changed();
             ui.end_row();
             if f.tls {
-                form::label(ui, &s.t("conn-redis-tls-ca"));
+                form::sub_label(ui, &s.t("conn-redis-tls-ca"));
                 changed |= form::text_field(ui, &mut f.tls_ca, "ca.pem").changed();
                 ui.end_row();
             }
@@ -9258,15 +9686,14 @@ fn redis_form(
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(current)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                    if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
                         .clicked()
                     {
                         f.tunnel_ssh.clear();
                         changed = true;
                     }
                     for (id, name) in hosts {
-                        if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked() {
                             f.tunnel_ssh = id;
                             changed = true;
                         }
@@ -9276,8 +9703,8 @@ fn redis_form(
             form::label(ui, &s.t("conn-redis-delimiter"));
             changed |= form::text_field(ui, &mut f.delimiter, ":").changed();
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-redis-delimiter-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-redis-delimiter-hint"));
     });
     ui.data_mut(|d| d.insert_temp(url_id, url));
     if changed {
@@ -9316,10 +9743,10 @@ fn nosql_form(
                         .desired_width(form::FIELD_MIN_WIDTH - 70.0),
                 );
                 if ui
-                    .add_enabled(
-                        !url.trim().is_empty(),
-                        egui::Button::new(s.t("conn-nosql-import")),
-                    )
+                    .add_enabled_ui(!url.trim().is_empty(), |ui| {
+                        form::button(ui, theme, hs_ui::icons::ph::LINK, &s.t("conn-nosql-import"))
+                    })
+                    .inner
                     .clicked()
                 {
                     if let Some(parsed) = parse_url(&url) {
@@ -9334,6 +9761,7 @@ fn nosql_form(
                 }
             });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-nosql-url-hint"));
             form::label(ui, &s.t("conn-nosql-host"));
             changed |= form::text_field(ui, &mut f.host, "127.0.0.1").changed();
             ui.end_row();
@@ -9348,7 +9776,6 @@ fn nosql_form(
             changed |= form::text_field(ui, &mut f.database, "shop").changed();
             ui.end_row();
         });
-        form::hint(ui, theme, &s.t("conn-nosql-url-hint"));
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "nosql-auth", |ui| {
@@ -9397,23 +9824,22 @@ fn nosql_form(
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(current)
                 .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(f.tunnel_ssh.is_empty(), none.clone())
+                    if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
                         .clicked()
                     {
                         f.tunnel_ssh.clear();
                         changed = true;
                     }
                     for (id, name) in hosts {
-                        if ui.selectable_label(f.tunnel_ssh == id, name).clicked() {
+                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked() {
                             f.tunnel_ssh = id;
                             changed = true;
                         }
                     }
                 });
             ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ssh-secret-hint"));
         });
-        form::hint(ui, theme, &s.t("conn-ssh-secret-hint"));
     });
     ui.data_mut(|d| d.insert_temp(url_id, url));
     if changed {
@@ -9479,7 +9905,8 @@ fn queue_form(
                         .selected_text(f.protocol.clone())
                         .show_ui(ui, |ui| {
                             for v in MQTT_VERSIONS {
-                                if ui.selectable_label(f.protocol == *v, *v).clicked() {
+                                if hs_ui::form::selectable_label(ui, f.protocol == *v, *v).clicked()
+                                {
                                     f.protocol = (*v).to_string();
                                     changed = true;
                                 }
@@ -9511,8 +9938,7 @@ fn queue_form(
                 .selected_text(s.t(auth_key(&f.auth)))
                 .show_ui(ui, |ui| {
                     for a in auth_kinds_for(&kind) {
-                        if ui
-                            .selectable_label(f.auth == *a, s.t(auth_key(a)))
+                        if hs_ui::form::selectable_label(ui, f.auth == *a, s.t(auth_key(a)))
                             .clicked()
                         {
                             f.auth = (*a).to_string();
@@ -9537,7 +9963,13 @@ fn queue_form(
                             .selected_text(sasl_label(&f.sasl))
                             .show_ui(ui, |ui| {
                                 for m in SASL_MECHANISMS {
-                                    if ui.selectable_label(f.sasl == *m, sasl_label(m)).clicked() {
+                                    if hs_ui::form::selectable_label(
+                                        ui,
+                                        f.sasl == *m,
+                                        sasl_label(m),
+                                    )
+                                    .clicked()
+                                    {
                                         f.sasl = (*m).to_string();
                                         changed = true;
                                     }
@@ -9570,15 +10002,15 @@ fn queue_form(
                 }
                 _ => {}
             }
+            let hint = match (kind.as_str(), f.auth.as_str()) {
+                ("rabbitmq", "token") => "conn-queue-hint-rabbit-token",
+                ("kafka", "token") => "conn-queue-hint-kafka-token",
+                ("kafka", "api-key") => "conn-queue-hint-kafka-key",
+                (_, "token") => "conn-queue-hint-token-password",
+                _ => "conn-ssh-secret-hint",
+            };
+            form::row_hint(ui, theme, &s.t(hint));
         });
-        let hint = match (kind.as_str(), f.auth.as_str()) {
-            ("rabbitmq", "token") => "conn-queue-hint-rabbit-token",
-            ("kafka", "token") => "conn-queue-hint-kafka-token",
-            ("kafka", "api-key") => "conn-queue-hint-kafka-key",
-            (_, "token") => "conn-queue-hint-token-password",
-            _ => "conn-ssh-secret-hint",
-        };
-        form::hint(ui, theme, &s.t(hint));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -9647,8 +10079,7 @@ fn automation_form(
                 .selected_text(s.t(auth_key(&c.auth)))
                 .show_ui(ui, |ui| {
                     for a in auth_kinds_for(&kind) {
-                        if ui
-                            .selectable_label(c.auth == *a, s.t(auth_key(a)))
+                        if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
                             .clicked()
                         {
                             c.auth = (*a).to_string();
@@ -9690,14 +10121,14 @@ fn automation_form(
                 }
                 _ => {}
             }
+            let hint = match (kind.as_str(), f.credential.auth.as_str()) {
+                ("jenkins", "token") => "conn-automation-hint-jenkins-token",
+                ("jenkins", "password") => "conn-automation-hint-jenkins-password",
+                ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",
+                _ => "conn-ssh-secret-hint",
+            };
+            form::row_hint(ui, theme, &s.t(hint));
         });
-        let hint = match (kind.as_str(), f.credential.auth.as_str()) {
-            ("jenkins", "token") => "conn-automation-hint-jenkins-token",
-            ("jenkins", "password") => "conn-automation-hint-jenkins-password",
-            ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",
-            _ => "conn-ssh-secret-hint",
-        };
-        form::hint(ui, theme, &s.t(hint));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -9785,8 +10216,7 @@ fn tracker_form(
                 .selected_text(s.t(auth_key(&c.auth)))
                 .show_ui(ui, |ui| {
                     for a in auth_kinds_for(&kind) {
-                        if ui
-                            .selectable_label(c.auth == *a, s.t(auth_key(a)))
+                        if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
                             .clicked()
                         {
                             c.auth = (*a).to_string();
@@ -9828,15 +10258,15 @@ fn tracker_form(
                 }
                 _ => {}
             }
+            let hint = match (kind.as_str(), f.credential.auth.as_str(), f.cloud) {
+                ("jira" | "confluence", "token", true) => "conn-tracker-hint-cloud-token",
+                ("jira" | "confluence", "token", false) => "conn-tracker-hint-dc-token",
+                ("redmine", "api-key", _) => "conn-tracker-hint-redmine-key",
+                ("gitlab-issues", "api-key", _) => "conn-automation-hint-gitlab-key",
+                _ => "conn-ssh-secret-hint",
+            };
+            form::row_hint(ui, theme, &s.t(hint));
         });
-        let hint = match (kind.as_str(), f.credential.auth.as_str(), f.cloud) {
-            ("jira" | "confluence", "token", true) => "conn-tracker-hint-cloud-token",
-            ("jira" | "confluence", "token", false) => "conn-tracker-hint-dc-token",
-            ("redmine", "api-key", _) => "conn-tracker-hint-redmine-key",
-            ("gitlab-issues", "api-key", _) => "conn-automation-hint-gitlab-key",
-            _ => "conn-ssh-secret-hint",
-        };
-        form::hint(ui, theme, &s.t(hint));
     });
     if changed {
         f.write_into(&mut draft.fields);
@@ -9864,7 +10294,14 @@ fn secret_field(
                 theme.success,
                 format!("{} {}", hs_ui::icons::LOCK, s.t("conn-ssh-secret-stored")),
             );
-            if ui.button(s.t("conn-ssh-change")).clicked() {
+            if form::button(
+                ui,
+                theme,
+                hs_ui::icons::ph::PENCIL_SIMPLE,
+                &s.t("conn-ssh-change"),
+            )
+            .clicked()
+            {
                 value.clear();
                 changed = true;
             }
@@ -9906,16 +10343,13 @@ fn font_combo(
         .selected_text(current)
         .width(form::FIELD_MIN_WIDTH)
         .show_ui(ui, |ui| {
-            if !mono
-                && ui
-                    .selectable_label(value.is_empty(), default_label)
-                    .clicked()
+            if !mono && hs_ui::form::selectable_label(ui, value.is_empty(), default_label).clicked()
             {
                 value.clear();
                 changed = true;
             }
             for (id, label, _) in fonts::EMBEDDED {
-                if ui.selectable_label(value == id, *label).clicked() {
+                if hs_ui::form::selectable_label(ui, value == id, *label).clicked() {
                     *value = (*id).to_string();
                     changed = true;
                 }
@@ -9930,7 +10364,7 @@ fn font_combo(
                     for f in list.iter().filter(|f| !mono || f.monospace) {
                         any = true;
                         let id = format!("{}{}", fonts::SYSTEM_PREFIX, f.family);
-                        if ui.selectable_label(*value == id, &f.family).clicked() {
+                        if hs_ui::form::selectable_label(ui, *value == id, &f.family).clicked() {
                             *value = id;
                             changed = true;
                         }
@@ -9956,6 +10390,21 @@ fn open_folder(s: &Services, path: &std::path::Path) {
         });
 }
 
+/// A sub-setting drawn outside a grid (one that only applies when its
+/// parent is on), indented [`form::SUB_INDENT`] under its parent
+/// (CR-0080).
+fn sub_block<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    egui::Frame::new()
+        .inner_margin(egui::Margin {
+            left: form::SUB_INDENT as i8,
+            right: 0,
+            top: 0,
+            bottom: 0,
+        })
+        .show(ui, add)
+        .inner
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -9964,5 +10413,22 @@ mod tests {
         assert!(text.contains("Archify"), "Archify notice missing");
         assert!(text.contains("MIT"), "MIT licence text missing");
         assert!(text.contains("208acba8"), "pinned commit missing");
+    }
+
+    /// CR-0079: every CLI the Terminal page suggests wears its product's
+    /// mark - a logo, or a glyph in a colour of its own - except Aider,
+    /// which has none bundled.
+    #[test]
+    fn every_suggested_cli_wears_its_product() {
+        for (command, _, key) in super::CLI_CANDIDATES {
+            if *command == "aider" {
+                continue;
+            }
+            let icon = hs_ui::icons::cli_conn_icon(command, super::cli_icon(key));
+            assert!(
+                icon.image.is_some() || icon.tint != hs_ui::icons::ConnTint::Default,
+                "{command} has no mark"
+            );
+        }
     }
 }

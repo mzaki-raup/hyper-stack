@@ -48,6 +48,11 @@ pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
     accepts: &[Accept::Text],
 };
 
+/// The API Client's colour in the rail, on its dashboard, on its request
+/// tabs and in their header band: one value, which the shell's
+/// `activity_colour("api")` reads too, so the two cannot drift.
+pub const ACTIVITY_COLOUR: egui::Color32 = egui::Color32::from_rgb(0xfb, 0xbf, 0x24);
+
 pub struct ApiFactory;
 
 impl ToolFactory for ApiFactory {
@@ -112,10 +117,20 @@ pub struct Outcome {
     pub exchange: Result<Exchange, String>,
     pub prepared: Option<Prepared>,
     pub logs: Vec<String>,
+    /// Where each of `logs` names its level, read once when the outcome
+    /// is made so the console does not search every line each frame.
+    pub log_levels: Vec<Option<hs_ui::loglevel::Span>>,
     pub tests: Vec<TestResult>,
     pub script_error: Option<String>,
     pub changes: Vec<Change>,
     pub scopes: Scopes,
+}
+
+/// The level each script log line names, for its colour (CR-0077).
+fn log_levels(logs: &[String]) -> Vec<Option<hs_ui::loglevel::Span>> {
+    logs.iter()
+        .map(|l| hs_core::loglevel::level_span(l))
+        .collect()
 }
 
 type Pending = Arc<Mutex<Option<Outcome>>>;
@@ -1072,6 +1087,7 @@ impl ApiTool {
                 self.last = Some(Outcome {
                     exchange: Err(e),
                     prepared: None,
+                    log_levels: log_levels(&logs),
                     logs,
                     tests: Vec::new(),
                     script_error,
@@ -1103,6 +1119,7 @@ impl ApiTool {
                 exchange,
                 prepared: Some(p2.clone()),
                 logs,
+                log_levels: Vec::new(),
                 tests: Vec::new(),
                 script_error,
                 changes: Vec::new(),
@@ -1145,6 +1162,7 @@ impl ApiTool {
                     outcome.script_error = r.error;
                 }
             }
+            outcome.log_levels = log_levels(&outcome.logs);
             *out.lock() = Some(outcome);
             waker.request_repaint();
         });
@@ -1411,7 +1429,10 @@ impl Tool for ApiTool {
             .unwrap_or_default();
         let r = self.request();
         let method = r.method.to_uppercase();
-        let h = hs_core::tool::ToolHeader::new(hs_ui::icons::ph::FOLDERS, c.name.clone())
+        // Led by the glyph and colour the request's tab wears (ui.md,
+        // "The work-pane header wears the tab's mark").
+        let h = hs_core::tool::ToolHeader::new(DESCRIPTOR.icon, c.name.clone())
+            .icon_hex(hs_ui::theme::to_hex(ACTIVITY_COLOUR))
             .plain(folders);
         // The method keeps the colour the sidebar gives it - green GET,
         // red DELETE - because that colour is part of what it says. Only
@@ -1503,7 +1524,13 @@ impl Tool for ApiTool {
                 .iter()
                 .find(|l| &l.id == id)
                 .and_then(|l| library_icon(l.kind).brand()),
-            _ => None,
+            // A request tab wears the API Client's own colour, as its rail
+            // entry does; the method keeps its colour in the title prefix.
+            // Every other API tab (a request, a collection's Manage page,
+            // …) wears the API Client's own colour, as its rail entry does;
+            // a request's method keeps its colour in the title prefix
+            // (owner, 2026-11-07).
+            _ => Some(ACTIVITY_COLOUR),
         }
     }
 

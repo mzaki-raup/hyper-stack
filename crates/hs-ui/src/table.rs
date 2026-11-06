@@ -172,6 +172,10 @@ impl DataTable<'_> {
         // Working the total out here, from the same numbers the columns
         // are built with, is what makes scrolling possible at all.
         let content_width = self.content_width(ui);
+        // `egui_extras` paints a selected row's text in the selection
+        // stroke colour - accent on the accent fill, unreadable. Each
+        // cell puts the table's own text colour back (owner, 2026-11-06).
+        let text_override = ui.visuals().override_text_color;
         let scroll_id = ui.next_auto_id();
         ui.skip_ahead_auto_ids(1);
         egui::ScrollArea::horizontal()
@@ -235,6 +239,7 @@ impl DataTable<'_> {
                             row.set_selected(state.selected == Some(data_idx));
                             for (ci, c) in self.columns.iter().enumerate() {
                                 row.col(|ui| {
+                                    readable_on_selection(ui, text_override);
                                     if !c.numeric {
                                         ui.add_space(HEADER_INDENT);
                                     }
@@ -365,6 +370,15 @@ pub fn end_header_band(ui: &egui::Ui, theme: &Theme, band: HeaderBand) {
         rect.bottom() - 0.5,
         egui::Stroke::new(1.0, theme.accent.gamma_multiply(0.6)),
     );
+}
+
+/// Undo `egui_extras`' selected-row text colour inside a body cell:
+/// it sets `override_text_color` to the selection stroke (the accent),
+/// which on the accent selection fill cannot be read. `outer` is the
+/// override the table was drawn with, usually `None`. Call first thing
+/// in every `row.col` of a table that selects rows.
+pub fn readable_on_selection(ui: &mut egui::Ui, outer: Option<egui::Color32>) {
+    ui.visuals_mut().override_text_color = outer;
 }
 
 /// The muted line an empty table shows under its header, indented as
@@ -511,5 +525,57 @@ mod tests {
         assert_eq!(t.order(&st), vec![2, 0, 1]);
         st.filter = "txt".into();
         assert_eq!(t.order(&st), vec![0, 1]);
+    }
+
+    fn text_colour(shapes: &[egui::epaint::ClippedShape], text: &str) -> Option<egui::Color32> {
+        fn find(shape: &egui::Shape, text: &str) -> Option<egui::Color32> {
+            match shape {
+                egui::Shape::Text(t) if t.galley.text() == text => {
+                    Some(t.override_text_color.unwrap_or(t.fallback_color))
+                }
+                egui::Shape::Vec(v) => v.iter().find_map(|s| find(s, text)),
+                _ => None,
+            }
+        }
+        shapes.iter().find_map(|c| find(&c.shape, text))
+    }
+
+    /// A selected row's text keeps the normal text colour, not the
+    /// selection stroke's accent (owner, 2026-11-06).
+    #[test]
+    fn selected_row_text_stays_readable() {
+        let theme = Theme::dark();
+        let cols = [ColumnSpec::new("name", 120.0)];
+        let rows = vec![vec!["picked".to_string()], vec!["other".to_string()]];
+        let t = DataTable {
+            theme: &theme,
+            columns: &cols,
+            rows: &rows,
+            row_height: 18.0,
+            show_filter: false,
+            copy_row_label: "Copy Row",
+            built_in_menu: false,
+            row_icons: None,
+            empty_hint: None,
+        };
+        let ctx = egui::Context::default();
+        let mut normal = egui::Color32::TRANSPARENT;
+        let mut accent = egui::Color32::TRANSPARENT;
+        let mut out = None;
+        for _ in 0..2 {
+            out = Some(ctx.run_ui(egui::RawInput::default(), |ui| {
+                normal = ui.visuals().text_color();
+                accent = ui.visuals().selection.stroke.color;
+                let mut st = TableState {
+                    selected: Some(0),
+                    ..Default::default()
+                };
+                t.show(ui, &mut st);
+            }));
+        }
+        let shapes = out.expect("ran").shapes;
+        assert_ne!(normal, accent);
+        assert_eq!(text_colour(&shapes, "picked"), Some(normal));
+        assert_eq!(text_colour(&shapes, "other"), Some(normal));
     }
 }

@@ -271,6 +271,8 @@ fn grid_table(
     let mono = egui::TextStyle::Monospace;
     let row_h = ROW_HEIGHT;
     let spacing_x = ui.spacing().item_spacing.x;
+    // A selected row keeps the normal text colour (owner, 2026-11-06).
+    let text_override = ui.visuals().override_text_color;
     // No row sense: a row-wide click area is registered after the cells
     // and would take their clicks (selection, double-click).
     // One accent band across the whole header row (owner, 2026-11-06).
@@ -342,6 +344,7 @@ fn grid_table(
                     let selected = state.selected == Some((data_idx, ci));
                     let mut cell = None;
                     row.col(|ui| {
+                        hs_ui::table::readable_on_selection(ui, text_override);
                         // The click area goes in first with a stable id; the
                         // label on top only senses hover, so clicks reach it.
                         cell = Some(ui.interact(

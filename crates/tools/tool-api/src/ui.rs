@@ -586,11 +586,24 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                     .sense(egui::Sense::click()),
                 )
                 .context_menu(|ui| {
-                    if ui.button(s.t("api-history-clear")).clicked() {
+                    if ui
+                        .add_enabled(
+                            !t.history.is_empty(),
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::BROOM,
+                                s.t("api-history-clear")
+                            )),
+                        )
+                        .clicked()
+                    {
                         t.confirm_history = Some(None);
                         ui.close();
                     }
                 });
+                if t.history.is_empty() {
+                    ui.label(egui::RichText::new(s.t("api-history-empty")).weak());
+                }
                 let mut pick = None;
                 for (i, h) in t.history.iter().enumerate().rev().take(60) {
                     let col = status_colour(theme, h.status);
@@ -607,11 +620,21 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         actions.push(SideAction::LoadHistory(i));
                     }
                     r.context_menu(|ui| {
-                        if ui.button(s.t("api-history-remove")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::TRASH,
+                                s.t("api-history-remove")
+                            ))
+                            .clicked()
+                        {
                             pick = Some(Some(i));
                             ui.close();
                         }
-                        if ui.button(s.t("api-history-clear")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::BROOM, s.t("api-history-clear")))
+                            .clicked()
+                        {
                             pick = Some(None);
                             ui.close();
                         }

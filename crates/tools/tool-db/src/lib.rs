@@ -4852,6 +4852,7 @@ impl DbTool {
                 ui.add_space(6.0);
                 ui.separator();
                 ui.add_space(6.0);
+                let history_empty = self.history_rows.lock().is_empty();
                 egui::CollapsingHeader::new(format!(
                     "{} {}",
                     ph::CLOCK_COUNTER_CLOCKWISE,
@@ -4943,7 +4944,10 @@ impl DbTool {
                 .header_response
                 .context_menu(|ui| {
                     if ui
-                        .button(format!("{} {}", ph::BROOM, s.t("db-history-clear")))
+                        .add_enabled(
+                            !history_empty,
+                            egui::Button::new(format!("{} {}", ph::BROOM, s.t("db-history-clear"))),
+                        )
                         .clicked()
                     {
                         self.list_confirm = Some(ListConfirm::ClearHistory);

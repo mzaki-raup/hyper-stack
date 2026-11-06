@@ -1315,6 +1315,7 @@ impl RepoPane {
             discard: s.t("git-discard-button"),
             blame: s.t("git-blame"),
             history: s.t("git-file-history"),
+            material: s.settings.read().appearance.material_icons("git"),
         };
         egui::ScrollArea::vertical()
             .id_salt(ui.id().with("git-lists"))
@@ -1661,6 +1662,8 @@ struct RowTips {
     discard: String,
     blame: String,
     history: String,
+    /// Draw each file's Material picture after its status letter.
+    material: bool,
 }
 
 /// One file in a list: its status letter, its path, and the verbs for
@@ -1707,8 +1710,21 @@ fn file_row(
         colour,
     );
     let verbs_w = 96.0;
+    // With Material icons on, the file's Material picture sits between
+    // the status letter and the name, as in every other file list.
+    let mut text_left = 30.0;
+    if tips.material {
+        let icon = 16.0;
+        let at = egui::Rect::from_center_size(
+            egui::pos2(rect.left() + text_left + icon / 2.0, rect.center().y),
+            egui::Vec2::splat(icon),
+        );
+        let name = f.path.rsplit('/').next().unwrap_or(&f.path);
+        egui::Image::new(hs_ui::fileicons::for_file(name)).paint_at(ui, at);
+        text_left += icon + 6.0;
+    }
     let text_rect = egui::Rect::from_min_max(
-        rect.left_top() + egui::vec2(30.0, 0.0),
+        rect.left_top() + egui::vec2(text_left, 0.0),
         rect.right_bottom() - egui::vec2(verbs_w, 0.0),
     );
     let label = match &f.orig_path {

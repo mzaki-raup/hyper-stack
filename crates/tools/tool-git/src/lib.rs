@@ -376,7 +376,7 @@ impl GitTool {
         let credentials = hosts.len();
         let hosts_heading = s.t("git-dash-hosts");
         let hosts_empty = s.t("git-dash-no-hosts");
-        let remove_label = s.t("git-repo-remove");
+        let remove_label = format!("{} {}", hs_ui::icons::TRASH, s.t("git-repo-remove"));
         let labels = hs_ui::dashboard::DashboardLabels {
             open_heading: &s.t("dash-open"),
             nothing_open: &s.t("dash-nothing-open"),
@@ -883,12 +883,22 @@ impl Tool for GitTool {
                             open = Some(id.clone());
                         }
                         row.context_menu(|ui| {
-                            if ui.button(s.t("git-repo-edit")).clicked() {
+                            if ui
+                                .button(format!("{} {}", hs_ui::icons::EDIT, s.t("git-repo-edit")))
+                                .clicked()
+                            {
                                 edit = Some(id.clone());
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("git-repo-remove")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("git-repo-remove")
+                                ))
+                                .clicked()
+                            {
                                 remove = Some(id.clone());
                                 ui.close();
                             }

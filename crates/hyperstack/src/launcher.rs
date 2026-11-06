@@ -230,7 +230,11 @@ pub fn side(
                     ui.separator();
                     ui.add_space(6.0);
                 }
-                let clear = services.t("launcher-clear-recent");
+                let clear = format!(
+                    "{} {}",
+                    hs_ui::icons::ph::BROOM,
+                    services.t("launcher-clear-recent")
+                );
                 section_heading(ui, theme, &services.t("launcher-recent")).context_menu(|ui| {
                     if ui.button(&clear).clicked() {
                         resp.forget_closed = Some(None);
@@ -267,7 +271,14 @@ pub fn side(
                         resp.reopen_closed = Some(*idx);
                     }
                     r.context_menu(|ui| {
-                        if ui.button(services.t("launcher-remove-recent")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::TRASH,
+                                services.t("launcher-remove-recent")
+                            ))
+                            .clicked()
+                        {
                             resp.forget_closed = Some(Some(*idx));
                             ui.close();
                         }

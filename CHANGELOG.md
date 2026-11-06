@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- Selected table rows keep readable text; a tab's title stops before its close button; Git changed files and the Containers resource list wear Material pictures; the Redis key tree draws its caret first; right-click menu items carry glyphs and Clear is disabled on an empty list; the API history says when it is empty; Devtools rows and tabs wear their category colour; the Tracker query buttons are a field's height; the SSH Kept Forwards list scrolls and Start has a glyph (CR-0070)
 
 ## 0.128.0 — 2026-11-06
 

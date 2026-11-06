@@ -701,15 +701,15 @@ impl TabStrip<'_> {
                     text_left += g.size().x + 6.0;
                 }
             }
-            let title = tab.title();
-            let galley = painter.layout_no_wrap(title.clone(), font.clone(), self.theme.text);
+            // The title stops before the close button's slot and its gap,
+            // measured rather than estimated, and is clipped there too, so
+            // it never runs under the cross (owner, 2026-11-06).
             let avail = (text_right - text_left).max(0.0);
-            let shown = if galley.size().x <= avail {
-                title
-            } else {
-                elide(&title, avail, galley.size().x)
-            };
-            painter.text(
+            let shown = fit_title(painter, &tab.title(), &font, avail);
+            let title_clip =
+                Rect::from_x_y_ranges(text_left..=text_right.max(text_left), rect.y_range())
+                    .intersect(painter.clip_rect());
+            painter.with_clip_rect(title_clip).text(
                 Pos2::new(text_left, rect.center().y),
                 egui::Align2::LEFT_CENTER,
                 shown,
@@ -875,6 +875,30 @@ impl TabStrip<'_> {
     }
 }
 
+/// The title as it fits in `avail` pixels: whole when it fits, else
+/// middle-elided and measured until it really fits. [`elide`]'s guess
+/// assumes every glyph is as wide as the average, so a title with wide
+/// letters at its ends overran into the close button.
+fn fit_title(painter: &egui::Painter, title: &str, font: &egui::FontId, avail: f32) -> String {
+    let width = |s: &str| {
+        painter
+            .layout_no_wrap(s.to_string(), font.clone(), Color32::WHITE)
+            .size()
+            .x
+    };
+    let full = width(title);
+    if full <= avail {
+        return title.to_string();
+    }
+    let mut shown = elide(title, avail, full);
+    let mut keep = shown.chars().count().saturating_sub(1);
+    while keep > 2 && width(&shown) > avail {
+        keep -= 1;
+        shown = elide_to(title, keep);
+    }
+    shown
+}
+
 /// Middle-elide a title to roughly `avail` pixels given its full width.
 fn elide(title: &str, avail: f32, full: f32) -> String {
     let chars: Vec<char> = title.chars().collect();
@@ -882,7 +906,12 @@ fn elide(title: &str, avail: f32, full: f32) -> String {
         return title.to_string();
     }
     let keep = ((avail / full) * chars.len() as f32).floor() as usize;
-    let keep = keep.saturating_sub(1).max(2);
+    elide_to(title, keep.saturating_sub(1).max(2))
+}
+
+/// `title` cut to `keep` characters, head and tail either side of `…`.
+fn elide_to(title: &str, keep: usize) -> String {
+    let chars: Vec<char> = title.chars().collect();
     let head = keep.div_ceil(2);
     let tail = keep / 2;
     let mut s: String = chars[..head.min(chars.len())].iter().collect();
@@ -1248,6 +1277,29 @@ mod tests {
         assert!(s.contains('…'));
         assert!(s.starts_with('d'));
         assert!(s.ends_with('l'));
+    }
+
+    /// A truncated title is measured to its room, so it never runs under
+    /// the close button - even with wide letters at both ends, where the
+    /// average-width guess overran (owner, 2026-11-06).
+    #[test]
+    fn a_fitted_title_never_exceeds_its_room() {
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let font = egui::FontId::proportional(13.0);
+            let painter = ui.painter();
+            let title = "WWWWWWWWMMiiiiiiiiiiiiiiiiiiiiiiiillllllllllWWWWWWWWMM";
+            for avail in [60.0, 90.0, 120.0, 160.0] {
+                let shown = fit_title(painter, title, &font, avail);
+                assert!(shown.contains('…'), "{avail}: {shown}");
+                let w = painter
+                    .layout_no_wrap(shown.clone(), font.clone(), Color32::WHITE)
+                    .size()
+                    .x;
+                assert!(w <= avail, "{shown} is {w} wide in {avail}");
+            }
+            assert_eq!(fit_title(painter, "Short", &font, 200.0), "Short");
+        });
     }
 
     #[test]

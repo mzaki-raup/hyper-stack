@@ -2888,7 +2888,14 @@ impl EditorTool {
                                     // has it; the shell asks first and
                                     // never touches the folder (CR-0067).
                                     card.context_menu(|ui| {
-                                        if ui.button(s.t("settings-project-remove")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                hs_ui::icons::TRASH,
+                                                s.t("settings-project-remove")
+                                            ))
+                                            .clicked()
+                                        {
                                             remove = Some(id.clone());
                                             ui.close();
                                         }
@@ -3503,12 +3510,26 @@ impl Tool for EditorTool {
                             open = Some(id.clone());
                         }
                         row.context_menu(|ui| {
-                            if ui.button(s.t("editor-project-edit")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::EDIT,
+                                    s.t("editor-project-edit")
+                                ))
+                                .clicked()
+                            {
                                 edit = Some(id.clone());
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("settings-project-remove")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::TRASH,
+                                    s.t("settings-project-remove")
+                                ))
+                                .clicked()
+                            {
                                 remove = Some(id.clone());
                                 ui.close();
                             }

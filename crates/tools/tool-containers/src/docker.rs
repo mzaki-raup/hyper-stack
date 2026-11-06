@@ -176,6 +176,7 @@ pub fn resource_rail(
     swarm: hs_container::swarm::SwarmState,
 ) -> Option<Resource> {
     let mut picked = None;
+    let material = s.settings.read().appearance.material_icons("containers");
     ui.vertical(|ui| {
         ui.set_width(150.0);
         for (i, r) in Resource::ALL.into_iter().enumerate() {
@@ -188,12 +189,19 @@ pub fn resource_rail(
                 );
                 ui.add_space(2.0);
             }
+            // Material icons on: the resource's picture leads the button
+            // in place of its glyph, as on the cluster rail.
+            let picture = hs_ui::fileicons::for_kind(r.kind()).filter(|_| material);
             // The count is the quieter half of the row: it changes on
             // every refresh, and the name is what is being chosen.
             let mut label = egui::text::LayoutJob::default();
             let font = egui::FontId::proportional(14.0);
+            let text = match picture {
+                Some(_) => format!("{}  ", s.t(r.key())),
+                None => format!("{}  {}  ", r.icon(), s.t(r.key())),
+            };
             label.append(
-                &format!("{}  {}  ", r.icon(), s.t(r.key())),
+                &text,
                 0.0,
                 egui::TextFormat::simple(font.clone(), theme.text),
             );
@@ -205,10 +213,17 @@ pub fn resource_rail(
                 );
             }
             let usable = !r.is_swarm() || swarm.can_manage();
-            let resp = ui.add_enabled(
-                usable,
-                egui::Button::selectable(current == r, label).min_size(egui::vec2(140.0, 0.0)),
-            );
+            let button = match picture {
+                Some(src) => egui::Button::selectable(
+                    current == r,
+                    (
+                        egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(16.0)),
+                        label,
+                    ),
+                ),
+                None => egui::Button::selectable(current == r, label),
+            };
+            let resp = ui.add_enabled(usable, button.min_size(egui::vec2(140.0, 0.0)));
             let resp = if usable {
                 resp
             } else {

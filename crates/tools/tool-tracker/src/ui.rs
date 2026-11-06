@@ -1307,7 +1307,9 @@ impl TrackerTool {
         let mut save = false;
         let mut remove: Option<usize> = None;
         let mut pick: Option<String> = None;
-        ui.horizontal(|ui| {
+        // Field height for the icon buttons too, so they line up with the
+        // query field beside them.
+        hs_ui::form::centred_row(ui, |ui| {
             let width = (ui.available_width() - 120.0).max(120.0);
             let r = ui.add(
                 hs_ui::form::line_edit(&mut self.query_text)

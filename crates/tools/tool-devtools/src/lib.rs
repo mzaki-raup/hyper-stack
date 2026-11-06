@@ -381,6 +381,17 @@ impl Tool for DevtoolsTool {
             .map(|(_, _, _, icon)| *icon)
     }
 
+    fn tab_icon_colour(&self) -> Option<egui::Color32> {
+        // The utility's category colour, as on its dashboard card.
+        if self.is_home {
+            return None;
+        }
+        Utility::ALL
+            .iter()
+            .find(|(u, _, _, _)| *u == self.utility)
+            .map(|(_, cat, _, _)| category_colour(cat))
+    }
+
     fn home_is_dashboard(&self) -> bool {
         true
     }
@@ -441,7 +452,14 @@ impl Tool for DevtoolsTool {
                     }
                     // Each utility has its own tab: clicking another one focuses
                     // that tab, or opens it.
-                    if form::list_row(ui, &theme, current == Some(u), icon, &s.t(title), None)
+                    // The glyph in its category's colour, as the
+                    // dashboard card and the tab draw it.
+                    let art = hs_ui::icons::ConnIcon {
+                        glyph: icon,
+                        image: None,
+                        tint: hs_ui::icons::ConnTint::Brand(category_colour(cat)),
+                    };
+                    if form::conn_list_row(ui, &theme, current == Some(u), art, &s.t(title), None)
                         .clicked()
                         && current != Some(u)
                     {

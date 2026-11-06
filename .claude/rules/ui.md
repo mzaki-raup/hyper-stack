@@ -53,6 +53,50 @@ look for it in `crates/hs-ui/src/` first.
   project column, a side pane that is not the work itself has a
   toolbar toggle that hides it, where the activity has room for one
   (CR-0069).
+- **Menu items carry a glyph:** every item of a right-click menu we build
+  has a glyph before its label (Remove and Delete a trash can, Clear a
+  broom, Open an arrow), the same glyph for the same verb in every
+  activity; an item that cannot act (Clear History on an empty list) is
+  disabled, not hidden (owner, 2026-11-06).
+- **A selected row stays readable:** a selected table or list row keeps
+  the normal text colour on the selection fill; never accent text on an
+  accent fill (owner, 2026-11-06).
+- **A tab's title never runs under its close button:** the title
+  truncates before the close button's slot, with a gap (owner,
+  2026-11-06).
+- **A panel's content scrolls rather than clips:** a list inside a
+  fixed-height panel (the SSH Kept Forwards) scrolls when it is longer
+  than the panel; a row is never cut off at the panel's edge (owner,
+  2026-11-06).
+- **A section is set apart from its rows:** a heading inside a panel (Kept
+  Forwards, Headers, Indexes) has a gap above it and a gap before its
+  first row (`form::ROW_GAP`), and each row of a field or label with its
+  options (port, Auto, Start, delete) is a `centred_row` on one middle
+  line (owner, 2026-11-06) (CR-0071).
+- **A label beside a button sits on its middle line too:** in a detail
+  view (a container's Ports beside Open in Browser, any value with its
+  action) the row is a `centred_row`, label and button on one middle
+  line (owner, 2026-11-06) (CR-0075).
+- **An item-kind column is easy to read:** a column that lists the kinds
+  of thing a pane shows (Containers, Projects, Images, Volumes, Networks,
+  Swarm …) has larger icons and labels than an ordinary list (20 px
+  icon, body text, a 30 px row) and each kind wears its own colour and
+  fitting picture (Material when on) (owner, 2026-11-06) (CR-0074).
+- **Status figures are laid out, not strung together:** monitoring values
+  (CPU, memory, disks, load) are a table or a grid of labelled figures,
+  aligned in columns, never one long line of text (owner, 2026-11-06)
+  (CR-0071).
+- **A host's mark follows the host:** wherever a host or a host's
+  children are grouped (the SSH Tunnels list, the shell's Tunnels view),
+  the group header wears that host's coloured mark (Ubuntu, macOS, …), and
+  an item kind with its own picture (a tunnel) wears it in colour too
+  (owner, 2026-11-06) (CR-0071).
+- **Each tool has its own coloured picture, the same everywhere:** in an
+  activity that offers several tools (Devtools' Base64, JWT, Cron …;
+  Graphics' Image, Icon, Diagram Editor, Diagram Generator), each tool
+  wears a multi-colour picture that shows what it does, and the same
+  picture is used in the sidebar, the dashboard card and the tool's tab
+  (owner, 2026-11-06) (CR-0076).
 - **What opens a tab shows it:** any action that opens, adds or fills a
   tab - New Query, Open Data, a saved item, a history entry, a template -
   brings that tab to the front, whatever kind of tab (a designer, a
@@ -116,6 +160,11 @@ look for it in `crates/hs-ui/src/` first.
   is a plain text field, so the form still works. Dates are
   `hs_ui::datefield::date_field`, `YYYY-MM-DD` text with a calendar; it
   writes the format the server takes.
+  The same holds for any list the app already knows: a referenced
+  table's columns from the catalog, a schema's tables, saved profiles,
+  branches - a field that can be filled from one is a `pick_field`, for
+  a list of values one per pick (owner, 2026-11-06: the designer's
+  Foreign Keys columns) (CR-0072).
 - **Folders first, then items, each by name**, in every list that mixes
   them (the Redis key tree is the model).
 - **Anything a user makes several of takes an optional name**, shown first
@@ -218,6 +267,16 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
 
 ### Buttons and toolbars
 
+- **Two toolbar sizes:** the activity's main toolbar (the first row under
+  the pane title) has the larger buttons; a sub-toolbar inside the pane
+  (a sub-tab's own row, a panel's header) has smaller buttons with a
+  little air above and below, never as large as the main ones
+  (`toolbar::MAIN_BUTTON_HEIGHT` > `toolbar::SUB_BUTTON_HEIGHT`) (owner,
+  2026-11-06) (CR-0073).
+- **Show/hide toggles come first:** a toggle that shows or hides a pane
+  of the work pane (Folder, Schema, Tree, Properties, Prompt) is the
+  left-most item of the first row of the activity's toolbar, before any
+  action, in every activity (owner, 2026-11-06) (CR-0073).
 - **Every button has an icon and a label** - `format!("{icon} {label}")`.
   The only exception is a row's own small actions (move, remove) in a
   fixed, aligned column: an icon with a tooltip (CR-0027, CR-0030,

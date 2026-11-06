@@ -3162,7 +3162,9 @@ impl Tool for GraphicsTool {
         ui.add_space(6.0);
         ui.separator();
         ui.add_space(4.0);
-        let clear = s.t("gfx-clear-recent");
+        let hub = self.hub.clone();
+        let recents = hub.lock().recents();
+        let clear = format!("{} {}", ph::BROOM, s.t("gfx-clear-recent"));
         ui.add(
             egui::Label::new(
                 egui::RichText::new(s.t("gfx-recent"))
@@ -3174,7 +3176,10 @@ impl Tool for GraphicsTool {
             .sense(egui::Sense::click()),
         )
         .context_menu(|ui| {
-            if ui.button(&clear).clicked() {
+            if ui
+                .add_enabled(!recents.is_empty(), egui::Button::new(&clear))
+                .clicked()
+            {
                 self.confirm_recent = Some(None);
                 ui.close();
             }
@@ -3183,8 +3188,6 @@ impl Tool for GraphicsTool {
         // About half the remaining column: the function list keeps its
         // natural height and only Recent scrolls (owner's request).
         let h = (ui.available_height() * 0.55).clamp(80.0, 360.0);
-        let hub = self.hub.clone();
-        let recents = hub.lock().recents();
         egui::ScrollArea::vertical()
             .id_salt("gfx-recent")
             .max_height(h)
@@ -3203,7 +3206,8 @@ impl Tool for GraphicsTool {
                         if row.clicked() {
                             open_recent(cx, &path, r.kind);
                         }
-                        let remove = s.t("gfx-remove-recent");
+                        let remove =
+                            format!("{} {}", hs_ui::icons::TRASH, s.t("gfx-remove-recent"));
                         row.context_menu(|ui| {
                             if ui.button(&remove).clicked() {
                                 self.confirm_recent = Some(Some(path.clone()));

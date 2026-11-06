@@ -2061,9 +2061,13 @@ impl SshTool {
             .inner_margin(egui::Margin::same(10))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
+                // Never taller than half of what the terminal column has
+                // left, so a short window scrolls the list instead of
+                // cutting its last rows off at the edge.
+                let max_h = (ui.available_height() * 0.5).clamp(80.0, 260.0);
                 egui::ScrollArea::vertical()
                     .id_salt(("ssh-tunnels-pane", self.serial))
-                    .max_height(260.0)
+                    .max_height(max_h)
                     .show(ui, |ui| {
                         self.tunnels_section(ui, cx, theme);
                         ui.add_space(6.0);
@@ -2082,61 +2086,88 @@ impl SshTool {
                         let mut remove: Option<usize> = None;
                         let mut toggle_auto: Option<usize> = None;
                         for (i, fw) in f.forwards.iter().enumerate() {
+                            // The actions in a fixed column at the right
+                            // edge, the same on every row; the name takes
+                            // what is left and truncates.
                             ui.horizontal(|ui| {
-                                let local = if fw.local_port == 0 {
-                                    "any".to_string()
-                                } else {
-                                    fw.local_port.to_string()
-                                };
-                                ui.add(
-                                    egui::Label::new(
-                                        egui::RichText::new(tunnel_title(
-                                            &fw.name,
-                                            &local,
-                                            &fw.remote_host,
-                                            fw.remote_port,
-                                        ))
-                                        .strong(),
-                                    )
-                                    .selectable(false)
-                                    .sense(egui::Sense::click()),
-                                )
-                                .context_menu(|ui| {
-                                    if ui
-                                        .button(format!(
-                                            "{} {}",
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if form::icon_button(
+                                            ui,
+                                            theme,
                                             hs_ui::icons::TRASH,
-                                            s.t("delete")
-                                        ))
+                                            14.0,
+                                            false,
+                                        )
+                                        .tip(s.t("ssh-saved-forward-remove"))
                                         .clicked()
-                                    {
-                                        remove = Some(i);
-                                        ui.close();
-                                    }
-                                });
-                                let mut auto = fw.auto;
-                                if ui
-                                    .checkbox(&mut auto, s.t("ssh-saved-forward-auto"))
-                                    .tip(s.t("ssh-saved-forward-auto-tip"))
-                                    .changed()
-                                {
-                                    toggle_auto = Some(i);
-                                }
-                                if ui.small_button(s.t("ssh-saved-forward-start")).clicked() {
-                                    s.tunnels.open(ForwardSpec {
-                                        ssh_id: id.clone(),
-                                        remote_host: fw.remote_host.clone(),
-                                        remote_port: fw.remote_port,
-                                        local_port: fw.local_port,
-                                        name: fw.name.clone(),
-                                    });
-                                }
-                                if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
-                                    .tip(s.t("ssh-saved-forward-remove"))
-                                    .clicked()
-                                {
-                                    remove = Some(i);
-                                }
+                                        {
+                                            remove = Some(i);
+                                        }
+                                        if ui
+                                            .small_button(format!(
+                                                "{} {}",
+                                                ph::PLAY,
+                                                s.t("ssh-saved-forward-start")
+                                            ))
+                                            .clicked()
+                                        {
+                                            s.tunnels.open(ForwardSpec {
+                                                ssh_id: id.clone(),
+                                                remote_host: fw.remote_host.clone(),
+                                                remote_port: fw.remote_port,
+                                                local_port: fw.local_port,
+                                                name: fw.name.clone(),
+                                            });
+                                        }
+                                        let mut auto = fw.auto;
+                                        if ui
+                                            .checkbox(&mut auto, s.t("ssh-saved-forward-auto"))
+                                            .tip(s.t("ssh-saved-forward-auto-tip"))
+                                            .changed()
+                                        {
+                                            toggle_auto = Some(i);
+                                        }
+                                        let local = if fw.local_port == 0 {
+                                            "any".to_string()
+                                        } else {
+                                            fw.local_port.to_string()
+                                        };
+                                        ui.with_layout(
+                                            egui::Layout::left_to_right(egui::Align::Center),
+                                            |ui| {
+                                                ui.add(
+                                                    egui::Label::new(
+                                                        egui::RichText::new(tunnel_title(
+                                                            &fw.name,
+                                                            &local,
+                                                            &fw.remote_host,
+                                                            fw.remote_port,
+                                                        ))
+                                                        .strong(),
+                                                    )
+                                                    .truncate()
+                                                    .selectable(false)
+                                                    .sense(egui::Sense::click()),
+                                                )
+                                                .context_menu(|ui| {
+                                                    if ui
+                                                        .button(format!(
+                                                            "{} {}",
+                                                            hs_ui::icons::TRASH,
+                                                            s.t("delete")
+                                                        ))
+                                                        .clicked()
+                                                    {
+                                                        remove = Some(i);
+                                                        ui.close();
+                                                    }
+                                                });
+                                            },
+                                        );
+                                    },
+                                );
                             });
                         }
                         if let Some(i) = toggle_auto {

@@ -153,7 +153,7 @@ Refs: BUG-0003
 Version : v0.7.7
 Features : FEAT-0104
 Bugs : BUG-0047
-Change Request : CR-0069
+Change Request : CR-0076
 ```
 
 ---
@@ -542,7 +542,7 @@ Change Request : CR-0069
 - [x] Devtools and Logs dashboard cards carry a colour; the other activities already did
 - [x] Database query/design tabs and Git host tabs draw the Material icon when it is on
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Material icons on and off, Devtools and Logs dashboards
+- [x] App: `--data-dir ./tmp-data` — Material icons on and off, Devtools and Logs dashboards - Devtools cards by category, Logs cards, Database and Git inner tabs seen 2026-11-06 (screenshots 06-07, 12, 33); the Devtools sidebar colour follows in CR-0070
 - [ ] Docs: CHANGELOG, ui.md rule
 
 ### CR-0066 · Quick Open and Commands: icons in their kind's colour and Material picture
@@ -580,7 +580,7 @@ Change Request : CR-0069
 - [ ] Every other activity's saved items the same (built so far: SSH kept forwards, Devtools snippets, Editor project cards, Git repo cards)
 - [ ] Test: clearing empties the store and a reload stays empty
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — each list cleared on screen, screenshots
+- [x] App: `--data-dir ./tmp-data` — each list cleared on screen, screenshots - every menu seen 2026-11-06: Database, API, Graphics, Home, Devtools snippets, SSH kept forwards, Editor and Git cards (screenshots 04-07, 19-24, 28); glyph consistency follows in CR-0070
 - [ ] Docs: CHANGELOG, ui.md rule, tool specs
 
 
@@ -606,8 +606,93 @@ Change Request : CR-0069
 - [ ] Every other tabbed pane found by a sweep respects it; side panes get a hide toggle where suitable
 - [ ] Test: the minimum fits every label and icon; a segment never paints outside its rect
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — drag each pane to its minimum, screenshots
+- [ ] App: `--data-dir ./tmp-data` — drag each pane to its minimum, screenshots - Editor and Browser minimums and the Database, Git, diagram and generator toggles seen 2026-11-06 (screenshots 13-16, 25-27); Tracker Browse/Search not seen - it needs a Confluence server this machine does not have
 - [ ] Docs: CHANGELOG, ui.md rule, docs/04
+
+
+### CR-0070 · Fixes from the 2026-11-06 screen check of CR-0061…CR-0069
+- **State:** In-Progress · found on screen on v0.128.0, 2026-11-06
+- **Source:** the owner asked for the remaining screens to be checked ("Yes, check them"); these failed the checklist in `.claude/rules/ui.md`.
+- **Scope:** selected table rows readable; tab titles never under the close button; Git changed files and the Containers resource list in Material pictures; Redis key tree caret before icon; glyphs on every CR-0067 menu item and Clear disabled on an empty list; the API history's empty state; Devtools sidebar rows and tabs in their category colour; the Tracker query row's buttons at field height; the SSH Kept Forwards list scrolls and its Start button has a glyph.
+- **Parent:** CR-0061
+- [x] The ten defects fixed
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — each defect's screen again, screenshots
+- [ ] Docs: CHANGELOG, ui.md rules
+
+
+### CR-0071 · SSH: tunnel and host marks in colour, a structured monitor, tidy tunnel rows
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
+- **Scope:** the Tunnels list and the shell's Tunnels view use a coloured tunnel picture; each host group header wears the host's OS mark in colour; the Monitor view is a table / grid of labelled figures; Kept Forwards has a gap above it and its rows are middle-aligned.
+- **Parent:** CR-0061
+- [ ] Tunnel picture in colour in the sidebar and the Tunnels view
+- [ ] Host group headers wear the host's coloured mark
+- [ ] Monitor laid out as a table of figures
+- [ ] Kept Forwards spacing and middle-aligned rows; the same layout checked in other activities
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0072 · Fields fillable from a known list become dropdowns (designer FK columns first)
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
+- **Scope:** the table designer's Foreign Keys Columns and Referenced Columns pick from the table's / referenced table's columns; a sweep turns every text field that a known list can fill into `pick_field`.
+- **Parent:** CR-0061
+- [ ] Designer FK columns and referenced columns are pick fields
+- [ ] Sweep of other activities applied
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0073 · Main toolbar buttons larger than sub-toolbar buttons; show/hide toggles first
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
+- **Scope:** `hs_ui::toolbar` gets a main and a sub button height (main slightly bigger than today, sub with vertical air); every pane show/hide toggle moves to the far left of the activity's first toolbar row.
+- **Parent:** CR-0061
+- [ ] Main and sub toolbar sizes
+- [ ] Toggles at the far left in every activity
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0074 · Item-kind columns: larger icons and labels in colour
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
+- **Scope:** the Containers item column (Containers, Projects, Images, Volumes, Networks, Swarm …) and every column like it use 20 px coloured pictures and body text.
+- **Parent:** CR-0061
+- [ ] Containers item column
+- [ ] Other activities with the same column
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0075 · Detail views: a label beside its action button on one middle line
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
+- **Scope:** a container's Ports beside Open in Browser, and every detail view row of a value with its action, open with `centred_row`.
+- **Parent:** CR-0061
+- [ ] Containers detail views
+- [ ] Every other activity's detail views
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0076 · Devtools and Graphics tools wear their own multi-colour pictures
+- **State:** In-Progress · agreed 2026-11-06
+- **Source:** owner, 2026-11-06 ("In Devtools Activity -> Sidebar Column -> Tools Icon; If possible use multi color icon that represent the tool itself … In Graphics Activity -> Sidebar Column -> Tools Icon … Please use suitable multi color icon and it will reflect in the dashboard page and tab icon")
+- **Scope:** a coloured picture per Devtools utility and per Graphics tool (Image, Icon, Diagram Editor, Diagram Generator), used by the sidebar row, the dashboard card and the tab.
+- **Parent:** CR-0065
+- [ ] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
+- [ ] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — screenshots
+- [ ] Docs: CHANGELOG, ui.md rule
 
 ---
 

@@ -2847,6 +2847,7 @@ api-delete-body-folder = Delete this folder and every request inside it? This ca
 api-delete-body-request = Delete this request? This cannot be undone.
 api-exported = Exported to { $path }.
 api-history = History
+api-history-empty = No requests sent in this workspace yet.
 api-history-remove = Remove from History
 api-history-remove-body = Remove this request from the history?
 api-history-clear = Clear History

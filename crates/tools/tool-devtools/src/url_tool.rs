@@ -46,6 +46,9 @@ pub struct State {
     pub input: String,
     /// Also escape the unreserved `-._~` (some servers want it).
     pub strict: bool,
+    /// Sort and selection of the URL Parts table.
+    #[serde(skip)]
+    pub parts_table: hs_ui::table::TableState,
 }
 
 /// RFC 3986 unreserved: never escaped.
@@ -177,8 +180,8 @@ pub fn parts(url: &str) -> Vec<(String, String)> {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-url"), Some(&s.t("dt-url-sub")));
-    ui.horizontal(|ui| {
+    crate::util::page_title(ui, s, theme, "dt-url", Some("dt-url-sub"));
+    ui.horizontal_wrapped(|ui| {
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-url-encode"));
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-url-decode"));
         ui.separator();
@@ -211,6 +214,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             5,
         );
         if st.mode == Mode::Encode && st.scope != Scope::Full {
+            ui.add_space(form::ROW_GAP);
             ui.checkbox(&mut st.strict, s.t("dt-url-strict"));
             form::hint(ui, theme, &s.t("dt-url-strict-hint"));
         }
@@ -244,24 +248,28 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     if !rows.is_empty() {
         ui.add_space(8.0);
         form::section(ui, theme, &s.t("dt-url-parts"), |ui| {
-            egui::Grid::new("dt-url-parts")
-                .num_columns(2)
-                .spacing([12.0, 4.0])
-                .striped(true)
-                .min_row_height(hs_ui::table::ROW_HEIGHT)
-                .show(ui, |ui| {
-                    for (k, v) in &rows {
-                        ui.label(egui::RichText::new(k).strong().color(theme.text_muted));
-                        ui.horizontal(|ui| {
-                            ui.add(
-                                egui::Label::new(egui::RichText::new(v).monospace())
-                                    .wrap()
-                                    .selectable(true),
-                            );
-                        });
-                        ui.end_row();
-                    }
-                });
+            let cells: Vec<Vec<String>> = rows
+                .iter()
+                .map(|(k, v)| vec![k.clone(), v.clone()])
+                .collect();
+            let columns = [
+                hs_ui::table::ColumnSpec::new(s.t("dt-url-col-part"), 160.0),
+                hs_ui::table::ColumnSpec::new(s.t("dt-url-col-value"), 480.0),
+            ];
+            let copy_label = s.t("table-copy-row");
+            hs_ui::table::DataTable {
+                theme,
+                columns: &columns,
+                rows: &cells,
+                row_height: hs_ui::table::ROW_HEIGHT,
+                show_filter: false,
+                copy_row_label: &copy_label,
+                built_in_menu: true,
+                row_icons: None,
+                empty_hint: None,
+            }
+            .show(ui, &mut st.parts_table);
+            ui.add_space(form::ROW_GAP);
             form::hint(ui, theme, &s.t("dt-url-parts-hint"));
         });
     }

@@ -971,6 +971,9 @@ impl LogsTool {
             .max_height(height)
             .show(ui, |ui| {
                 if self.services_scan.is_some() && self.services.is_empty() {
+                    // Air between the header row and the status line
+                    // (owner, 2026-11-07).
+                    ui.add_space(form::ROW_GAP);
                     form::hint(ui, theme, &s.t("logs-services-scanning"));
                 } else if offered.is_empty() {
                     form::hint(ui, theme, &s.t("logs-no-services"));
@@ -3123,7 +3126,10 @@ impl LogsTool {
                         }
                     });
                 });
+                // A status line under the header row has air above it
+                // (owner, 2026-11-07).
                 let Some(answers) = answers else {
+                    ui.add_space(form::ROW_GAP);
                     ui.horizontal(|ui| {
                         ui.spinner();
                         form::hint(ui, theme, &s.t("logs-find-everywhere-running"));
@@ -3131,6 +3137,7 @@ impl LogsTool {
                     return;
                 };
                 if answers.is_empty() {
+                    ui.add_space(form::ROW_GAP);
                     form::hint(ui, theme, &s.t("logs-find-everywhere-none"));
                     return;
                 }

@@ -1102,6 +1102,9 @@ impl SshTool {
             ui.colored_label(theme.error, e);
         }
         if loading {
+            // Air between the toolbar and the status line (owner,
+            // 2026-11-07).
+            ui.add_space(form::ROW_GAP);
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(egui::RichText::new(s.t("ssh-loading")).weak());

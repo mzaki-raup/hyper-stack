@@ -1154,6 +1154,9 @@ impl RedisTool {
             s.i18n
                 .t_args("redis-key-count", &[("n", &found.to_string())])
         };
+        // Air between the filter row and the count, as between any two
+        // rows (owner, 2026-11-07).
+        ui.add_space(form::ROW_GAP);
         form::hint(ui, &theme, &count_text);
     }
 
@@ -1187,6 +1190,15 @@ impl RedisTool {
                     // One step per level, from the column's own left edge.
                     let indent = 14.0 * row.depth as f32;
                     let is_selected = !row.is_group && selected.as_deref() == Some(&row.path);
+                    // The row is the name button's height before it opens,
+                    // so the caret, picture, name and badge share one middle
+                    // line; set inside the row, the 16 px picture was
+                    // centred on a shorter row and sat high (owner,
+                    // 2026-11-07).
+                    let row_h = ui.text_style_height(&egui::TextStyle::Body)
+                        + 2.0 * ui.spacing().button_padding.y;
+                    let saved_h = ui.spacing().interact_size.y;
+                    ui.spacing_mut().interact_size.y = row_h;
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing.x = 4.0;
                         ui.add_space(indent);
@@ -1304,6 +1316,7 @@ impl RedisTool {
                             }
                         });
                     });
+                    ui.spacing_mut().interact_size.y = saved_h;
                 }
                 if rows.is_empty() && !scanning {
                     form::hint(ui, &theme, &s.t("redis-no-keys"));

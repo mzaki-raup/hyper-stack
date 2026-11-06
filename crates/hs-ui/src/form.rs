@@ -106,6 +106,45 @@ pub fn page_title(ui: &mut egui::Ui, theme: &Theme, title: &str, subtitle: Optio
     ui.add_space(10.0);
 }
 
+/// [`page_title`] led by the page's own coloured mark (a Devtools tool's
+/// picture, the icon its tab wears), on the title's middle line (owner,
+/// 2026-11-07).
+pub fn page_title_marked(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    mark: Mark,
+    title: &str,
+    subtitle: Option<&str>,
+) {
+    ui.add_space(4.0);
+    let text = RichText::new(title).size(22.0).strong();
+    let h = ui
+        .painter()
+        .layout_no_wrap(
+            title.to_string(),
+            egui::FontId::proportional(22.0),
+            egui::Color32::WHITE,
+        )
+        .size()
+        .y
+        .max(mark.size);
+    // The row's height is set before it opens, so the mark and the title
+    // share one middle line (see the "label sits high" gotcha).
+    let saved = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = h;
+    ui.horizontal(|ui| {
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(mark.size, h), egui::Sense::hover());
+        mark.paint(ui, rect.left_center(), theme.text_muted);
+        ui.add_space(4.0);
+        ui.label(text);
+    });
+    ui.spacing_mut().interact_size.y = saved;
+    if let Some(sub) = subtitle {
+        ui.label(RichText::new(sub).color(theme.text_muted));
+    }
+    ui.add_space(10.0);
+}
+
 /// A card: titled, framed, with consistent padding. Content width is capped
 /// so wide windows don't stretch fields across the whole screen.
 /// How wide a card - and anything that should line up with one - may
@@ -1605,6 +1644,43 @@ pub fn mark_combo<R>(
 
 #[cfg(test)]
 mod tests {
+
+    /// A marked page title puts its mark on the title's middle line, in
+    /// the mark's colour (owner, 2026-11-07).
+    #[test]
+    fn a_marked_title_shares_the_titles_middle_line() {
+        let theme = Theme::dark();
+        let red = egui::Color32::from_rgb(220, 40, 40);
+        let ctx = egui::Context::default();
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            page_title_marked(
+                ui,
+                &theme,
+                Mark::glyph("M", Some(red)).sized(26.0),
+                "Hashes",
+                Some("Every digest"),
+            );
+        });
+        let mut found = Vec::new();
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect, egui::Color32)>) {
+            match shape {
+                egui::Shape::Text(t) => out.push((
+                    t.galley.text().to_string(),
+                    egui::Rect::from_min_size(t.pos, t.galley.size()),
+                    t.override_text_color.unwrap_or(t.fallback_color),
+                )),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        out.shapes.iter().for_each(|c| walk(&c.shape, &mut found));
+        let get = |s: &str| found.iter().find(|(x, _, _)| x == s).cloned().expect(s);
+        let (_, mark, colour) = get("M");
+        let (_, title, _) = get("Hashes");
+        assert_eq!(colour, red);
+        assert!(mark.right() < title.left());
+        assert!((mark.center().y - title.center().y).abs() < 3.0);
+    }
 
     #[test]
     fn a_buttons_accessible_name_drops_its_icon_glyph() {

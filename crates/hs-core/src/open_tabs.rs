@@ -38,6 +38,13 @@ pub struct TabInfo {
     /// already open, so it can focus that tab instead of making a second
     /// one (the Logs sidebar does: one tab per saved log).
     pub uri: Option<String>,
+    /// The tab's mark as its strip draws it, so a dashboard card wears the
+    /// same coloured icon (owner, 2026-11-07): the glyph, a picture's egui
+    /// URI (a logo, a tool's picture, a Material item icon) and the
+    /// glyph's colour.
+    pub icon: String,
+    pub icon_uri: Option<String>,
+    pub icon_colour: Option<egui::Color32>,
 }
 
 /// The shell's view of the window, shared with every tool.

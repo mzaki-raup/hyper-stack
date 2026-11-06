@@ -153,7 +153,7 @@ Refs: BUG-0003
 Version : v0.7.7
 Features : FEAT-0106
 Bugs : BUG-0047
-Change Request : CR-0082
+Change Request : CR-0088
 ```
 
 ---
@@ -497,21 +497,22 @@ Change Request : CR-0082
 - [ ] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS
 
 ### CR-0062 · Devtools: every tool's form to the layout standard
-- **State:** In-Progress · widened by the owner 2026-11-07
+- **State:** Completed · widened by the owner 2026-11-07; built, gated and seen on screen 2026-11-07
 - **Source:** owner, 2026-11-06 ("In Devtools Activity Form in all tools, please check proper form, input, label, wording comply to a standard … many form in the tools is lousy and not up to standard")
 - **Scope:** every tool in `tool-devtools` (convert, cron, diff, envfile, generate, hash, jwt, net, ports, regex, snippets, url, base64, firebase, yaml …).
 - **Parent:** CR-0025
 - **Depends on:** CR-0061
-- [ ] Each tool's inputs in a `form::field_grid` (or an `edit_table` for rows), labels in Title Case beside their fields, hints in sentence case on their own row, outputs in a `form::well`
-- [ ] Wording reviewed per tool: one name per thing, no jargon where a plain word exists, the casing rules
-- [ ] Every button standard size with padding, a fitting icon and a label; BUTTON_GAP between neighbours (owner, 2026-11-07)
-- [ ] Form rows spaced with ROW_GAP; label-and-field rows on one middle line (owner, 2026-11-07)
-- [ ] Tables to the table standard - accent header band, indented titles, centred cells, empty hints: Hashes, Cron Expression, Unit Conversion (every unit), and any other Devtools table (owner, 2026-11-07)
-- [ ] Jasypt: the inline password field and Save to Environment button on one middle line, with gaps between the parts (owner, 2026-11-07)
-- [ ] Test: the bundled locale parses; no bare text field left in the crate
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every Devtools tool opened and checked against the standard
-- [ ] Docs: CHANGELOG
+- [x] Each tool's inputs in a `form::field_grid` (or an `edit_table` for rows), labels in Title Case beside their fields, hints in sentence case on their own row, outputs in a `form::well` — shared `util::line` / `secret_line` / `button_row` / `button_if`; Hashes options in a grid, Cron's When grid, Unit Conversion and Network Check grids
+- [x] Wording reviewed per tool: one name per thing, no jargon where a plain word exists, the casing rules — about 30 strings moved to Title Case
+- [x] Every button standard size with padding, a fitting icon and a label; BUTTON_GAP between neighbours (owner, 2026-11-07) — every button through `form::button`; `varpeek::save_to_env_button` is a standard `form::button` too
+- [x] Form rows spaced with ROW_GAP; label-and-field rows on one middle line (owner, 2026-11-07) — the Result box has `ROW_GAP` under it
+- [x] Tables to the table standard - accent header band, indented titles, centred cells, empty hints: Hashes, Cron Expression, Unit Conversion (every unit), and any other Devtools table (owner, 2026-11-07) — Hashes results and Cron as `edit_table`s; Every Unit, Network Check as `DataTable`s; Regex, Snippets, .env, JWT claims and URL parts as `edit_table`s or `DataTable`s with empty hints; `egui_extras` dropped from tool-devtools
+- [x] Jasypt: the inline password field and Save to Environment button on one middle line, with gaps between the parts (owner, 2026-11-07) — `util::secret_line`: password, peek and Save to Environment on one middle line
+- [x] Test: the bundled locale parses; no bare text field left in the crate — `no_bare_text_field_button_or_table_is_left_in_the_crate`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [x] App: `--data-dir ./tmp-data` — every Devtools tool opened and checked against the standard — all 19 seen on screen 2026-11-07 (screenshots 64-71, 85-104); two defects found and fixed under CR-0088
+- [x] Docs: CHANGELOG · README · docs/tools/devtools.md
+- **Notes:** Listening Ports' Kill is drawn disabled until a row is selected and asks through `dialog::confirm`. The App box stays open until every utility has been looked at, not only the four above.
 
 ### CR-0063 · Every button an icon and a label, every button row wrapping
 - **State:** Pending ·
@@ -807,6 +808,89 @@ Change Request : CR-0082
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — two workspaces without logos; screenshots
 - [ ] Docs: CHANGELOG, ui.md rule
+
+
+### CR-0083 · README features, screenshots and GIF animations refreshed for v0.7.7
+- **State:** In-Progress · agreed 2026-11-07
+- **Source:** owner, 2026-11-07 ("DOn't forget to update README.md with latest screenshot and GIF animations. Please write this in rules too")
+- **Scope:** retake every README screenshot whose screen changed in v0.7.7 (layout standard, tables, Settings forms, colour icons and logos, environment tiers, colour schemes, workspace tiles, SSH, Devtools, Database designer …) at the current 1720×860 minimum window, add screenshots for new screens, and rebuild the walkthrough GIF (`hyperstack-demo.gif`) and the per-activity GIFs whose flow changed, per `docs/screenshots/README.md`; update that file's "last refreshed" line.
+- **Parent:** CR-0025
+- [x] README feature text describes every feature v0.7.7 added (colour schemes, environment tiers, lettered workspace tiles, product logos, coloured dropdown marks, Settings forms, SSH marks and monitor, …)
+- [ ] Changed screens retaken; new screens added to the README
+- [ ] Walkthrough and per-activity GIFs rebuilt
+- [ ] `docs/screenshots/README.md` refresh date and recipes updated
+- [ ] Docs: README, CHANGELOG
+
+
+### CR-0084 · List and tree rows on one middle line; air above status lines
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 (reported the Redis key tree's picture sitting high beside the key name, then asked for the same row alignment everywhere; no ledger item covered the Redis fix, so it is filed here)
+- **Scope:** a list or tree row sets its height to its tallest item before it opens, so caret, picture, name and badge share one middle line - the Redis key tree, NoSQL collections, API Client collection and folder headers, Database saved-query and history rows, Scratchpad folder headers, Source Control folder headers, the Containers host title; a status line (a count, Scanning…, Find Everywhere's summary, SSH's loading line, the Redis key count) has `form::ROW_GAP` above it - Redis, Browser, Logs, SSH. Rules written in `.claude/rules/ui.md` ("A list or tree row is one middle line", "A status line is a row too").
+- **Parent:** CR-0061
+- [x] Redis key tree rows on one middle line; the key count has `ROW_GAP` above it
+- [x] The same row fix in NoSQL, API Client, Database, Scratchpad, Source Control and Containers
+- [x] `ROW_GAP` above the status lines in Browser, Logs (Scanning…, Find Everywhere) and SSH (loading)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [x] App: `--data-dir ./tmp-data` — the swept rows and status lines looked at on screen 2026-11-07, screenshots
+- [x] Docs: CHANGELOG · ui.md rules · docs/04
+- **Notes:** layout only, so no unit test; the check is the screen.
+
+
+### CR-0085 · Fixes from the 2026-11-07 screen check: header band in its card, group grips, empty DataTables
+- **State:** Completed · found and fixed in the 2026-11-07 screen check
+- **Source:** the 2026-11-07 screen check against `.claude/rules/ui.md` → *Checking a screen*, while verifying CR-0062 and CR-0084
+- **Scope:** `table::begin_header_band` bounds the band by `ui.max_rect()` as well as the clip rect, so it ends at its card (the Devtools Hashes and Cron tables ran to the window edge); `reorder::Reorder::group_row` centres a group's drag grip on its header line (API Client collections and folders, Scratchpad folders), not halfway down its open children; `DataTable::show` with no columns draws nothing (NoSQL's empty results showed a bare band). Rules in `.claude/rules/ui.md` ("A group's grip is on its own line", "A table stays inside its card"); three GOTCHAS entries.
+- **Parent:** CR-0061
+- [x] Header band bounded by its card
+- [x] `Reorder::group_row` for API Client collections and folders and Scratchpad folders
+- [x] A `DataTable` with no columns draws nothing
+- [x] Test: `header_band_stays_inside_its_area`, `a_group_rows_grip_sits_on_its_header`, `a_table_with_no_columns_draws_no_band`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [x] App: `--data-dir ./tmp-data` — Devtools Hashes and Cron tables, API Client and Scratchpad grips, NoSQL empty results seen on screen 2026-11-07, screenshots
+- [x] Docs: CHANGELOG · ui.md rules · docs/04 · GOTCHAS
+
+
+### CR-0086 · Devtools tabs show the whole tool name
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("In Devtools Activity -> Tab Strip; Display Full Tool name label inside tab with the icon"); asked whether other activities should follow, the owner chose "Only Devtools, because the label name is fixed. Other will remain where is it currently."
+- **Spec:** docs/04-ui-design.md §2.2, docs/tools/devtools.md
+- **Scope:** `Tool::tab_title_whole()` (default false; Devtools returns true) → `TabItem::whole_title()` → the strip raises its minimum tab width to the longest whole title among those tabs, above the usual cap, and wraps rows rather than eliding. Other activities keep the shared width and the middle ellipsis. Rule in `.claude/rules/ui.md` ("Devtools tabs show the whole tool name").
+- **Parent:** CR-0025
+- [x] `Tool::tab_title_whole` and `TabItem::whole_title`; Devtools opts in
+- [x] The strip's minimum width follows the longest whole title; rows wrap
+- [x] Test: `a_whole_title_minimum_above_the_cap_is_honoured`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny (2026-11-07)
+- [x] App: `--data-dir ./tmp-data` — Devtools utilities open in the strip, each title whole beside its icon; screenshots 2026-11-07
+- [x] Docs: CHANGELOG · README · docs/04 · docs/tools/devtools.md · ui.md rule
+- **Notes:** full test run pending at the time of writing; tick Test and Gate when it passes.
+
+
+### CR-0087 · Open Here cards wear their tab's coloured icon
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("In All Activity Which have Open Here Section -> Dashboard Page -> Open Here Section; Add respective colored icon to each list of Open here and vertical middle align it with the label title and subtitle")
+- **Spec:** docs/04-ui-design.md
+- **Scope:** `hs_core::open_tabs::TabInfo` gains `icon`, `icon_uri` and `icon_colour`, filled by the shell from the same tab views the strip draws; the shared `hs_ui::dashboard` Open Here card draws a 20 px mark on the middle line of its title and subtitle. Covers all 17 activities with an Open Here section. Rule in `.claude/rules/ui.md` ("An Open Here card wears its tab's mark").
+- **Parent:** CR-0065
+- [x] `TabInfo` carries the tab's icon, picture and colour
+- [x] The dashboard's Open Here card draws the mark on the middle line of title and subtitle, in every activity
+- [x] Test: `an_open_here_card_wears_its_tabs_mark_between_its_two_lines`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny (2026-11-07)
+- [x] App: `--data-dir ./tmp-data` — Open Here on activity dashboards with tabs open, each card's coloured icon matching its tab and on the middle line of title and subtitle; screenshots 2026-11-07
+- [x] Docs: CHANGELOG · README · docs/04 · ui.md rule
+- **Notes:** full test run pending at the time of writing. No unit test covers the card's layout; the check was the screen.
+
+
+### CR-0088 · Work-pane page titles wear their tab's mark and a description
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("In Devtools Activity -> Tools Work Pane -> Header; Put also colored icon beside the header title of each Tools." · "In API Client -> Manage Collection Work Pane -> Header; Put the same colored icon used in tab for manage collection header" · "In Devtools -> All Network Tools and Workspace Tool; Put some description below the header title, like other tools")
+- **Scope:** `hs_ui::form::page_title_marked` (a 26 px mark on the title's middle line); every Devtools tool's title goes through `util::page_title`, which finds the tool's picture in `Utility::ALL`; Network Check, Listening Ports, Snippets and .env Editor gain a title and a description (`dt-net-sub`, `dt-ports-sub`, `dt-snippets-sub`, `dt-env-sub`); API Client's Manage Collection title wears the tab's gear in the activity colour. Found in the screen check and fixed: Devtools pages (except Text Diff) are capped at the cards' width so hints wrap there; TOML/XML with no input show a muted hint instead of a red "nothing to check".
+- **Parent:** CR-0025
+- [x] Code: `form::page_title_marked`, `util::page_title`, four new subtitles, Manage Collection mark, width cap, empty state
+- [x] Test: `a_marked_title_shares_the_titles_middle_line`
+- [x] Gate: fmt, clippy, workspace tests, deny, self-test (2026-11-07)
+- [x] App: all 19 Devtools tools and API Client's Manage Collection looked at on 2026-11-07, release build, scratch data folder
+- [x] Rule: ui.md "A page title wears its tab's mark, and says what the page is for"
+- [x] Docs: CHANGELOG, docs/04-ui-design.md, docs/tools/devtools.md, docs/tools/api-client.md
 
 ---
 

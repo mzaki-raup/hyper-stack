@@ -314,7 +314,7 @@ impl Default for State {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-jwt"), Some(&s.t("dt-jwt-sub")));
+    crate::util::page_title(ui, s, theme, "dt-jwt", Some("dt-jwt-sub"));
     ui.horizontal(|ui| {
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-jwt-decode"));
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-jwt-encode"));
@@ -369,20 +369,28 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         );
         let claims = explain(&decoded.payload);
         if !claims.is_empty() {
-            ui.add_space(6.0);
-            egui::Grid::new("jwt-claims")
-                .num_columns(2)
-                .spacing([12.0, 4.0])
-                .striped(true)
-                .min_row_height(hs_ui::table::ROW_HEIGHT)
-                .show(ui, |ui| {
-                    for (k, text) in claims {
-                        ui.label(egui::RichText::new(k).monospace().strong());
+            ui.add_space(form::ROW_GAP);
+            let (claim_col, meaning_col) = (s.t("dt-jwt-col-claim"), s.t("dt-jwt-col-meaning"));
+            hs_ui::table::edit_table(
+                ui,
+                theme,
+                "jwt-claims",
+                &[
+                    hs_ui::table::EditColumn::new(&claim_col, 140.0),
+                    hs_ui::table::EditColumn::new(&meaning_col, 480.0),
+                ],
+                claims.len(),
+                None,
+                |ui, r, c| {
+                    let (k, text) = &claims[r];
+                    if c == 0 {
+                        ui.label(egui::RichText::new(k.as_str()).monospace().strong());
+                    } else {
                         let bad = text.contains("EXPIRED") || text.contains("NOT YET VALID");
-                        ui.colored_label(if bad { theme.error } else { theme.text }, text);
-                        ui.end_row();
+                        ui.colored_label(if bad { theme.error } else { theme.text }, text.as_str());
                     }
-                });
+                },
+            );
         }
     });
     form::section(ui, theme, &s.t("dt-jwt-signature"), |ui| {
@@ -419,29 +427,33 @@ fn decode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 
 fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     form::section(ui, theme, &s.t("dt-jwt-encode"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.label(s.t("dt-jwt-algorithm"));
+        form::field_grid(ui, "jwt-encode-grid", |ui| {
+            form::label(ui, &s.t("dt-jwt-algorithm"));
             egui::ComboBox::from_id_salt("jwt-alg")
+                .width(form::FIELD_MIN_WIDTH)
                 .selected_text(st.alg.name())
                 .show_ui(ui, |ui| {
                     for a in Alg::ALL {
                         hs_ui::form::selectable_value(ui, &mut st.alg, a, a.name());
                     }
                 });
+            ui.end_row();
         });
-        ui.add_space(4.0);
+        ui.add_space(form::ROW_GAP);
         ui.label(
             egui::RichText::new(s.t("dt-jwt-header"))
                 .strong()
                 .color(theme.text_muted),
         );
         util::input(ui, s, theme, &mut st.header, "", 3);
+        ui.add_space(form::ROW_GAP);
         ui.label(
             egui::RichText::new(s.t("dt-jwt-payload"))
                 .strong()
                 .color(theme.text_muted),
         );
         util::input(ui, s, theme, &mut st.payload, "", 6);
+        ui.add_space(form::ROW_GAP);
         ui.label(
             egui::RichText::new(if st.alg.is_hmac() {
                 s.t("dt-jwt-secret")
@@ -453,8 +465,14 @@ fn encode_ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         );
         let hmac = st.alg.is_hmac();
         key_field(st, ui, s, theme, hmac);
-        ui.add_space(6.0);
-        if form::primary_button(ui, theme, &s.t("dt-jwt-sign")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::SIGNATURE, s.t("dt-jwt-sign")),
+        )
+        .clicked()
+        {
             st.encoded = Some(
                 util::expand(s, &st.key).and_then(|k| encode(st.alg, &st.header, &st.payload, &k)),
             );

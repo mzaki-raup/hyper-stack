@@ -13,7 +13,6 @@ publish.workspace = true
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
 egui = { workspace = true }
-egui_extras = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 regex = { workspace = true }

@@ -173,6 +173,15 @@ Tab anatomy: `[tool icon] [title, middle-elided] [dirty dot | env dot] [✕]`.
 Hover shows a tooltip with the full title, the connection, the environment and
 the file path or URL.
 
+**Whole titles (2026-11-07, CR-0086).** A tool whose tab titles are fixed
+names rather than user data returns true from `Tool::tab_title_whole()`
+(passed to the strip as `TabItem::whole_title()`); Devtools is the only one.
+The strip then raises its minimum tab width to the widest such title,
+above the usual cap, so "Unit Conversion" or "Firebase Tokens" shows whole
+beside its icon, and wraps rows (rule 3) instead of eliding. Every other
+activity keeps the shared width and the middle ellipsis - the owner's
+choice: "Only Devtools, because the label name is fixed."
+
 **Row height is a setting** (Settings → Appearance → Tabs, 2026-11-03):
 *Minimum Main Tab Height* for the window strip (28–48, default 36) and
 *Minimum Sub Tab Height* for an inner strip — the editor's files, the
@@ -1428,3 +1437,33 @@ History / Recent list has a right-click Clear History and Remove, and every
 saved item a Delete, each behind a confirmation and changing what is stored;
 any action that opens or fills a tab brings it to the front; list rows wear
 the Material picture their tab wears when Material icons are on.
+
+## Addendum (2026-11-07): row middle lines, tables in their cards, Open Here marks (CR-0084, CR-0085, CR-0087)
+
+Written in full in `.claude/rules/ui.md`; in short:
+
+- **A list or tree row is one middle line** (CR-0084): the row's height is
+  set to its tallest item before it opens, so caret, picture, name and
+  badge line up - the Redis key tree, NoSQL collections, API Client
+  collections and folders, Database saved queries and history, Scratchpad
+  and Source Control folders, the Containers host title. A status line (a
+  count, "Scanning…", a result summary) has `form::ROW_GAP` above it.
+- **Tables stay in their cards** (CR-0085): `table::begin_header_band` is
+  bounded by `ui.max_rect()` as well as the clip rect, so the band ends at
+  its card; a `DataTable` with no columns draws nothing and leaves the
+  empty state to say why.
+- **A group's grip is on its header** (CR-0085): a row that opens below
+  itself (a collection, a folder) draws its drag grip with
+  `reorder::Reorder::group_row` and the header's height.
+- **Open Here cards wear their tab's mark** (CR-0087): `hs_core::open_tabs::TabInfo`
+  carries `icon`, `icon_uri` and `icon_colour`, filled by the shell from
+  the same tab views the strip draws, and the shared `hs_ui::dashboard`
+  Open Here card draws a 20 px mark on the middle line of its title and
+  subtitle - a logo, a tool's picture, a Material icon or a coloured
+  glyph, exactly as the tab shows it - in all 17 activities with an Open
+  Here section.
+
+- **A page title wears its tab's mark** (CR-0088): `form::page_title_marked`
+  leads a work-pane title with the same coloured picture its tab wears,
+  on the title's middle line, with a one-line description under it.
+  Every Devtools tool and API Client's Manage Collection use it.

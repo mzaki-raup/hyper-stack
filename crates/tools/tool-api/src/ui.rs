@@ -491,31 +491,43 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
             }
             let mut collections = hs_ui::reorder::Reorder::new("api-collections");
             for (ci, c) in t.collections.iter().enumerate() {
-                let header = collections.row(ui, ci, |ui| {
-                    ui.horizontal(|ui| {
-                        if let Some(icon) = hs_ui::fileicons::by_name("folder-api") {
-                            ui.add(
-                                egui::Image::new(icon).fit_to_exact_size(egui::vec2(16.0, 16.0)),
-                            );
-                        }
-                        egui::CollapsingHeader::new(egui::RichText::new(&c.name).strong())
-                            .id_salt(("api-col", &c.id))
-                            .default_open(true)
-                            .show(ui, |ui| {
-                                items_ui(
-                                    ui,
-                                    theme,
-                                    s,
-                                    &c.id,
-                                    None,
-                                    &c.items,
-                                    &filter,
-                                    selected.as_deref(),
-                                    &mut actions,
+                // The row is the header's height before it opens, so the
+                // picture and the grip share its middle line; the body
+                // gets the usual height back (owner, 2026-11-07).
+                let row_h = ui.text_style_height(&egui::TextStyle::Body)
+                    + 2.0 * ui.spacing().button_padding.y;
+                let header = collections.group_row(ui, ci, row_h, |ui| {
+                    let saved_h = ui.spacing().interact_size.y;
+                    ui.spacing_mut().interact_size.y = row_h;
+                    let r = ui
+                        .horizontal(|ui| {
+                            if let Some(icon) = hs_ui::fileicons::by_name("folder-api") {
+                                ui.add(
+                                    egui::Image::new(icon)
+                                        .fit_to_exact_size(egui::vec2(16.0, 16.0)),
                                 );
-                            })
-                    })
-                    .inner
+                            }
+                            egui::CollapsingHeader::new(egui::RichText::new(&c.name).strong())
+                                .id_salt(("api-col", &c.id))
+                                .default_open(true)
+                                .show(ui, |ui| {
+                                    ui.spacing_mut().interact_size.y = saved_h;
+                                    items_ui(
+                                        ui,
+                                        theme,
+                                        s,
+                                        &c.id,
+                                        None,
+                                        &c.items,
+                                        &filter,
+                                        selected.as_deref(),
+                                        &mut actions,
+                                    );
+                                })
+                        })
+                        .inner;
+                    ui.spacing_mut().interact_size.y = saved_h;
+                    r
                 });
                 // The collection itself takes a row, so a request can be
                 // dragged to another collection even when that one is
@@ -925,30 +937,41 @@ fn items_ui(
                 if !matches && !has_match && !filter.is_empty() {
                     // Still descend: a nested request may match.
                 }
-                let r = reorder.row(ui, index, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::Image::new(hs_ui::fileicons::for_folder(&f.name))
-                                .fit_to_exact_size(egui::vec2(16.0, 16.0)),
-                        );
-                        egui::CollapsingHeader::new(&f.name)
-                            .id_salt(("api-folder", &f.id))
-                            .default_open(!filter.is_empty())
-                            .show(ui, |ui| {
-                                items_ui(
-                                    ui,
-                                    theme,
-                                    s,
-                                    collection,
-                                    Some(&f.id),
-                                    &f.items,
-                                    filter,
-                                    selected,
-                                    actions,
-                                );
-                            })
-                    })
-                    .inner
+                // As the collection row: the header's height before the
+                // row opens, the usual height back for the body (owner,
+                // 2026-11-07).
+                let row_h = ui.text_style_height(&egui::TextStyle::Body)
+                    + 2.0 * ui.spacing().button_padding.y;
+                let r = reorder.group_row(ui, index, row_h, |ui| {
+                    let saved_h = ui.spacing().interact_size.y;
+                    ui.spacing_mut().interact_size.y = row_h;
+                    let r = ui
+                        .horizontal(|ui| {
+                            ui.add(
+                                egui::Image::new(hs_ui::fileicons::for_folder(&f.name))
+                                    .fit_to_exact_size(egui::vec2(16.0, 16.0)),
+                            );
+                            egui::CollapsingHeader::new(&f.name)
+                                .id_salt(("api-folder", &f.id))
+                                .default_open(!filter.is_empty())
+                                .show(ui, |ui| {
+                                    ui.spacing_mut().interact_size.y = saved_h;
+                                    items_ui(
+                                        ui,
+                                        theme,
+                                        s,
+                                        collection,
+                                        Some(&f.id),
+                                        &f.items,
+                                        filter,
+                                        selected,
+                                        actions,
+                                    );
+                                })
+                        })
+                        .inner;
+                    ui.spacing_mut().interact_size.y = saved_h;
+                    r
                 });
                 // A folder is a drop target in its own right. Between-rows
                 // drops can only reach a folder that is open and not empty,
@@ -2965,9 +2988,11 @@ pub(crate) fn manage_tab(
     let mut globals_changed = false;
     let mut variables_changed = false;
     let title = t.collections[index].name.clone();
-    form::page_title(
+    // The same mark the Manage tab wears in the strip (owner, 2026-11-07).
+    form::page_title_marked(
         ui,
         theme,
+        form::Mark::glyph(ph::GEAR_SIX, Some(crate::ACTIVITY_COLOUR)).sized(26.0),
         &format!("{} - {title}", s.t("api-manage-title")),
         Some(&s.t("api-manage-hint")),
     );

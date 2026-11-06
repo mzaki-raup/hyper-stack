@@ -968,6 +968,9 @@ pub fn for_kind(kind: &str) -> Option<ImageSource<'static>> {
         "broker" => "node",
         // Notes
         "note" => "note",
+        // Browser favourites with no favicon, and saved logins (CR-0060)
+        "url" | "link" | "http" | "favorite" | "favourite" | "bookmark" => "http",
+        "login" | "password" | "credential" => "key",
         _ => return None,
     };
     by_name(name)
@@ -1091,6 +1094,12 @@ mod tests {
             "queue",
             "topic",
             "broker",
+            // Browser (CR-0060)
+            "url",
+            "link",
+            "favorite",
+            "login",
+            "password",
         ] {
             assert!(for_kind(kind).is_some(), "{kind} has no icon");
         }

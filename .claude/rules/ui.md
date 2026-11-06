@@ -179,6 +179,44 @@ look for it in `crates/hs-ui/src/` first.
   initials on a rounded square in a colour picked from its name (the
   shared palette of eight), the same in every place a workspace is drawn;
   a set logo always wins (owner, 2026-11-07) (CR-0082).
+- **A list or tree row is one middle line:** caret, picture, name and
+  badge share the row's middle line. The row's height is set to its
+  tallest item (the name button) *before* the row opens - a 16 px picture
+  added first to a row that grows later is centred on the shorter height
+  and sits high (owner, 2026-11-07: the Redis key tree).
+- **A status line is a row too:** a count, a "scanning …" or a result
+  summary under a filter field, toolbar or table has `form::ROW_GAP` above
+  it, in every pane, never flush against the field (owner, 2026-11-07).
+- **A group's grip is on its own line:** the drag grip of a row that
+  opens below itself (a collection, a folder) sits on the header's middle
+  line, beside its name, never halfway down its open children - draw it
+  with `reorder::Reorder::group_row` and the header's height, not `row`
+  (owner, 2026-11-07).
+- **A table stays inside its card:** a table's header band ends at the
+  card or pane it sits in, never at the window edge; and a table with no
+  columns is not drawn at all - the empty state says why, with no bare
+  band under it (owner, 2026-11-07).
+- **Devtools tabs show the whole tool name:** a Devtools tab's title is
+  a fixed name (Unit Conversion, Firebase Tokens), so its strip makes
+  every tab wide enough for the longest one and wraps rows rather than
+  eliding it (`Tool::tab_title_whole`). Other activities' tabs keep the
+  shared width and elide long user data as before - owner's choice,
+  2026-11-07: "Only Devtools, because the label name is fixed."
+- **An Open Here card wears its tab's mark:** every card in a dashboard's
+  Open Here section leads its title and subtitle with the same coloured
+  icon its tab wears in the strip (a logo, a tool's picture, a Material
+  item icon, a coloured glyph), on the middle line of the two lines - in
+  every activity, through the shared `dashboard` card (owner,
+  2026-11-07).
+- **A page title wears its tab's mark, and says what the page is for:**
+  a tool or page title inside a work pane (each Devtools tool, API
+  Client's Manage Collection) leads with the same coloured picture its
+  tab wears, on the title's middle line (`form::page_title_marked`), and
+  has a one-line sentence-case description under it - no tool goes
+  without one. Hints and notes under it wrap at the cards' width
+  (`form::CARD_MAX_WIDTH`), never at the window edge; an input with
+  nothing in it yet shows a muted empty hint, never a red error (owner,
+  2026-11-07).
 - **What opens a tab shows it:** any action that opens, adds or fills a
   tab - New Query, Open Data, a saved item, a history entry, a template -
   brings that tab to the front, whatever kind of tab (a designer, a

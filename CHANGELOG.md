@@ -17,12 +17,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - 18 more colour schemes: Tokyo Night, Rosé Pine, Kanagawa, Everforest Dark, Ayu Dark, Night Owl, Material Palenight, GitHub Dark, Catppuccin Macchiato, One Light, Gruvbox Light, Catppuccin Latte, Rosé Pine Dawn, Ayu Light, Everforest Light, Tokyo Night Day, Tomorrow and Light Owl, each checked for readable contrast (FEAT-0105)
 - Environment tiers: each environment wears its tier's icon and colour (matched from its name or set by hand), a protected one always the red shield; Production and Production Support default to protected (FEAT-0106)
 - A workspace without a logo shows a lettered tile in a colour of its own (CR-0082)
+- Devtools tabs show the whole tool name beside its icon; the strip widens its tabs to the longest name and wraps rows instead of eliding (CR-0086)
+- Every Open Here card on an activity's dashboard wears its tab's coloured icon, on the middle line of its title and subtitle (CR-0087)
+- Every Devtools tool's title and API Client's Manage Collection title wear their tab's coloured picture; Network Check, Listening Ports, Snippets and .env Editor gain a title and description; Devtools hints wrap at the cards' width and an empty TOML/XML shows a hint, not an error (CR-0088)
 
 
 ### Fixed
 
 - Selectable rows, tabs and labels no longer grow 1 px a side under the pointer (an egui sizing quirk); hover only fills and outlines. Form buttons expose their plain label to screen readers (owner, 2026-11-07)
 - Selected table rows keep readable text; a tab's title stops before its close button; Git changed files and the Containers resource list wear Material pictures; the Redis key tree draws its caret first; right-click menu items carry glyphs and Clear is disabled on an empty list; the API history says when it is empty; Devtools rows and tabs wear their category colour; the Tracker query buttons are a field's height; the SSH Kept Forwards list scrolls and Start has a glyph (CR-0070)
+- A table's header band ends at its card instead of the window edge; a collection's or folder's drag grip sits on its header line in the API Client and Scratchpad; a results table with no columns no longer draws a bare header band (NoSQL) (CR-0085)
 
 ### Changed
 
@@ -40,6 +44,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Show/hide toggles for a work-pane column come first in the toolbar, including Graphics' new Properties toggle for the Image and Icon editors; SSH's Tunnels and Monitor stay just before Broadcast (CR-0073)
 - Log views outside the Logs activity colour only the level word, not the whole line (CR-0077)
 - Padding above the Editor status bar, the Logs status line and the Debug Panel tabs, icons on the Debug tabs, and a Switch button per workspace in Settings (CR-0040)
+- Devtools forms follow the layout standard: fields in grids on one middle line, every button standard size with an icon and a label, results and lists as standard tables with empty hints (Hashes, Cron, Unit Conversion, Network Check, Regex, Snippets, .env, JWT, URL), Jasypt's password and Save to Environment on one row, Title Case labels, and Listening Ports' Kill disabled until a row is selected and confirmed before it acts (CR-0062)
+- List and tree rows put their caret, picture and name on one middle line - Redis keys, NoSQL collections, API Client collections and folders, Database saved queries and history, Scratchpad and Source Control folders, the Containers host title - and status lines in Redis, Browser, Logs and SSH have air above them (CR-0084)
 
 ## 0.128.0 — 2026-11-06
 

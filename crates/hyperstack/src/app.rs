@@ -3896,11 +3896,24 @@ impl HyperStackApp {
     /// can be is the last one taken while it was on screen.
     fn publish_tabs(&mut self, ctx: &egui::Context) {
         let active = self.tabs.active;
+        // Each tab's mark, worked out as the strip works it out, so the
+        // dashboard's Open Here card wears the same icon (owner,
+        // 2026-11-07).
+        let s = self.services.clone();
+        let material = |id: &str| s.settings.read().appearance.material_icons(id);
+        let look = crate::tabspace::ViewLook {
+            coloured: s.settings.read().appearance.rail_coloured,
+            logo: hs_ui::icons::workspace_logo_uri(ctx, &s),
+        };
+        let views = self
+            .tabs
+            .views(&|id: &str| id.to_string(), &material, &look);
         let tabs: Vec<hs_core::open_tabs::TabInfo> = self
             .tabs
             .tabs
             .iter()
-            .map(|t| hs_core::open_tabs::TabInfo {
+            .zip(views)
+            .map(|(t, v)| hs_core::open_tabs::TabInfo {
                 id: t.id,
                 factory_id: t.factory_id.clone(),
                 title: t.tool.title().to_string(),
@@ -3911,6 +3924,13 @@ impl HyperStackApp {
                 home: t.home,
                 active: Some(t.id) == active,
                 uri: t.tool.current_uri(),
+                icon: v.icon.to_string(),
+                icon_uri: v
+                    .icon_image
+                    .as_ref()
+                    .and_then(|i| i.uri().map(str::to_string))
+                    .or(v.icon_uri),
+                icon_colour: v.icon_colour,
             })
             .collect();
         self.services.open_tabs.set(tabs);

@@ -574,7 +574,9 @@ impl State {
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_ui::theme::Theme) {
     use hs_ui::form;
-    form::page_title(ui, theme, &s.t("dt-cron"), Some(&s.t("dt-cron-sub")));
+    use hs_ui::table::{EditColumn, edit_table};
+    use hs_ui::tip::TipExt;
+    crate::util::page_title(ui, s, theme, "dt-cron", Some("dt-cron-sub"));
     ui.add_space(4.0);
     form::section(ui, theme, &s.t("dt-cron-when"), |ui| {
         ui.horizontal_wrapped(|ui| {
@@ -589,145 +591,198 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 hs_ui::form::selectable_value(ui, &mut st.frequency, setting, s.t(key));
             }
         });
-        ui.add_space(6.0);
-        match st.frequency {
-            FrequencySetting::EveryNMinutes => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-cron-interval-minutes"));
+        ui.add_space(form::ROW_GAP);
+        form::field_grid(ui, "dt-cron-when-grid", |ui| {
+            match st.frequency {
+                FrequencySetting::EveryNMinutes => {
+                    form::label(ui, &s.t("dt-cron-interval-minutes"));
                     ui.add(egui::DragValue::new(&mut st.interval).range(1..=59));
-                });
-            }
-            FrequencySetting::EveryNHours => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-cron-interval-hours"));
-                    ui.add(egui::DragValue::new(&mut st.interval).range(1..=23));
-                    ui.label(s.t("dt-cron-at-minute"));
-                    ui.add(egui::DragValue::new(&mut st.minute).range(0..=59));
-                });
-            }
-            _ => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-cron-at"));
-                    ui.add(egui::DragValue::new(&mut st.hour).range(0..=23));
-                    ui.label(":");
-                    ui.add(egui::DragValue::new(&mut st.minute).range(0..=59));
-                });
-            }
-        }
-        if st.frequency == FrequencySetting::Weekly {
-            ui.add_space(4.0);
-            ui.horizontal_wrapped(|ui| {
-                for (i, name) in DAY_NAMES.iter().enumerate() {
-                    ui.checkbox(&mut st.days[i], *name);
+                    ui.end_row();
                 }
-            });
-        }
-        if matches!(
-            st.frequency,
-            FrequencySetting::Monthly | FrequencySetting::Yearly
-        ) {
-            ui.add_space(4.0);
-            hs_ui::form::centred_row(ui, |ui| {
-                ui.label(s.t("dt-cron-day-of-month"));
+                FrequencySetting::EveryNHours => {
+                    form::label(ui, &s.t("dt-cron-interval-hours"));
+                    ui.add(egui::DragValue::new(&mut st.interval).range(1..=23));
+                    ui.end_row();
+                    form::label(ui, &s.t("dt-cron-at-minute"));
+                    ui.add(egui::DragValue::new(&mut st.minute).range(0..=59));
+                    ui.end_row();
+                }
+                _ => {
+                    form::label(ui, &s.t("dt-cron-at"));
+                    form::centred_row(ui, |ui| {
+                        ui.add(egui::DragValue::new(&mut st.hour).range(0..=23));
+                        ui.label(":");
+                        ui.add(egui::DragValue::new(&mut st.minute).range(0..=59));
+                    });
+                    ui.end_row();
+                }
+            }
+            if st.frequency == FrequencySetting::Weekly {
+                form::label(ui, &s.t("dt-cron-days"));
+                ui.horizontal_wrapped(|ui| {
+                    for (i, name) in DAY_NAMES.iter().enumerate() {
+                        if i > 0 {
+                            ui.add_space(form::OPTION_GAP);
+                        }
+                        ui.checkbox(&mut st.days[i], *name);
+                    }
+                });
+                ui.end_row();
+            }
+            if matches!(
+                st.frequency,
+                FrequencySetting::Monthly | FrequencySetting::Yearly
+            ) {
+                form::label(ui, &s.t("dt-cron-day-of-month"));
                 ui.add(egui::DragValue::new(&mut st.day_of_month).range(1..=31));
+                ui.end_row();
                 if st.frequency == FrequencySetting::Yearly {
-                    ui.label(s.t("dt-cron-month"));
+                    form::label(ui, &s.t("dt-cron-month"));
                     egui::ComboBox::from_id_salt("dt-cron-month")
+                        .width(form::FIELD_MIN_WIDTH)
                         .selected_text(MONTH_NAMES[(st.month.clamp(1, 12) - 1) as usize])
                         .show_ui(ui, |ui| {
                             for (i, m) in MONTH_NAMES.iter().enumerate() {
                                 hs_ui::form::selectable_value(ui, &mut st.month, i as u32 + 1, *m);
                             }
                         });
+                    ui.end_row();
                 }
-            });
-        }
+            }
+        });
     });
     let schedule = st.schedule();
     ui.add_space(8.0);
+    let (col_type, col_expr, col_match, col_detail, col_actions) = (
+        s.t("dt-cron-col-type"),
+        s.t("dt-cron-expression"),
+        s.t("dt-cron-col-match"),
+        s.t("dt-cron-col-detail"),
+        s.t("dt-col-actions"),
+    );
     form::section(ui, theme, &s.t("dt-cron-expression"), |ui| {
         form::hint(ui, theme, &describe(&schedule));
-        ui.add_space(6.0);
+        ui.add_space(form::ROW_GAP);
         // All three at once: the usual reason to be here is needing the
         // other dialect's version of the one you already have.
-        for flavour in Flavour::ALL {
-            match expression(&schedule, flavour) {
-                Ok(expr) => {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(flavour.label())
-                                .color(theme.text_muted)
-                                .small(),
-                        );
+        let rows: Vec<(Flavour, Result<String, String>)> = Flavour::ALL
+            .into_iter()
+            .map(|f| (f, expression(&schedule, f)))
+            .collect();
+        edit_table(
+            ui,
+            theme,
+            "dt-cron-expressions",
+            &[
+                EditColumn::new(&col_type, 160.0),
+                EditColumn::new(&col_expr, 320.0),
+                EditColumn::new(&col_actions, 0.0),
+            ],
+            rows.len(),
+            None,
+            |ui, r, c| {
+                let (flavour, expr) = &rows[r];
+                match (c, expr) {
+                    (0, _) => {
+                        ui.label(flavour.label());
+                    }
+                    (1, Ok(expr)) => {
                         ui.add(
-                            egui::Label::new(egui::RichText::new(&expr).monospace())
+                            egui::Label::new(egui::RichText::new(expr).monospace())
                                 .selectable(true),
                         );
-                        if ui
-                            .small_button(format!("{} {}", hs_ui::icons::COPY, s.t("dt-copy")))
-                            .clicked()
+                    }
+                    (1, Err(e)) => {
+                        ui.colored_label(theme.error, e);
+                    }
+                    (2, expr) => {
+                        let copy = ui
+                            .add_enabled_ui(expr.is_ok(), |ui| {
+                                form::icon_button(ui, theme, hs_ui::icons::COPY, 14.0, false)
+                            })
+                            .inner
+                            .tip(s.t("dt-copy"));
+                        if copy.clicked()
+                            && let Ok(expr) = expr
                         {
                             ui.ctx().copy_text(expr.clone());
                         }
-                    });
+                    }
+                    _ => {}
                 }
-                Err(e) => {
-                    ui.colored_label(theme.error, format!("{}: {e}", flavour.label()));
-                }
-            }
-        }
+            },
+        );
     });
     ui.add_space(8.0);
     form::section(ui, theme, &s.t("dt-cron-check"), |ui| {
-        form::hint(ui, theme, &s.t("dt-cron-check-hint"));
-        ui.add_space(4.0);
-        ui.add(
-            hs_ui::form::line_edit(&mut st.check_input)
-                .hint_text("0 30 9 * * ?")
-                .desired_width(f32::INFINITY)
-                .font(egui::TextStyle::Monospace),
-        );
-        if st.check_input.trim().is_empty() {
-            return;
-        }
-        ui.add_space(6.0);
+        form::field_grid(ui, "dt-cron-check-input", |ui| {
+            form::label(ui, &s.t("dt-cron-expression"));
+            ui.add(
+                hs_ui::form::line_edit(&mut st.check_input)
+                    .hint_text("0 30 9 * * ?")
+                    .desired_width(
+                        ui.available_width()
+                            .clamp(form::FIELD_MIN_WIDTH, form::FIELD_MAX_WIDTH),
+                    )
+                    .font(egui::TextStyle::Monospace),
+            );
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("dt-cron-check-hint"));
+        });
+        ui.add_space(form::ROW_GAP);
         // One row per dialect: whether it takes the expression, and what
-        // it would mean if it does.
-        egui::Grid::new("dt-cron-check-grid")
-            .num_columns(3)
-            .spacing([16.0, 6.0])
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "dt-cron-col-type",
-                    "dt-cron-col-match",
-                    "dt-cron-col-detail",
-                ] {
-                    ui.label(
-                        egui::RichText::new(s.t(key))
-                            .strong()
-                            .color(theme.text_muted),
-                    );
-                }
-                ui.end_row();
-                for flavour in Flavour::ALL {
-                    ui.label(flavour.label());
-                    match explain(&st.check_input, flavour) {
-                        Ok(detail) => {
-                            ui.colored_label(
-                                theme.success,
-                                format!("{} {}", hs_ui::icons::CHECK, s.t("dt-cron-match")),
-                            );
-                            ui.label(detail);
-                        }
-                        Err(e) => {
-                            ui.colored_label(theme.text_muted, s.t("dt-cron-no-match"));
-                            ui.colored_label(theme.text_muted, e);
-                        }
+        // it would mean if it does. Nothing is checked until there is
+        // something to check.
+        let rows: Vec<(Flavour, Result<String, String>)> = if st.check_input.trim().is_empty() {
+            Vec::new()
+        } else {
+            Flavour::ALL
+                .into_iter()
+                .map(|f| (f, explain(&st.check_input, f)))
+                .collect()
+        };
+        let empty = s.t("dt-cron-check-empty");
+        edit_table(
+            ui,
+            theme,
+            "dt-cron-check-table",
+            &[
+                EditColumn::new(&col_type, 160.0),
+                EditColumn::new(&col_match, 140.0),
+                EditColumn::new(&col_detail, 360.0),
+            ],
+            rows.len(),
+            Some(&empty),
+            |ui, r, c| {
+                let (flavour, result) = &rows[r];
+                match (c, result) {
+                    (0, _) => {
+                        ui.label(flavour.label());
                     }
-                    ui.end_row();
+                    (1, Ok(_)) => {
+                        ui.colored_label(
+                            theme.success,
+                            format!("{} {}", hs_ui::icons::CHECK, s.t("dt-cron-match")),
+                        );
+                    }
+                    (1, Err(_)) => {
+                        ui.colored_label(theme.text_muted, s.t("dt-cron-no-match"));
+                    }
+                    (2, Ok(detail)) => {
+                        ui.add(egui::Label::new(detail.as_str()).truncate())
+                            .tip(detail.as_str());
+                    }
+                    (2, Err(e)) => {
+                        ui.add(
+                            egui::Label::new(egui::RichText::new(e).color(theme.text_muted))
+                                .truncate(),
+                        )
+                        .tip(e.as_str());
+                    }
+                    _ => {}
                 }
-            });
+            },
+        );
     });
 }
 

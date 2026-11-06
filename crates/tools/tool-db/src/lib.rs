@@ -184,12 +184,23 @@ fn with_row_image(
     match image {
         None => add(ui),
         Some(src) => {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.0;
-                ui.add(egui::Image::new(src.clone()).fit_to_exact_size(egui::Vec2::splat(16.0)));
-                add(ui)
-            })
-            .inner
+            // The row is the name button's height before it opens, so the
+            // picture shares its middle line (owner, 2026-11-07).
+            let row_h =
+                ui.text_style_height(&egui::TextStyle::Body) + 2.0 * ui.spacing().button_padding.y;
+            let saved_h = ui.spacing().interact_size.y;
+            ui.spacing_mut().interact_size.y = row_h;
+            let r = ui
+                .horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 4.0;
+                    ui.add(
+                        egui::Image::new(src.clone()).fit_to_exact_size(egui::Vec2::splat(16.0)),
+                    );
+                    add(ui)
+                })
+                .inner;
+            ui.spacing_mut().interact_size.y = saved_h;
+            r
         }
     }
 }

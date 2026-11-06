@@ -244,12 +244,7 @@ fn post_json(s: &Services, url: String, body: serde_json::Value) -> Pending {
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     poll(&mut st.access_pending, &mut st.access);
     poll(&mut st.id_pending, &mut st.id_token);
-    form::page_title(
-        ui,
-        theme,
-        &s.t("dt-firebase"),
-        Some(&s.t("dt-firebase-sub")),
-    );
+    crate::util::page_title(ui, s, theme, "dt-firebase", Some("dt-firebase-sub"));
     // Parsed once per frame (the section shows it, the token buttons use
     // it); a file loaded this frame shows up on the next one.
     let parsed = parse_service_account(
@@ -264,13 +259,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             &s.t("dt-firebase-account-hint"),
             5,
         );
-        if ui
-            .button(format!(
-                "{} {}",
-                hs_ui::icons::ph::FOLDER_OPEN,
-                s.t("dt-firebase-load")
-            ))
-            .clicked()
+        ui.add_space(form::ROW_GAP);
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::FOLDER_OPEN,
+            &s.t("dt-firebase-load"),
+        )
+        .clicked()
             && let Some(p) = rfd::FileDialog::new()
                 .add_filter("JSON", &["json"])
                 .pick_file()
@@ -293,7 +289,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     let sa = parsed.ok();
     form::section(ui, theme, &s.t("dt-firebase-custom"), |ui| {
         form::field_grid(ui, "fb-custom", |ui| {
-            form::label(ui, "uid");
+            form::label(ui, &s.t("dt-firebase-uid"));
             form::text_field(ui, &mut st.uid, "");
             ui.end_row();
             form::label(ui, &s.t("dt-firebase-claims"));
@@ -307,12 +303,15 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             );
             ui.end_row();
         });
-        if ui
-            .add_enabled(
-                sa.is_some(),
-                egui::Button::new(s.t("dt-firebase-make-custom")),
-            )
-            .clicked()
+        ui.add_space(form::ROW_GAP);
+        if util::button_if(
+            ui,
+            theme,
+            sa.is_some(),
+            hs_ui::icons::ph::SIGNATURE,
+            &s.t("dt-firebase-make-custom"),
+        )
+        .clicked()
             && let Some(sa) = &sa
         {
             let claims = serde_json::from_str::<serde_json::Value>(&st.claims).ok();
@@ -338,14 +337,17 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             form::text_field(ui, &mut st.scopes, "");
             ui.end_row();
         });
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(
-                    sa.is_some() && st.access_pending.is_none(),
-                    egui::Button::new(s.t("dt-firebase-get-access")),
-                )
-                .tip(s.t("dt-firebase-network-tip"))
-                .clicked()
+        ui.add_space(form::ROW_GAP);
+        util::button_row(ui, |ui| {
+            if util::button_if(
+                ui,
+                theme,
+                sa.is_some() && st.access_pending.is_none(),
+                hs_ui::icons::ph::KEY,
+                &s.t("dt-firebase-get-access"),
+            )
+            .tip(s.t("dt-firebase-network-tip"))
+            .clicked()
                 && let Some(sa) = &sa
             {
                 match access_token_assertion(sa, &st.scopes) {
@@ -386,14 +388,17 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.end_row();
         });
         let custom = st.custom.as_ref().and_then(|c| c.as_ref().ok().cloned());
-        ui.horizontal(|ui| {
-            if ui
-                .add_enabled(
-                    custom.is_some() && !st.web_api_key.trim().is_empty() && st.id_pending.is_none(),
-                    egui::Button::new(s.t("dt-firebase-get-id")),
-                )
-                .tip(s.t("dt-firebase-network-tip"))
-                .clicked()
+        ui.add_space(form::ROW_GAP);
+        util::button_row(ui, |ui| {
+            if util::button_if(
+                ui,
+                theme,
+                custom.is_some() && !st.web_api_key.trim().is_empty() && st.id_pending.is_none(),
+                hs_ui::icons::ph::SIGN_IN,
+                &s.t("dt-firebase-get-id"),
+            )
+            .tip(s.t("dt-firebase-network-tip"))
+            .clicked()
                 && let Some(token) = custom
             {
                 st.id_token = None;

@@ -118,7 +118,7 @@ pub fn unified(left: &str, right: &str, left_name: &str, right_name: &str) -> St
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_ui::theme::Theme) {
     use hs_ui::form;
-    form::page_title(ui, theme, &s.t("dt-diff"), Some(&s.t("dt-diff-sub")));
+    crate::util::page_title(ui, s, theme, "dt-diff", Some("dt-diff-sub"));
     ui.add_space(4.0);
     let half = ((ui.available_width() - 24.0) / 2.0).max(200.0);
     ui.horizontal_top(|ui| {
@@ -142,17 +142,27 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
             });
         }
     });
-    ui.horizontal(|ui| {
+    ui.add_space(form::ROW_GAP);
+    crate::util::button_row(ui, |ui| {
         ui.checkbox(&mut st.ignore_whitespace, s.t("dt-diff-ignore-ws"));
-        if ui.button(s.t("dt-diff-swap")).clicked() {
+        ui.add_space(form::OPTION_GAP);
+        if form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+            &s.t("dt-diff-swap"),
+        )
+        .clicked()
+        {
             std::mem::swap(&mut st.left, &mut st.right);
             std::mem::swap(&mut st.left_name, &mut st.right_name);
         }
-        if ui.button(s.t("dt-diff-copy-unified")).clicked() {
+        if form::button(ui, theme, hs_ui::icons::COPY, &s.t("dt-diff-copy-unified")).clicked() {
             ui.ctx()
                 .copy_text(unified(&st.left, &st.right, &st.left_name, &st.right_name));
         }
     });
+    ui.add_space(form::ROW_GAP);
     if st.left.is_empty() && st.right.is_empty() {
         form::hint(ui, theme, &s.t("dt-diff-hint"));
         return;

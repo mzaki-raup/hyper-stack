@@ -109,6 +109,30 @@ impl Reorder {
         index: usize,
         add: impl FnOnce(&mut egui::Ui) -> R,
     ) -> R {
+        self.row_with_head(ui, index, None, add)
+    }
+
+    /// [`Reorder::row`] for a group that opens below its header (a
+    /// collection, a folder): the grip sits on the header's middle line,
+    /// `head_h` tall, not in the middle of the header and its children
+    /// (owner, 2026-11-07).
+    pub fn group_row<R>(
+        &mut self,
+        ui: &mut egui::Ui,
+        index: usize,
+        head_h: f32,
+        add: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
+        self.row_with_head(ui, index, Some(head_h), add)
+    }
+
+    fn row_with_head<R>(
+        &mut self,
+        ui: &mut egui::Ui,
+        index: usize,
+        head_h: Option<f32>,
+        add: impl FnOnce(&mut egui::Ui) -> R,
+    ) -> R {
         let mut inner = None;
         let row = ui.horizontal(|ui| {
             // An explicit rectangle, not a Label: the glyph's own size
@@ -121,9 +145,10 @@ impl Reorder {
                 ui.allocate_exact_size(egui::vec2(GRIP_WIDTH, GRIP_HEIGHT), egui::Sense::hover());
             inner = Some(add(ui));
             let body = ui.min_rect();
+            let bottom = head_h.map_or(body.bottom(), |h| body.bottom().min(body.top() + h));
             let grip_rect = egui::Rect::from_min_max(
                 egui::pos2(slot.left(), body.top()),
-                egui::pos2(slot.right(), body.bottom()),
+                egui::pos2(slot.right(), bottom),
             );
             // An interaction with an id of our own, so the grip's drag
             // state is remembered per row rather than per position.
@@ -368,5 +393,39 @@ mod tests {
                 assert_eq!(sorted, ["a", "b", "c", "d"], "{from} -> {to} lost an item");
             }
         }
+    }
+
+    /// A group's grip sits on its header line, not halfway down its open
+    /// children (API Client collections, 2026-11-07).
+    #[test]
+    fn a_group_rows_grip_sits_on_its_header() {
+        let ctx = egui::Context::default();
+        let mut out = None;
+        for _ in 0..2 {
+            out = Some(ctx.run_ui(egui::RawInput::default(), |ui| {
+                let mut r = Reorder::new("grip-test");
+                r.group_row(ui, 0, 30.0, |ui| {
+                    ui.vertical(|ui| {
+                        ui.add_space(30.0);
+                        ui.add_space(120.0);
+                    });
+                });
+            }));
+        }
+        let mut ys = Vec::new();
+        fn circles(shape: &egui::Shape, ys: &mut Vec<f32>) {
+            match shape {
+                egui::Shape::Circle(c) => ys.push(c.center.y),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| circles(s, ys)),
+                _ => {}
+            }
+        }
+        for c in &out.expect("ran").shapes {
+            circles(&c.shape, &mut ys);
+        }
+        assert!(!ys.is_empty(), "the grip was painted");
+        let top = ys.iter().cloned().fold(f32::MAX, f32::min);
+        let mid = (top + ys.iter().cloned().fold(f32::MIN, f32::max)) / 2.0;
+        assert!(mid < 30.0, "grip centred at {mid}, below a 30 px header");
     }
 }

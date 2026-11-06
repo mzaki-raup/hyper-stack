@@ -284,9 +284,9 @@ pub fn ui(
         Kind::Toml => ("dt-toml", "dt-toml-sub", "dt-toml-hint"),
         Kind::Xml => ("dt-xml", "dt-xml-sub", "dt-xml-hint"),
     };
-    form::page_title(ui, theme, &s.t(title), Some(&s.t(sub)));
+    crate::util::page_title(ui, s, theme, title, Some(sub));
     if kind == Kind::Xml {
-        ui.horizontal(|ui| {
+        form::centred_row(ui, |ui| {
             ui.label(s.t("dt-indent"));
             for (setting, label) in [
                 (IndentSetting::Two, Indent::Two.label()),
@@ -307,6 +307,11 @@ pub fn ui(
     let computed = computed(st, kind, &text);
     ui.add_space(8.0);
     form::section(ui, theme, &s.t("dt-result"), |ui| {
+        // Nothing typed yet is an empty state, not an error (2026-11-07).
+        if text.trim().is_empty() {
+            form::hint(ui, theme, &s.t("dt-yaml-empty"));
+            return;
+        }
         match &computed.check {
             Ok(()) => crate::util::ok(ui, theme, &s.t("dt-markup-ok")),
             Err(e) => {

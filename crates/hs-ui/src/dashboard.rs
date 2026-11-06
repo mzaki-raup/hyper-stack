@@ -718,6 +718,9 @@ fn tab_grid(
     go
 }
 
+/// The size of the mark beside an Open Here card's title.
+const CARD_ICON: f32 = 20.0;
+
 /// One tab: its last picture, its name, and what it is bound to.
 fn card(ui: &mut egui::Ui, theme: &Theme, t: &TabInfo, labels: &DashboardLabels<'_>) -> bool {
     let mut clicked = false;
@@ -766,18 +769,47 @@ fn card(ui: &mut egui::Ui, theme: &Theme, t: &TabInfo, labels: &DashboardLabels<
     }
     let font = egui::TextStyle::Body.resolve(ui.style());
     let small = egui::TextStyle::Small.resolve(ui.style());
+    // The tab's own coloured mark leads the title and subtitle, on the
+    // middle line of the two (owner, 2026-11-07).
+    let mid = (thumb.bottom() + rect.bottom()) / 2.0;
+    let mut text_left = rect.left() + 8.0;
+    let mark = egui::Rect::from_center_size(
+        egui::pos2(text_left + CARD_ICON / 2.0, mid),
+        egui::Vec2::splat(CARD_ICON),
+    );
+    if let Some(uri) = &t.icon_uri {
+        egui::Image::from_uri(uri.clone())
+            .fit_to_exact_size(mark.size())
+            .paint_at(ui, mark);
+        text_left = mark.right() + 8.0;
+    } else if !t.icon.is_empty() {
+        painter.text(
+            mark.center(),
+            egui::Align2::CENTER_CENTER,
+            &t.icon,
+            egui::FontId::proportional(CARD_ICON),
+            t.icon_colour.unwrap_or(theme.text_muted),
+        );
+        text_left = mark.right() + 8.0;
+    }
+    let room = rect.right() - 8.0 - text_left;
+    let (title_y, sub_y) = if t.subtitle.is_empty() {
+        (mid, mid)
+    } else {
+        (mid - 9.0, mid + 9.0)
+    };
     painter.text(
-        egui::pos2(rect.left() + 8.0, thumb.bottom() + 14.0),
+        egui::pos2(text_left, title_y),
         egui::Align2::LEFT_CENTER,
-        elide(ui, &t.title, &font, rect.width() - 16.0),
+        elide(ui, &t.title, &font, room),
         font,
         theme.text,
     );
     if !t.subtitle.is_empty() {
         painter.text(
-            egui::pos2(rect.left() + 8.0, thumb.bottom() + 32.0),
+            egui::pos2(text_left, sub_y),
             egui::Align2::LEFT_CENTER,
-            elide(ui, &t.subtitle, &small, rect.width() - 16.0),
+            elide(ui, &t.subtitle, &small, room),
             small,
             theme.text_muted,
         );
@@ -814,4 +846,64 @@ pub fn stat(ui: &mut egui::Ui, theme: &Theme, value: &str, label: &str) {
         );
     });
     ui.add_space(18.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<(String, egui::Rect, egui::Color32)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect, egui::Color32)>) {
+            match shape {
+                egui::Shape::Text(t) => out.push((
+                    t.galley.text().to_string(),
+                    egui::Rect::from_min_size(t.pos, t.galley.size()),
+                    t.override_text_color.unwrap_or(t.fallback_color),
+                )),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        shapes.iter().for_each(|c| walk(&c.shape, &mut out));
+        out
+    }
+
+    /// An Open Here card leads with its tab's coloured mark, on the
+    /// middle line of the title and subtitle (owner, 2026-11-07).
+    #[test]
+    fn an_open_here_card_wears_its_tabs_mark_between_its_two_lines() {
+        let theme = Theme::dark();
+        let red = egui::Color32::from_rgb(220, 40, 40);
+        let tabs = [TabInfo {
+            id: 1,
+            title: "Orders".into(),
+            subtitle: "MySQL".into(),
+            icon: "M".into(),
+            icon_colour: Some(red),
+            ..Default::default()
+        }];
+        let labels = DashboardLabels {
+            open_heading: "Open Here",
+            nothing_open: "",
+            no_preview: "Not opened yet",
+        };
+        let ctx = egui::Context::default();
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            open_tabs(ui, &theme, &tabs, &labels);
+        });
+        let t = texts(&out.shapes);
+        let find = |s: &str| t.iter().find(|(x, _, _)| x == s).cloned().expect(s);
+        let (_, mark, colour) = find("M");
+        let (_, title, _) = find("Orders");
+        let (_, sub, _) = find("MySQL");
+        assert_eq!(colour, red);
+        assert!(mark.right() < title.left(), "the mark leads the title");
+        let mid = (title.center().y + sub.center().y) / 2.0;
+        assert!(
+            (mark.center().y - mid).abs() < 3.0,
+            "mark at {} vs {mid}",
+            mark.center().y
+        );
+    }
 }

@@ -1082,6 +1082,9 @@ impl Tool for BrowserTool {
                 line.push_str(e);
             }
             if !line.is_empty() {
+                // Air between the toolbar and the status line, as between
+                // any two rows (owner, 2026-11-07).
+                ui.add_space(hs_ui::form::ROW_GAP);
                 ui.label(egui::RichText::new(line).small().color(theme.text_muted));
             }
         }

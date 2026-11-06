@@ -481,6 +481,14 @@ pub trait Tool: Send {
         None
     }
 
+    /// The tab's title is the app's own name for what it holds (a
+    /// Devtools utility), so the strip makes its tabs wide enough to show
+    /// it whole rather than eliding it (owner, 2026-11-07). A title that
+    /// is user data (a file, a query) keeps the default, `false`.
+    fn tab_title_whole(&self) -> bool {
+        false
+    }
+
     /// A second line for this tab on its activity's dashboard: the
     /// connection it is bound to, the engine, the file. Empty by default,
     /// because a title alone is often the whole story.

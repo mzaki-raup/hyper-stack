@@ -95,6 +95,9 @@ pub struct State {
     pub busy: bool,
     #[serde(skip)]
     pub outcome: Option<Result<Outcome, String>>,
+    /// Sort and selection of the result table.
+    #[serde(skip)]
+    pub table: hs_ui::table::TableState,
 }
 
 impl Default for State {
@@ -108,6 +111,7 @@ impl Default for State {
             slot: None,
             busy: false,
             outcome: None,
+            table: hs_ui::table::TableState::default(),
         }
     }
 }
@@ -364,8 +368,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         state.busy = false;
         state.slot = None;
     }
+    crate::util::page_title(ui, s, theme, "dt-net", Some("dt-net-sub"));
     form::section(ui, theme, &s.t("dt-net"), |ui| {
         form::hint(ui, theme, &s.t("dt-net-hint"));
+        ui.add_space(form::ROW_GAP);
         ui.horizontal_wrapped(|ui| {
             for c in Check::ALL {
                 if hs_ui::form::add_selectable(
@@ -379,30 +385,26 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 }
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(form::ROW_GAP);
         let mut go = false;
-        match state.check {
+        let enter = |r: &egui::Response, ui: &egui::Ui| {
+            r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))
+        };
+        form::field_grid(ui, "dt-net-grid", |ui| match state.check {
             Check::Http => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-net-url"));
-                    let r = ui.add(
-                        hs_ui::form::line_edit(&mut state.url)
-                            .hint_text("https://example.com/health")
-                            .desired_width(360.0),
-                    );
-                    go |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                });
+                form::label(ui, &s.t("dt-net-url"));
+                let r = form::text_field(ui, &mut state.url, "https://example.com/health");
+                go |= enter(&r, ui);
+                ui.end_row();
             }
             _ => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-net-host"));
-                    let r = ui.add(
-                        hs_ui::form::line_edit(&mut state.host)
-                            .hint_text("example.com")
-                            .desired_width(240.0),
-                    );
-                    go |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                    if state.check == Check::Dns {
+                form::label(ui, &s.t("dt-net-host"));
+                let r = form::text_field(ui, &mut state.host, "example.com");
+                go |= enter(&r, ui);
+                ui.end_row();
+                if state.check == Check::Dns {
+                    form::label(ui, &s.t("dt-net-record"));
+                    form::centred_row(ui, |ui| {
                         for rec in Record::ALL {
                             if hs_ui::form::add_selectable(
                                 ui,
@@ -413,25 +415,29 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                                 state.record = rec;
                             }
                         }
-                    } else {
-                        ui.label(s.t("dt-net-port"));
-                        ui.add(hs_ui::form::line_edit(&mut state.port).desired_width(70.0));
-                    }
-                });
+                    });
+                } else {
+                    form::label(ui, &s.t("dt-net-port"));
+                    let r = ui.add(form::line_edit(&mut state.port).desired_width(90.0));
+                    go |= enter(&r, ui);
+                }
+                ui.end_row();
             }
-        }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
+        });
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
             let ready = match state.check {
                 Check::Http => !state.url.trim().is_empty(),
                 _ => !state.host.trim().is_empty(),
             };
-            if ui
-                .add_enabled(
-                    ready && !state.busy,
-                    egui::Button::new(format!("{} {}", ph::MAGNIFYING_GLASS, s.t("dt-net-run"))),
-                )
-                .clicked()
+            if crate::util::button_if(
+                ui,
+                theme,
+                ready && !state.busy,
+                ph::MAGNIFYING_GLASS,
+                &s.t("dt-net-run"),
+            )
+            .clicked()
             {
                 go = true;
             }
@@ -447,11 +453,11 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         match &state.outcome {
             None => {}
             Some(Err(e)) => {
-                ui.add_space(6.0);
+                ui.add_space(form::ROW_GAP);
                 form::note(ui, theme, ph::WARNING, e);
             }
             Some(Ok(outcome)) => {
-                ui.add_space(6.0);
+                ui.add_space(form::ROW_GAP);
                 ui.label(
                     egui::RichText::new(
                         s.i18n
@@ -460,24 +466,32 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     .small()
                     .color(theme.text_muted),
                 );
-                if outcome.rows.is_empty() {
-                    form::hint(ui, theme, &s.t("dt-net-empty"));
+                ui.add_space(form::ROW_GAP);
+                let rows: Vec<Vec<String>> = outcome
+                    .rows
+                    .iter()
+                    .map(|(k, v)| vec![k.clone(), v.clone()])
+                    .collect();
+                let columns = [
+                    hs_ui::table::ColumnSpec::new(s.t("dt-net-col-field"), 180.0),
+                    hs_ui::table::ColumnSpec::new(s.t("dt-net-col-value"), 520.0),
+                ];
+                let copy_label = s.t("table-copy-row");
+                let empty = s.t("dt-net-empty");
+                hs_ui::table::DataTable {
+                    theme,
+                    columns: &columns,
+                    rows: &rows,
+                    row_height: hs_ui::table::ROW_HEIGHT,
+                    show_filter: false,
+                    copy_row_label: &copy_label,
+                    built_in_menu: true,
+                    row_icons: None,
+                    empty_hint: Some(&empty),
                 }
-                egui::Grid::new("dt-net-rows")
-                    .num_columns(2)
-                    .striped(true)
-                    .spacing([16.0, 3.0])
-                    .show(ui, |ui| {
-                        for (k, v) in &outcome.rows {
-                            ui.label(egui::RichText::new(k).small().color(theme.text_muted));
-                            ui.add(
-                                egui::Label::new(egui::RichText::new(v).small().monospace()).wrap(),
-                            );
-                            ui.end_row();
-                        }
-                    });
-                ui.add_space(4.0);
-                if ui.button(s.t("dt-copy")).clicked() {
+                .show(ui, &mut state.table);
+                ui.add_space(form::ROW_GAP);
+                if form::button(ui, theme, hs_ui::icons::COPY, &s.t("dt-copy")).clicked() {
                     let text = outcome
                         .rows
                         .iter()

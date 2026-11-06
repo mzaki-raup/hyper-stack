@@ -1168,7 +1168,7 @@ impl ContainersTool {
             self.post_problems(&s, &profile);
         }
         let f = ContainerFields::from_table(&profile.fields);
-        ui.horizontal(|ui| {
+        form::centred_row(ui, |ui| {
             kind_badge(ui, &profile.kind);
             ui.label(egui::RichText::new(&profile.name).strong().size(15.0));
             ui.label(

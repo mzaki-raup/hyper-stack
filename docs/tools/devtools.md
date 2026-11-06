@@ -128,6 +128,11 @@ name on the left, the hard-right corner reserved for an AI Assistant
 control (`hs_ui::toolbar::hard_right`) once a utility has one. The
 dashboard home tab draws no toolbar.
 
+A utility's tab shows its **whole name** beside its icon (2026-11-07,
+CR-0086): the names are fixed, so `Tool::tab_title_whole()` is true and
+the strip widens every Devtools tab to the longest name and wraps rows
+rather than eliding one (docs/04 §2.2). Other activities still elide.
+
 - Each utility is a tab or a **popover** (from the palette: "JWT: decode
   clipboard") that shows the result and offers "Open in tab".
 - Input sources: paste, type, drop a file, "from selection" of the active
@@ -343,3 +348,38 @@ and the shared **Open Here** grid, each section ruled apart.
 ## Addendum (2026-11-06): deleting a snippet (CR-0067)
 
 A saved snippet has **Delete Snippet** in its right-click menu, confirmed. Ports with nothing listening show a hint instead of an empty table.
+
+## Addendum (2026-11-07): every form to the layout standard (CR-0062)
+
+Every utility follows `.claude/rules/ui.md` → *Layout and controls
+standard*:
+
+- **Fields** - inputs sit in `form::field_grid`s (Hashes' options, Cron's
+  When, Unit Conversion, Network Check) or on one middle line through the
+  crate's `util::line`; a secret is `util::secret_line` - the password, its
+  peek and **Save to Environment** on one row (Jasypt and the others with a
+  key). Labels are Title Case, hints sentence case on their own row; the
+  Result box has `ROW_GAP` under it.
+- **Buttons** - every button is a standard-size `form::button` with an
+  icon and a label, in rows that wrap (`util::button_row`, `button_if`
+  for one that is disabled when it cannot act).
+- **Tables** - Hashes' results, Cron's tables, Regex matches, Snippets,
+  .env entries, JWT claims and URL parts are `table::edit_table`s or
+  `DataTable`s (Every Unit, Network Check) with the header band and an
+  empty hint; the crate no longer uses `egui_extras` directly.
+- **Listening Ports** - Kill is drawn disabled until a row is selected,
+  and asks through `dialog::confirm`.
+
+A test, `no_bare_text_field_button_or_table_is_left_in_the_crate`, fails
+if a bare `TextEdit::singleline`, `ui.button`, `small_button`,
+`TableBuilder` or `egui::Grid` comes back in the crate.
+
+## Addendum (2026-11-07): titles with the tool's picture (CR-0088)
+
+Every tool's page opens with its title led by the tool's own coloured
+picture - the one its tab and dashboard card wear - and a one-line
+description; Network Check, Listening Ports, Snippets and .env Editor
+gained theirs. A tool's page is as wide as its cards
+(`form::CARD_MAX_WIDTH`), so hints wrap there; Text Diff keeps the full
+width for its two sides. TOML and XML with nothing pasted show a muted
+hint, not an error.

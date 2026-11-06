@@ -153,7 +153,7 @@ Refs: BUG-0003
 Version : v0.7.7
 Features : FEAT-0103
 Bugs : BUG-0046
-Change Request : CR-0058
+Change Request : CR-0060
 ```
 
 ---
@@ -301,18 +301,18 @@ Change Request : CR-0058
 - [x] Docs: spec · CHANGELOG · CHECKLIST
 
 ### FEAT-0103 · Database: a schema and table designer in its own work pane
-- **State:** Pending ·
+- **State:** Completed · the designer on the bench MySQL (a column added and dropped, read back from the server) and SQLite (two tables made with New Table, the second adopted by its tab; a type change refused with the reason), 2026-11-06; gate green
 - **Source:** owner, 2026-11-06 ("In Database Activity, can you make user also can alter schema, alter table with its own work pane similar to MySQL Workbench, Navicat, etc?")
 - **Scope:** `tool-db` (a designer pane opened from the schema tree: columns, types, nullability, defaults, primary and foreign keys, indexes; a generated ALTER/CREATE script previewed before it runs, guarded on protected environments), per-engine DDL generation in the drivers, `docs/tools/database.md`.
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0068
 - [x] Plan first: the designer's layout (grid of columns, keys and indexes panes, a script preview), which engines generate which DDL, and what stays read-only - agreed with the owner before code (2026-11-06, see the plan note)
-- [ ] Alter Table: open a table in the designer, change columns, keys and indexes, preview the script, run it, the schema tree refreshes
-- [ ] Create Table and Rename Table from the designer; drop guarded by a typed confirmation (schema-level DDL moved to FEAT-0104)
-- [ ] Test: the generated DDL per engine for add / rename / drop column, a key and an index; a protected environment refuses the run
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — alter a table on the bench SQLite and MySQL, see the script, run it, see the tree change
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] Alter Table: open a table in the designer, change columns, keys and indexes, preview the script, run it, the schema tree refreshes
+- [x] Create Table and Rename Table from the designer; drop guarded by a typed confirmation (schema-level DDL moved to FEAT-0104)
+- [x] Test: the generated DDL per engine for add / rename / drop column, a key and an index; a protected environment refuses the run (`ddlgen` tests: no change, rename column, add and drop, type and null per engine with SQLite refused, defaults, indexes and keys, the primary key, table rename, a new table; the read-only refusal is the existing run path's, tested in `driver`)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] App: `--data-dir ./tmp-data` — alter a table on the bench SQLite and MySQL, see the script, run it, see the tree change (2026-11-06: MySQL `tickets` gained a column through Apply and lost it again behind the typed confirmation and the run guard, each read back from the server; SQLite `designer_test` created from New Table; a type change on SQLite `notes` showed the refusal and kept Apply off)
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 - **Plan (2026-11-06, agreed by the owner the same day: SQLite type and nullability changes are refused with a clear message; a table rename is in the first cut; schema-level DDL is FEAT-0104):** a *Designer* tab inside the connection tab (beside the query tabs), opened from a table's context menu (Design Table…) or a schema's (New Table…). Three sub-tabs - Columns (name, type through `pick_field` over the engine's types, length/precision, nullable, default, auto-increment, primary key; add, remove, reorder), Indexes (name, columns, unique) and Foreign Keys (name, columns, referenced table and columns from the catalog, on delete / on update) - over a read-only *Script* panel that shows the ALTER / CREATE statements regenerated from the diff between the table as read (`table_schema`) and as edited, cached on a hash of the edit. Apply runs the script through the existing runner (cancellable; one transaction where the engine's DDL is transactional - PostgreSQL, SQLite, SQL Server, DuckDB - and statement by statement with a stop-on-failure warning where it is not - MySQL, Oracle, ClickHouse, Db2), then refreshes the schema tree and re-reads the table; Copy SQL and Discard beside it. The generator is `ddlgen::alter_table(before, after, engine) -> Vec<String>` next to the existing `create_table`: add / drop / rename column, type, nullability and default changes, indexes, foreign keys, primary key, table rename, each in the engine's dialect, with a per-engine `Capability` table for what the engine cannot do in place (SQLite: no type or nullability change, no column drop before 3.35 - the script says so instead of guessing). Guards: a protected environment disables Apply with the reason and the driver refuses; dropping a column or a table asks for a typed confirmation; the preview is always shown first. Out of scope for the first cut: partitioning, triggers, check constraints, column comments, table options (engine, charset, collation), and schema-level DDL beyond the table (a later item if wanted). Tests: `ddlgen` alter tests per engine for each change kind; a diff test; `tests/engines.rs` creates, alters through the generated script and re-reads the table on SQLite always and on the bench engines under their `HS_*` variables. Four commits: the generator, the designer pane, the wiring and guards, the docs and app check. Open questions for the owner: whether SQLite type changes should be refused (proposed) or done by the rebuild-and-copy dance; whether "alter schema" means more than tables (create / rename / drop a schema or database); and whether a table rename belongs in the first cut.
 
 ### CR-0051 · Kafka's connection icon in a brand colour
@@ -445,6 +445,31 @@ Change Request : CR-0058
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — the four sections show their coloured icons (green running services and a blue saved source seen 2026-11-06; investigations and presets were empty in the scratch workspace and share the same row helper)
 - [x] Docs: CHANGELOG
+
+### CR-0059 · Logs: each saved source wears its own colour, on its row, its tab and its dashboard card
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("make the icon color rotate for each saved source and the color icon will follow in the tab icon and Dashboard → Saved Sources List icon")
+- **Scope:** `tool-logs` (the sidebar's Saved Sources rows, `tab_icon_colour`, the dashboard's saved entries), a small palette rotated by the source's position (stable across restarts).
+- **Parent:** CR-0025
+- **Depends on:** CR-0058
+- [ ] A palette of eight distinct colours, assigned by the source's position in the saved list so the same source keeps its colour until the list is reordered
+- [ ] The row's glyph, the open tab's icon and the dashboard card's icon all wear that colour
+- [ ] Test: the palette rotates and two neighbours never share a colour
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — three saved sources in three colours, each tab and card matching its row
+- [ ] Docs: CHANGELOG
+
+### CR-0060 · Browser joins Settings → Appearance → Material Icon: folders and logins wear Material icons
+- **State:** Pending ·
+- **Source:** owner, 2026-11-06 ("Add Browser Activity in the list. When enabled, it will display material icon in Browser Activity -> Sidebar Column -> Favorites List Folder and Saved Login")
+- **Scope:** `appearance.material_icons("browser")` in Settings → Appearance's activity list, `tool-browser` side panel (favorites folders through `hs_ui::fileicons::for_folder`, saved logins through a Material key / lock mark).
+- **Parent:** CR-0025
+- **Depends on:** FEAT-0084
+- [ ] Browser appears in the Material Icon activity list and the setting round-trips
+- [ ] With it on, favorites folders draw the Material folder and saved logins a Material mark; off, the Phosphor glyphs as today
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — toggle the setting and watch both lists change
+- [ ] Docs: CHANGELOG
 
 ---
 

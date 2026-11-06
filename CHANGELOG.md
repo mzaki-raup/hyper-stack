@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Database: a table designer - Design Table… on a table, New Table… on a schema - with columns, indexes and foreign keys as a form, the ALTER or CREATE script shown underneath, engine refusals said plainly, and Apply through the connection's guarded run path (FEAT-0103)
 
 ## 0.126.0 — 2026-11-06
 

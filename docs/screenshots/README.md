@@ -598,3 +598,5 @@ WSL Ubuntu-24.04 found through the dashboard's **Scan Local** (the
 
 A Kubernetes capture waits for a cluster on this machine (`hs-k3s` was
 stopped when these were taken).
+
+- `db-designer.png` (2026-11-06, FEAT-0103): the bench MySQL `shop.tickets` in the table designer with a column removed, the generated `ALTER TABLE … DROP COLUMN` in the script panel; release build, 1736×900 window.

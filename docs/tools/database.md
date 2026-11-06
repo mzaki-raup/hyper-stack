@@ -679,3 +679,46 @@ from the right.
 - **Double-click a cell.** On an editable result (§8) it opens the same
   Edit Cell dialog as the context menu and F2; on a result that cannot be
   edited it opens the cell viewer as before.
+
+## Addendum (2026-11-06): the table designer (FEAT-0103)
+
+A **Designer** tab opens inside a connection's tab, beside the query tabs,
+from a table's context menu (**Design Table…**), a schema's (**New
+Table…**) or the palette (*Database: New Table*). One designer per table;
+opening it again brings the tab back.
+
+- *Form:* the table's name (a change is a rename), then three parts -
+  **Columns** (name, type typed or picked from the engine's common types,
+  nullable, default, auto-increment, primary key; add, remove, move),
+  **Indexes** (name, columns, unique; the primary key's index is shown and
+  left alone) and **Foreign Keys** (name, columns, the referenced table
+  picked from the catalog, its columns, on delete / on update).
+- *Script:* read-only under the form, regenerated when an edit happens
+  (`ddlgen::alter_table` over the diff between the table as read and the
+  edit; a new table is a `CREATE TABLE` with its indexes and keys). What
+  the engine cannot do in place is a refusal, written into the script as
+  a comment and listed above it, and Apply stays off while one exists -
+  SQLite's type and nullability changes, its keys, ClickHouse's indexes,
+  SQL Server's unnamed defaults, a primary key whose constraint name the
+  catalog did not give.
+- *Apply:* the script is put into a query tab of its own and run through
+  the connection's run path, so it is guarded (a protected environment
+  or a read-only profile keeps Apply off and the driver refuses as well),
+  cancellable, and follows the tab's transaction mode (Auto-Commit, or
+  Manual with COMMIT / ROLLBACK). A script that drops a column, a key or
+  the table asks for the table's name to be typed first, and the run
+  guard's own confirmation (DROP / TRUNCATE statements ask before they
+  run) still follows: two guards, both deliberate. When the run
+  ends the table is read again and the schema tree refreshes. **Copy
+  SQL**, **Discard** (back to the table as read) and **Reload** sit beside
+  Apply.
+- *Dialects:* rename table (`ALTER TABLE … RENAME TO`, `RENAME TABLE` on
+  MySQL, Db2 and ClickHouse, `sp_rename` on SQL Server), add / drop /
+  rename column, type (`ALTER COLUMN … TYPE`, `MODIFY COLUMN` on MySQL
+  and ClickHouse, `ALTER COLUMN … SET DATA TYPE` on Db2, `MODIFY (…)` on
+  Oracle, `ALTER COLUMN … type NULL|NOT NULL` on SQL Server), nullability,
+  default, indexes, foreign keys and the primary key. `ddlgen`'s tests
+  hold each spelling.
+- *Out of the first cut:* partitioning, triggers, check constraints,
+  column comments, table options (engine, charset, collation); schema-
+  and database-level DDL is FEAT-0104.

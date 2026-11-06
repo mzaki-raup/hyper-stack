@@ -13,6 +13,7 @@
 pub mod compare;
 pub mod complete;
 pub mod ddlgen;
+pub mod designer;
 pub mod driver;
 pub mod edit;
 pub mod erd;
@@ -272,6 +273,8 @@ enum SnapshotUse {
     /// opened in the Diagram Editor.
     ErdExport,
     Ddl,
+    /// One table of it feeds the designer with this uid (FEAT-0103).
+    Designer(u64),
 }
 
 /// How many tables one snapshot reads. A schema with more than this is read
@@ -362,6 +365,10 @@ pub struct DbTool {
     stashes: HashMap<u64, Stash>,
     /// The tab whose results `shared.results` holds now.
     results_doc: u64,
+    /// Table designers open in this connection's tab, beside the query
+    /// tabs (FEAT-0103), and which of them is in front, if one is.
+    designers: Vec<designer::Designer>,
+    active_designer: Option<u64>,
 }
 
 /// What a query tab keeps of its last run while another tab is in front
@@ -591,6 +598,8 @@ impl DbTool {
             id: egui::Id::new(("hs-db", hs_core::new_id())),
             stashes: HashMap::new(),
             results_doc: first.uid,
+            designers: Vec::new(),
+            active_designer: None,
             docs: vec![first],
             shared: Arc::new(Mutex::new(Shared::default())),
             cmd: None,
@@ -3223,6 +3232,8 @@ impl DbTool {
         // Depth programme phase H, taken after the popup closes.
         let mut snapshot_for: Option<(String, SnapshotUse)> = None;
         let mut compare_pick: Option<(Option<String>, String)> = None;
+        // The table designer (FEAT-0103): (schema, table or None for new).
+        let mut design: Option<(String, Option<String>)> = None;
         let area = egui::Area::new(self.id.with("tree-menu"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos)
@@ -3255,6 +3266,9 @@ impl DbTool {
                             if *kind == "table" && item(ui, s.t("db-count-rows")) {
                                 run = Some(format!("SELECT COUNT(*) FROM {q}"));
                             }
+                            if *kind == "table" && item(ui, s.t("db-design-table")) {
+                                design = Some((schema.to_string(), Some(name.to_string())));
+                            }
                             if *kind == "table" && item(ui, s.t("db-import-csv")) {
                                 import_into = Some((schema.to_string(), name.to_string()));
                             }
@@ -3286,6 +3300,9 @@ impl DbTool {
                         }
                         // A schema: the whole-schema tools of phase H.
                         ["s", schema] => {
+                            if item(ui, s.t("db-new-table")) {
+                                design = Some((schema.to_string(), None));
+                            }
                             if item(ui, s.t("db-erd-menu")) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::Erd));
                             }
@@ -3343,6 +3360,11 @@ impl DbTool {
         if let Some((schema, use_for)) = snapshot_for {
             self.menu = None;
             self.start_snapshot(&schema, use_for, s);
+            return;
+        }
+        if let Some((schema, table)) = design {
+            self.menu = None;
+            self.open_designer(&schema, table.as_deref(), s);
             return;
         }
         if let Some((table, schema)) = compare_pick {
@@ -3527,6 +3549,17 @@ impl DbTool {
                         self.export_erd(&out.snap, cx);
                     }
                 }
+                Some(SnapshotUse::Designer(uid)) => {
+                    if let Some(d) = self.designers.iter_mut().find(|d| d.uid == uid) {
+                        let want = d.original_name().map(str::to_string);
+                        match want
+                            .and_then(|n| out.snap.tables.iter().find(|t| t.name == n).cloned())
+                        {
+                            Some(t) => d.set_table(t),
+                            None => d.fail(s.t("db-designer-gone")),
+                        }
+                    }
+                }
                 Some(SnapshotUse::Ddl) => {
                     let dialect = out.snap.engine;
                     let opts = ddlgen::Options::default();
@@ -3542,6 +3575,11 @@ impl DbTool {
                 None => {}
             },
             Load::Failed(e) => {
+                if let Some(SnapshotUse::Designer(uid)) = self.snapshot_for.take()
+                    && let Some(d) = self.designers.iter_mut().find(|d| d.uid == uid)
+                {
+                    d.fail(e.clone());
+                }
                 self.snapshot_for = None;
                 cx.toast(ToastLevel::Error, e);
             }
@@ -4790,6 +4828,7 @@ impl DbTool {
             id: u64,
             title: String,
             dirty: bool,
+            designer: bool,
         }
         impl hs_ui::tabs::TabItem for QueryTab {
             fn id(&self) -> u64 {
@@ -4799,7 +4838,11 @@ impl DbTool {
                 self.title.clone()
             }
             fn icon(&self) -> &str {
-                ph::FILE_SQL
+                if self.designer {
+                    ph::TABLE
+                } else {
+                    ph::FILE_SQL
+                }
             }
             fn pinned(&self) -> bool {
                 false
@@ -4809,16 +4852,26 @@ impl DbTool {
             }
         }
         let untitled = s.t("db-untitled");
-        let tabs: Vec<QueryTab> = self
+        let design = s.t("db-designer-tab");
+        let new_table = s.t("db-designer-new");
+        let mut tabs: Vec<QueryTab> = self
             .docs
             .iter()
             .map(|d| QueryTab {
                 id: d.uid,
                 title: d.label(&untitled),
                 dirty: d.buf.dirty(),
+                designer: false,
             })
             .collect();
-        let active = self.doc().uid;
+        // Designers sit after the query tabs (FEAT-0103).
+        tabs.extend(self.designers.iter().map(|d| QueryTab {
+            id: d.uid,
+            title: d.title(&design, &new_table),
+            dirty: false,
+            designer: true,
+        }));
+        let active = self.active_designer.unwrap_or(self.doc().uid);
         let labels = hs_ui::tabs::TabStripLabels {
             new_tab: s.t("db-new-query"),
             close: s.t("db-close-query"),
@@ -4853,10 +4906,13 @@ impl DbTool {
                 .show(ui, &tabs)
             })
             .inner;
-        if let Some(uid) = r.activated
-            && let Some(i) = self.docs.iter().position(|d| d.uid == uid)
-        {
-            self.state.active_query = i;
+        if let Some(uid) = r.activated {
+            if let Some(i) = self.docs.iter().position(|d| d.uid == uid) {
+                self.state.active_query = i;
+                self.active_designer = None;
+            } else if self.designers.iter().any(|d| d.uid == uid) {
+                self.active_designer = Some(uid);
+            }
         }
         if let Some((from, to)) = r.reorder
             && from < self.docs.len()
@@ -4866,6 +4922,14 @@ impl DbTool {
             let to = to.min(self.docs.len());
             self.docs.insert(to, d);
             self.state.active_query = to;
+        }
+        if let Some(uid) = r.close
+            && let Some(i) = self.designers.iter().position(|d| d.uid == uid)
+        {
+            self.designers.remove(i);
+            if self.active_designer == Some(uid) {
+                self.active_designer = None;
+            }
         }
         if let Some(uid) = r.close
             && let Some(i) = self.docs.iter().position(|d| d.uid == uid)
@@ -4884,6 +4948,100 @@ impl DbTool {
             self.new_query(s);
         }
         self.sync_query_state();
+    }
+
+    /// The designer in front: its form and script, Apply through the query
+    /// path, and the re-read once the run ends (FEAT-0103).
+    fn designer_body(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+        let s = cx.services;
+        let engine = self.engine;
+        let read_only = self.read_only_profile || (self.protected && !self.writes_unlocked);
+        let (catalog, running, run_id) = {
+            let sh = self.shared.lock();
+            (
+                sh.catalog
+                    .as_ref()
+                    .map(|c| c.tables.clone())
+                    .unwrap_or_default(),
+                sh.running,
+                sh.run_id,
+            )
+        };
+        let Some(d) = self.active_designer_mut() else {
+            return;
+        };
+        // A run sent from here has ended: read the table again, and let the
+        // tree follow (the auto-refresh of FEAT-0068 covers it).
+        let reload_now = d.awaiting_reload && !running && d.apply_run.is_some_and(|r| run_id > r);
+        let action = egui::ScrollArea::vertical()
+            .id_salt(("db-designer-body", d.uid))
+            .auto_shrink([false, false])
+            .show(ui, |ui| d.ui(ui, theme, s, engine, &catalog, read_only))
+            .inner;
+        let (uid, schema) = (d.uid, d.schema.clone());
+        match action {
+            Some(designer::Action::Apply(sql)) => {
+                if let Some(d) = self.active_designer_mut() {
+                    d.awaiting_reload = true;
+                    d.apply_run = Some(run_id);
+                }
+                // Through the query path: guarded, cancellable, in the tab's
+                // transaction mode, and visible in a query tab of its own.
+                self.run_in_new_tab(&sql, s);
+                self.active_designer = Some(uid);
+                self.refresh_schema(s);
+            }
+            Some(designer::Action::Reload) => {
+                if let Some(d) = self.active_designer_mut() {
+                    d.loading = true;
+                }
+                self.start_snapshot(&schema, SnapshotUse::Designer(uid), s);
+            }
+            None => {
+                if reload_now {
+                    if let Some(d) = self.active_designer_mut() {
+                        d.awaiting_reload = false;
+                        d.apply_run = None;
+                        // A created table is read back as the table it now is.
+                        d.adopt_created();
+                        d.loading = true;
+                    }
+                    self.start_snapshot(&schema, SnapshotUse::Designer(uid), s);
+                    self.refresh_schema(s);
+                }
+            }
+        }
+    }
+
+    /// Open a designer for `table` in `schema` (or a new table), one per
+    /// table, and put it in front; the table is read through a snapshot
+    /// (FEAT-0103).
+    fn open_designer(&mut self, schema: &str, table: Option<&str>, s: &Services) {
+        if let Some(t) = table
+            && let Some(d) = self
+                .designers
+                .iter()
+                .find(|d| d.schema == schema && d.original_name() == Some(t))
+        {
+            self.active_designer = Some(d.uid);
+            return;
+        }
+        let uid = NEXT_QUERY.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.designers
+            .push(designer::Designer::new(uid, s, schema, table));
+        self.active_designer = Some(uid);
+        if table.is_some() {
+            self.start_snapshot(schema, SnapshotUse::Designer(uid), s);
+        }
+        if !self.catalog_cached {
+            self.send(Cmd::Catalog, s);
+        }
+    }
+
+    /// The designer in front, when a designer tab is active.
+    fn active_designer_mut(&mut self) -> Option<&mut designer::Designer> {
+        let uid = self.active_designer?;
+        self.designers.iter_mut().find(|d| d.uid == uid)
     }
 
     /// Open another query tab on this connection, and put it in front.
@@ -5118,6 +5276,11 @@ impl DbTool {
                 .show(ui, |ui| self.schema_column(ui, &theme, cx));
         }
         self.query_tabs(ui, cx, &theme);
+        if self.active_designer.is_some() {
+            self.designer_body(ui, cx, &theme);
+            self.dialogs(ui, cx, &theme);
+            return;
+        }
         let total_h = ui.available_height();
         let editor_h = (total_h * self.state.editor_frac).clamp(80.0, (total_h - 120.0).max(80.0));
         let ed_theme = EditorTheme::for_theme(&theme);
@@ -5238,6 +5401,7 @@ impl DbTool {
                 Some("db.run_script"),
             ),
             c("db.explain", "Database: Explain", Some("db.explain")),
+            c("db.new_table", "Database: New Table", None),
             c("db.explain_analyze", "Database: Explain Analyze", None),
             c("db.export_xlsx", "Database: Export Result as Excel", None),
             c("db.cancel", "Database: Cancel", None),
@@ -5297,6 +5461,10 @@ impl DbTool {
             "db.erd" => {
                 let schema = self.default_schema();
                 self.start_snapshot(&schema, SnapshotUse::Erd, s);
+            }
+            "db.new_table" => {
+                let schema = self.default_schema();
+                self.open_designer(&schema, None, s);
             }
             "db.erd_export" => {
                 let schema = self.default_schema();

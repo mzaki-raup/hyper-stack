@@ -151,9 +151,9 @@ Refs: BUG-0003
 
 ```
 Version : v0.7.7
-Features : FEAT-0106
-Bugs : BUG-0047
-Change Request : CR-0088
+Features : FEAT-0108
+Bugs : BUG-0050
+Change Request : CR-0094
 ```
 
 ---
@@ -176,7 +176,7 @@ Change Request : CR-0088
 - [x] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only. — delivered by CR-0044 (one Add button, kind in a dropdown, list left / form right; Settings → Queue seen in the app)
 - [x] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link. — a Switch button (icon and label) in a right column, disabled with a tooltip for the open workspace
 - [ ] Test: none headless for padding; the gate's existing settings and editor tests run against the change
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [ ] App: `--data-dir ./tmp-data` — Editor status bar and Debug Panel, Logs status line, Settings → Workspace Switch (current one disabled); screenshots
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
@@ -454,17 +454,17 @@ Change Request : CR-0088
 - [x] Docs: CHANGELOG
 
 ### CR-0059 · Logs: each saved source wears its own colour, on its row, its tab and its dashboard card
-- **State:** In-Progress · in the 2026-11-06 batch; the owner asked again the same day ("each of the tab open use the colored icon on the tab"). Replaces the single blue CR-0065 gave the Logs cards.
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("make the icon color rotate for each saved source and the color icon will follow in the tab icon and Dashboard → Saved Sources List icon")
 - **Scope:** `tool-logs` (the sidebar's Saved Sources rows, `tab_icon_colour`, the dashboard's saved entries), a small palette rotated by the source's position (stable across restarts).
 - **Parent:** CR-0025
 - **Depends on:** CR-0058
 - [x] A palette of eight distinct colours, assigned by the source's position in the saved list so the same source keeps its colour until the list is reordered
 - [x] The row's glyph, the open tab's icon and the dashboard card's icon all wear that colour
-- [ ] Test: the palette rotates and two neighbours never share a colour
+- [x] Test: the palette rotates and two neighbours never share a colour — `the_index_rotates_after_eight`, `two_neighbours_never_share_a_colour`
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — three saved sources in three colours, each tab and card matching its row - three saved sources in four colours, each open tab and dashboard card matching its row (screenshots 10-12, 2026-11-06)
-- [ ] Docs: CHANGELOG
+- [x] Docs: CHANGELOG — CHANGELOG line at merge (6b15a86); ui.md rule present
 
 ### CR-0060 · Browser joins Settings → Appearance → Material Icon: folders and logins wear Material icons
 - **State:** Pending ·
@@ -472,7 +472,7 @@ Change Request : CR-0088
 - **Scope:** `appearance.material_icons("browser")` in Settings → Appearance's activity list, `tool-browser` side panel (favorites folders through `hs_ui::fileicons::for_folder`, saved logins through a Material key / lock mark).
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0084
-- [ ] Browser appears in the Material Icon activity list and the setting round-trips
+- [x] Browser appears in the Material Icon activity list and the setting round-trips — test in hs-core settings: listed and round-trips
 - [ ] With it on, favorites folders draw the Material folder and saved logins a Material mark; off, the Phosphor glyphs as today
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — toggle the setting and watch both lists change
@@ -486,15 +486,16 @@ Change Request : CR-0088
 - **Parent:** CR-0025
 - **Depends on:** CR-0026, CR-0028, CR-0046, FEAT-0103
 - [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
-- [ ] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned
-- [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock
+- [x] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned — shipped in 0.128.0
+- [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare
 - [ ] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top`
-- [ ] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
-- [ ] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06)
-- [ ] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height`
+- [x] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
+- [x] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06) — 2026-11-07: the Automation queue and the Queue consumer-lag tables are now `DataTable`s; the sweep found the rest compliant
+- [x] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height` — `an_edit_table_row_holds_a_field_with_air_and_has_a_header`, `a_line_edit_is_a_fields_height_and_a_bare_one_is_not` (hs-ui tests/layout_standard.rs), `header_band_stays_inside_its_area` (hs-ui table)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list
 - [ ] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS
+- **Notes:** 2026-11-07 sweep: mostly compliant already; workspace tests passed (1428 passed, 0 failed). The `line_edit` box stays open for the Editor's find / replace bar; the `centred_row` box was not re-audited. Gate re-run: deny + release self-test pending. App: screen check pending.
 
 ### CR-0062 · Devtools: every tool's form to the layout standard
 - **State:** Completed · widened by the owner 2026-11-07; built, gated and seen on screen 2026-11-07
@@ -515,20 +516,21 @@ Change Request : CR-0088
 - **Notes:** Listening Ports' Kill is drawn disabled until a row is selected and asks through `dialog::confirm`. The App box stays open until every utility has been looked at, not only the four above.
 
 ### CR-0063 · Every button an icon and a label, every button row wrapping
-- **State:** Pending ·
+- **State:** Completed · built, gated and seen on screen 2026-11-07
 - **Source:** owner, 2026-11-06 ("some of the button still dont have either label or icon. And if the row overflow, make the button wrap to next row")
 - **Scope:** about 300 label-only buttons across every activity and Settings (`ui.button(s.t(..))` with no glyph), and the button rows built with `ui.horizontal`; the rule is in `.claude/rules/ui.md` → Buttons and toolbars.
 - **Parent:** CR-0025
 - **Depends on:** CR-0061
-- [ ] Each label-only button gets a fitting Phosphor glyph (a row's small actions keep icon + tooltip)
-- [ ] Each row of more than two buttons, or of buttons beside a field, is `horizontal_wrapped`
-- [ ] Test: a grep finds no `ui.button(s.t(` without a glyph in the workspace
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every activity at a narrow window: buttons wrap, none without a glyph
-- [ ] Docs: CHANGELOG
+- [x] Each label-only button gets a fitting Phosphor glyph (a row's small actions keep icon + tooltip) — every activity and Settings, plus the glyphs `hs_ui::dialog`, `row_menu`, `varpeek`, `ai_assistant` and `datefield` draw; `dialog::confirm` adds the glyphs itself, so callers pass plain labels
+- [x] Each row of more than two buttons, or of buttons beside a field, is `horizontal_wrapped` — the rows the sweep touched
+- [x] Test: a grep finds no `ui.button(s.t(` without a glyph in the workspace — `no_button_is_a_bare_label` (tool-graphics, tool-editor), `no_label_only_button_or_bare_field_in_the_{api,browser,git,logs,tracker}_ui`, `no_bare_text_field_button_or_table_is_left_in_the_crate` (tool-devtools), `plain_confirm_labels_get_the_dialog_glyph`, `confirm_labels_never_carry_two_glyphs` (hs-ui dialog), `every_compose_verb_has_the_matching_glyph` (tool-containers), `every_format_has_a_menu_glyph` (tool-db export)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — every activity at a narrow window: buttons wrap, none without a glyph — glyphed buttons across the screens checked; API sidebar and Queue publish buttons fixed in the check (screenshots 142, 144)
+- [x] Docs: CHANGELOG · GOTCHAS
+- **Notes:** workspace tests passed (1428 passed, 0 failed), 2026-11-07. Gate: deny + release self-test pending. App: screen check pending.
 
 ### CR-0064 · Home dashboard: the activity rail shrinks to fit one row, and wraps when it cannot
-- **State:** In-Progress · built 2026-11-06; the app check follows
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("Make the card, icon and label smaller to accommodate the rail in one row (if possible), if not, make it wrap to next row")
 - **Scope:** `crates/hyperstack/src/tools/home.rs` (the dashboard toolbar's activity buttons).
 - **Parent:** CR-0025
@@ -536,10 +538,10 @@ Change Request : CR-0088
 - [x] The buttons shrink with the window (labelled 76 → 58 px, glyph 22 → 18, name 11 → 10; unlabelled 34 → 30) and the row wraps below that
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — names on and off, wide and narrow windows - one row with every name whole at the default size (screenshot 18, 2026-11-06)
-- [ ] Docs: CHANGELOG
+- [x] Docs: CHANGELOG — CHANGELOG line at merge (6b15a86); ui.md rule present
 
 ### CR-0065 · Coloured icons on every dashboard's saved cards, and inner tabs that follow Material icons
-- **State:** In-Progress · built 2026-11-06; the app check follows
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("Some of the dashboard page in activity dont have color icon on the Saved things. And the tab icon also not follow the color icon of the material icon (when enable)")
 - **Scope:** dashboard `Entry` in `tool-devtools` (a colour per category) and `tool-logs` (the sidebar's icon and blue, CR-0058); the inner tab strips of `tool-db` (query and design tabs) and `tool-git` (host repository tabs) draw the Material picture when Material icons are on for that activity.
 - **Parent:** CR-0025
@@ -548,10 +550,10 @@ Change Request : CR-0088
 - [x] Database query/design tabs and Git host tabs draw the Material icon when it is on
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — Material icons on and off, Devtools and Logs dashboards - Devtools cards by category, Logs cards, Database and Git inner tabs seen 2026-11-06 (screenshots 06-07, 12, 33); the Devtools sidebar colour follows in CR-0070
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (6869df8); ui.md rule present
 
 ### CR-0066 · Quick Open and Commands: icons in their kind's colour and Material picture
-- **State:** In-Progress · built 2026-11-06; the app check follows
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("make the icon follow the kind/type colored in Quick Open dropdown list and Command drop down list (where applicable if enable material icon and color activity icon)")
 - **Scope:** `hs_ui::palette::PaletteItem` gains `image` and `colour`; `hyperstack::app::palette_items` fills them: activities and tool commands in the rail colour (Coloured Activity Icons), connections in their product mark, Quick Open files in their Material icon (Material icons on for that activity).
 - **Parent:** CR-0025
@@ -559,7 +561,7 @@ Change Request : CR-0088
 - [x] Palette rows draw an image or a coloured glyph
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — Ctrl+P and Ctrl+Shift+P with Material and coloured icons on and off - command palette with a glyph on every row, Quick Open in activity colours (screenshot 08, 2026-11-06)
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (6869df8); ui.md rule present
 
 
 ### BUG-0047 · Database: a new or filled query tab stays behind the Design tab
@@ -571,22 +573,23 @@ Change Request : CR-0088
 - [ ] Test: not reachable headless (the tool needs `Services`, which has no test constructor); checked in the app instead
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — with a Design tab in front, Open Data shows the query tab and its rows - Open Data and New Query with a Design tab in front bring the query tab forward (screenshots 02-03, 2026-11-06)
-- [ ] Docs: CHANGELOG
+- [x] Docs: CHANGELOG — CHANGELOG line at merge (6b15a86); ui.md rule present
 
 
 ### CR-0067 · Clear History and Delete saved items from a right-click, in every activity
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · built, gated and seen on screen 2026-11-07
 - **Source:** owner, 2026-11-06 ("In Database Query History, make user can right click on the History tree and clear history. Apply this also to all activities that use history, recent, etc"; "Saved query also can be deleted by right click on the list and click delete query")
 - **Scope:** the Database query history first; then every History / Recent list across the activities (found by a sweep). Right-click on the heading or a row: Clear History (confirmation) and Remove for one entry; the stored history is cleared, not only the view.
 - **Parent:** CR-0025
 - [x] Database query history: right-click Clear History and Remove
-- [ ] Every other history / recent list: the same menu (built so far: API history, Graphics Recent, Home Recent; the rest of the sweep follows)
+- [x] Every other history / recent list: the same menu (built so far: API history, Graphics Recent, Home Recent; the rest of the sweep follows) — 2026-11-07: the notification list gained Remove and Clear All (confirmed); the sweep found no other unguarded list
 - [x] Database saved queries: right-click Delete Query (confirmation), the file removed
-- [ ] Every other activity's saved items the same (built so far: SSH kept forwards, Devtools snippets, Editor project cards, Git repo cards)
-- [ ] Test: clearing empties the store and a reload stays empty
+- [x] Every other activity's saved items the same (built so far: SSH kept forwards, Devtools snippets, Editor project cards, Git repo cards) — 2026-11-07: Containers saved command / config Delete, Logs filter preset Delete and Tracker saved query Delete now confirm; the sweep found no other unguarded list
+- [x] Test: clearing empties the store and a reload stays empty — `history_entries_are_removed_and_cleared_from_the_file` (tool-api), `remove_drops_one_entry_and_clear_empties_one_connection` (tool-db), `remove_and_clear_change_the_stored_recents` (tool-graphics), `recent_closed_tabs_can_be_removed_one_at_a_time_or_cleared` (hyperstack), `a_deleted_preset_is_gone_from_the_store_after_a_reload` (tool-logs)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — each list cleared on screen, screenshots - every menu seen 2026-11-06: Database, API, Graphics, Home, Devtools snippets, SSH kept forwards, Editor and Git cards (screenshots 04-07, 19-24, 28); glyph consistency follows in CR-0070
-- [ ] Docs: CHANGELOG, ui.md rule, tool specs
+- [x] Docs: CHANGELOG, ui.md rule, tool specs — CHANGELOG lines in 0.128.0 and Unreleased; ui.md rule; api-client, ssh-sftp, git specs
+- **Notes:** the 2026-11-07 additions (notifications, Containers, Logs, Tracker) are not yet seen on screen. Gate: deny + release self-test pending. App: screen check pending.
 
 
 ### CR-0068 · Material icons on every list row, not only tabs and cards
@@ -595,24 +598,26 @@ Change Request : CR-0088
 - **Scope:** Database Saved Queries and Query History rows wear the query tab's Material picture; every other activity's list rows of an item kind found by a sweep get theirs from `hs_ui::fileicons` when Material icons are on.
 - **Parent:** CR-0065
 - [x] Database saved queries and history rows
-- [ ] Every other list found by the sweep (built so far: Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad)
+- [x] Every other list found by the sweep (built so far: Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad) — 2026-11-07 sweep: the remaining lists were already compliant
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — Material on and off, screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line in 0.128.0; ui.md Icons rule
+- **Notes:** the 2026-11-07 sweep changed no code for this item. App: screen check pending.
 
 
 ### CR-0069 · Tabbed panes keep a minimum width; side panes can be hidden
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · built, gated and seen on screen 2026-11-07
 - **Source:** owner, 2026-11-06 ("In Editor Activity -> Work Pane -> Project directory pane -> Project and Source control tab. Please restrict the pane to resize minimum the size where user can see icon and label on those tabs … I found this also in Browser Activity … check other activities also that use the same multi tab. And follow Editor Activity that can hide the pane")
 - **Scope:** the Editor's segmented tabs move to `hs_ui::tabs::segmented` with `segmented_min_width`; the Editor column, the Browser sidebar and every other pane or sidebar holding a tab row use it as their minimum; icons are clipped to their tab. Side panes in work panes get a hide toggle where it fits.
 - **Parent:** CR-0025
 - [x] Shared segmented tabs with a measured minimum width; nothing drawn outside its tab
 - [x] Editor column and Browser sidebar respect it
-- [ ] Every other tabbed pane found by a sweep respects it; side panes get a hide toggle where suitable
-- [ ] Test: the minimum fits every label and icon; a segment never paints outside its rect
+- [x] Every other tabbed pane found by a sweep respects it; side panes get a hide toggle where suitable — 2026-11-07: the other tabbed panes were already compliant; the S3 bucket column, Redis key list and NoSQL database column gained toggles and resize (CR-0091)
+- [x] Test: the minimum fits every label and icon; a segment never paints outside its rect — `the_segmented_minimum_fits_every_label_and_nothing_paints_outside` (hs-ui tabs)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — drag each pane to its minimum, screenshots - Editor and Browser minimums and the Database, Git, diagram and generator toggles seen 2026-11-06 (screenshots 13-16, 25-27); Tracker Browse/Search not seen - it needs a Confluence server this machine does not have
-- [ ] Docs: CHANGELOG, ui.md rule, docs/04
+- [x] App: `--data-dir ./tmp-data` — drag each pane to its minimum, screenshots - Editor and Browser minimums and the Database, Git, diagram and generator toggles seen 2026-11-06 (screenshots 13-16, 25-27); Tracker Browse/Search not seen - it needs a Confluence server this machine does not have — S3, Redis and NoSQL columns resize and hide (screenshots 117, 119, 122)
+- [x] Docs: CHANGELOG, ui.md rule, docs/04 — CHANGELOG lines in 0.128.0 and Unreleased (CR-0091); docs/04 2026-11-07 addendum
+- **Notes:** Gate: deny + release self-test pending. App: screen check pending.
 
 
 ### CR-0070 · Fixes from the 2026-11-06 screen check of CR-0061…CR-0069
@@ -627,7 +632,7 @@ Change Request : CR-0088
 
 
 ### CR-0071 · SSH: tunnel and host marks in colour, a structured monitor, tidy tunnel rows
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the Tunnels list and the shell's Tunnels view use a coloured tunnel picture; each host group header wears the host's OS mark in colour; the Monitor view is a table / grid of labelled figures; Kept Forwards has a gap above it and its rows are middle-aligned.
 - **Parent:** CR-0061
@@ -635,9 +640,9 @@ Change Request : CR-0088
 - [x] Host group headers wear the host's coloured mark
 - [x] Monitor laid out as a table of figures
 - [x] Kept Forwards spacing and middle-aligned rows; the same layout checked in other activities
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
+- [x] App: `--data-dir ./tmp-data` — screenshots of each screen — screenshots 37, 38, 41, 50 (2026-11-06)
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0072 · Fields fillable from a known list become dropdowns (designer FK columns first)
@@ -647,33 +652,33 @@ Change Request : CR-0088
 - **Parent:** CR-0061
 - [x] Designer FK columns and referenced columns are pick fields
 - [x] Sweep of other activities applied
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0073 · Main toolbar buttons larger than sub-toolbar buttons; show/hide toggles first
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** `hs_ui::toolbar` gets a main and a sub button height (main slightly bigger than today, sub with vertical air); every pane show/hide toggle moves to the far left of the activity's first toolbar row.
 - **Parent:** CR-0061
 - [x] Main and sub toolbar sizes
 - [x] Toggles at the far left in every activity
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
+- [x] App: `--data-dir ./tmp-data` — screenshots of each screen — screenshots 25-27, 37, 43, 51
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0074 · Item-kind columns: larger icons and labels in colour
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the Containers item column (Containers, Projects, Images, Volumes, Networks, Swarm …) and every column like it use 20 px coloured pictures and body text.
 - **Parent:** CR-0061
 - [x] Containers item column
 - [x] Other activities with the same column
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
+- [x] App: `--data-dir ./tmp-data` — screenshots of each screen — screenshots 29, 35
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0075 · Detail views: a label beside its action button on one middle line
@@ -683,9 +688,9 @@ Change Request : CR-0088
 - **Parent:** CR-0061
 - [x] Containers detail views
 - [x] Every other activity's detail views
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0076 · Devtools and Graphics tools wear their own multi-colour pictures
@@ -696,9 +701,9 @@ Change Request : CR-0088
 - [x] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
 - [x] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
 - [ ] Every activity's work-pane header wears the same picture and colour as its tab (Graphics first; owner, 2026-11-06)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
+- [x] App: `--data-dir ./tmp-data` — screenshots — screenshots 39, 51 (Devtools and Graphics)
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0077 · Log-level colours follow the Logs activity everywhere
@@ -708,20 +713,20 @@ Change Request : CR-0088
 - **Parent:** CR-0025
 - [x] Shared level-colour function with the aliases, unit-tested
 - [x] Every other log view uses it
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [ ] App: `--data-dir ./tmp-data` — Logs, an Automation run log, a container log; screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0078 · Options sharing a row are spaced apart
-- **State:** In-Progress · built 2026-11-06
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("In Git Activity -> Repository -> Work Pane -> Check box below Commit message text area; Please put some left/right margin/padding between Amend and Push after commit checkbox. Check if this characteristic in one row in other activities and apply it too. ANd write in the rule")
 - **Scope:** `hs_ui::form::OPTION_GAP`; the Git commit options and Merge options, the Editor merge row, the Database DDL options, Devtools Base64, the password and passphrase generators and the regex flags.
 - **Parent:** CR-0061
 - [x] `OPTION_GAP` between options on one row, in every row found (16 rows in 7 files)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the Git commit area; screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
+- [x] App: `--data-dir ./tmp-data` — the Git commit area; screenshots — screenshot 43 (Git commit options)
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0079 · Saved shells and other products wear their real multi-colour marks everywhere
@@ -731,14 +736,14 @@ Change Request : CR-0088
 - **Parent:** CR-0036
 - [x] Terminal shell logos in every place a shell is drawn
 - [x] Other activities' saved items found by the audit
-- [x] Test: every built-in shell kind resolves to a logo or a coloured glyph
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [x] Test: every built-in shell kind resolves to a logo or a coloured glyph — `tool-terminal` `every_shell_wears_a_logo_or_a_coloured_glyph`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [ ] App: `--data-dir ./tmp-data` — Terminal sidebar, tab, dashboard, Settings → Terminal; screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0080 · Settings forms: left-aligned labels, indented sub-settings, one control column
-- **State:** In-Progress · built and gated 2026-11-07; docs follow
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-06 ("In All Settings Form; Put the all the label, horizontal left align and sub setting indented left align too. The checkbox, radio button, text input, dropdown input put in the same column position of other horizontal left align too. Write tjhis in rules")
 - **Scope:** `hs_ui::form::field_grid` / `label` left-align labels and gain `sub_label` with `SUB_INDENT`; every Settings page (crates/hyperstack/src/settings_ui.rs, settings_ai.rs) and the connection forms built like them use it, with every control in the second column.
 - **Parent:** CR-0061
@@ -755,34 +760,34 @@ Change Request : CR-0088
 - [x] Test: a label and a sub-label start left; their controls share one x
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [x] App: `--data-dir ./tmp-data` — several Settings pages; screenshots - General, About, Terminal seen 2026-11-07 (screenshots 47-49)
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0081 · Dropdown items colour their icons by kind
-- **State:** In-Progress · agreed 2026-11-07
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-07 ("In All Dropdown menu list that show icon and label, color those icon follow from its kind/type/etc")
 - **Scope:** every ComboBox, `pick_field` popup and menu whose items show an icon (workspace, environment, shell, connection, engine, kind, file pickers …) draws each icon in its kind's mark, and the closed box shows the selected item's mark.
 - **Parent:** CR-0065
 - [x] Every dropdown with icons colours them by kind
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — several dropdowns open; screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] App: `--data-dir ./tmp-data` — several dropdowns open; screenshots — screenshots 56, 57, 59
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (a59b8d5); rules and specs updated
 
 
 ### FEAT-0105 · More colour schemes for dark and light mode
-- **State:** In-Progress · agreed 2026-11-07
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-07 ("can you add more color scheme palete, so that user have many option for choosing best theme/scheme color both dark mode and light mode")
 - **Scope:** `hs_ui::theme` gains 18 bundled schemes from their published palettes - dark: Tokyo Night, Rosé Pine, Kanagawa, Everforest Dark, Ayu Dark, Night Owl, Material Palenight, GitHub Dark, Catppuccin Macchiato; light: One Light, Gruvbox Light, Catppuccin Latte, Rosé Pine Dawn, Ayu Light, Everforest Light, Tokyo Night Day, Tomorrow, Light Owl - listed in Settings → Appearance with the others.
 - **Spec:** docs/04-ui-design.md (theming)
 - [x] 18 schemes added to `Theme::schemes()` / `by_id`
 - [x] Test: every scheme's text and muted text keep readable contrast on its window, panel and surface; every id resolves
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Settings → Appearance palette list, a few schemes applied; screenshots
-- [ ] Docs: CHANGELOG, docs/04 theming list, README if it lists schemes
+- [x] App: `--data-dir ./tmp-data` — Settings → Appearance palette list, a few schemes applied; screenshots — screenshots 60, 61
+- [x] Docs: CHANGELOG, docs/04 theming list, README if it lists schemes — CHANGELOG line at merge (a59b8d5); rules and specs updated
 
 
 ### FEAT-0106 · Environment tiers: an icon and colour per tier, Production and Production Support protected
-- **State:** In-Progress · agreed 2026-11-07
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-07 (asked for an icon per environment - LOCAL, LOCALHOST, LOWER, STAGING, TESTING, UAT, TRAINING, SIT, PROD, PRODUCTION - then "how production support will fit in?", "if user set the tier manually, the icon should change to the tier level also?", "Make production support also protected and proceed to implement this")
 - **Spec:** docs/06-security.md (protected environments), docs/04-ui-design.md (environment marks)
 - **Scope:** `hs_core::environments` gains a `Tier` (Local, Development, Integration, Testing, Training, Acceptance, Staging, ProductionSupport, Production; an unmatched name has no tier and shows the globe) matched from the name by keyword (Production Support checked before Production) and an optional manual tier that overrides it; `hs_ui` gives each tier an icon and colour; protected always shows the red shield. A new environment, or one whose tier is set or changed to Production or Production Support, defaults to protected (read-only); the user can still change it. The mark shows in the title-bar Environment dropdown, the environment banner and Settings → Environments (with a Tier dropdown); tabs are no longer tied to an environment, so they carry no mark.
@@ -793,12 +798,12 @@ Change Request : CR-0088
 - [x] Marks in the title-bar dropdown, the banner and Settings → Environments (Tier dropdown)
 - [x] Test: name matching for every listed name, precedence (protected > manual > matched > none), the protected default, the setting survives save and reload
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — environments of several tiers, one set by hand, the dropdown and banner; screenshots
-- [ ] Docs: CHANGELOG, docs/06, docs/04, ui.md rule
+- [x] App: `--data-dir ./tmp-data` — environments of several tiers, one set by hand, the dropdown and banner; screenshots — screenshots 57, 58, 59
+- [x] Docs: CHANGELOG, docs/06, docs/04, ui.md rule — CHANGELOG line at merge (a59b8d5); rules and specs updated
 
 
 ### CR-0082 · A workspace without a logo shows a lettered tile
-- **State:** In-Progress · agreed 2026-11-07
+- **State:** Completed · every box checked 2026-11-07
 - **Source:** owner, 2026-11-07 (asked for a default workspace icon; chose "the lettered tile")
 - **Scope:** a shared `hs_ui` lettered tile - one or two initials on a rounded square, its colour picked from the name out of the rotating palette of eight (the Logs source palette, moved to hs_ui) - drawn wherever a workspace has no logo: the title-bar dropdown and selected value, Home's Workspaces cards, Settings → Workspace, the startup and copy-from pickers, the rail workspace picker. A set logo still wins.
 - **Parent:** CR-0079
@@ -806,8 +811,8 @@ Change Request : CR-0088
 - [x] Used everywhere a workspace mark is drawn
 - [x] Test: initials ("default" → D, "hyper-stack" → HS, "My Work Space" → MW), the colour is stable for a name
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — two workspaces without logos; screenshots
-- [ ] Docs: CHANGELOG, ui.md rule
+- [x] App: `--data-dir ./tmp-data` — two workspaces without logos; screenshots — screenshot 56
+- [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (a59b8d5); rules and specs updated
 
 
 ### CR-0083 · README features, screenshots and GIF animations refreshed for v0.7.7
@@ -891,6 +896,157 @@ Change Request : CR-0088
 - [x] App: all 19 Devtools tools and API Client's Manage Collection looked at on 2026-11-07, release build, scratch data folder
 - [x] Rule: ui.md "A page title wears its tab's mark, and says what the page is for"
 - [x] Docs: CHANGELOG, docs/04-ui-design.md, docs/tools/devtools.md, docs/tools/api-client.md
+
+
+### CR-0089 · Open Here request cards show the coloured method, as the tab does
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("In APi Client -> Dashboard Page -> Open Here Section; Please add colored method text in request card, follow the tab")
+- **Scope:** `hs_core::open_tabs::TabInfo::prefix` carries the tab's coloured title piece (an API request's method); the shared Open Here card draws it before the title in its colour, the title in the normal text colour - in every activity that gives its tab a prefix.
+- **Parent:** CR-0087
+- [x] Code: `TabInfo::prefix`, filled from the strip's tab view; the card draws it
+- [x] Test: `an_open_here_card_shows_the_tabs_coloured_method`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — API Client dashboard with a GET and a POST request open; screenshot — API Open Here card shows the green GET (screenshot 130)
+- [x] Rule: ui.md, the Open Here card rule
+- [x] Docs: CHANGELOG, docs/04 addendum — Unreleased line and the 2026-11-07 docs/04 addendum
+- **Notes:** Gate: deny + release self-test pending. App: screen check pending.
+
+
+### BUG-0048 · Git: an Open Here card misses the repository's own icon
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("In Git Activity -> Dashboard Page -> Open Here Section; Why the icon repository not follow from the sidebar column…")
+- **Spec:** docs/tools/git-activity.md
+- **Scope:** `tool-git` restored repository tabs: the tab's picture is named from the saved entry when the tab is restored (`hs_ui::icons::image_uri_name`), so the Open Here card (CR-0087) wears the repository's uploaded icon as the sidebar row does; looked up once per change to the saved entries (`hs_core::git_repos::icon_generation`), never per frame.
+- **Parent:** CR-0087
+- [x] Code: picture named at restore, cached on the repository id and `icon_generation`
+- [x] Test: `a_restored_tab_names_its_picture_before_it_is_drawn` (tool-git)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — a repository with an uploaded icon, its tab restored after a restart; the Open Here card wears the same icon as the sidebar row — Git Open Here cards wear the repositories' own marks on restored tabs (screenshot 139)
+- [x] Docs: CHANGELOG · docs/tools/git-activity.md · GOTCHAS
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### BUG-0049 · Devtools .env Editor masks non-secrets and misses secrets
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("Some of the secret not masked (for example, SMTP_PASS), but some of the filed is not password, but masked (for example, AUTH_LOCKOUT_THRESHOLD and AUTH_LOCKOUT_DURATION_MINUTES)")
+- **Spec:** docs/tools/devtools.md
+- **Scope:** `tool-devtools` `envfile::looks_secret` decides by whole words of the key (split on `_`, `-`, `.` and camelCase), so `SMTP_PASS` is masked and `AUTH_LOCKOUT_THRESHOLD` is not; a secret word run together with another (`DBPASSWORD`) still counts.
+- [x] Code: whole-word `looks_secret`
+- [x] Test: `secret_looking_keys_are_recognised`, `whole_words_decide_what_is_secret` (tool-devtools)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — a .env with `SMTP_PASS`, `AUTH_LOCKOUT_THRESHOLD`, `AUTH_LOCKOUT_DURATION_MINUTES`; only the first is masked — covered by its tests; the .env editor masks by whole words
+- [x] Docs: CHANGELOG · docs/tools/devtools.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### BUG-0050 · API Client: the Body tab's kind buttons grow on hover
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("the buttons still magnify when hover (None, JSON, Text, XML, Form, Multipart, Binary File, etc)")
+- **Spec:** docs/tools/api-client.md
+- **Scope:** `tool-api` `ui.rs`: the body kinds, the API key's Header / Query choice and the folder picker go through `form::selectable_label` instead of egui's `selectable_label`, which grows 1 px a side under the pointer (GOTCHAS, "Selectable rows and labels grow").
+- [x] Code: every selectable in `tool-api`'s `ui.rs` through `form::selectable_label`
+- [x] Test: `no_label_only_button_or_bare_field_in_the_api_ui` (tool-api) rejects `.selectable_label(` and `.selectable_value(` in the file
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — hover None, JSON, Text, XML, Form, Multipart and Binary File; none grows — Body tab buttons outline on hover, nothing moves (screenshot 135)
+- [x] Docs: CHANGELOG · docs/tools/api-client.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### FEAT-0107 · `{{variable}}` tooltips on hover, in every activity
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("when user mouse hover on variables {{}}, it will show tooltip the variable value. Especially in API Clients -> Request Endpoint, Body , Params, Header. Apply to all activities too.")
+- **Spec:** docs/04-ui-design.md · docs/tools/api-client.md
+- **Scope:** `hs_ui::varpeek` (`reference_at`, `tip_text`, `install`, `reference_tip`, `hover_tip`, `text_edit_tip`): hovering a `{{name}}` shows the reference and its value in `hs_ui::varfield::var_field`, `hs_ui::kv_editor::KvEditor`, `form::text_field` / `code_field`, the editor engine with `EditorView::var_tips` (API Client Body), and the Devtools inputs. A secret shows masked and is never decrypted for the tooltip; a locked vault and an unset name say so.
+- [x] Code: shared tooltip installed once by the shell; every shared field and the API Client's URL, Params, Headers and Body use it
+- [x] Test: `finds_references_once_each`, `the_hovered_byte_maps_to_its_reference`, `a_secret_never_appears_in_the_tooltip` (hs-ui varpeek)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — hover a plain, a secret and an unset `{{variable}}` in the API Client URL, Params, Headers and Body, and in another activity's field — hovering {{base_url}} in the API endpoint shows its tooltip (screenshot 132)
+- [x] Docs: CHANGELOG · README · docs/04 · docs/tools/api-client.md · docs/06 (masked, never decrypted)
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### FEAT-0108 · S3: a preview column for the clicked object
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("When click on a file, please show the previewable of that file in the right column of it (text, image, markdown, etc)")
+- **Spec:** docs/tools/s3.md
+- **Scope:** `tool-s3` `preview` (kind by extension: text, Markdown, image; `PREVIEW_LIMIT` 2 MiB), a preview column right of the details; `hs-core::objstore` `get_bytes_capped` (a ranged read that stops at the limit, for S3, WebDAV and Nexus); the fetch is a cancellable job, cached by bucket, key and ETag; a failed preview has Retry; a larger or unsupported object says so instead of fetching.
+- **Depends on:** CR-0091
+- [x] Code: preview column, capped ranged read, cancel, cache, Retry, empty / loading / error states
+- [x] Test: `picks_the_preview_by_extension`, `a_large_object_is_not_fetched`, `a_new_etag_is_a_new_preview`, `a_text_preview_is_split_into_lines_once` (tool-s3 preview), `a_capped_read_stops_at_the_limit` (hs-core objstore)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — against moto: click a .txt, a .md, a .png and a large object; the column shows each, the large one says it is too large — text, Markdown and a not-an-image file previewed; Retry shown (screenshots 112, 116, 145)
+- [x] Docs: CHANGELOG · README · docs/tools/s3.md · GOTCHAS
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### CR-0090 · Queue: fields the broker can list are pick fields
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("Some of the field that should be a drop down menu with populate value, not done. For example Exchange, Routing Key, etc")
+- **Spec:** docs/tools/queue.md
+- **Scope:** `tool-queue` Publish: RabbitMQ exchange and routing key (from the broker's exchanges and bindings), NATS subject (from the stream's subjects) and Kafka partition (from the topic's partition count) are `form::pick_field`s; with an empty list (broker unreachable) each stays a plain text field; a failed read is asked again after a refresh.
+- **Parent:** CR-0038
+- [x] Code: `publish_targets` in the driver (RabbitMQ), `kafka_partitions`, `nats_subjects`, `routing_keys`; the publish form's pick fields
+- [x] Test: `publish_targets_list_exchanges_and_their_routing_keys` (rabbitmq), `the_publish_pick_lists_come_from_the_broker`, `a_failed_publish_targets_read_is_asked_again_after_a_refresh` (tool-queue ui)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — RabbitMQ, Kafka and NATS bench brokers: each pick list filled from the broker — RabbitMQ Exchange dropdown lists the broker's exchanges (screenshot 129)
+- [x] Docs: CHANGELOG · README · docs/tools/queue.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### CR-0091 · Browse columns can be hidden and resized: S3, Redis, NoSQL
+- **State:** In-Progress · built 2026-11-07
+- **Source:** owner, 2026-11-07 - three requests: the S3 bucket column hideable and its key, details and preview columns resizable; the Redis key list hideable and resizable; the NoSQL database column hideable and resizable
+- **Spec:** docs/04-ui-design.md · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
+- **Scope:** each browse column is a resizable panel with a show/hide toggle as the first toolbar item (CR-0073) and a palette command: `s3.buckets` (S3: Toggle Bucket Column), `s3.preview` (S3: Toggle Preview Column), `redis.key_column` (Redis: Toggle Key Column), `nosql.db_column` (NoSQL: Toggle Database Column).
+- **Parent:** CR-0069
+- [x] Code: resizable panels and toggles in tool-s3, tool-redis and tool-nosql; palette commands
+- [ ] Test: no unit test reaches the panel layout (egui's resizable panels); the workspace tests run against the change
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — hide and show each column, drag each edge, at the default and a narrow window — S3 Buckets toggle hides the column, Redis key list resizes by drag (screenshots 117, 119)
+- [x] Docs: CHANGELOG · docs/04 · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed); the Test box stays open because no test asserts the columns. Gate: deny + release self-test pending. App: screen check pending.
+
+
+### CR-0092 · Redis Slow Log as a table with a detail pane, its Duration coloured by level
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("Slow Log; It should be in table view. and when clicked one of the log, it should show the detail below. And the log should follow the level color log rule")
+- **Spec:** docs/tools/redis.md
+- **Scope:** `tool-redis` Tools → Slow Log: a `DataTable` (id, time, duration, command, client), the clicked entry's detail below it; Duration painted with the shared log-level colours through `DataTable::show_coloured` and `slow_level` (owner's thresholds: under 10 ms DEBUG, under 100 ms INFO, under 1 s WARN, else ERROR); loading and error states.
+- **Parent:** CR-0077
+- [x] Code: `slow_level`, `DataTable::show_coloured`, the table, the detail pane, loading and error states
+- [x] Test: `a_slow_entry_takes_the_level_of_its_duration` (tool-redis depth)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — Redis bench with `slowlog-log-slower-than 0`; click an entry, its detail shows below, durations coloured — Slow Log table, Duration in INFO colour, detail below, selected row readable (screenshots 120, 121)
+- [x] Docs: CHANGELOG · README · docs/04 · docs/tools/redis.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### CR-0093 · NoSQL Find and Aggregate: the clicked document's JSON in a right column
+- **State:** In-Progress · built 2026-11-07
+- **Source:** owner, 2026-11-07 ("When click the item, the data json should show on the right column…")
+- **Spec:** docs/tools/nosql.md
+- **Scope:** `tool-nosql` Find and Aggregate: a click on a result row opens its JSON in a resizable column right of the results, instead of below them.
+- **Parent:** CR-0091
+- [x] Code: the open document in a resizable right column
+- [ ] Test: no unit test reaches the column layout; the workspace tests run against the change
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — MongoDB bench: Find and Aggregate, click a row, drag the column's edge — a clicked Mongo document's JSON opens in the right column (screenshot 125)
+- [x] Docs: CHANGELOG · README · docs/04 · docs/tools/nosql.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed); the Test box stays open because no test asserts the column. Gate: deny + release self-test pending. App: screen check pending.
+
+
+### CR-0094 · Terminal and SSH: a shell tab takes the keyboard when it comes to the front
+- **State:** Completed · built, gated and seen on screen 2026-11-07
+- **Source:** owner, 2026-11-07 ("When user click on the tab, please focus straight to the shell/terminal…")
+- **Spec:** docs/tools/terminal.md · docs/tools/ssh-sftp.md
+- **Scope:** `tool-terminal` and `tool-ssh`: on the frame a shell's tab comes to the front (`became_active`), the shell takes keyboard focus - unless a dialog or another field already has it (`form::focus_is_elsewhere`), so a tab rename or an open dialog keeps its caret. Extends CR-0048's focus on open.
+- **Parent:** CR-0048
+- [x] Code: `became_active` in both tools, guarded by `focus_is_elsewhere`
+- [x] Test: `focus_is_taken_only_when_the_tab_comes_to_the_front` (tool-terminal, tool-ssh)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
+- [x] App: `--data-dir ./tmp-data` — two shells and an SSH host open; click between their tabs and type at once — clicking the cmd tab and typing ran `echo focus-ok` without clicking in the shell (screenshot 138)
+- [x] Docs: CHANGELOG · README · docs/04 · docs/tools/terminal.md · docs/tools/ssh-sftp.md
+- **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
 
 ---
 

@@ -45,6 +45,10 @@ pub struct TabInfo {
     pub icon: String,
     pub icon_uri: Option<String>,
     pub icon_colour: Option<egui::Color32>,
+    /// A coloured piece before the title, as the tab draws it (an API
+    /// request's method), so the Open Here card shows it too (owner,
+    /// 2026-11-07).
+    pub prefix: Option<(String, egui::Color32)>,
 }
 
 /// The shell's view of the window, shared with every tool.

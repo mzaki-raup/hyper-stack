@@ -85,6 +85,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Global shortcuts.** Ctrl+Shift+L is `vault.lock`. The editor uses Alt+F3 for select-all-occurrences. Pick a different combo when there's a collision.
 - **Release build fails with "Access is denied".** A running `HyperStack.exe` keeps its own file locked. Run `Stop-Process -Name HyperStack -Force` before `cargo build --release`. During development, always use `--data-dir ./tmp-data` so the real `HyperStackData/` is never touched.
 - **Two GnuPG installations share one `~/.gnupg` here.** `gpg` on the Git Bash PATH is MSYS GnuPG 2.4.5 and cannot read the keyboxd `pubring.db` that `common.conf`'s `use-keyboxd` selects: it reports `skipped "<key>": No secret key` and lists no keys at all, which looks like a lost key and is not. Only `C:\Program Files\GnuPG\bin\gpg.exe` (2.5.16) sees them, and it is what `gpg.program` points git at. Probe signing with that full path, never the bare `gpg`. The harmless-looking `sending fd … to keyboxd: Input/output error` it prints is not the failure; read the `[GNUPG:]` status lines for `SIG_CREATED` or `Timeout`.
+- **Several cargo builds at once exhausted the page file (2026-11-07).** Agents building in parallel on one target folder failed with `LNK1102: out of memory` and `os error 1455` ("the paging file is too small"), though RAM was free: each build's rustc and link.exe jobs count against the commit limit together, and `-j 4` per build is not `-j 4` overall. When more than one build shares the target directory, run each with `-j 2` (or let one build finish first); if `.rmeta`/`.rlib` errors follow, delete `target/debug` as above.
 
 ## Build and Dependency Gotchas (Rust)
 
@@ -314,6 +315,9 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **A `DataTable` with no columns still drew its header band** - a bare
   purple bar under NoSQL's "No documents". `DataTable::show` now
   returns early with no columns.
+- **A glyph in a menu item or dialog button changes its accessible name.** `egui_kittest` finds widgets by their accessible name, which for `ui.button(format!("{icon} {label}"))` is the whole text, glyph included - so adding glyphs to `hs_ui::row_menu` and `hs_ui::dialog` broke the tests that looked those buttons up by their label (CR-0063, 2026-11-07). Draw glyphed items with `form::menu_item` (menus) or `form::sized_button` / `form::button` (dialog buttons), which set the accessible name to the plain label, so tests and screen readers read the label alone.
+- **`dialog::confirm` owns the glyph; a caller that passes one gets two.** When `confirm` started adding the glyph to its OK / Cancel labels, callers that already passed `format!("{TRASH} {label}")` drew a double glyph. Pass plain labels; `confirm` decides the glyph from the verb (`plain_confirm_labels_get_the_dialog_glyph`, `confirm_labels_never_carry_two_glyphs`) (CR-0063, 2026-11-07).
+- **`tab_icon_uri` and `image_uri_name` are called every frame.** The tab strip and the Open Here cards ask each tab for its picture on every frame; a tool that answered by reading the saved entries (or stat-ing the icon file) did disk I/O per frame. Compute the URI once per change to its inputs - the Git tool keys it on the repository id and `hs_core::git_repos::icon_generation`, which is bumped whenever a saved entry or its icon changes - and return the cached string (BUG-0048, 2026-11-07).
 
 ## Tool-Specific: Terminal and Editor
 
@@ -461,6 +465,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **moto checks request shape, not signatures.** The SigV4 unit tests against AWS's examples cover signing.
 - **S3 without MinIO:** create a venv, `pip install "moto[server]"`, run `moto_server -H 127.0.0.1 -p 5055` with keys `testing` / `testing`, then `HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live`.
 - **Upload and Download** use native file dialogs. Test them through the client tests, not the GUI.
+- **A preview must be a capped, ranged, cancellable read.** A click is not a download: fetching the whole object to show its first screen would pull a multi-gigabyte object into memory and keep the column loading for minutes. The preview column uses `ObjectStore::get_bytes_capped(…, PREVIEW_LIMIT)`, which asks for a `Range` *and* stops reading at the limit (a server may ignore the range and send the whole body), skips objects over the limit by their listed size, runs as a cancellable job whose cancel stops the read, and caches by bucket, key and ETag (FEAT-0108, 2026-11-07).
 
 ## Tool-Specific: Scratchpad
 
@@ -577,6 +582,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Deleting a profile must delete its secrets too.** Settings' Delete called `Connections::remove`, which only deletes the profile's TOML file, so every password, token and key the profile had moved into the vault stayed there with nothing pointing at it (BUG-0043). Delete a connection through `Connections::remove_with_secrets`, which also refuses on a locked vault rather than orphaning them. The Credentials table lists by profile, so an orphan never shows; the vault file's size is what gives it away (79 bytes empty, 209 with one password, and still 209 after the delete).
 - **Protected environments** default to read-only. Check this when a new tool exposes a write action.
 
+- **A secret-looking key judged by substring masks the wrong things.**
+  The Devtools .env editor's `looks_secret` matched substrings: `AUTH`
+  masked `AUTH_LOCKOUT_THRESHOLD`, while `SMTP_PASS` showed because only
+  `PASSWORD`/`PASSWD` were listed. Split the key into words (`_`, `-`,
+  `.`, camelCase) and match whole words for short ones (`PASS`, `PWD`,
+  `KEY`) and substrings only for unambiguous ones (`PASSWORD`,
+  `SECRET`, `TOKEN`); test with both lists (owner's report, 2026-11-07).
 ## Cross-Platform
 
 - **A folder name that differs only in case is the same folder.** NTFS and APFS compare names without case, so `Work` and `work` collide on disk. Name-clash checks for anything written to the file system must ignore case - `hs_core::storage::unique_name` does. The older copies in `tool-devtools::snippets::unique_name` (case-sensitive) and `tool-api::model::next_copy_name` are for names that never become paths.

@@ -4,6 +4,7 @@
 //! double-click and copy as any export format from the context menu.
 
 use egui_extras::{Column as TableColumn, TableBuilder};
+use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 
 use crate::driver::{Column, Row, Value};
@@ -406,26 +407,30 @@ fn grid_table(
                         resp.open_cell = Some((data_idx, ci));
                     }
                     cell.context_menu(|ui| {
-                        for (what, label) in [
-                            (GridMenu::CopyCell, labels.copy_cell),
-                            (GridMenu::CopyRow, labels.copy_row),
-                            (GridMenu::ViewCell, labels.view_cell),
-                            (GridMenu::FilterByValue, labels.filter_value),
+                        for (what, glyph, label) in [
+                            (GridMenu::CopyCell, ph::COPY, labels.copy_cell),
+                            (GridMenu::CopyRow, ph::ROWS, labels.copy_row),
+                            (GridMenu::ViewCell, ph::EYE, labels.view_cell),
+                            (GridMenu::FilterByValue, ph::FUNNEL, labels.filter_value),
                         ] {
-                            if ui.button(label).clicked() {
+                            if ui.button(format!("{glyph} {label}")).clicked() {
                                 resp.menu = Some((what, data_idx, ci));
                                 ui.close();
                             }
                         }
                         if edits.is_some() {
                             ui.separator();
-                            for (what, label) in [
-                                (GridMenu::EditCell, labels.edit_cell),
-                                (GridMenu::SetNull, labels.set_null),
-                                (GridMenu::DeleteRow, labels.delete_row),
-                                (GridMenu::RevertRow, labels.revert_row),
+                            for (what, glyph, label) in [
+                                (GridMenu::EditCell, ph::PENCIL_SIMPLE, labels.edit_cell),
+                                (GridMenu::SetNull, ph::PROHIBIT, labels.set_null),
+                                (GridMenu::DeleteRow, ph::TRASH, labels.delete_row),
+                                (
+                                    GridMenu::RevertRow,
+                                    ph::ARROW_COUNTER_CLOCKWISE,
+                                    labels.revert_row,
+                                ),
                             ] {
-                                if ui.button(label).clicked() {
+                                if ui.button(format!("{glyph} {label}")).clicked() {
                                     resp.menu = Some((what, data_idx, ci));
                                     ui.close();
                                 }

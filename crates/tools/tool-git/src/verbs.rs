@@ -443,7 +443,11 @@ impl Verbs {
             if ui
                 .add_enabled(
                     !busy && !onto.is_empty(),
-                    egui::Button::new(s.t("git-verb-interactive")),
+                    egui::Button::new(format!(
+                        "{} {}",
+                        ph::LIST_CHECKS,
+                        s.t("git-verb-interactive")
+                    )),
                 )
                 .clicked()
             {

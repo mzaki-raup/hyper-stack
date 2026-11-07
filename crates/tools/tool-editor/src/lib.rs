@@ -594,7 +594,12 @@ impl Doc {
                         }
                     }
                     ui.separator();
-                    ui.menu_button(s.t("editor-reopen-with-encoding"), |ui| {
+                    let reopen_label = format!(
+                        "{} {}",
+                        ph::ARROW_CLOCKWISE,
+                        s.t("editor-reopen-with-encoding")
+                    );
+                    ui.menu_button(reopen_label, |ui| {
                         let can_reopen = self.path.is_some() && !self.buf.dirty();
                         for enc in Encoding::all() {
                             if ui
@@ -684,11 +689,24 @@ impl Doc {
                     ui.label(s.i18n.t_args(key, &[("name", &name)]));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if self.disk == DiskState::Changed
-                            && ui.button(s.t("editor-reload")).clicked()
+                            && ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::ARROW_CLOCKWISE,
+                                    s.t("editor-reload")
+                                ))
+                                .clicked()
                         {
                             self.reload(s);
                         }
-                        if ui.button(s.t("editor-keep-mine")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::CHECK,
+                                s.t("editor-keep-mine")
+                            ))
+                            .clicked()
+                        {
                             self.disk = DiskState::Clean;
                             if let Some(p) = &self.path {
                                 self.saved_mtime =
@@ -2187,15 +2205,16 @@ impl EditorTool {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(200.0);
                     ui.set_max_width(240.0);
-                    let item = |ui: &mut egui::Ui, label: String| {
+                    // Every menu item leads with its verb's glyph.
+                    let item = |ui: &mut egui::Ui, glyph: &str, label: String| {
                         ui.add(
-                            egui::Button::new(label)
+                            egui::Button::new(format!("{glyph} {label}"))
                                 .frame(false)
                                 .min_size(egui::vec2(ui.available_width(), 0.0)),
                         )
                         .clicked()
                     };
-                    if !is_dir && item(ui, s.t("editor-open-in-new-tab")) {
+                    if !is_dir && item(ui, ph::ARROW_SQUARE_OUT, s.t("editor-open-in-new-tab")) {
                         cx.open_new_tab(
                             "editor",
                             Some(OpenRequest::File {
@@ -2205,7 +2224,7 @@ impl EditorTool {
                         );
                         close = true;
                     }
-                    if item(ui, s.t("editor-open-terminal-here")) {
+                    if item(ui, ph::TERMINAL_WINDOW, s.t("editor-open-terminal-here")) {
                         let dir = if is_dir {
                             path.clone()
                         } else {
@@ -2219,7 +2238,7 @@ impl EditorTool {
                     }
                     ui.separator();
                     if is_dir {
-                        if item(ui, s.t("editor-new-file")) {
+                        if item(ui, ph::FILE_PLUS, s.t("editor-new-file")) {
                             self.prompt = Some(Prompt {
                                 kind: PromptKind::NewFile(path.clone()),
                                 text: String::new(),
@@ -2227,7 +2246,7 @@ impl EditorTool {
                             });
                             close = true;
                         }
-                        if item(ui, s.t("editor-new-folder")) {
+                        if item(ui, ph::FOLDER_PLUS, s.t("editor-new-folder")) {
                             self.prompt = Some(Prompt {
                                 kind: PromptKind::NewFolder(path.clone()),
                                 text: String::new(),
@@ -2237,12 +2256,12 @@ impl EditorTool {
                         }
                     }
                     if let Some(pi) = root_of {
-                        if item(ui, s.t("editor-close-project")) {
+                        if item(ui, ph::X, s.t("editor-close-project")) {
                             self.request_close(CloseTarget::Project(pi), s);
                             close = true;
                         }
                     } else {
-                        if item(ui, s.t("editor-rename")) {
+                        if item(ui, ph::PENCIL_SIMPLE, s.t("editor-rename")) {
                             let name = path
                                 .file_name()
                                 .map(|n| n.to_string_lossy().to_string())
@@ -2254,18 +2273,18 @@ impl EditorTool {
                             });
                             close = true;
                         }
-                        if item(ui, s.t("editor-delete")) {
+                        if item(ui, ph::TRASH, s.t("editor-delete")) {
                             self.confirm_delete = Some(path.clone());
                             close = true;
                         }
                     }
                     ui.separator();
                     if is_dir {
-                        if item(ui, s.t("editor-download-zip")) {
+                        if item(ui, ph::FILE_ZIP, s.t("editor-download-zip")) {
                             self.download_zip(&path, cx);
                             close = true;
                         }
-                    } else if item(ui, s.t("editor-download")) {
+                    } else if item(ui, ph::DOWNLOAD_SIMPLE, s.t("editor-download")) {
                         match hs_core::download::save_copy(&path) {
                             Ok(Some(to)) => cx.toast(
                                 ToastLevel::Success,
@@ -2279,15 +2298,15 @@ impl EditorTool {
                         }
                         close = true;
                     }
-                    if item(ui, s.t("editor-copy-path")) {
+                    if item(ui, ph::COPY, s.t("editor-copy-path")) {
                         ui.ctx().copy_text(path.to_string_lossy().to_string());
                         close = true;
                     }
-                    if item(ui, s.t("editor-copy-relative-path")) {
+                    if item(ui, ph::COPY, s.t("editor-copy-relative-path")) {
                         ui.ctx().copy_text(self.relative(&path));
                         close = true;
                     }
-                    if item(ui, s.t("editor-reveal")) {
+                    if item(ui, ph::FOLDER_OPEN, s.t("editor-reveal")) {
                         reveal(&path);
                         close = true;
                     }
@@ -2332,10 +2351,16 @@ impl EditorTool {
             });
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(s.t("ok")).clicked() {
+                if ui
+                    .button(format!("{} {}", hs_ui::icons::ph::CHECK, s.t("ok")))
+                    .clicked()
+                {
                     done = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui
+                    .button(format!("{} {}", hs_ui::icons::ph::X, s.t("cancel")))
+                    .clicked()
+                {
                     cancel = true;
                 }
             });
@@ -4958,5 +4983,39 @@ mod minified_tests {
     fn source_maps_are_json_for_the_highlighter() {
         assert_eq!(hs_editor::languages::detect("bundle.js.map").name, "JSON");
         assert_eq!(hs_editor::languages::detect("app.json").name, "JSON");
+    }
+}
+
+#[cfg(test)]
+mod button_label_tests {
+    /// CR-0063: every button and menu item names its action with a glyph
+    /// before its label - no bare translated label is left in a button.
+    #[test]
+    fn no_button_is_a_bare_label() {
+        let sources = [
+            ("ai_panel.rs", include_str!("ai_panel.rs")),
+            ("debug.rs", include_str!("debug.rs")),
+            ("git_ops.rs", include_str!("git_ops.rs")),
+            ("git_view.rs", include_str!("git_view.rs")),
+            ("lib.rs", include_str!("lib.rs")),
+            ("lsp.rs", include_str!("lsp.rs")),
+            ("terminal.rs", include_str!("terminal.rs")),
+        ];
+        let needles = [
+            concat!(".button(", "s.t("),
+            concat!(".small_button(", "s.t("),
+            concat!("Button::new(", "s.t("),
+            concat!("menu_button(", "s.t("),
+        ];
+        for (file, text) in sources {
+            // Whitespace is dropped, so a call split over lines counts too.
+            let joined: String = text.split_whitespace().collect();
+            for needle in needles {
+                assert!(
+                    !joined.contains(needle),
+                    "{file} still has a bare `{needle}`"
+                );
+            }
+        }
     }
 }

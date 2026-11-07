@@ -184,13 +184,24 @@ pub fn show(
                     .desired_width(180.0),
             );
             if ui
-                .small_button(services.t("dock-logs-copy"))
+                .small_button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::COPY,
+                    services.t("dock-logs-copy")
+                ))
                 .tip(services.t("dock-logs-copy-tip"))
                 .clicked()
             {
                 ui.ctx().copy_text(lines.join("\n"));
             }
-            if ui.small_button(services.t("dock-logs-clear")).clicked() {
+            if ui
+                .small_button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::BROOM,
+                    services.t("dock-logs-clear")
+                ))
+                .clicked()
+            {
                 logs.clear();
                 state.seen_lines = 0;
             }
@@ -277,7 +288,13 @@ pub fn show(
                             ui.colored_label(theme.text_muted, m);
                         }
                         if j.status == JobStatus::Running
-                            && ui.small_button(services.t("jobs-cancel")).clicked()
+                            && ui
+                                .small_button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::X,
+                                    services.t("jobs-cancel")
+                                ))
+                                .clicked()
                         {
                             services.jobs.cancel(j.id);
                         }
@@ -298,7 +315,15 @@ pub fn show(
                         .i18n
                         .t_args("problems-count", &[("n", &rows.len().to_string())]),
                 );
-                if !rows.is_empty() && ui.small_button(services.t("problems-clear")).clicked() {
+                if !rows.is_empty()
+                    && ui
+                        .small_button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::BROOM,
+                            services.t("problems-clear")
+                        ))
+                        .clicked()
+                {
                     services.problems.clear();
                 }
             });

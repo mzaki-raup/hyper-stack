@@ -298,6 +298,8 @@ pub struct HyperStackApp {
     update_badge: Option<String>,
     notifications_open: bool,
     notifications_opened_this_frame: bool,
+    /// Clear All was asked for and waits on its confirmation (CR-0067).
+    confirm_clear_notifications: bool,
     home: SharedHome,
     tts: hs_core::tts::Tts,
     portable: PortableDialog,
@@ -345,6 +347,9 @@ impl HyperStackApp {
         let theme = Theme::from_settings(&services.settings.read().appearance);
         hs_ui::theme::install(&cc.egui_ctx, &services.settings.read().appearance);
         hs_ui::fonts::install(&cc.egui_ctx, &font_choice(&services));
+        // `{{name}}` references show their value on hover in every shared
+        // field and editor (owner, 2026-11-07).
+        hs_ui::varpeek::install(&cc.egui_ctx, &services);
         hs_ui::theme::apply_font_size(
             &cc.egui_ctx,
             services.settings.read().appearance.ui_font_size,
@@ -427,6 +432,7 @@ impl HyperStackApp {
             update_badge: None,
             notifications_open: false,
             notifications_opened_this_frame: false,
+            confirm_clear_notifications: false,
             home: home_hub,
             tts: hs_core::tts::Tts::new(),
             portable: PortableDialog::None,
@@ -2518,14 +2524,28 @@ impl HyperStackApp {
                                 hs_ui::lettered::paint(ui.painter(), rect.shrink(2.0), name);
                             }
                             ui.add_space(6.0);
-                            if ui.button(s.t("workspace-logo-choose")).clicked()
+                            if hs_ui::form::button(
+                                ui,
+                                &theme,
+                                hs_ui::icons::ph::IMAGE,
+                                &s.t("workspace-logo-choose"),
+                            )
+                            .clicked()
                                 && let Some(p) = rfd::FileDialog::new()
                                     .add_filter("Image", hs_core::workspace::ICON_EXTS)
                                     .pick_file()
                             {
                                 *icon = Some(p);
                             }
-                            if icon.is_some() && ui.button(s.t("workspace-logo-remove")).clicked() {
+                            if icon.is_some()
+                                && hs_ui::form::button(
+                                    ui,
+                                    &theme,
+                                    hs_ui::icons::TRASH,
+                                    &s.t("workspace-logo-remove"),
+                                )
+                                .clicked()
+                            {
                                 *icon = None;
                             }
                         },
@@ -2580,12 +2600,18 @@ impl HyperStackApp {
                     hs_ui::form::hint(ui, &theme, &s.t("workspace-copy-from-hint"));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if hs_ui::form::primary_button(ui, &theme, &s.t("workspace-create"))
-                            .clicked()
+                        if hs_ui::form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", hs_ui::icons::ph::PLUS, s.t("workspace-create")),
+                        )
+                        .clicked()
                         {
                             create = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if hs_ui::form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel"))
+                            .clicked()
+                        {
                             cancel = true;
                         }
                     });
@@ -2616,10 +2642,18 @@ impl HyperStackApp {
                     ui.checkbox(&mut files, s.t("workspace-delete-files"));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if hs_ui::form::danger_button(ui, &theme, &s.t("delete")).clicked() {
+                        if hs_ui::form::danger_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", hs_ui::icons::TRASH, s.t("delete")),
+                        )
+                        .clicked()
+                        {
                             decide = Some(true);
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if hs_ui::form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel"))
+                            .clicked()
+                        {
                             decide = Some(false);
                         }
                     });
@@ -3743,7 +3777,10 @@ impl HyperStackApp {
                     "tts-read-item",
                     &[("label", &it.label), ("words", &words.to_string())],
                 );
-                if ui.button(label).clicked() {
+                if ui
+                    .button(format!("{} {label}", hs_ui::icons::ph::PLAY))
+                    .clicked()
+                {
                     if let Err(e) = self.tts.speak(&it.text, rate) {
                         self.toasts.push(ToastLevel::Error, e);
                     }
@@ -3761,7 +3798,14 @@ impl HyperStackApp {
                 }
             }
             ui.separator();
-            if ui.button(s.t("tts-settings")).clicked() {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::SETTINGS,
+                    s.t("tts-settings")
+                ))
+                .clicked()
+            {
                 self.open_settings(Some(settings_ui::Page::Accessibility));
                 ui.close();
             }
@@ -3931,6 +3975,7 @@ impl HyperStackApp {
                     .and_then(|i| i.uri().map(str::to_string))
                     .or(v.icon_uri),
                 icon_colour: v.icon_colour,
+                prefix: v.prefix,
             })
             .collect();
         self.services.open_tabs.set(tabs);
@@ -4158,12 +4203,35 @@ impl HyperStackApp {
     }
 
     fn notification_popup(&mut self, ctx: &egui::Context) {
+        // Drawn whether or not the popup is still open: the dialog's own
+        // click closes the popup.
+        if self.confirm_clear_notifications {
+            let s = &self.services;
+            match hs_ui::dialog::confirm(
+                ctx,
+                &self.theme,
+                "clear-notifications",
+                &s.t("notifications-clear-title"),
+                &s.t("notifications-clear-body"),
+                &s.t("notifications-clear"),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.toasts.clear();
+                    self.confirm_clear_notifications = false;
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_clear_notifications = false,
+                _ => {}
+            }
+        }
         if !self.notifications_open {
             return;
         }
         let theme = self.theme.clone();
         let mut close = false;
         let mut clear = false;
+        let mut remove: Option<usize> = None;
         let just_opened = std::mem::take(&mut self.notifications_opened_this_frame);
         let response = egui::Area::new(egui::Id::new("hs-notifications"))
             .order(egui::Order::Foreground)
@@ -4187,11 +4255,25 @@ impl HyperStackApp {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ui.small_button(hs_ui::icons::TAB_CLOSE).clicked() {
+                                    if ui
+                                        .small_button(hs_ui::icons::TAB_CLOSE)
+                                        .tip(self.services.t("close"))
+                                        .clicked()
+                                    {
                                         close = true;
                                     }
+                                    // Disabled, not hidden, when there is
+                                    // nothing to clear (CR-0067).
                                     if ui
-                                        .small_button(self.services.t("notifications-clear"))
+                                        .add_enabled(
+                                            !self.toasts.history.is_empty(),
+                                            egui::Button::new(format!(
+                                                "{} {}",
+                                                hs_ui::icons::ph::BROOM,
+                                                self.services.t("notifications-clear")
+                                            ))
+                                            .small(),
+                                        )
                                         .clicked()
                                     {
                                         clear = true;
@@ -4210,7 +4292,8 @@ impl HyperStackApp {
                             egui::ScrollArea::vertical()
                                 .max_height(360.0)
                                 .show(ui, |ui| {
-                                    for item in history.iter().rev().take(100) {
+                                    let count = history.len();
+                                    for (k, item) in history.iter().rev().take(100).enumerate() {
                                         let (icon, colour) = match item.level {
                                             ToastLevel::Info => {
                                                 (hs_ui::icons::INFO, theme.secondary)
@@ -4223,7 +4306,7 @@ impl HyperStackApp {
                                             }
                                             ToastLevel::Error => (hs_ui::icons::ERROR, theme.error),
                                         };
-                                        ui.horizontal_top(|ui| {
+                                        let row = ui.horizontal_top(|ui| {
                                             ui.colored_label(colour, icon);
                                             ui.vertical(|ui| {
                                                 ui.add(egui::Label::new(&item.text).wrap());
@@ -4240,6 +4323,35 @@ impl HyperStackApp {
                                                 );
                                             });
                                         });
+                                        // Remove one, or Clear All behind its
+                                        // confirmation, from a right-click
+                                        // (CR-0067).
+                                        row.response.interact(egui::Sense::click()).context_menu(
+                                            |ui| {
+                                                if ui
+                                                    .button(format!(
+                                                        "{} {}",
+                                                        hs_ui::icons::ph::TRASH,
+                                                        self.services.t("remove")
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    remove = Some(count - 1 - k);
+                                                    ui.close();
+                                                }
+                                                if ui
+                                                    .button(format!(
+                                                        "{} {}",
+                                                        hs_ui::icons::ph::BROOM,
+                                                        self.services.t("notifications-clear")
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    clear = true;
+                                                    ui.close();
+                                                }
+                                            },
+                                        );
                                         ui.separator();
                                     }
                                 });
@@ -4249,8 +4361,13 @@ impl HyperStackApp {
         if notification_popup_should_close(just_opened, response.response.clicked_elsewhere()) {
             close = true;
         }
+        if let Some(i) = remove
+            && i < self.toasts.history.len()
+        {
+            self.toasts.history.remove(i);
+        }
         if clear {
-            self.toasts.clear();
+            self.confirm_clear_notifications = true;
         }
         if close {
             self.notifications_open = false;

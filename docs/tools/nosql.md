@@ -353,3 +353,11 @@ under that row before the results. The document editor keeps the gap
 between the id row and the text, and between the text and Save / Delete /
 Cancel, which are padded buttons with an icon each. The Index pane is a
 `DataTable` (Name, Definition, Unique) rather than a bare grid.
+
+## Addendum (2026-11-07): the document beside its results, a hideable database column (CR-0093, CR-0091)
+
+In Find and Aggregate a click on a result opens the document's JSON in a
+resizable column right of the results instead of under them, so the list
+stays in view while one document is read or edited. The database column
+is a resizable panel that can be hidden from the toolbar's first item
+(palette **NoSQL: Toggle Database Column**).

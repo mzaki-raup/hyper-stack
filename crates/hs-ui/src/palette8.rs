@@ -54,4 +54,13 @@ mod tests {
             assert_eq!(by_index(i), by_index(i + COLOURS.len()));
         }
     }
+
+    /// Two saved items side by side never wear the same colour, at any
+    /// place in the list (CR-0059).
+    #[test]
+    fn two_neighbours_never_share_a_colour() {
+        for i in 0..64 {
+            assert_ne!(by_index(i), by_index(i + 1), "items {i} and {}", i + 1);
+        }
+    }
 }

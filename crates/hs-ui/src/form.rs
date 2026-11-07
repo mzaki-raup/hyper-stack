@@ -486,19 +486,22 @@ pub fn text_field(ui: &mut egui::Ui, value: &mut String, hint: &str) -> egui::Re
     text_field_width(ui, value, hint, w)
 }
 
-/// A comfortable single-line text field with an explicit width.
+/// A comfortable single-line text field with an explicit width. Hovering
+/// a `{{name}}` in it shows that variable's value
+/// ([`crate::varpeek::text_edit_tip`]).
 pub fn text_field_width(
     ui: &mut egui::Ui,
     value: &mut String,
     hint: &str,
     width: f32,
 ) -> egui::Response {
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .hint_text(hint)
-            .margin(FIELD_MARGIN)
-            .desired_width(width),
-    )
+    let out = egui::TextEdit::singleline(value)
+        .hint_text(hint)
+        .margin(FIELD_MARGIN)
+        .desired_width(width)
+        .show(ui);
+    crate::varpeek::text_edit_tip(&out, value);
+    out.response.response
 }
 
 /// A text field with the server's values behind a caret: typed or chosen
@@ -647,13 +650,14 @@ pub fn secret_field(
 
 /// A multi-line code field that fills the width.
 pub fn code_field(ui: &mut egui::Ui, value: &mut String, rows: usize) -> egui::Response {
-    ui.add(
-        egui::TextEdit::multiline(value)
-            .code_editor()
-            .margin(FIELD_MARGIN)
-            .desired_rows(rows)
-            .desired_width(ui.available_width().min(FIELD_MAX_WIDTH + 170.0)),
-    )
+    let out = egui::TextEdit::multiline(value)
+        .code_editor()
+        .margin(FIELD_MARGIN)
+        .desired_rows(rows)
+        .desired_width(ui.available_width().min(FIELD_MAX_WIDTH + 170.0))
+        .show(ui);
+    crate::varpeek::text_edit_tip(&out, value);
+    out.response.response
 }
 
 /// Muted explanatory text under a control.
@@ -1024,26 +1028,45 @@ pub struct RowMenu {
 pub fn row_menu(row: &egui::Response, pinned: bool, labels: RowMenuLabels<'_>) -> RowMenu {
     let mut out = RowMenu::default();
     row.context_menu(|ui| {
-        if ui.button(labels.edit).clicked() {
+        // Every item a glyph, the same verb's glyph as everywhere else
+        // (ui.md "Menu items carry a glyph").
+        if menu_item(ui, crate::icons::ph::PENCIL_SIMPLE, labels.edit).clicked() {
             out.edit = true;
             ui.close();
         }
-        if ui.button(labels.remove).clicked() {
+        if menu_item(ui, crate::icons::ph::TRASH, labels.remove).clicked() {
             out.remove = true;
             ui.close();
         }
         ui.separator();
         if pinned {
-            if ui.button(labels.unpin).clicked() {
+            if menu_item(ui, crate::icons::ph::PUSH_PIN_SLASH, labels.unpin).clicked() {
                 out.pin = Some(false);
                 ui.close();
             }
-        } else if ui.button(labels.pin).clicked() {
+        } else if menu_item(ui, crate::icons::ph::PUSH_PIN, labels.pin).clicked() {
             out.pin = Some(true);
             ui.close();
         }
     });
     out
+}
+
+/// Another widget has the keyboard - a tab's rename field in the strip,
+/// say. A pane that hands its own widget `own` the focus when it comes to
+/// the front leaves it where it is.
+pub fn focus_is_elsewhere(ctx: &egui::Context, own: egui::Id) -> bool {
+    ctx.memory(|m| m.focused()).is_some_and(|id| id != own)
+}
+
+/// A context-menu item: `icon` drawn before `label`, while the accessible
+/// name a screen reader and a test read is the label alone.
+pub fn menu_item(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
+    let r = ui.button(format!("{icon} {label}"));
+    let enabled = r.enabled();
+    let name = label.to_owned();
+    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, &name));
+    r
 }
 
 /// [`list_row`] led by a connection kind's icon: its product logo, or its
@@ -1333,7 +1356,11 @@ pub fn button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egui
 /// A form button at a field's height with [`BUTTON_PADDING`].
 /// `name` is what a screen reader and a test read: the label alone, never
 /// the icon glyph drawn before it.
-fn sized_button(ui: &mut egui::Ui, button: egui::Button<'_>, name: &str) -> egui::Response {
+pub(crate) fn sized_button(
+    ui: &mut egui::Ui,
+    button: egui::Button<'_>,
+    name: &str,
+) -> egui::Response {
     let h = field_height(ui);
     let r = ui
         .scope(|ui| {
@@ -1349,16 +1376,25 @@ fn sized_button(ui: &mut egui::Ui, button: egui::Button<'_>, name: &str) -> egui
 
 /// The words of a button's text without the icon glyph it may lead with:
 /// icon fonts live in the Private Use Areas.
-fn plain_label(text: &str) -> &str {
+pub(crate) fn plain_label(text: &str) -> &str {
+    split_glyph(text).1
+}
+
+/// A button's text split into the icon glyph it leads with (if any) and
+/// its words. Icon fonts live in the Private Use Areas.
+pub(crate) fn split_glyph(text: &str) -> (Option<&str>, &str) {
     let mut chars = text.char_indices();
     match chars.next() {
         Some((_, c))
             if ('\u{E000}'..='\u{F8FF}').contains(&c)
                 || ('\u{F0000}'..='\u{10FFFD}').contains(&c) =>
         {
-            chars.next().map_or("", |(i, _)| text[i..].trim_start())
+            match chars.next() {
+                Some((i, _)) => (Some(&text[..i]), text[i..].trim_start()),
+                None => (Some(text), ""),
+            }
         }
-        _ => text,
+        _ => (None, text),
     }
 }
 

@@ -134,6 +134,8 @@ pub struct NoSqlTool {
     /// query on screen, and a filter it writes can be inserted but not run
     /// by it.
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The database column is shown (the toolbar's first item).
+    show_tree: bool,
 }
 
 impl NoSqlTool {
@@ -161,6 +163,7 @@ impl NoSqlTool {
             popup: None,
             seen_run: 0,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            show_tree: true,
         }
     }
 
@@ -481,6 +484,7 @@ impl Tool for NoSqlTool {
             shortcut_action: None,
         };
         vec![
+            c("nosql.db_column", "NoSQL: Toggle Database Column"),
             c("nosql.run", "NoSQL: Run the Query"),
             c("nosql.count", "NoSQL: Count Matches"),
             c("nosql.insert", "NoSQL: New Document"),
@@ -492,6 +496,10 @@ impl Tool for NoSqlTool {
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "nosql.db_column" => {
+                self.show_tree = !self.show_tree;
+                true
+            }
             "nosql.ai" => {
                 self.assistant.toggle("NoSQL");
                 true
@@ -683,6 +691,16 @@ impl Tool for NoSqlTool {
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         let s = cx.services;
         let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        // Show/hide toggles come first (CR-0073): the database column.
+        hs_ui::toolbar::toggle(
+            ui,
+            &theme,
+            &mut self.show_tree,
+            ph::SIDEBAR_SIMPLE,
+            &s.t("nosql-db-column"),
+        )
+        .tip(s.t("nosql-db-column-tip"));
+        ui.separator();
         for (tab, icon, key) in [
             (Tab::Find, ph::MAGNIFYING_GLASS, "nosql-tab-find"),
             (Tab::Aggregate, ph::FUNNEL, "nosql-tab-aggregate"),
@@ -699,7 +717,11 @@ impl Tool for NoSqlTool {
         }
         if self.protected && !self.writes_unlocked {
             ui.separator();
-            let label = s.i18n.t_args("nosql-protected", &[("env", &self.env_name)]);
+            let label = format!(
+                "{} {}",
+                ph::LOCK,
+                s.i18n.t_args("nosql-protected", &[("env", &self.env_name)])
+            );
             if ui.button(label).tip(s.t("nosql-unlock-hint")).clicked() {
                 self.writes_unlocked = true;
             }
@@ -837,7 +859,10 @@ impl NoSqlTool {
         }
         if let Some(e) = self.conn_error.clone() {
             form::note(ui, &theme, ph::WARNING, &e);
-            if ui.button(s.t("nosql-retry")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("nosql-retry")))
+                .clicked()
+            {
                 self.connect(s);
             }
             return;
@@ -853,7 +878,10 @@ impl NoSqlTool {
             }
             Some(Status::Failed(e)) => {
                 form::note(ui, &theme, ph::WARNING, &e);
-                if ui.button(s.t("nosql-retry")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("nosql-retry")))
+                    .clicked()
+                {
                     self.connect(s);
                 }
                 return;
@@ -861,57 +889,59 @@ impl NoSqlTool {
             Some(Status::Ready { .. }) => {}
         }
         self.dialogs(ui, cx);
-        let total = ui.available_width();
-        let tree_width = TREE_WIDTH.min(total * 0.4);
-        let main_width = (total - tree_width - 40.0).max(240.0);
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(tree_width);
+        // The database column is a resizable panel that hides from the
+        // toolbar's first item (owner, 2026-11-07).
+        let mut tree = egui::Panel::left(ui.id().with("nosql-db-column"))
+            .resizable(true)
+            .default_size(TREE_WIDTH)
+            .size_range(170.0..=480.0);
+        if !self.show_tree {
+            tree = tree.exact_size(0.0).resizable(false);
+        }
+        tree.show(ui, |ui| {
+            if self.show_tree {
                 self.container_tree(ui, &theme, s);
-            });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_width(main_width);
-                // Which container the right column is showing, over the
-                // column rather than in the toolbar: the toolbar belongs
-                // to the whole tab, this belongs to this pane (owner's
-                // requirement, 2026-10-27).
-                if let Some(c) = self.container() {
-                    // Material icons on: the collection picture its tree
-                    // row wears, in place of the glyph.
-                    let material = s.settings.read().appearance.material_icons("nosql");
-                    ui.horizontal(|ui| {
-                        match hs_ui::fileicons::item_icon(material, "collection", ph::TABLE) {
-                            hs_ui::tree::TreeIcon::Image(src) => {
-                                ui.add(
-                                    egui::Image::new(src)
-                                        .fit_to_exact_size(egui::Vec2::splat(12.0)),
-                                );
-                                ui.label(
-                                    egui::RichText::new(c.display())
-                                        .small()
-                                        .color(theme.text_muted),
-                                );
-                            }
-                            hs_ui::tree::TreeIcon::Glyph(g) => {
-                                ui.label(
-                                    egui::RichText::new(format!("{g} {}", c.display()))
-                                        .small()
-                                        .color(theme.text_muted),
-                                );
-                            }
+            }
+        });
+        ui.vertical(|ui| {
+            // Which container the right column is showing, over the
+            // column rather than in the toolbar: the toolbar belongs
+            // to the whole tab, this belongs to this pane (owner's
+            // requirement, 2026-10-27).
+            if let Some(c) = self.container() {
+                // Material icons on: the collection picture its tree
+                // row wears, in place of the glyph.
+                let material = s.settings.read().appearance.material_icons("nosql");
+                ui.horizontal(|ui| {
+                    match hs_ui::fileicons::item_icon(material, "collection", ph::TABLE) {
+                        hs_ui::tree::TreeIcon::Image(src) => {
+                            ui.add(
+                                egui::Image::new(src).fit_to_exact_size(egui::Vec2::splat(12.0)),
+                            );
+                            ui.label(
+                                egui::RichText::new(c.display())
+                                    .small()
+                                    .color(theme.text_muted),
+                            );
                         }
-                    });
-                    ui.add_space(2.0);
-                    ui.separator();
-                    ui.add_space(2.0);
-                }
-                match self.state.tab {
-                    Tab::Find => self.find_tab(ui, &theme, cx),
-                    Tab::Aggregate => self.aggregate_tab(ui, &theme, cx),
-                    Tab::Indexes => self.indexes_tab(ui, &theme, s),
-                }
-            });
+                        hs_ui::tree::TreeIcon::Glyph(g) => {
+                            ui.label(
+                                egui::RichText::new(format!("{g} {}", c.display()))
+                                    .small()
+                                    .color(theme.text_muted),
+                            );
+                        }
+                    }
+                });
+                ui.add_space(2.0);
+                ui.separator();
+                ui.add_space(2.0);
+            }
+            match self.state.tab {
+                Tab::Find => self.find_tab(ui, &theme, cx),
+                Tab::Aggregate => self.aggregate_tab(ui, &theme, cx),
+                Tab::Indexes => self.indexes_tab(ui, &theme, s),
+            }
         });
     }
 
@@ -1191,9 +1221,8 @@ impl NoSqlTool {
             .show(ui, |ui| {
                 ui.label(label);
                 ui.add(
-                    egui::TextEdit::singleline(&mut self.state.filter)
+                    hs_ui::form::line_edit(&mut self.state.filter)
                         .hint_text(example)
-                        .margin(hs_ui::form::FIELD_MARGIN)
                         .desired_width(f32::INFINITY)
                         .font(egui::TextStyle::Monospace),
                 );
@@ -1222,7 +1251,9 @@ impl NoSqlTool {
             });
         ui.add_space(form::PANE_GAP);
         ui.horizontal_wrapped(|ui| {
-            if form::primary_button(ui, theme, &s.t("nosql-run")).clicked() {
+            if form::primary_button(ui, theme, &format!("{} {}", ph::PLAY, s.t("nosql-run")))
+                .clicked()
+            {
                 self.run_find();
             }
             if hs_ui::toolbar::btn(ui, theme, ph::HASH, &s.t("nosql-count")).clicked()
@@ -1302,6 +1333,15 @@ impl NoSqlTool {
             self.seen_run = run_id;
             self.table = TableState::default();
         }
+        // The open document sits in a resizable column on the right, so
+        // the results keep the pane's full height (owner, 2026-11-07).
+        if self.editing.is_some() {
+            egui::Panel::right(ui.id().with("nosql-doc-column"))
+                .resizable(true)
+                .default_size(420.0)
+                .size_range(280.0..=900.0)
+                .show(ui, |ui| self.editor_pane(ui, theme, cx));
+        }
         hs_ui::toolbar::sub_strip(ui, |ui| {
             for (view, icon, key) in [
                 (View::Table, ph::TABLE, "nosql-view-table"),
@@ -1344,10 +1384,8 @@ impl NoSqlTool {
             form::hint(ui, theme, &s.t("nosql-no-documents"));
         }
         let values: Vec<serde_json::Value> = docs.iter().map(|d| d.json.clone()).collect();
-        let height = (ui.available_height() * 0.55).max(120.0);
         egui::ScrollArea::both()
             .id_salt("nosql-results")
-            .max_height(height)
             .auto_shrink([false, false])
             .show(ui, |ui| match self.state.view {
                 View::Table => {
@@ -1406,7 +1444,10 @@ impl NoSqlTool {
                                         ui.label(egui::RichText::new(value).small().monospace());
                                     });
                                 }
-                                if ui.button(s.t("nosql-edit")).clicked() {
+                                if ui
+                                    .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("nosql-edit")))
+                                    .clicked()
+                                {
                                     self.editing = Some((d.clone(), flatten::pretty(&d.json)));
                                     self.inserting = false;
                                 }
@@ -1427,11 +1468,16 @@ impl NoSqlTool {
                     );
                 }
             });
-        // The editor for whichever document is open.
+    }
+
+    /// The open document's JSON, in the column right of the results
+    /// (owner, 2026-11-07): edit, save, delete or close it.
+    fn editor_pane(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
+        let s = cx.services;
         let Some((doc, text)) = &mut self.editing else {
             return;
         };
-        ui.separator();
+        ui.add_space(form::PANE_GAP);
         let doc = doc.clone();
         ui.horizontal(|ui| {
             let title = if self.inserting {
@@ -1461,7 +1507,7 @@ impl NoSqlTool {
                 );
             });
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             // Proper buttons: the toolbar's padding, an icon each (CR-0039).
             ui.spacing_mut().button_padding = hs_ui::toolbar::BUTTON_PADDING;
             ui.spacing_mut().item_spacing.x = form::PANE_GAP;
@@ -1548,7 +1594,7 @@ impl NoSqlTool {
                 .desired_rows(6),
         );
         ui.add_space(form::PANE_GAP);
-        if form::primary_button(ui, theme, &s.t("nosql-run")).clicked()
+        if form::primary_button(ui, theme, &format!("{} {}", ph::PLAY, s.t("nosql-run"))).clicked()
             && let Some(c) = self.container()
         {
             self.editing = None;
@@ -1645,10 +1691,16 @@ impl NoSqlTool {
                     ui.label(s.i18n.t_args("nosql-delete-body", &[("id", &doc.id)]));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::danger_button(ui, &theme, &s.t("nosql-delete")).clicked() {
+                        if form::danger_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::TRASH, s.t("nosql-delete")),
+                        )
+                        .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -1697,19 +1749,22 @@ impl NoSqlTool {
                     if self.protected {
                         ui.add_space(8.0);
                         ui.label(s.i18n.t_args("nosql-type-env", &[("env", &self.env_name)]));
-                        ui.text_edit_singleline(typed);
+                        ui.add(form::line_edit(typed));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let allowed = bulk.as_ref().is_some_and(|b| b.matched > 0)
                             && (!self.protected || typed.as_str() == self.env_name);
                         if ui
-                            .add_enabled(allowed, egui::Button::new(s.t("nosql-delete")))
+                            .add_enabled(
+                                allowed,
+                                egui::Button::new(format!("{} {}", ph::TRASH, s.t("nosql-delete"))),
+                            )
                             .clicked()
                         {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });

@@ -117,13 +117,15 @@ pub fn input(
     hint: &str,
     rows: usize,
 ) -> egui::Response {
-    let r = ui.add(
-        egui::TextEdit::multiline(value)
-            .hint_text(hint)
-            .font(egui::TextStyle::Monospace)
-            .desired_width(f32::INFINITY)
-            .desired_rows(rows),
-    );
+    let out = egui::TextEdit::multiline(value)
+        .hint_text(hint)
+        .font(egui::TextStyle::Monospace)
+        .desired_width(f32::INFINITY)
+        .desired_rows(rows)
+        .show(ui);
+    // Hovering a `{{variable}}` shows its value.
+    hs_ui::varpeek::hover_tip(s, &out, value);
+    let r = out.response.response;
     if hs_ui::varpeek::references(value).is_empty() {
         return r;
     }
@@ -148,13 +150,14 @@ pub fn secret_input(
     hint: &str,
     rows: usize,
 ) -> egui::Response {
-    let r = ui.add(
-        egui::TextEdit::multiline(value)
-            .hint_text(hint)
-            .font(egui::TextStyle::Monospace)
-            .desired_width(f32::INFINITY)
-            .desired_rows(rows),
-    );
+    let out = egui::TextEdit::multiline(value)
+        .hint_text(hint)
+        .font(egui::TextStyle::Monospace)
+        .desired_width(f32::INFINITY)
+        .desired_rows(rows)
+        .show(ui);
+    hs_ui::varpeek::hover_tip(s, &out, value);
+    let r = out.response.response;
     hs_ui::form::centred_row(ui, |ui| secret_tools(ui, s, theme, r.id, value));
     r
 }

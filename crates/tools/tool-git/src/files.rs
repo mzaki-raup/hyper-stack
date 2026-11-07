@@ -368,7 +368,7 @@ impl FilesView {
             self.list_dir(s, String::new());
         }
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             if ui
                 .button(format!("{} {}", ph::FILE_PLUS, s.t("git-files-new-file")))
                 .clicked()
@@ -535,7 +535,14 @@ impl FilesView {
                         if matches!(f.loaded, Loaded::Text(_)) {
                             if f.editing {
                                 if ui
-                                    .add_enabled(dirty, egui::Button::new(s.t("git-files-discard")))
+                                    .add_enabled(
+                                        dirty,
+                                        egui::Button::new(format!(
+                                            "{} {}",
+                                            ph::ARROW_COUNTER_CLOCKWISE,
+                                            s.t("git-files-discard")
+                                        )),
+                                    )
                                     .clicked()
                                 {
                                     discard = true;
@@ -689,7 +696,7 @@ impl FilesView {
                 if form::primary_button(ui, theme, &ok_label).clicked() {
                     done = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     cancel = true;
                 }
             });
@@ -869,7 +876,7 @@ impl FilesView {
                 {
                     done = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     cancel = true;
                 }
             });

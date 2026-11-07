@@ -43,22 +43,21 @@ impl KvEditor<'_> {
                     }
                     // Fixed sizes: inside a grid the leftover width is tiny on
                     // the first frame and the fields would collapse.
-                    if ui
-                        .add_sized(
-                            [key_w, 32.0],
-                            egui::TextEdit::singleline(&mut row.key)
-                                .hint_text(self.key_hint)
-                                .margin(crate::form::FIELD_MARGIN),
-                        )
-                        .changed()
-                    {
+                    let key = show_sized(
+                        ui,
+                        [key_w, 32.0],
+                        crate::form::line_edit(&mut row.key).hint_text(self.key_hint),
+                    );
+                    crate::varpeek::text_edit_tip(&key, &row.key);
+                    if key.response.response.changed() {
                         resp.changed = true;
                     }
-                    let edit = egui::TextEdit::singleline(&mut row.value)
+                    let edit = crate::form::line_edit(&mut row.value)
                         .hint_text(self.value_hint)
-                        .margin(crate::form::FIELD_MARGIN)
                         .password(row.secret);
-                    if ui.add_sized([value_w, 32.0], edit).changed() {
+                    let value = show_sized(ui, [value_w, 32.0], edit);
+                    crate::varpeek::text_edit_tip(&value, &row.value);
+                    if value.response.response.changed() {
                         resp.changed = true;
                     }
                     if self.allow_secret {
@@ -116,4 +115,16 @@ impl KvEditor<'_> {
         }
         resp
     }
+}
+
+/// `ui.add_sized` for a text field, keeping its output (the galley the
+/// `{{name}}` hover tooltip reads).
+fn show_sized(
+    ui: &mut egui::Ui,
+    size: [f32; 2],
+    edit: egui::TextEdit<'_>,
+) -> egui::text_edit::TextEditOutput {
+    let layout = egui::Layout::centered_and_justified(ui.layout().main_dir());
+    ui.allocate_ui_with_layout(size.into(), layout, |ui| edit.show(ui))
+        .inner
 }

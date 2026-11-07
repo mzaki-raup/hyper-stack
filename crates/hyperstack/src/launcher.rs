@@ -65,11 +65,11 @@ pub fn show(
         ui.add_space(24.0);
         ui.heading(services.t("launcher-title"));
         ui.add_space(8.0);
-        // `FIELD_MARGIN`, so the launcher's search box is the same height
-        // as a form field rather than egui's shorter default (CR-0026).
-        let edit = egui::TextEdit::singleline(&mut state.query)
+        // `form::line_edit`, so the launcher's search box is the same
+        // height as a form field rather than egui's shorter default
+        // (CR-0026, CR-0061).
+        let edit = hs_ui::form::line_edit(&mut state.query)
             .hint_text(services.t("launcher-search"))
-            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(width.min(520.0));
         let r = ui.add(edit);
         if state.focus_search {

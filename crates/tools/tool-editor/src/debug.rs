@@ -1138,7 +1138,7 @@ impl Debugger {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(ph::X).clicked() {
+                if ui.small_button(ph::X).tip(s.t("close")).clicked() {
                     close = true;
                 }
                 if let Some(sess) = &self.session {
@@ -1401,7 +1401,7 @@ impl Debugger {
                 for (p, l) in &all {
                     ui.horizontal(|ui| {
                         if ui
-                            .small_button(ph::X)
+                            .small_button(ph::TRASH)
                             .tip(s.t("debug-breakpoint-remove"))
                             .clicked()
                         {

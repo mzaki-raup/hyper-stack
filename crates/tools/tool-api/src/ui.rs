@@ -45,6 +45,8 @@ impl BodyEditor {
             st.editor.font_size,
         );
         view.right_click_copy_paste = st.editor.right_click_copy_paste;
+        // A `{{ name }}` in the body shows its value on hover.
+        view.var_tips = true;
         Self {
             buf: Buffer::from_text(""),
             cursors: Cursors::default(),
@@ -422,9 +424,12 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
     form::header_bar(ui, theme, |ui| {
         ui.label(egui::RichText::new(s.t("tool-api")).strong().size(15.0));
     });
-    ui.horizontal(|ui| {
-        if ui
-            .small_button(ph::FOLDER_PLUS)
+    // Labelled, and wrapping in a narrow sidebar (CR-0063): a label never
+    // breaks inside its button - the whole button moves to the next row
+    // (owner's screen check, 2026-11-07: "Import" stood in a column).
+    ui.horizontal_wrapped(|ui| {
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+        if form::button(ui, theme, ph::FOLDER_PLUS, &s.t("api-new-collection"))
             .tip(s.t("api-new-collection"))
             .clicked()
         {
@@ -432,18 +437,17 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
         }
         let collection = t.state_collection();
         if ui
-            .add_enabled(
-                collection.is_some(),
-                egui::Button::new(ph::FOLDER_PLUS).small(),
-            )
+            .add_enabled_ui(collection.is_some(), |ui| {
+                form::button(ui, theme, ph::FOLDER_PLUS, &s.t("api-new-folder"))
+            })
+            .inner
             .tip(s.t("api-new-folder"))
             .clicked()
             && let Some(c) = collection
         {
             actions.push(SideAction::NewFolder(c, None));
         }
-        if ui
-            .small_button(ph::PLUS)
+        if form::button(ui, theme, ph::PLUS, &s.t("api-new-request"))
             .tip(s.t("api-new-request"))
             .clicked()
         {
@@ -452,25 +456,26 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                 None => actions.push(SideAction::NewCollection),
             }
         }
-        if ui
-            .small_button(ph::DOWNLOAD_SIMPLE)
+        if form::button(ui, theme, ph::DOWNLOAD_SIMPLE, &s.t("api-import"))
             .tip(s.t("api-import-tip"))
             .clicked()
         {
             actions.push(SideAction::Import);
         }
-        if ui
-            .small_button(ph::CLOCK_COUNTER_CLOCKWISE)
-            .tip(s.t("api-history"))
-            .clicked()
+        let mut shown = t.show_history;
+        if form::toggle_button(
+            ui,
+            &mut shown,
+            &format!("{} {}", ph::CLOCK_COUNTER_CLOCKWISE, s.t("api-history")),
+        )
+        .clicked()
         {
-            t.show_history = !t.show_history;
+            t.show_history = shown;
         }
     });
     ui.add(
-        egui::TextEdit::singleline(&mut t.filter)
+        form::line_edit(&mut t.filter)
             .hint_text(s.t("api-filter"))
-            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(f32::INFINITY),
     );
     ui.add_space(4.0);
@@ -549,15 +554,24 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                     });
                 }
                 header.header_response.context_menu(|ui| {
-                    if ui.button(s.t("api-new-request")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PLUS, s.t("api-new-request")))
+                        .clicked()
+                    {
                         actions.push(SideAction::NewRequest(c.id.clone(), None));
                         ui.close();
                     }
-                    if ui.button(s.t("api-new-folder")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::FOLDER_PLUS, s.t("api-new-folder")))
+                        .clicked()
+                    {
                         actions.push(SideAction::NewFolder(c.id.clone(), None));
                         ui.close();
                     }
-                    if ui.button(s.t("api-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("api-rename")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Rename(
                             c.id.clone(),
                             c.id.clone(),
@@ -565,21 +579,33 @@ pub fn sidebar(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: 
                         ));
                         ui.close();
                     }
-                    if ui.button(s.t("api-duplicate")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::COPY_SIMPLE, s.t("api-duplicate")))
+                        .clicked()
+                    {
                         actions.push(SideAction::DuplicateCollection(c.id.clone()));
                         ui.close();
                     }
-                    if ui.button(s.t("api-export-postman")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::EXPORT, s.t("api-export-postman")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Export(c.id.clone()));
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button(s.t("api-manage-collection")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::GEAR, s.t("api-manage-collection")))
+                        .clicked()
+                    {
                         actions.push(SideAction::ManageCollection(c.id.clone()));
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button(s.t("api-delete-collection")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("api-delete-collection")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Delete(c.id.clone(), None));
                         ui.close();
                     }
@@ -732,7 +758,10 @@ fn libraries_section(
                     actions.push(SideAction::OpenLibrary(l.id.clone()));
                 }
                 r.context_menu(|ui| {
-                    if ui.button(s.t("api-library-delete")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("api-library-delete")))
+                        .clicked()
+                    {
                         actions.push(SideAction::DeleteLibrary(l.id.clone()));
                         ui.close();
                     }
@@ -1009,18 +1038,27 @@ fn items_ui(
                     }
                 }
                 r.header_response.context_menu(|ui| {
-                    if ui.button(s.t("api-new-request")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PLUS, s.t("api-new-request")))
+                        .clicked()
+                    {
                         actions.push(SideAction::NewRequest(
                             collection.into(),
                             Some(f.id.clone()),
                         ));
                         ui.close();
                     }
-                    if ui.button(s.t("api-new-folder")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::FOLDER_PLUS, s.t("api-new-folder")))
+                        .clicked()
+                    {
                         actions.push(SideAction::NewFolder(collection.into(), Some(f.id.clone())));
                         ui.close();
                     }
-                    if ui.button(s.t("api-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("api-rename")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Rename(
                             collection.into(),
                             f.id.clone(),
@@ -1028,12 +1066,18 @@ fn items_ui(
                         ));
                         ui.close();
                     }
-                    if ui.button(s.t("api-duplicate")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::COPY_SIMPLE, s.t("api-duplicate")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Duplicate(collection.into(), f.id.clone()));
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button(s.t("api-delete-folder")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("api-delete-folder")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Delete(collection.into(), Some(f.id.clone())));
                         ui.close();
                     }
@@ -1089,7 +1133,10 @@ fn items_ui(
                     actions.push(SideAction::Open(collection.into(), r.id.clone()));
                 }
                 resp.context_menu(|ui| {
-                    if ui.button(s.t("api-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("api-rename")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Rename(
                             collection.into(),
                             r.id.clone(),
@@ -1097,12 +1144,18 @@ fn items_ui(
                         ));
                         ui.close();
                     }
-                    if ui.button(s.t("api-duplicate")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::COPY_SIMPLE, s.t("api-duplicate")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Duplicate(collection.into(), r.id.clone()));
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button(s.t("api-delete-request")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("api-delete-request")))
+                        .clicked()
+                    {
                         actions.push(SideAction::Delete(collection.into(), Some(r.id.clone())));
                         ui.close();
                     }
@@ -1445,7 +1498,7 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
     // 2026-10-17.
     name_row(t, ui, cx, theme);
     ui.add_space(4.0);
-    ui.horizontal(|ui| {
+    form::centred_row_wrapped(ui, |ui| {
         // The picker is sized to the URL field beside it: a ComboBox is
         // shorter than a text field by default, and the two frames then
         // sit at different heights however the row is aligned. Owner's
@@ -1467,7 +1520,7 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
                     }
                 });
         });
-        let w = (ui.available_width() - 262.0).max(200.0);
+        let w = (ui.available_width() - 330.0).max(200.0);
         let out = hs_ui::varfield::var_field_width(
             ui,
             theme,
@@ -1488,7 +1541,10 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
         }
         if t.pending.is_some() {
             ui.spinner();
-            if ui.button(s.t("api-cancel")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::X, s.t("api-cancel")))
+                .clicked()
+            {
                 t.cancel();
             }
         } else if form::primary_button(
@@ -1512,18 +1568,31 @@ pub fn main(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Th
         {
             save = true;
         }
-        ui.menu_button("⋯", |ui| {
-            if ui.button(s.t("api-copy-curl")).clicked() {
+        ui.menu_button(format!("{} {}", ph::DOTS_THREE, s.t("api-more")), |ui| {
+            if ui
+                .button(format!("{} {}", ph::COPY, s.t("api-copy-curl")))
+                .clicked()
+            {
                 cx.actions.push(hs_core::tool::Action::RunCommand {
                     id: "api.copy_curl".into(),
                 });
                 ui.close();
             }
-            if ui.button(s.t("api-import-curl")).clicked() {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    ph::DOWNLOAD_SIMPLE,
+                    s.t("api-import-curl")
+                ))
+                .clicked()
+            {
                 t.curl_import = Some(String::new());
                 ui.close();
             }
-            if ui.button(s.t("api-save-as")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::FLOPPY_DISK_BACK, s.t("api-save-as")))
+                .clicked()
+            {
                 if t.collections.is_empty() {
                     t.new_collection = Some(String::new());
                 } else {
@@ -1621,11 +1690,9 @@ fn request_editor(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, them
 }
 
 fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         for k in BodyKind::ALL {
-            if ui
-                .selectable_label(t.request.body.kind == k, k.label())
-                .clicked()
+            if form::selectable_label(ui, t.request.body.kind == k, k.label()).clicked()
                 && t.request.body.kind != k
             {
                 t.request.body.kind = k;
@@ -1661,7 +1728,7 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         }
         if matches!(t.request.body.kind, BodyKind::Json | BodyKind::Xml)
             && ui
-                .small_button(s.t("api-body-format"))
+                .small_button(format!("{} {}", ph::BRACKETS_CURLY, s.t("api-body-format")))
                 .tip(s.t("api-body-format-tip"))
                 .clicked()
         {
@@ -1713,7 +1780,9 @@ fn body_tab(t: &mut ApiTool, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         BodyKind::Binary => {
             ui.horizontal(|ui| {
                 ui.label(&t.request.body.file);
-                if ui.button(s.t("api-choose-file")).clicked()
+                if ui
+                    .button(format!("{} {}", ph::FOLDER_OPEN, s.t("api-choose-file")))
+                    .clicked()
                     && let Some(p) = rfd::FileDialog::new().pick_file()
                 {
                     t.request.body.file = p.display().to_string();
@@ -1763,15 +1832,11 @@ fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id:
             ui.end_row();
             form::label(ui, &s.t("api-auth-add-to"));
             ui.horizontal(|ui| {
-                if ui
-                    .selectable_label(a.add_to != "query", s.t("api-auth-header"))
-                    .clicked()
+                if form::selectable_label(ui, a.add_to != "query", s.t("api-auth-header")).clicked()
                 {
                     a.add_to = "header".into();
                 }
-                if ui
-                    .selectable_label(a.add_to == "query", s.t("api-auth-query"))
-                    .clicked()
+                if form::selectable_label(ui, a.add_to == "query", s.t("api-auth-query")).clicked()
                 {
                     a.add_to = "query".into();
                 }
@@ -1833,7 +1898,14 @@ fn auth_editor(a: &mut Auth, ui: &mut egui::Ui, s: &Services, theme: &Theme, id:
             form::text_field(ui, &mut a.audience, "");
             ui.end_row();
             form::label(ui, "");
-            if ui.button(s.t("api-auth-refresh-now")).clicked() {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    ph::ARROWS_CLOCKWISE,
+                    s.t("api-auth-refresh-now")
+                ))
+                .clicked()
+            {
                 crate::send::forget_tokens();
             }
             ui.end_row();
@@ -1953,7 +2025,7 @@ fn script_editor(
         ui.label(egui::RichText::new(s.t(label_key)).strong());
         ui.menu_button(format!("{} {}", ph::CODE, s.t("api-snippets")), |ui| {
             for (name, code) in SNIPPETS {
-                if ui.button(name).clicked() {
+                if ui.button(format!("{} {name}", ph::CODE)).clicked() {
                     if !target.is_empty() && !target.ends_with('\n') {
                         target.push('\n');
                     }
@@ -1964,14 +2036,17 @@ fn script_editor(
             }
             if !libraries.is_empty() {
                 ui.separator();
-                ui.menu_button(s.t("api-insert-library"), |ui| {
-                    for name in libraries {
-                        if ui.button(name).clicked() {
-                            insert_library_directive(target, name);
-                            ui.close();
+                ui.menu_button(
+                    format!("{} {}", ph::PACKAGE, s.t("api-insert-library")),
+                    |ui| {
+                        for name in libraries {
+                            if ui.button(format!("{} {name}", ph::PACKAGE)).clicked() {
+                                insert_library_directive(target, name);
+                                ui.close();
+                            }
                         }
-                    }
-                });
+                    },
+                );
             }
         });
     });
@@ -1983,13 +2058,13 @@ fn script_editor(
         .id_salt(id)
         .max_height(height)
         .show(ui, |ui| {
-            ui.add(
-                egui::TextEdit::multiline(target)
-                    .hint_text(s.t(hint_key))
-                    .font(egui::TextStyle::Monospace)
-                    .desired_width(f32::INFINITY)
-                    .desired_rows(rows),
-            );
+            let out = egui::TextEdit::multiline(target)
+                .hint_text(s.t(hint_key))
+                .font(egui::TextStyle::Monospace)
+                .desired_width(f32::INFINITY)
+                .desired_rows(rows)
+                .show(ui);
+            hs_ui::varpeek::hover_tip(s, &out, target);
         });
     ui.add_space(6.0);
 }
@@ -2224,7 +2299,7 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                     ("url", &t.request.url),
                 ],
             ),
-            &s.t("api-send"),
+            &format!("{} {}", ph::PAPER_PLANE_RIGHT, s.t("api-send")),
             &s.t("cancel"),
             true,
         ) {
@@ -2262,7 +2337,7 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             "api-delete",
             &title,
             &body,
-            &s.t("api-delete"),
+            &format!("{} {}", ph::TRASH, s.t("api-delete")),
             &s.t("cancel"),
             true,
         ) {
@@ -2282,7 +2357,7 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             "api-delete-library",
             &s.t("api-library-delete"),
             &s.t("api-library-delete-body"),
-            &s.t("api-delete"),
+            &format!("{} {}", ph::TRASH, s.t("api-delete")),
             &s.t("cancel"),
             true,
         ) {
@@ -2356,10 +2431,12 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             }
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("create")).clicked() {
+                if form::primary_button(ui, theme, &format!("{} {}", ph::PLUS, s.t("create")))
+                    .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     done = Some(false);
                 }
             });
@@ -2444,15 +2521,13 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
                             .unwrap_or_else(|| s.t("api-folder-root")),
                     )
                     .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(st.folder.is_none(), s.t("api-folder-root"))
+                        if form::selectable_label(ui, st.folder.is_none(), s.t("api-folder-root"))
                             .clicked()
                         {
                             st.folder = None;
                         }
                         for (id, name) in &folders {
-                            if ui
-                                .selectable_label(st.folder.as_ref() == Some(id), name)
+                            if form::selectable_label(ui, st.folder.as_ref() == Some(id), name)
                                 .clicked()
                             {
                                 st.folder = Some(id.clone());
@@ -2463,10 +2538,12 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             });
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
+                    .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     done = Some(false);
                 }
             });
@@ -2500,10 +2577,12 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             }
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
+                    .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     done = Some(false);
                 }
             });
@@ -2596,10 +2675,16 @@ fn dialogs(t: &mut ApiTool, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
             );
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("api-import")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("api-import")),
+                )
+                .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     done = Some(false);
                 }
             });
@@ -2808,30 +2893,49 @@ pub(crate) fn library_tab(
             });
             form::section(ui, theme, &s.t("api-library-code"), |ui| {
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(s.t("api-library-import-file")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            ph::DOWNLOAD_SIMPLE,
+                            s.t("api-library-import-file")
+                        ))
+                        .clicked()
+                    {
                         import_file = true;
                     }
-                    ui.menu_button(s.t("api-library-import-url"), |ui| {
-                        ui.set_min_width(320.0);
-                        let url_id = ui.id().with("url");
-                        let mut url: String = ui.data(|d| d.get_temp(url_id)).unwrap_or_default();
-                        let r = ui.add(
-                            hs_ui::form::line_edit(&mut url)
-                                .hint_text(s.t("api-library-url-hint"))
-                                .desired_width(f32::INFINITY),
-                        );
-                        ui.data_mut(|d| d.insert_temp(url_id, url.clone()));
-                        let go = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                        if (ui
-                            .add_enabled(!fetching, egui::Button::new(s.t("api-library-fetch")))
-                            .clicked()
-                            || go)
-                            && !url.trim().is_empty()
-                        {
-                            fetch_url = Some(url.trim().to_string());
-                            ui.close();
-                        }
-                    });
+                    ui.menu_button(
+                        format!("{} {}", ph::LINK, s.t("api-library-import-url")),
+                        |ui| {
+                            ui.set_min_width(320.0);
+                            let url_id = ui.id().with("url");
+                            let mut url: String =
+                                ui.data(|d| d.get_temp(url_id)).unwrap_or_default();
+                            let r = ui.add(
+                                hs_ui::form::line_edit(&mut url)
+                                    .hint_text(s.t("api-library-url-hint"))
+                                    .desired_width(f32::INFINITY),
+                            );
+                            ui.data_mut(|d| d.insert_temp(url_id, url.clone()));
+                            let go =
+                                r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                            if (ui
+                                .add_enabled(
+                                    !fetching,
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::CLOUD_ARROW_DOWN,
+                                        s.t("api-library-fetch")
+                                    )),
+                                )
+                                .clicked()
+                                || go)
+                                && !url.trim().is_empty()
+                            {
+                                fetch_url = Some(url.trim().to_string());
+                                ui.close();
+                            }
+                        },
+                    );
                     if fetching {
                         ui.spinner();
                     }
@@ -2849,10 +2953,22 @@ pub(crate) fn library_tab(
                 );
             });
             ui.horizontal(|ui| {
-                if form::primary_button(ui, theme, &s.t("api-library-save")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::FLOPPY_DISK, s.t("api-library-save")),
+                )
+                .clicked()
+                {
                     save = true;
                 }
-                if form::danger_button(ui, theme, &s.t("api-library-delete")).clicked() {
+                if form::danger_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::TRASH, s.t("api-library-delete")),
+                )
+                .clicked()
+                {
                     delete = true;
                 }
             });
@@ -3113,7 +3229,13 @@ pub(crate) fn manage_tab(
                 }
             }
             if page != ManagePage::Globals && page != ManagePage::Variables {
-                if form::primary_button(ui, theme, &s.t("api-manage-save")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::FLOPPY_DISK, s.t("api-manage-save")),
+                )
+                .clicked()
+                {
                     save = true;
                 }
             } else {
@@ -3137,6 +3259,24 @@ pub(crate) fn manage_tab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every button carries a glyph before its label, and every text field
+    /// is `form::line_edit` (CR-0063, CR-0061).
+    #[test]
+    fn no_label_only_button_or_bare_field_in_the_api_ui() {
+        for src in [include_str!("ui.rs")] {
+            for bad in [
+                concat!("ui.button(s.", "t("),
+                concat!("small_button(s.", "t("),
+                concat!("Button::new(s.", "t("),
+                concat!("TextEdit::", "singleline"),
+                concat!(".selectable", "_label("),
+                concat!(".selectable", "_value("),
+            ] {
+                assert!(!src.contains(bad), "found {bad}");
+            }
+        }
+    }
 
     #[test]
     fn preview_strips_tags_and_scripts() {

@@ -1297,6 +1297,28 @@ impl Drop for BrowserTool {
 mod tests {
     use super::*;
 
+    /// Every button carries a glyph before its label, and every text field
+    /// is `form::line_edit` (CR-0063, CR-0061).
+    #[test]
+    fn no_label_only_button_or_bare_field_in_the_browser_ui() {
+        for src in [
+            include_str!("lib.rs"),
+            include_str!("side.rs"),
+            include_str!("favbar.rs"),
+        ] {
+            for bad in [
+                concat!("ui.button(s.", "t("),
+                concat!("small_button(s.", "t("),
+                concat!("Button::new(s.", "t("),
+                concat!("TextEdit::", "singleline"),
+                concat!(".selectable", "_label("),
+                concat!(".selectable", "_value("),
+            ] {
+                assert!(!src.contains(bad), "found {bad}");
+            }
+        }
+    }
+
     #[test]
     fn blocklist_matches_hosts_and_subdomains() {
         assert!(is_blocked("https://ad.doubleclick.net/x?y", &[]));

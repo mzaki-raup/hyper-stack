@@ -162,6 +162,8 @@ pub struct RedisTool {
     assistant: hs_ui::ai_assistant::AssistantPanel,
     /// What the Tools, Pub/Sub and Streams tabs remember.
     pub(crate) depth: crate::depth::DepthState,
+    /// The Keys tab's key column is shown (the toolbar's first item).
+    show_keys: bool,
 }
 
 impl RedisTool {
@@ -194,6 +196,7 @@ impl RedisTool {
             ttl_read: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             depth: Default::default(),
+            show_keys: true,
         }
     }
 
@@ -358,7 +361,7 @@ fn named_button(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
     ui.button(format!("{icon} {label}"))
 }
 
-/// How wide the key list is beside the value pane.
+/// How wide the key list starts beside the value pane; the user drags it.
 const KEY_LIST_WIDTH: f32 = 300.0;
 
 /// Rows for the table that shows a collection page.
@@ -564,6 +567,7 @@ impl Tool for RedisTool {
             shortcut_action: None,
         };
         vec![
+            c("redis.key_column", "Redis: Toggle Key Column"),
             c("redis.scan", "Redis: Scan Keys"),
             c("redis.stop", "Redis: Stop the Scan"),
             c("redis.console", "Redis: Console"),
@@ -582,6 +586,10 @@ impl Tool for RedisTool {
 
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         match id {
+            "redis.key_column" => {
+                self.show_keys = !self.show_keys;
+                true
+            }
             "redis.scan" => {
                 self.rescan();
                 true
@@ -793,6 +801,19 @@ impl Tool for RedisTool {
         // Icon plus label, the way the other tools' toolbars read. With
         // Material icons on, Keys wears the key picture its list does.
         let material = s.settings.read().appearance.material_icons("redis");
+        // Show/hide toggles come first (CR-0073): the Keys tab's key
+        // column, offered only where that column is.
+        if self.state.tab == Tab::Keys {
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut self.show_keys,
+                ph::SIDEBAR_SIMPLE,
+                &s.t("redis-key-column"),
+            )
+            .tip(s.t("redis-key-column-tip"));
+            ui.separator();
+        }
         for (tab, icon, key) in [
             (Tab::Keys, ph::KEY, "redis-tab-keys"),
             (Tab::Console, ph::TERMINAL_WINDOW, "redis-tab-console"),
@@ -819,7 +840,11 @@ impl Tool for RedisTool {
         }
         if self.protected && !self.writes_unlocked {
             ui.separator();
-            let label = s.i18n.t_args("redis-protected", &[("env", &self.env_name)]);
+            let label = format!(
+                "{} {}",
+                ph::LOCK,
+                s.i18n.t_args("redis-protected", &[("env", &self.env_name)])
+            );
             if ui.button(label).tip(s.t("redis-unlock-hint")).clicked() {
                 self.writes_unlocked = true;
             }
@@ -973,7 +998,10 @@ impl RedisTool {
             }
             Some(Status::Failed(e)) => {
                 form::note(ui, &theme, ph::WARNING, &e);
-                if ui.button(s.t("redis-retry")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("redis-retry")))
+                    .clicked()
+                {
                     self.connect(s);
                 }
                 return;
@@ -1169,7 +1197,11 @@ impl RedisTool {
         let scanning = self.shared.lock().scanning;
         if let Some(e) = &self.conn_error {
             form::note(ui, &theme, ph::WARNING, e);
-            if self.waiting_for_vault && ui.button(s.t("redis-retry")).clicked() {
+            if self.waiting_for_vault
+                && ui
+                    .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("redis-retry")))
+                    .clicked()
+            {
                 self.connect(s);
             }
             return;
@@ -1273,22 +1305,41 @@ impl RedisTool {
                             );
                         }
                         r.context_menu(|ui| {
-                            if !row.is_group && ui.button(s.t("redis-open")).clicked() {
+                            if !row.is_group
+                                && ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::ARROW_SQUARE_OUT,
+                                        s.t("redis-open")
+                                    ))
+                                    .clicked()
+                            {
                                 to_open = Some(row.path.clone());
                                 ui.close();
                             }
-                            if ui.button(s.t("redis-copy-key")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::COPY, s.t("redis-copy-key")))
+                                .clicked()
+                            {
                                 ui.ctx().copy_text(row.path.clone());
                                 ui.close();
                             }
-                            if !row.is_group && ui.button(s.t("redis-rename")).clicked() {
+                            if !row.is_group
+                                && ui
+                                    .button(format!("{} {}", ph::PENCIL, s.t("redis-rename")))
+                                    .clicked()
+                            {
                                 popup = Some(Popup::Rename {
                                     key: row.path.clone(),
                                     to: row.path.clone(),
                                 });
                                 ui.close();
                             }
-                            if !row.is_group && ui.button(s.t("redis-set-ttl")).clicked() {
+                            if !row.is_group
+                                && ui
+                                    .button(format!("{} {}", ph::TIMER, s.t("redis-set-ttl")))
+                                    .clicked()
+                            {
                                 popup = Some(Popup::Ttl {
                                     key: row.path.clone(),
                                     text: String::new(),
@@ -1296,7 +1347,11 @@ impl RedisTool {
                                 ui.close();
                             }
                             ui.separator();
-                            if !row.is_group && ui.button(s.t("redis-delete")).clicked() {
+                            if !row.is_group
+                                && ui
+                                    .button(format!("{} {}", ph::TRASH, s.t("redis-delete")))
+                                    .clicked()
+                            {
                                 popup = Some(Popup::Delete {
                                     keys: vec![row.path.clone()],
                                     prefix: None,
@@ -1304,7 +1359,11 @@ impl RedisTool {
                                 });
                                 ui.close();
                             }
-                            if row.is_group && ui.button(s.t("redis-delete-prefix")).clicked() {
+                            if row.is_group
+                                && ui
+                                    .button(format!("{} {}", ph::TRASH, s.t("redis-delete-prefix")))
+                                    .clicked()
+                            {
                                 let pattern = format!("{}{delimiter}*", row.path);
                                 popup = Some(Popup::Delete {
                                     keys: Vec::new(),
@@ -1347,20 +1406,18 @@ impl RedisTool {
         self.keys_controls(ui, &theme, s);
         ui.separator();
         ui.add_space(form::PANE_GAP);
-        let total = ui.available_width();
-        let list_width = KEY_LIST_WIDTH.min(total * 0.45);
-        let value_width = (total - list_width - 26.0).max(160.0);
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(list_width);
-                self.key_list(ui, &theme, s);
-            });
-            ui.separator();
-            ui.vertical(|ui| {
-                ui.set_width(value_width);
-                self.value_pane(ui, cx);
-            });
-        });
+        if !self.show_keys {
+            self.value_pane(ui, cx);
+            return;
+        }
+        // A resizable column, as S3's and NoSQL's are: egui keeps the
+        // width the user drags it to, and the value pane takes the rest.
+        egui::Panel::left(ui.id().with("redis-key-list"))
+            .resizable(true)
+            .default_size(KEY_LIST_WIDTH)
+            .size_range(200.0..=640.0)
+            .show(ui, |ui| self.key_list(ui, &theme, s));
+        self.value_pane(ui, cx);
     }
 
     fn value_pane(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -1488,7 +1545,7 @@ impl RedisTool {
         match &page {
             Some(ValuePage::Text { bytes, total }) => {
                 let decoded = value::decode(bytes);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     ui.label(
                         egui::RichText::new(format!("{:?}", decoded.shape))
                             .small()
@@ -1510,19 +1567,35 @@ impl RedisTool {
                             .small()
                             .color(theme.warning),
                         );
-                        if ui.button(s.t("redis-load-full")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::DOWNLOAD_SIMPLE,
+                                s.t("redis-load-full")
+                            ))
+                            .clicked()
+                        {
                             self.send(Cmd::Whole {
                                 key: info.key.clone(),
                             });
                         }
                     }
                     if !self.editing {
-                        if ui.button(s.t("redis-edit")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("redis-edit")))
+                            .clicked()
+                        {
                             self.editor = decoded.text.clone();
                             self.editing = true;
                         }
                     } else {
-                        if form::primary_button(ui, &theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             let w = Write::SetString {
                                 key: info.key.clone(),
                                 value: self.editor.clone().into_bytes(),
@@ -1531,7 +1604,7 @@ impl RedisTool {
                             self.guarded_write(w, cx);
                             self.editing = false;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             self.editing = false;
                         }
                     }
@@ -1604,7 +1677,10 @@ impl RedisTool {
                 };
                 if more {
                     ui.add_space(4.0);
-                    if ui.button(s.t("redis-load-more")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::ARROW_DOWN, s.t("redis-load-more")))
+                        .clicked()
+                    {
                         self.send(Cmd::More {
                             key: info.key.clone(),
                             kind: kind.clone(),
@@ -1744,7 +1820,8 @@ impl RedisTool {
                 }
             }
             let submit = (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
-                || form::primary_button(ui, &theme, &s.t("redis-run")).clicked();
+                || form::primary_button(ui, &theme, &format!("{} {}", ph::PLAY, s.t("redis-run")))
+                    .clicked();
             if submit && !self.console_input.trim().is_empty() {
                 let line = self.console_input.clone();
                 match console::split(&line) {
@@ -1835,7 +1912,7 @@ impl RedisTool {
     fn refresh_tools(&mut self) {
         match self.depth.tool {
             crate::depth::ToolView::Slowlog => {
-                self.send(Cmd::Slowlog);
+                self.request_slowlog();
             }
             crate::depth::ToolView::Clients => {
                 self.send(Cmd::Clients);
@@ -1902,19 +1979,22 @@ impl RedisTool {
                     if need_typed {
                         ui.add_space(8.0);
                         ui.label(s.t("redis-type-prefix"));
-                        ui.text_edit_singleline(typed);
+                        ui.add(form::line_edit(typed));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let allowed = n > 0
                             && (!need_typed || typed.as_str() == prefix.as_deref().unwrap_or(""));
                         if ui
-                            .add_enabled(allowed, egui::Button::new(s.t("redis-delete")))
+                            .add_enabled(
+                                allowed,
+                                egui::Button::new(format!("{} {}", ph::TRASH, s.t("redis-delete"))),
+                            )
                             .clicked()
                         {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -1959,6 +2039,12 @@ impl RedisTool {
                     BulkAction::Persist => "redis-bulk-persist",
                     BulkAction::RenamePrefix => "redis-bulk-rename",
                 });
+                let verb_glyph = match action {
+                    BulkAction::Delete => ph::TRASH,
+                    BulkAction::Expire => ph::TIMER,
+                    BulkAction::Persist => ph::INFINITY,
+                    BulkAction::RenamePrefix => ph::PENCIL,
+                };
                 egui::Modal::new(egui::Id::new("redis-bulk")).show(ui.ctx(), |ui| {
                     ui.set_width(460.0);
                     ui.heading(s.t("redis-bulk-title"));
@@ -1975,15 +2061,18 @@ impl RedisTool {
                     if need_typed {
                         ui.add_space(8.0);
                         ui.label(s.t("redis-type-pattern"));
-                        ui.text_edit_singleline(typed);
+                        ui.add(form::line_edit(typed));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let allowed = n > 0 && (!need_typed || typed.as_str() == pattern.as_str());
-                        if ui.add_enabled(allowed, egui::Button::new(&verb)).clicked() {
+                        if ui
+                            .add_enabled(allowed, egui::Button::new(format!("{verb_glyph} {verb}")))
+                            .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2015,10 +2104,13 @@ impl RedisTool {
                     ui.label(s.i18n.t_args("redis-kill-body", &[("id", id.as_str())]));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(s.t("redis-client-kill")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::SKULL, s.t("redis-client-kill")))
+                            .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2042,13 +2134,19 @@ impl RedisTool {
                     ui.set_width(420.0);
                     ui.heading(s.t("redis-rename"));
                     ui.add_space(6.0);
-                    ui.text_edit_singleline(to);
+                    ui.add(form::line_edit(to));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, &theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2074,13 +2172,19 @@ impl RedisTool {
                     ui.heading(s.t("redis-set-ttl"));
                     ui.add_space(6.0);
                     form::hint(ui, &theme, &s.t("redis-ttl-body"));
-                    ui.text_edit_singleline(text);
+                    ui.add(form::line_edit(text));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, &theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2135,10 +2239,16 @@ impl RedisTool {
                     });
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, &theme, &s.t("redis-create")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::PLUS, s.t("redis-create")),
+                        )
+                        .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2219,13 +2329,25 @@ impl RedisTool {
                     });
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, &theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
-                        if form::danger_button(ui, &theme, &s.t("redis-remove")).clicked() {
+                        if form::danger_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::TRASH, s.t("redis-remove")),
+                        )
+                        .clicked()
+                        {
                             remove = true;
                         }
                     });
@@ -2315,18 +2437,21 @@ impl RedisTool {
                     if self.protected {
                         ui.add_space(8.0);
                         ui.label(s.i18n.t_args("redis-type-env", &[("env", &self.env_name)]));
-                        ui.text_edit_singleline(typed);
+                        ui.add(form::line_edit(typed));
                     }
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let allowed = !self.protected || typed.as_str() == self.env_name;
                         if ui
-                            .add_enabled(allowed, egui::Button::new(s.t("redis-run")))
+                            .add_enabled(
+                                allowed,
+                                egui::Button::new(format!("{} {}", ph::PLAY, s.t("redis-run"))),
+                            )
                             .clicked()
                         {
                             go = true;
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });

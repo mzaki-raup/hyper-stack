@@ -258,3 +258,15 @@ message's properties and headers are drawn as the striped two-column
 `form::detail_table` under a **Message Headers** heading, with their
 names read as words (`routing_key` → Routing key), and the payload sits
 in a `form::well` under a **Payload** heading.
+
+## Addendum (2026-11-07): publish fields filled from the broker (CR-0090)
+
+Publish's fields that the broker can list are `hs_ui::form::pick_field`s,
+typed or chosen: on RabbitMQ the exchange (from the vhost's exchanges) and
+the routing key (from that exchange's bindings, read with
+`Driver::publish_targets`); on NATS the subject (from the stream's
+subjects); on Kafka the partition (from the topic's partition count). With
+an empty list - the broker unreachable, or the kind lists nothing - each is
+a plain text field, so publishing still works; a failed read is asked
+again after a refresh. The Kafka consumer-lag table is a `DataTable`
+(CR-0061).

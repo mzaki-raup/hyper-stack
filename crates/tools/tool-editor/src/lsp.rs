@@ -1601,10 +1601,10 @@ impl Lsp {
             );
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(s.t("ok")).clicked() {
+                if ui.button(format!("{} {}", ph::CHECK, s.t("ok"))).clicked() {
                     done = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     cancel = true;
                 }
             });
@@ -1650,14 +1650,14 @@ impl Lsp {
             ui.label(egui::RichText::new(title).strong());
             if matches!(self.panel, PanelMode::Locations { .. })
                 && ui
-                    .small_button(s.t("editor-problems"))
+                    .small_button(format!("{} {}", ph::WARNING, s.t("editor-problems")))
                     .tip(s.t("editor-problems-tip"))
                     .clicked()
             {
                 show_problems = true;
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(ph::X).clicked() {
+                if ui.small_button(ph::X).tip(s.t("close")).clicked() {
                     close = true;
                 }
             });

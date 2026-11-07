@@ -206,9 +206,8 @@ impl HistoryView {
                 hs_ui::form::centred_row(ui, |ui| {
                     ui.label(egui::RichText::new(ph::MAGNIFYING_GLASS).color(theme.text_muted));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.search)
+                        hs_ui::form::line_edit(&mut self.search)
                             .hint_text(s.t("git-history-search-hint"))
-                            .margin(hs_ui::form::FIELD_MARGIN)
                             .desired_width(260.0),
                     );
                     if let Some(p) = &self.path {
@@ -264,7 +263,12 @@ impl HistoryView {
                             && ui
                                 .add_enabled(
                                     !self.loading,
-                                    egui::Button::new(s.t("git-load-more")).small(),
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::CARET_DOUBLE_DOWN,
+                                        s.t("git-load-more")
+                                    ))
+                                    .small(),
                                 )
                                 .clicked()
                         {
@@ -426,24 +430,51 @@ impl HistoryView {
                         select = Some(i);
                     }
                     resp.context_menu(|ui| {
-                        if ui.button(s.t("git-menu-copy-hash")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::COPY, s.t("git-menu-copy-hash")))
+                            .clicked()
+                        {
                             ui.ctx().copy_text(c.id.clone());
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(s.t("git-menu-checkout-commit")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::SIGN_IN,
+                                s.t("git-menu-checkout-commit")
+                            ))
+                            .clicked()
+                        {
                             menu_pick = Some(Pick::Checkout(c.id.clone()));
                             ui.close();
                         }
-                        if ui.button(s.t("git-menu-cherry-pick")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::GIT_COMMIT,
+                                s.t("git-menu-cherry-pick")
+                            ))
+                            .clicked()
+                        {
                             menu_pick = Some(Pick::Cherry(c.id.clone()));
                             ui.close();
                         }
-                        if ui.button(s.t("git-menu-branch-here")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::GIT_BRANCH,
+                                s.t("git-menu-branch-here")
+                            ))
+                            .clicked()
+                        {
                             menu_pick = Some(Pick::BranchAt(c.id.clone()));
                             ui.close();
                         }
-                        if ui.button(s.t("git-menu-tag-here")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::TAG, s.t("git-menu-tag-here")))
+                            .clicked()
+                        {
                             menu_pick = Some(Pick::TagAt(c.id.clone()));
                             ui.close();
                         }

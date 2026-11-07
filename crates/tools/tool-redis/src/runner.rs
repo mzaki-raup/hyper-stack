@@ -223,6 +223,13 @@ pub struct Shared {
     /// `ui.input().time` of the last reading the dashboard asked for.
     pub info_at: f64,
     pub slowlog: Vec<SlowEntry>,
+    /// A Slowlog read is on its way (set by the tab when it asks).
+    pub slowlog_loading: bool,
+    /// Why the last Slowlog read failed, until one works.
+    pub slowlog_error: Option<String>,
+    /// Bumped by every Slowlog read that lands, so the tab rebuilds its
+    /// rows once per read rather than every frame.
+    pub slowlog_version: u64,
     pub clients: Vec<ClientRow>,
     pub bigkeys: Vec<BigKey>,
     pub bigkeys_running: bool,
@@ -466,8 +473,19 @@ async fn serve(
             Err(e) => shared.lock().fail("select", &e),
         },
         Cmd::Slowlog => match session.slowlog(128).await {
-            Ok(rows) => shared.lock().slowlog = rows,
-            Err(e) => shared.lock().fail("slowlog", &e),
+            Ok(rows) => {
+                let mut sh = shared.lock();
+                sh.slowlog = rows;
+                sh.slowlog_loading = false;
+                sh.slowlog_error = None;
+                sh.slowlog_version += 1;
+            }
+            Err(e) => {
+                let mut sh = shared.lock();
+                sh.slowlog_loading = false;
+                sh.slowlog_error = Some(e.to_string());
+                sh.fail("slowlog", &e);
+            }
         },
         Cmd::Clients => match session.client_list().await {
             Ok(rows) => shared.lock().clients = rows,

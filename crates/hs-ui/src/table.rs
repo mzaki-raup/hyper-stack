@@ -141,6 +141,18 @@ impl DataTable<'_> {
     }
 
     pub fn show(&self, ui: &mut egui::Ui, state: &mut TableState) -> TableResponse {
+        self.show_coloured(ui, state, &|_, _| None)
+    }
+
+    /// [`DataTable::show`] where `cell_colour(row, column)` may give one
+    /// cell's text its own colour - a slow command's duration in the
+    /// log-level colours (owner, 2026-11-07). `row` indexes `rows`.
+    pub fn show_coloured(
+        &self,
+        ui: &mut egui::Ui,
+        state: &mut TableState,
+        cell_colour: &dyn Fn(usize, usize) -> Option<egui::Color32>,
+    ) -> TableResponse {
         let mut resp = TableResponse::default();
         // No columns is no table: a header band with no titles reads as a
         // bug (NoSQL with no documents, 2026-11-07). The caller's empty
@@ -242,10 +254,17 @@ impl DataTable<'_> {
                     .body(|body| {
                         body.rows(self.row_height.max(ROW_HEIGHT), order.len(), |mut row| {
                             let data_idx = order[row.index()];
-                            row.set_selected(state.selected == Some(data_idx));
+                            let selected = state.selected == Some(data_idx);
+                            row.set_selected(selected);
                             for (ci, c) in self.columns.iter().enumerate() {
                                 row.col(|ui| {
                                     readable_on_selection(ui, text_override);
+                                    // A selected row keeps the normal text
+                                    // colour on the selection fill (ui.md
+                                    // "A selected row stays readable").
+                                    if !selected && let Some(colour) = cell_colour(data_idx, ci) {
+                                        ui.visuals_mut().override_text_color = Some(colour);
+                                    }
                                     if !c.numeric {
                                         ui.add_space(HEADER_INDENT);
                                     }

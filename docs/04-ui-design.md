@@ -1467,3 +1467,39 @@ Written in full in `.claude/rules/ui.md`; in short:
   leads a work-pane title with the same coloured picture its tab wears,
   on the title's middle line, with a one-line description under it.
   Every Devtools tool and API Client's Manage Collection use it.
+
+## Addendum (2026-11-07): browse columns, previews, log tables, shell focus, broker picks, variable tooltips (CR-0089, CR-0091 to CR-0094, CR-0090, FEAT-0107, FEAT-0108)
+
+- **Open Here shows the tab's coloured prefix** (CR-0089):
+  `hs_core::open_tabs::TabInfo::prefix` carries the coloured piece of a
+  tab's title (an API request's method); the Open Here card draws it
+  before the title in its colour, the title in the normal text colour.
+- **A browse column can be hidden and resized** (CR-0091): a column that
+  lists what a pane browses (S3 buckets, Redis keys, the NoSQL databases)
+  is a resizable panel, with a show/hide toggle as the first toolbar item
+  (CR-0073) and a palette command. Hidden, it takes no width.
+- **An item's content sits beside its list** (FEAT-0108, CR-0093): a
+  clicked item that can be shown (an S3 object's text, image or Markdown;
+  a NoSQL document's JSON) opens in a resizable column to the right of the
+  list, not under it. A preview reads a capped range, can be cancelled,
+  is cached on what identifies the version (an ETag), and has empty,
+  loading, error (with Retry) and "too large" states.
+- **A log table without levels still wears the level colours**
+  (CR-0092): a table of timed entries (Redis Slow Log) maps each entry to
+  a level by a stated threshold and colours only that cell
+  (`DataTable::show_coloured`) with the shared log-level colours; the
+  clicked row's detail sits under the table.
+- **A shell takes the keyboard when its tab comes to the front**
+  (CR-0094): Terminal and SSH focus the shell on the frame its tab
+  becomes active, once - never while a dialog or another field
+  (`form::focus_is_elsewhere`) has the keyboard.
+- **A field the broker can list is a pick field** (CR-0090): the rule of
+  CR-0038 holds for brokers - a RabbitMQ exchange and routing key, a NATS
+  subject, a Kafka partition are `form::pick_field`s filled from the
+  broker, and plain text fields when it lists nothing.
+- **A `{{variable}}` shows its value on hover** (FEAT-0107): every shared
+  field (`varfield::var_field`, `KvEditor`, `form::text_field` /
+  `code_field`, the editor engine with `EditorView::var_tips`) shows a
+  tooltip with the reference and its value through `hs_ui::varpeek`,
+  installed once by the shell. A secret is shown masked and never
+  decrypted for a tooltip; a locked vault and an unset name say so.

@@ -305,3 +305,16 @@ Ops preview sits in a `form::scroll_well`.
 name order - one stable partition of the already-ordered map, not a sort
 per frame - so a database of mixed `app:*` prefixes and bare keys reads as
 folders, then files, like every other list in the app.
+
+## Addendum (2026-11-07): the Slow Log table, a hideable key list (CR-0092, CR-0091)
+
+Tools → **Slow Log** is a `DataTable` (Id, Time, Duration, Command,
+Client) with the clicked entry's detail - its duration in microseconds
+and the whole command - under it, and loading, empty and error states.
+The Duration cell wears the shared log-level colours through
+`DataTable::show_coloured` and `slow_level`: under 10 ms DEBUG, under
+100 ms INFO, under 1 s WARN, otherwise ERROR (owner's thresholds,
+2026-11-07). Only that cell is coloured.
+
+The Keys tab's key list is a resizable column that can be hidden from
+the toolbar's first item (palette **Redis: Toggle Key Column**).

@@ -339,7 +339,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 ],
             ),
             &format!("{} {}", ph::SKULL, s.t("dt-ports-kill")),
-            &format!("{} {}", ph::X, s.t("cancel")),
+            &s.t("cancel"),
             true,
         ) {
             hs_ui::dialog::DialogResult::Ok => {

@@ -142,13 +142,32 @@ fn label(ui: &mut egui::Ui, rich: &Rich, clicked: &mut Option<String>) {
 }
 
 pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownResponse {
-    let blocks = parse(text, style, ui.available_width());
+    render_doc(ui, &parse_doc(text, style), style)
+}
+
+/// A Markdown document parsed once, for a caller that draws the same text
+/// every frame: parse it with [`parse_doc`] when the text (or the theme)
+/// changes and draw it with [`render_doc`], so a large file is not parsed
+/// again each frame.
+pub struct MarkdownDoc {
+    blocks: Vec<Block>,
+}
+
+/// Parse `text` for [`render_doc`]; the colours of `style` are baked in.
+pub fn parse_doc(text: &str, style: &MarkdownStyle) -> MarkdownDoc {
+    MarkdownDoc {
+        blocks: parse(text, style, 0.0),
+    }
+}
+
+/// Draw a document [`parse_doc`] parsed.
+pub fn render_doc(ui: &mut egui::Ui, doc: &MarkdownDoc, style: &MarkdownStyle) -> MarkdownResponse {
     let mut last_was_table = false;
     let mut clicked: Option<String> = None;
-    for b in blocks {
+    for b in &doc.blocks {
         match b {
             Block::Paragraph(job) => {
-                label(ui, &job, &mut clicked);
+                label(ui, job, &mut clicked);
                 ui.add_space(6.0);
             }
             Block::Heading(level, job) => {
@@ -157,7 +176,7 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownR
                 } else {
                     6.0
                 });
-                label(ui, &job, &mut clicked);
+                label(ui, job, &mut clicked);
                 if matches!(level, HeadingLevel::H1 | HeadingLevel::H2) {
                     ui.separator();
                 }
@@ -175,7 +194,7 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownR
                 let shown = egui::Frame::new()
                     .inner_margin(egui::Margin::same(6))
                     .show(ui, |ui| {
-                        crate::mermaid::show(ui, &text, style.base_size, &pal)
+                        crate::mermaid::show(ui, text, style.base_size, &pal)
                     })
                     .inner;
                 if let Err(e) = shown {
@@ -184,12 +203,12 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownR
                             .color(style.muted)
                             .italics(),
                     );
-                    code_block(ui, "", &text, style);
+                    code_block(ui, "", text, style);
                 }
                 ui.add_space(6.0);
             }
             Block::Code { lang, text } => {
-                code_block(ui, &lang, &text, style);
+                code_block(ui, lang, text, style);
                 ui.add_space(6.0);
             }
             Block::Rule => {
@@ -198,9 +217,9 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownR
             }
             Block::ListItem { depth, marker, job } => {
                 ui.horizontal_top(|ui| {
-                    ui.add_space(12.0 + depth as f32 * 18.0);
+                    ui.add_space(12.0 + *depth as f32 * 18.0);
                     ui.label(RichText::new(marker).color(style.muted));
-                    label(ui, &job, &mut clicked);
+                    label(ui, job, &mut clicked);
                 });
             }
             Block::Quote(job) => {
@@ -209,15 +228,15 @@ pub fn render(ui: &mut egui::Ui, text: &str, style: &MarkdownStyle) -> MarkdownR
                         ui.allocate_exact_size(egui::vec2(4.0, 20.0), egui::Sense::hover());
                     ui.painter().rect_filled(rect, 2.0, style.quote_bar);
                     ui.add_space(6.0);
-                    label(ui, &job, &mut clicked);
+                    label(ui, job, &mut clicked);
                 });
                 ui.add_space(4.0);
             }
             Block::TableRow { cells, header } => {
                 ui.horizontal(|ui| {
                     for c in cells {
-                        let mut job = c;
-                        if header {
+                        let mut job = c.clone();
+                        if *header {
                             for s in &mut job.job.sections {
                                 s.format.color = style.text;
                             }

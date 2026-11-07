@@ -309,6 +309,7 @@ impl GitRepos {
         self.remove_icon(id);
         let dst = dir.join(format!("{id}.{ext}"));
         std::fs::copy(src, &dst).map_err(io_err(src))?;
+        bump_icon_generation();
         Ok(dst)
     }
 
@@ -332,6 +333,7 @@ impl GitRepos {
             path: dst.display().to_string(),
             source,
         })?;
+        bump_icon_generation();
         Ok(dst)
     }
 
@@ -339,8 +341,23 @@ impl GitRepos {
     pub fn remove_icon(&self, id: &str) {
         if let Some(old) = self.icon_file(id) {
             let _ = std::fs::remove_file(old);
+            bump_icon_generation();
         }
     }
+}
+
+/// Counts every change to an uploaded repository icon in this process, so
+/// a tab can tell its picture is stale without touching the disk each
+/// frame: it looks the file up again only when this moves.
+static ICON_GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn bump_icon_generation() {
+    ICON_GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The current icon generation (see [`ICON_GENERATION`]).
+pub fn icon_generation() -> u64 {
+    ICON_GENERATION.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 #[cfg(test)]

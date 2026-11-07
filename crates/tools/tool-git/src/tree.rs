@@ -188,33 +188,70 @@ impl Tree {
                         }
                         r.context_menu(|ui| {
                             let name = b.name.clone();
-                            if !b.current && ui.button(s.t("git-menu-checkout")).clicked() {
+                            if !b.current
+                                && ui
+                                    .button(format!("{} {}", ph::SIGN_IN, s.t("git-menu-checkout")))
+                                    .clicked()
+                            {
                                 pick = Some(Pick::Checkout(name.clone()));
                                 ui.close();
                             }
-                            if !b.current && ui.button(s.t("git-menu-merge-into")).clicked() {
+                            if !b.current
+                                && ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::GIT_MERGE,
+                                        s.t("git-menu-merge-into")
+                                    ))
+                                    .clicked()
+                            {
                                 pick = Some(Pick::MergeInto(name.clone()));
                                 ui.close();
                             }
-                            if !b.current && ui.button(s.t("git-menu-rebase-onto")).clicked() {
+                            if !b.current
+                                && ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::GIT_FORK,
+                                        s.t("git-menu-rebase-onto")
+                                    ))
+                                    .clicked()
+                            {
                                 pick = Some(Pick::RebaseOnto(name.clone()));
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("git-menu-push-branch")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::UPLOAD_SIMPLE,
+                                    s.t("git-menu-push-branch")
+                                ))
+                                .clicked()
+                            {
                                 pick = Some(Pick::PushBranch(name.clone()));
                                 ui.close();
                             }
-                            if ui.button(s.t("git-menu-set-upstream")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::LINK, s.t("git-menu-set-upstream")))
+                                .clicked()
+                            {
                                 pick = Some(Pick::SetUpstream(name.clone()));
                                 ui.close();
                             }
-                            if ui.button(s.t("git-menu-rename")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("git-menu-rename")))
+                                .clicked()
+                            {
                                 pick = Some(Pick::Rename(name.clone()));
                                 ui.close();
                             }
                             ui.separator();
-                            if !b.current && ui.button(s.t("git-menu-delete")).clicked() {
+                            if !b.current
+                                && ui
+                                    .button(format!("{} {}", ph::TRASH, s.t("git-menu-delete")))
+                                    .clicked()
+                            {
                                 pick = Some(Pick::Delete(name));
                                 ui.close();
                             }
@@ -244,16 +281,33 @@ impl Tree {
                             }
                         }
                         resp.context_menu(|ui| {
-                            if ui.button(s.t("git-menu-fetch-remote")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::CLOUD_ARROW_DOWN,
+                                    s.t("git-menu-fetch-remote")
+                                ))
+                                .clicked()
+                            {
                                 pick = Some(Pick::FetchRemote(r.name.clone()));
                                 ui.close();
                             }
-                            if ui.button(s.t("git-menu-edit-remote")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::PENCIL_SIMPLE,
+                                    s.t("git-menu-edit-remote")
+                                ))
+                                .clicked()
+                            {
                                 pick = Some(Pick::EditRemote(r.name.clone()));
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("git-menu-remove-remote")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::TRASH, s.t("git-menu-remove-remote")))
+                                .clicked()
+                            {
                                 pick = Some(Pick::RemoveRemote(r.name.clone()));
                                 ui.close();
                             }
@@ -278,12 +332,25 @@ impl Tree {
                                     )
                                     .on_hover_text(&b.subject);
                                     resp.context_menu(|ui| {
-                                        if ui.button(s.t("git-menu-checkout")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                ph::SIGN_IN,
+                                                s.t("git-menu-checkout")
+                                            ))
+                                            .clicked()
+                                        {
                                             pick = Some(Pick::CheckoutRemote(b.name.clone()));
                                             ui.close();
                                         }
                                         ui.separator();
-                                        if ui.button(s.t("git-menu-delete-remote-branch")).clicked()
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                ph::TRASH,
+                                                s.t("git-menu-delete-remote-branch")
+                                            ))
+                                            .clicked()
                                         {
                                             pick = Some(Pick::DeleteRemoteBranch {
                                                 remote: r.name.clone(),
@@ -319,12 +386,22 @@ impl Tree {
                     for t in &self.refs.tags {
                         row_art(ui, theme, false, &art("tag", ph::TAG), t, None).context_menu(
                             |ui| {
-                                if ui.button(s.t("git-menu-push-tag")).clicked() {
+                                if ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::UPLOAD_SIMPLE,
+                                        s.t("git-menu-push-tag")
+                                    ))
+                                    .clicked()
+                                {
                                     pick = Some(Pick::PushTag(t.clone()));
                                     ui.close();
                                 }
                                 ui.separator();
-                                if ui.button(s.t("git-menu-delete-tag")).clicked() {
+                                if ui
+                                    .button(format!("{} {}", ph::TRASH, s.t("git-menu-delete-tag")))
+                                    .clicked()
+                                {
                                     pick = Some(Pick::DeleteTag(t.clone()));
                                     ui.close();
                                 }
@@ -349,16 +426,29 @@ impl Tree {
                             Some(&st.id),
                         )
                         .context_menu(|ui| {
-                            if ui.button(s.t("git-menu-stash-apply")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::STACK, s.t("git-menu-stash-apply")))
+                                .clicked()
+                            {
                                 pick = Some(Pick::StashApply(st.id.clone()));
                                 ui.close();
                             }
-                            if ui.button(s.t("git-menu-stash-pop")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::TRAY_ARROW_UP,
+                                    s.t("git-menu-stash-pop")
+                                ))
+                                .clicked()
+                            {
                                 pick = Some(Pick::StashPop(st.id.clone()));
                                 ui.close();
                             }
                             ui.separator();
-                            if ui.button(s.t("git-menu-stash-drop")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::TRASH, s.t("git-menu-stash-drop")))
+                                .clicked()
+                            {
                                 pick = Some(Pick::StashDrop(st.id.clone()));
                                 ui.close();
                             }

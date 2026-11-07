@@ -106,7 +106,7 @@ impl ConflictView {
                 });
                 // The verbs on their own row: beside the count they ran
                 // into it in a narrow column (seen on screen).
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     if self.parsed.is_some() {
                         let left = self
                             .choices
@@ -133,10 +133,24 @@ impl ConflictView {
                             {
                                 self.save(s, root.to_path_buf());
                             }
-                            if ui.button(s.t("git-conflict-all-ours")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::ARROW_FAT_LEFT,
+                                    s.t("git-conflict-all-ours")
+                                ))
+                                .clicked()
+                            {
                                 self.choices.iter_mut().for_each(|c| *c = Choice::Ours);
                             }
-                            if ui.button(s.t("git-conflict-all-theirs")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    ph::ARROW_FAT_RIGHT,
+                                    s.t("git-conflict-all-theirs")
+                                ))
+                                .clicked()
+                            {
                                 self.choices.iter_mut().for_each(|c| *c = Choice::Theirs);
                             }
                         });

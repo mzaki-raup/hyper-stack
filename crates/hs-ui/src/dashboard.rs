@@ -798,10 +798,28 @@ fn card(ui: &mut egui::Ui, theme: &Theme, t: &TabInfo, labels: &DashboardLabels<
     } else {
         (mid - 9.0, mid + 9.0)
     };
+    // A coloured piece first, as the tab draws it: an API request's
+    // method (owner, 2026-11-07). Only the piece is coloured.
+    let mut title_left = text_left;
+    if let Some((prefix, colour)) = &t.prefix {
+        let r = painter.text(
+            egui::pos2(title_left, title_y),
+            egui::Align2::LEFT_CENTER,
+            prefix,
+            font.clone(),
+            *colour,
+        );
+        title_left = r.right() + 6.0;
+    }
     painter.text(
-        egui::pos2(text_left, title_y),
+        egui::pos2(title_left, title_y),
         egui::Align2::LEFT_CENTER,
-        elide(ui, &t.title, &font, room),
+        elide(
+            ui,
+            &t.title,
+            &font,
+            (rect.right() - 8.0 - title_left).max(0.0),
+        ),
         font,
         theme.text,
     );
@@ -905,5 +923,37 @@ mod tests {
             "mark at {} vs {mid}",
             mark.center().y
         );
+    }
+
+    /// A request's coloured method leads its card's title, as on its tab;
+    /// the title keeps the normal text colour (owner, 2026-11-07).
+    #[test]
+    fn an_open_here_card_shows_the_tabs_coloured_method() {
+        let theme = Theme::dark();
+        let green = egui::Color32::from_rgb(40, 200, 90);
+        let tabs = [TabInfo {
+            id: 1,
+            title: "New Request".into(),
+            icon: "M".into(),
+            prefix: Some(("GET".into(), green)),
+            ..Default::default()
+        }];
+        let labels = DashboardLabels {
+            open_heading: "Open Here",
+            nothing_open: "",
+            no_preview: "Not opened yet",
+        };
+        let ctx = egui::Context::default();
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            open_tabs(ui, &theme, &tabs, &labels);
+        });
+        let t = texts(&out.shapes);
+        let find = |s: &str| t.iter().find(|(x, _, _)| x == s).cloned().expect(s);
+        let (_, method, colour) = find("GET");
+        let (_, title, title_colour) = find("New Request");
+        assert_eq!(colour, green);
+        assert_eq!(title_colour, theme.text);
+        assert!(method.right() < title.left());
+        assert!((method.center().y - title.center().y).abs() < 1.0);
     }
 }

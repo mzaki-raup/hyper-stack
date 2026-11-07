@@ -294,7 +294,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 &s.i18n
                     .t_args("dt-snippets-delete-body", &[("name", name.as_str())]),
                 &format!("{} {}", hs_ui::icons::TRASH, s.t("delete")),
-                &format!("{} {}", ph::X, s.t("cancel")),
+                &s.t("cancel"),
                 true,
             ) {
                 hs_ui::dialog::DialogResult::Ok => {

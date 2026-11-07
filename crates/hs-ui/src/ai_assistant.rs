@@ -608,7 +608,14 @@ impl AssistantPanel {
                                     }
                                 }
                                 ui.horizontal_wrapped(|ui| {
-                                    if ui.button(s.t("ai-copy-answer")).clicked() {
+                                    if ui
+                                        .button(format!(
+                                            "{} {}",
+                                            crate::icons::ph::COPY,
+                                            s.t("ai-copy-answer")
+                                        ))
+                                        .clicked()
+                                    {
                                         ui.ctx().copy_text(text.clone());
                                     }
                                     if let Some(label) = &self.apply_label
@@ -726,7 +733,9 @@ impl AssistantPanel {
                     ui.ctx()
                         .request_repaint_after(std::time::Duration::from_millis(500));
                 }
-                if ui.button(s.t("ai-stop")).clicked()
+                if ui
+                    .button(format!("{} {}", crate::icons::ph::STOP, s.t("ai-stop")))
+                    .clicked()
                     && !measuring
                     && let Some(r) = self.running.take()
                 {

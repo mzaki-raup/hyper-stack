@@ -147,6 +147,9 @@ pub struct ContainersTool {
     selected_at: f64,
     /// A Compose verb waiting to be confirmed, and which project.
     confirm_compose: Option<(hs_container::ComposeVerb, String)>,
+    /// A saved command or config waiting for its Delete to be confirmed
+    /// (CR-0067).
+    confirm_config_delete: Option<configs::SavedConfig>,
     /// What the last Compose or Swarm verb printed, kept until the next
     /// one: `up` and `deploy` say what they did, and throwing that away
     /// would leave the user guessing whether anything happened.
@@ -442,6 +445,7 @@ impl ContainersTool {
             selected: None,
             selected_at: f64::NEG_INFINITY,
             confirm_compose: None,
+            confirm_config_delete: None,
             last_output: None,
             table: hs_ui::table::TableState::default(),
             confirm: None,
@@ -1082,7 +1086,7 @@ impl ContainersTool {
         ui.scope(|ui| {
             ui.set_max_width(SCAN_ROW_WIDTH);
             for f in &found {
-                ui.horizontal(|ui| {
+                form::centred_row(ui, |ui| {
                     kind_badge(ui, f.kind);
                     ui.label(&f.name);
                     ui.label(
@@ -1097,14 +1101,15 @@ impl ContainersTool {
                                     .small()
                                     .color(theme.text_muted),
                             );
-                        } else if ui.small_button(s.t("container-scan-add")).clicked()
+                        } else if form::button(ui, theme, ph::PLUS, &s.t("container-scan-add"))
+                            .clicked()
                             && self.add_found(s, f)
                         {
                             added = true;
                         }
                     });
                 });
-                ui.add_space(2.0);
+                ui.add_space(form::ROW_GAP);
             }
         });
         // The list is re-read from the store next frame, so a host just
@@ -1491,7 +1496,7 @@ impl ContainersTool {
             form::centred_row(ui, |ui| {
                 ui.label(egui::RichText::new(&title).strong());
                 hs_ui::toolbar::hard_right(ui, |ui| {
-                    if ui.button(s.t("cluster-detail-close")).clicked() {
+                    if form::button(ui, theme, ph::X, &s.t("cluster-detail-close")).clicked() {
                         self.cluster_selected = None;
                         self.clear_detail();
                     }
@@ -1520,14 +1525,24 @@ impl ContainersTool {
         form::centred_row_wrapped(ui, |ui| {
             let asked = self.yaml.is_some() || self.yaml_pending.is_some();
             if ui
-                .add_enabled(!fresh && !asked, egui::Button::new(s.t("cluster-yaml")))
+                .add_enabled(
+                    !fresh && !asked,
+                    egui::Button::new(format!("{} {}", ph::FILE_CODE, s.t("cluster-yaml"))),
+                )
                 .clicked()
             {
                 self.reload_yaml(s, profile, target.clone());
             }
             if asked
                 && ui
-                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-yaml-hide")))
+                    .add_enabled(
+                        !fresh,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::EYE_SLASH,
+                            s.t("cluster-yaml-hide")
+                        )),
+                    )
                     .clicked()
             {
                 self.yaml = None;
@@ -1537,7 +1552,10 @@ impl ContainersTool {
             }
             if let Some(Ok(yaml)) = &self.yaml
                 && ui
-                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-yaml-copy")))
+                    .add_enabled(
+                        !fresh,
+                        egui::Button::new(format!("{} {}", ph::COPY, s.t("cluster-yaml-copy"))),
+                    )
                     .clicked()
             {
                 ui.ctx().copy_text(yaml.clone());
@@ -1553,14 +1571,21 @@ impl ContainersTool {
                     .unwrap_or_default();
                 if containers.len() < 2 {
                     if ui
-                        .add_enabled(!fresh, egui::Button::new(s.t("cluster-logs")))
+                        .add_enabled(
+                            !fresh,
+                            egui::Button::new(format!("{} {}", ph::SCROLL, s.t("cluster-logs"))),
+                        )
                         .clicked()
                     {
                         self.open_pod_logs(s, cx_actions, profile, inv, i, "");
                     }
                 } else {
                     for c in &containers {
-                        let label = s.i18n.t_args("cluster-logs-of", &[("container", c)]);
+                        let label = format!(
+                            "{} {}",
+                            ph::SCROLL,
+                            s.i18n.t_args("cluster-logs-of", &[("container", c)])
+                        );
                         if ui.add_enabled(!fresh, egui::Button::new(label)).clicked() {
                             self.open_pod_logs(s, cx_actions, profile, inv, i, c);
                         }
@@ -1580,7 +1605,7 @@ impl ContainersTool {
                 let shell_blocked = refusal.is_some();
                 let exec = ui.add_enabled(
                     !fresh && !shell_blocked,
-                    egui::Button::new(s.t("cluster-exec")),
+                    egui::Button::new(format!("{} {}", ph::TERMINAL_WINDOW, s.t("cluster-exec"))),
                 );
                 let exec = match &refusal {
                     Some(why) => exec.tip_disabled(docker::refusal_text(s, why)),
@@ -1609,7 +1634,14 @@ impl ContainersTool {
             }
             if res == cluster::Resource::Custom
                 && ui
-                    .add_enabled(!fresh, egui::Button::new(s.t("cluster-custom-list")))
+                    .add_enabled(
+                        !fresh,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::LIST_BULLETS,
+                            s.t("cluster-custom-list")
+                        )),
+                    )
                     .clicked()
                 && let Some(crd) = inv.crds.get(i).cloned()
             {
@@ -1647,7 +1679,11 @@ impl ContainersTool {
         if ui
             .add_enabled(
                 !fresh && port.is_some() && !starting,
-                egui::Button::new(s.t("cluster-forward")),
+                egui::Button::new(format!(
+                    "{} {}",
+                    ph::ARROWS_LEFT_RIGHT,
+                    s.t("cluster-forward")
+                )),
             )
             .tip(s.t("cluster-forward-hint"))
             .clicked()
@@ -1686,7 +1722,10 @@ impl ContainersTool {
                 {
                     open_url(cx_actions, &f.url);
                 }
-                if ui.small_button(s.t("cluster-forward-stop")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::STOP, s.t("cluster-forward-stop")))
+                    .clicked()
+                {
                     stop = Some(i);
                 }
             });
@@ -1768,7 +1807,11 @@ impl ContainersTool {
         if cluster::Verb::Restart.applies_to(&target.kind) {
             let r = explain(ui.add_enabled(
                 !fresh && !blocked,
-                egui::Button::new(s.t("cluster-verb-restart")),
+                egui::Button::new(format!(
+                    "{} {}",
+                    ph::ARROWS_CLOCKWISE,
+                    s.t("cluster-verb-restart")
+                )),
             ));
             if r.tip(s.t("cluster-verb-restart-hint")).clicked() {
                 self.act_cluster(s, profile, target.clone(), cluster::Verb::Restart);
@@ -1787,7 +1830,11 @@ impl ContainersTool {
             let wanted: Option<i32> = self.scale_to.trim().parse().ok();
             let r = explain(ui.add_enabled(
                 !fresh && !blocked && wanted.is_some(),
-                egui::Button::new(s.t("cluster-verb-scale")),
+                egui::Button::new(format!(
+                    "{} {}",
+                    ph::ARROWS_OUT_LINE_VERTICAL,
+                    s.t("cluster-verb-scale")
+                )),
             ));
             if r.tip(s.t("cluster-verb-scale-hint")).clicked()
                 && let Some(n) = wanted
@@ -1797,7 +1844,7 @@ impl ContainersTool {
         }
         let r = explain(ui.add_enabled(
             !fresh && !blocked,
-            egui::Button::new(s.t("cluster-verb-delete")),
+            egui::Button::new(format!("{} {}", ph::TRASH, s.t("cluster-verb-delete"))),
         ));
         if r.clicked() {
             self.confirm_cluster = Some((cluster::Verb::Delete, target.clone()));
@@ -1878,7 +1925,7 @@ impl ContainersTool {
             if ui
                 .add_enabled(
                     !fresh && edited && !running,
-                    egui::Button::new(s.t("cluster-dry-run")),
+                    egui::Button::new(format!("{} {}", ph::FLASK, s.t("cluster-dry-run"))),
                 )
                 .tip(s.t("cluster-dry-run-hint"))
                 .clicked()
@@ -1894,7 +1941,7 @@ impl ContainersTool {
             if ui
                 .add_enabled(
                     !fresh && previewed && !running,
-                    egui::Button::new(s.t("cluster-apply")),
+                    egui::Button::new(format!("{} {}", ph::CHECK, s.t("cluster-apply"))),
                 )
                 .clicked()
                 && let Some(text) = self.yaml_edit.clone()
@@ -1904,7 +1951,11 @@ impl ContainersTool {
             if ui
                 .add_enabled(
                     !fresh && edited && !running,
-                    egui::Button::new(s.t("cluster-reset")),
+                    egui::Button::new(format!(
+                        "{} {}",
+                        ph::ARROW_COUNTER_CLOCKWISE,
+                        s.t("cluster-reset")
+                    )),
                 )
                 .clicked()
             {
@@ -2548,7 +2599,10 @@ impl ContainersTool {
                     }),
             );
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.small_button(s.t("close")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("close")))
+                    .clicked()
+                {
                     self.selected = None;
                 }
             });
@@ -2655,8 +2709,8 @@ impl ContainersTool {
                 }
                 // Right-click offers the same thing by name, and the
                 // address itself for anything outside this app.
-                let open_label = s.t("container-open-in-browser");
-                let copy_label = s.t("container-copy-url");
+                let open_label = format!("{} {}", ph::GLOBE, s.t("container-open-in-browser"));
+                let copy_label = format!("{} {}", ph::COPY, s.t("container-copy-url"));
                 let menu_url = url.clone();
                 r.context_menu(|ui| {
                     if ui.button(&open_label).clicked() {
@@ -2821,7 +2875,10 @@ impl ContainersTool {
                     .color(theme.text_muted),
             );
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.small_button(s.t("close")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("close")))
+                    .clicked()
+                {
                     self.selected = None;
                 }
             });
@@ -2836,7 +2893,10 @@ impl ContainersTool {
             facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
         );
         ui.add_space(4.0);
-        if ui.small_button(s.t("container-detail-copy")).clicked() {
+        if ui
+            .small_button(format!("{} {}", ph::COPY, s.t("container-detail-copy")))
+            .clicked()
+        {
             let text = facts
                 .iter()
                 .map(|(k, v)| format!("{k}: {v}"))
@@ -2881,7 +2941,10 @@ impl ContainersTool {
                 .color(theme.text_muted),
             );
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.small_button(s.t("close")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("close")))
+                    .clicked()
+                {
                     self.selected = None;
                 }
             });
@@ -2902,7 +2965,7 @@ impl ContainersTool {
 
         ui.horizontal_wrapped(|ui| {
             for v in docker::compose_verbs_for(&p) {
-                let label = s.t(v.key());
+                let label = format!("{} {}", compose_verb_icon(v), s.t(v.key()));
                 let blocked = v.destructive() && refusal.is_some();
                 let r = ui.add_enabled(!blocked, egui::Button::new(label.as_str()));
                 let r = match (&refusal, blocked) {
@@ -2987,10 +3050,16 @@ impl ContainersTool {
                     .color(theme.text_muted),
             );
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.small_button(s.t("close")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("close")))
+                    .clicked()
+                {
                     self.last_output = None;
                 }
-                if ui.small_button(s.t("container-copy-output")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::COPY, s.t("container-copy-output")))
+                    .clicked()
+                {
                     ui.ctx().copy_text(text.clone());
                 }
             });
@@ -3273,6 +3342,21 @@ fn verb_icon(verb: hs_container::Verb) -> &'static str {
         Verb::Pause => ph::PAUSE,
         Verb::Kill => ph::X_CIRCLE,
         Verb::Remove => ph::TRASH,
+    }
+}
+
+/// The glyph before a Compose verb's label, the same picture as the
+/// container verb it matches (CR-0063).
+fn compose_verb_icon(verb: hs_container::compose::ComposeVerb) -> &'static str {
+    use hs_container::compose::ComposeVerb;
+    match verb {
+        ComposeVerb::Up | ComposeVerb::Start => ph::PLAY,
+        ComposeVerb::Down => ph::TRASH,
+        ComposeVerb::Stop => ph::STOP,
+        ComposeVerb::Restart => ph::ARROWS_CLOCKWISE,
+        ComposeVerb::Pull => ph::DOWNLOAD_SIMPLE,
+        ComposeVerb::Build => ph::HAMMER,
+        ComposeVerb::Config => ph::FILE_CODE,
     }
 }
 
@@ -3703,7 +3787,26 @@ impl Tool for ContainersTool {
                     });
                     ui.add_space(2.0);
                 }
-                if let Some(c) = delete {
+                // Delete asks first: it removes the saved file (CR-0067).
+                if delete.is_some() {
+                    self.confirm_config_delete = delete;
+                }
+            });
+        if let Some(c) = self.confirm_config_delete.clone() {
+            let label = s.t("container-config-delete");
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                &theme,
+                "container-config-delete",
+                &label,
+                &s.i18n
+                    .t_args("container-config-delete-confirm", &[("name", &c.name)]),
+                &label,
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    self.confirm_config_delete = None;
                     let root = s.workspace.read().root().to_path_buf();
                     match c.delete(&root) {
                         Ok(()) => {
@@ -3713,7 +3816,10 @@ impl Tool for ContainersTool {
                         Err(e) => cx.toast(hs_core::tool::ToastLevel::Error, e.to_string()),
                     }
                 }
-            });
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_config_delete = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        }
         true
     }
 
@@ -3737,6 +3843,39 @@ impl Tool for ContainersTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every Compose verb button leads with a glyph, and a verb that
+    /// matches a container verb wears that verb's picture (CR-0063).
+    #[test]
+    fn every_compose_verb_has_the_matching_glyph() {
+        use hs_container::Verb;
+        use hs_container::compose::ComposeVerb;
+        for v in [
+            ComposeVerb::Up,
+            ComposeVerb::Down,
+            ComposeVerb::Start,
+            ComposeVerb::Stop,
+            ComposeVerb::Restart,
+            ComposeVerb::Pull,
+            ComposeVerb::Build,
+            ComposeVerb::Config,
+        ] {
+            assert!(!compose_verb_icon(v).is_empty(), "{v:?} has no glyph");
+        }
+        assert_eq!(
+            compose_verb_icon(ComposeVerb::Start),
+            verb_icon(Verb::Start)
+        );
+        assert_eq!(compose_verb_icon(ComposeVerb::Stop), verb_icon(Verb::Stop));
+        assert_eq!(
+            compose_verb_icon(ComposeVerb::Restart),
+            verb_icon(Verb::Restart)
+        );
+        assert_eq!(
+            compose_verb_icon(ComposeVerb::Down),
+            verb_icon(Verb::Remove)
+        );
+    }
 
     /// The figures for kinds of thing wear Material pictures; the
     /// container states keep their glyphs (CR-0065).

@@ -137,6 +137,15 @@ pub struct Binding {
     pub arguments: String,
 }
 
+/// What a publish can be aimed at, as the broker lists it, for the
+/// publish form's pick fields: RabbitMQ's exchanges, and the routing keys
+/// bound to each (`(exchange, routing key)`, the default exchange as "").
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PublishTargets {
+    pub targets: Vec<String>,
+    pub keys: Vec<(String, String)>,
+}
+
 /// A destinations listing, and what it could not include.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Listing {
@@ -192,6 +201,12 @@ pub trait Driver: Send {
     }
     async fn bindings(&mut self, _dest: &Destination) -> Result<Vec<Binding>> {
         Ok(Vec::new())
+    }
+    /// The exchanges and routing keys of `scope` (a RabbitMQ vhost) for
+    /// the publish form. Empty for a kind whose targets the listing
+    /// already holds, or that has none to list.
+    async fn publish_targets(&mut self, _scope: &str) -> Result<PublishTargets> {
+        Ok(PublishTargets::default())
     }
 }
 
@@ -330,6 +345,9 @@ impl Driver for Guarded {
     }
     async fn bindings(&mut self, dest: &Destination) -> Result<Vec<Binding>> {
         self.inner.bindings(dest).await
+    }
+    async fn publish_targets(&mut self, scope: &str) -> Result<PublishTargets> {
+        self.inner.publish_targets(scope).await
     }
 }
 

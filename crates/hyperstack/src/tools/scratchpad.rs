@@ -1740,9 +1740,8 @@ impl Tool for Scratchpad {
             }
         }
         ui.add(
-            egui::TextEdit::singleline(&mut self.filter)
+            hs_ui::form::line_edit(&mut self.filter)
                 .hint_text(s.t("scratchpad-search"))
-                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(4.0);
@@ -1762,11 +1761,17 @@ impl Tool for Scratchpad {
                     .t_args("scratchpad-delete-confirm", &[("title", &title)]),
             );
             ui.horizontal(|ui| {
-                if form::danger_button(ui, &theme, &s.t("delete")).clicked() {
+                if form::danger_button(
+                    ui,
+                    &theme,
+                    &format!("{} {}", hs_ui::icons::TRASH, s.t("delete")),
+                )
+                .clicked()
+                {
                     self.confirm_delete = None;
                     self.delete(&id, cx);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                     self.confirm_delete = None;
                 }
             });
@@ -1788,11 +1793,17 @@ impl Tool for Scratchpad {
                 ),
             );
             ui.horizontal(|ui| {
-                if form::danger_button(ui, &theme, &s.t("delete")).clicked() {
+                if form::danger_button(
+                    ui,
+                    &theme,
+                    &format!("{} {}", hs_ui::icons::TRASH, s.t("delete")),
+                )
+                .clicked()
+                {
                     self.confirm_delete_folder = None;
                     self.delete_folder(&folder, cx);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                     self.confirm_delete_folder = None;
                 }
             });
@@ -1811,11 +1822,22 @@ impl Tool for Scratchpad {
             let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
             let mut done = escape;
             ui.horizontal(|ui| {
-                if form::primary_button(ui, &theme, &s.t("scratchpad-rename")).clicked() || enter {
+                if form::primary_button(
+                    ui,
+                    &theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::PENCIL_SIMPLE,
+                        s.t("scratchpad-rename")
+                    ),
+                )
+                .clicked()
+                    || enter
+                {
                     self.rename(&folder, &name, cx);
                     done = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                     done = true;
                 }
             });

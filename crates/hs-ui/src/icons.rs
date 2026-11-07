@@ -1240,6 +1240,21 @@ pub fn image_uri(ctx: &egui::Context, path: &std::path::Path) -> Option<String> 
     use std::collections::HashSet;
     use std::sync::{LazyLock, Mutex};
     static KNOWN: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
+    let uri = image_uri_name(path);
+    let mut known = KNOWN.lock().ok()?;
+    if !known.contains(&uri) {
+        let bytes = std::fs::read(path).ok()?;
+        ctx.include_bytes(uri.clone(), bytes);
+        known.insert(uri.clone());
+    }
+    Some(uri)
+}
+
+/// The URI [`image_uri`] gives `path`, without loading it: for a caller
+/// with no `egui::Context` at hand (a restored tab naming its picture
+/// before its pane is drawn) whose image is loaded elsewhere - the Git
+/// sidebar loads every saved repository's picture (2026-11-07).
+pub fn image_uri_name(path: &std::path::Path) -> String {
     let stamp = std::fs::metadata(path)
         .ok()
         .and_then(|m| m.modified().ok())
@@ -1251,17 +1266,10 @@ pub fn image_uri(ctx: &egui::Context, path: &std::path::Path) -> Option<String> 
         .and_then(|e| e.to_str())
         .unwrap_or("png")
         .to_ascii_lowercase();
-    let uri = format!(
+    format!(
         "bytes://hs-image/{}/{stamp}.{ext}",
         path.display().to_string().replace(['\\', ':'], "/")
-    );
-    let mut known = KNOWN.lock().ok()?;
-    if !known.contains(&uri) {
-        let bytes = std::fs::read(path).ok()?;
-        ctx.include_bytes(uri.clone(), bytes);
-        known.insert(uri.clone());
-    }
-    Some(uri)
+    )
 }
 
 /// The glyph for a stored icon key: one of [`REPO_ICONS`], or a language

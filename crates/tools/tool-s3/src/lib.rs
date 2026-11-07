@@ -2123,10 +2123,26 @@ impl S3Tool {
             return;
         };
         let name = obj.key.rsplit('/').next().unwrap_or(&obj.key).to_string();
+        // A heading row, a rule, the file with its kind's picture, a rule
+        // - each part set apart (owner, 2026-11-07).
         ui.add_space(form::PANE_GAP);
         form::centred_row(ui, |ui| {
             ui.label(egui::RichText::new(format!("{} {}", ph::EYE, s.t("s3-preview"))).strong());
-            ui.add(egui::Label::new(egui::RichText::new(&name).color(theme.text_muted)).truncate());
+        });
+        ui.add_space(form::PANE_GAP);
+        ui.separator();
+        ui.add_space(form::PANE_GAP);
+        let material = s.settings.read().appearance.material_icons("s3");
+        form::centred_row(ui, |ui| {
+            if material {
+                ui.add(
+                    egui::Image::new(hs_ui::fileicons::for_file(&name))
+                        .fit_to_exact_size(egui::vec2(18.0, 18.0)),
+                );
+            } else {
+                ui.label(egui::RichText::new(ph::FILE).color(theme.text_muted));
+            }
+            ui.add(egui::Label::new(&name).truncate());
         });
         ui.add_space(form::PANE_GAP);
         ui.separator();

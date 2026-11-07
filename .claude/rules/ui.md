@@ -262,6 +262,11 @@ look for it in `crates/hs-ui/src/` first.
   where long content has room. An S3 object previews as text, image or
   rendered Markdown, with a size cap and an empty state for other types
   (owner, 2026-11-07).
+  A preview or detail column opens with a structured header: its
+  heading (Preview) on a row, a rule, the item's name led by its kind's
+  coloured Material icon (a plain glyph when Material is off), a rule,
+  then the content - `form::PANE_GAP` above and below each part (owner,
+  2026-11-07).
 - **A log without levels is still a table:** a server's log view (Redis
   Slow Log, and any like it) is a `DataTable` with the clicked row's
   detail below; when the entries carry no level word, the value that

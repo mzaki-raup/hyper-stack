@@ -31,6 +31,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Fixed
 
 - S3 preview: a file named like an image whose content is not one now says so, with Retry, instead of a bare red triangle (FEAT-0108)
+- S3 preview column has a structured header: the Preview heading, a rule, the file name with its kind's coloured icon, a rule (FEAT-0108)
 - Queue: the publish form's Add Header, Publish and Format JSON are standard-size buttons (CR-0063)
 - API Client: the sidebar's labelled buttons keep their label on one line and wrap as a whole (CR-0063)
 - Git: an Open Here card for a restored repository tab wears the repository's own icon, as its sidebar row does (BUG-0048)

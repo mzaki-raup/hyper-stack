@@ -3792,7 +3792,7 @@ impl Tool for EditorTool {
             let mut out = terminal::PanelOut::default();
             egui::Panel::bottom(self.id.with("terminal"))
                 .default_size(220.0)
-                .size_range(80.0..=600.0)
+                .size_range(80.0..=bottom_panel_max(ui))
                 .resizable(true)
                 .show(ui, |ui| {
                     out = self.terminal.panel_ui(ui, s, &theme, root.as_deref());
@@ -3815,7 +3815,7 @@ impl Tool for EditorTool {
             let root = self.projects[self.active].root.clone();
             egui::Panel::bottom(self.id.with("debug"))
                 .default_size(200.0)
-                .size_range(80.0..=600.0)
+                .size_range(80.0..=bottom_panel_max(ui))
                 .resizable(true)
                 .show(ui, |ui| self.debug.panel_ui(ui, s, &theme, root.as_deref()));
         }
@@ -3823,7 +3823,7 @@ impl Tool for EditorTool {
             let root = self.projects[self.active].root.clone();
             egui::Panel::bottom(self.id.with("problems"))
                 .default_size(170.0)
-                .size_range(80.0..=600.0)
+                .size_range(80.0..=bottom_panel_max(ui))
                 .resizable(true)
                 .show(ui, |ui| self.lsp.panel_ui(ui, s, &theme, root.as_deref()));
         }
@@ -4790,6 +4790,13 @@ impl EditorTool {
         let d = &p.docs[p.active];
         Some((d.path.clone()?, d))
     }
+}
+
+/// The tallest a bottom panel (terminal, debug, problems) may grow: the
+/// space below the toolbar less 200 px, so the editor keeps room for its
+/// text whatever a panel's content does (BUG-0051).
+fn bottom_panel_max(ui: &egui::Ui) -> f32 {
+    (ui.available_height() - 200.0).clamp(120.0, 600.0)
 }
 
 #[cfg(test)]

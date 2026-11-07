@@ -1117,7 +1117,14 @@ impl Debugger {
         // of ~121 px, which read as the panel resizing itself whenever the
         // mouse moved (BUG-0037). Filling the height keeps the two rects
         // equal, so a dragged size survives.
-        ui.set_min_height(ui.available_height());
+        //
+        // To a whole pixel, and no more: the remembered size came back
+        // 1/32 px taller every frame (egui's layout grid rounds up), so the
+        // panel crept over the editor while it was open (BUG-0051). Flooring
+        // absorbs that step and the size holds.
+        let height = ui.available_height().floor();
+        ui.set_min_height(height);
+        ui.set_max_height(height);
         let mut close = false;
         // Air above the tab row, and an icon and a label on each tab, as
         // every other sub-toolbar has (owner's CR-0040).
@@ -1166,60 +1173,66 @@ impl Debugger {
     }
 
     fn console_ui(&mut self, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-        let input_h = 26.0;
-        let avail = ui.available_height() - input_h;
-        egui::ScrollArea::vertical()
-            .id_salt(self.id.with("console"))
-            .max_height(avail.max(40.0))
-            .auto_shrink([false, false])
-            .stick_to_bottom(true)
-            .show(ui, |ui| {
-                let font = egui::FontId::new(
-                    s.settings.read().editor.font_size,
-                    hs_ui::fonts::editor_family(),
+        // Bottom-up: the input row takes its own height at the bottom first,
+        // then the output fills exactly what is left above it. Reserving a
+        // guessed height for the row made the content taller than the panel,
+        // and `egui::Panel` (which keeps the size its content produced) grew
+        // it frame after frame to its ceiling, over the editor (BUG-0051).
+        ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+            hs_ui::form::centred_row(ui, |ui| {
+                ui.label(egui::RichText::new(">").color(theme.accent));
+                let r = ui.add(
+                    hs_ui::form::line_edit(&mut self.console_input)
+                        .hint_text(s.t("debug-console-hint"))
+                        .desired_width(f32::INFINITY),
                 );
-                for (line, span) in &self.console {
-                    // A line that names a level wears the Logs activity's
-                    // colour for it on the level word only (CR-0077); the
-                    // span was read on push. Only Out and Info lines carry
-                    // one; the stream colours stay whole-line without it.
-                    let (text, colour) = match line {
-                        Line::Out(t) => (t.as_str(), theme.text),
-                        Line::Err(t) => (t.as_str(), theme.error),
-                        Line::Info(t) if span.is_some() => (t.as_str(), theme.text),
-                        Line::Info(t) => (t.as_str(), theme.text_muted),
-                        Line::Input(t) => (t.as_str(), theme.accent),
-                    };
-                    let prefix = if matches!(line, Line::Input(_)) {
-                        "> "
-                    } else {
-                        ""
-                    };
-                    let job = hs_ui::loglevel::line_job(
-                        theme,
-                        &format!("{prefix}{text}"),
-                        span.as_ref(),
-                        font.clone(),
-                        colour,
-                    );
-                    ui.add(egui::Label::new(job).wrap());
+                if r.lost_focus()
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && !self.console_input.trim().is_empty()
+                {
+                    let expr = std::mem::take(&mut self.console_input);
+                    self.evaluate(expr.trim().to_string());
+                    r.request_focus();
                 }
             });
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.label(egui::RichText::new(">").color(theme.accent));
-            let r = ui.add(
-                hs_ui::form::line_edit(&mut self.console_input)
-                    .hint_text(s.t("debug-console-hint"))
-                    .desired_width(f32::INFINITY),
-            );
-            if r.lost_focus()
-                && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                && !self.console_input.trim().is_empty()
-            {
-                let expr = std::mem::take(&mut self.console_input);
-                self.evaluate(expr.trim().to_string());
-                r.request_focus();
-            }
+            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt(self.id.with("console"))
+                    .auto_shrink([false, false])
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        let font = egui::FontId::new(
+                            s.settings.read().editor.font_size,
+                            hs_ui::fonts::editor_family(),
+                        );
+                        for (line, span) in &self.console {
+                            // A line that names a level wears the Logs activity's
+                            // colour for it on the level word only (CR-0077); the
+                            // span was read on push. Only Out and Info lines carry
+                            // one; the stream colours stay whole-line without it.
+                            let (text, colour) = match line {
+                                Line::Out(t) => (t.as_str(), theme.text),
+                                Line::Err(t) => (t.as_str(), theme.error),
+                                Line::Info(t) if span.is_some() => (t.as_str(), theme.text),
+                                Line::Info(t) => (t.as_str(), theme.text_muted),
+                                Line::Input(t) => (t.as_str(), theme.accent),
+                            };
+                            let prefix = if matches!(line, Line::Input(_)) {
+                                "> "
+                            } else {
+                                ""
+                            };
+                            let job = hs_ui::loglevel::line_job(
+                                theme,
+                                &format!("{prefix}{text}"),
+                                span.as_ref(),
+                                font.clone(),
+                                colour,
+                            );
+                            ui.add(egui::Label::new(job).wrap());
+                        }
+                    });
+            });
         });
     }
 
@@ -1286,19 +1299,38 @@ impl Debugger {
             let open = has_children && self.expanded.contains(&v.variables_reference);
             ui.horizontal(|ui| {
                 ui.add_space(depth as f32 * 16.0);
-                let caret = if !has_children {
-                    "  "
-                } else if open {
+                // The caret is a Phosphor glyph, which the monospace font
+                // does not have (it drew as an empty box): the caret goes in
+                // the body font and only the name is monospace. A leaf takes
+                // a transparent caret so every name starts at the same x.
+                let caret = if open {
                     ph::CARET_DOWN
                 } else {
                     ph::CARET_RIGHT
                 };
-                let r = ui.add(
-                    egui::Button::new(
-                        egui::RichText::new(format!("{caret} {}", v.name)).monospace(),
-                    )
-                    .frame(false),
+                let colour = ui.visuals().text_color();
+                let mut job = egui::text::LayoutJob::default();
+                job.append(
+                    &format!("{caret} "),
+                    0.0,
+                    egui::TextFormat::simple(
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        if has_children {
+                            colour
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        },
+                    ),
                 );
+                job.append(
+                    &v.name,
+                    0.0,
+                    egui::TextFormat::simple(
+                        egui::TextStyle::Monospace.resolve(ui.style()),
+                        colour,
+                    ),
+                );
+                let r = ui.add(egui::Button::new(job).frame(false));
                 if r.clicked() && has_children {
                     if open {
                         self.expanded.remove(&v.variables_reference);

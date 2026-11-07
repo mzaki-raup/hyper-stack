@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.8
 Features : FEAT-0108
-Bugs : BUG-0051
+Bugs : BUG-0052
 Change Request : CR-0095
 ```
 
@@ -1069,15 +1069,26 @@ Change Request : CR-0095
 
 
 ### BUG-0051 · Editor: the debug panel covers the editor
-- **State:** Pending
+- **State:** Completed · fixed, gated and seen on screen 2026-11-08
 - **Source:** found while retaking README screenshots 2026-11-07
 - **Scope:** Editor: the debug panel opens at nearly the full pane height and covers the editor, so a paused line can't be seen; it can't be dragged smaller (80..600 range).
-- [ ] Test: reproduces the panel opening over the editor
-- [ ] Code: the debug panel leaves the editor visible
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
-- [ ] App: `--data-dir ./tmp-data` — start a debug session in `debug-demo`, stop at a breakpoint; the paused line shows above the panel and the panel drags smaller
-- [ ] Docs: CHANGELOG · GOTCHAS
+- [x] Test: reproduces the panel opening over the editor — `hyperstack` `the_debug_panel_keeps_its_height_frame_after_frame` (failed before: the Console tab climbed from y=394 to y=83 in 60 frames; then a 1/32 px a frame creep)
+- [x] Code: the debug panel leaves the editor visible — the console lays its input row out bottom-up; the panel's content is floored to a whole pixel (min = max); `bottom_panel_max` caps terminal, debug and problems at the window less 200 px
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-08 (1430 tests)
+- [x] App: `--data-dir ./tmp-data` — start a debug session in `debug-demo`, stop at a breakpoint; the paused line shows above the panel and the panel drags smaller — paused on line 16, panel 200 px and unchanged after 20 s; dragged to 264 px and 118 px, each held; the Variables carets draw (README editor-debug.png / editor-debug-stack.png retaken)
+- [x] Docs: CHANGELOG · GOTCHAS (the BUG-0037 entry extended)
 
+
+
+### BUG-0052 · Editor: the debug panel keeps the old call stack after Stop
+- **State:** Pending
+- **Source:** found on the BUG-0051 screen check, 2026-11-08
+- **Scope:** after a debug session ends (Stop, or the program exits), the Call Stack and Variables tabs still list the last paused frames and variables; they should clear and show their empty state. Related: at the minimum window size the editor toolbar wraps to two rows while paused, which leaves the stopped line at the editor's bottom edge.
+- [ ] Test: ending a session clears frames, scopes and variables
+- [ ] Code: the panel shows its empty state once the session ends
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [ ] App: `--data-dir ./tmp-data` — pause in `debug-demo`, Stop; the tabs are empty
+- [ ] Docs: CHANGELOG
 
 ---
 

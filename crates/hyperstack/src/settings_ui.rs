@@ -2599,7 +2599,7 @@ fn environments(
                 });
             });
             form::section(ui, theme, &s.t("env-variables"), |ui| {
-                form::centred_row(ui, |ui| {
+                form::centred_row_wrapped(ui, |ui| {
                     if form::button(
                         ui,
                         theme,
@@ -2619,7 +2619,14 @@ fn environments(
                     egui::Popup::menu(&export).show(|ui| {
                         ui.set_min_width(160.0);
                         for format in tool_api::env_export::Format::ALL {
-                            if ui.button(format.label()).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::FILE_CODE,
+                                    format.label()
+                                ))
+                                .clicked()
+                            {
                                 effects.push(SettingsEffect::ExportEnvironment(format));
                                 ui.close();
                             }
@@ -2986,7 +2993,7 @@ fn collection_copy_dialog(
         if source_vars.is_empty() {
             form::hint(ui, theme, &s.t("col-compare-empty"));
         } else {
-            ui.horizontal(|ui| {
+            form::centred_row_wrapped(ui, |ui| {
                 if form::button(
                     ui,
                     theme,
@@ -3292,7 +3299,7 @@ fn env_copy_dialog(
         if source_vars.is_empty() {
             form::hint(ui, theme, &s.t("env-copy-empty"));
         } else {
-            ui.horizontal(|ui| {
+            form::centred_row_wrapped(ui, |ui| {
                 if form::button(
                     ui,
                     theme,
@@ -4728,7 +4735,7 @@ fn conn_detail(
     let mut do_save = false;
     let mut do_connect = false;
     let mut close = false;
-    ui.horizontal(|ui| {
+    form::centred_row_wrapped(ui, |ui| {
         if form::primary_button(
             ui,
             theme,
@@ -6134,10 +6141,14 @@ fn terminal(
                         );
                         let id = settings.terminal.cli[i].id.clone();
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if form::button(ui, theme, hs_ui::icons::ph::TRASH, "").clicked() {
+                            if form::button(ui, theme, hs_ui::icons::ph::TRASH, "")
+                                .tip(s.t("remove"))
+                                .clicked()
+                            {
                                 remove_cli = Some(id.clone());
                             }
                             if form::button(ui, theme, hs_ui::icons::ph::PENCIL_SIMPLE, "")
+                                .tip(s.t("settings-terminal-cli-edit"))
                                 .clicked()
                             {
                                 edit_cli = Some(id.clone());

@@ -162,6 +162,8 @@ pub struct TrackerTool {
     kind: String,
     address: String,
     queries: Vec<String>,
+    /// A saved query waiting for its Delete to be confirmed (CR-0067).
+    confirm_query: Option<usize>,
     conn_error: Option<String>,
     waiting_for_vault: bool,
     read_only_profile: bool,
@@ -293,6 +295,7 @@ impl TrackerTool {
             kind: String::new(),
             address: String::new(),
             queries: Vec::new(),
+            confirm_query: None,
             conn_error: None,
             waiting_for_vault: false,
             read_only_profile: false,
@@ -1024,7 +1027,11 @@ impl Tool for TrackerTool {
                 let label = s
                     .i18n
                     .t_args("tracker-protected", &[("env", &self.env_name)]);
-                if ui.button(label).tip(s.t("tracker-unlock-hint")).clicked() {
+                if ui
+                    .button(format!("{} {label}", ph::LOCK))
+                    .tip(s.t("tracker-unlock-hint"))
+                    .clicked()
+                {
                     self.writes_unlocked = true;
                     self.connect(s);
                 }
@@ -1161,7 +1168,10 @@ impl TrackerTool {
         }
         if let Some(e) = self.conn_error.clone() {
             form::note(ui, &theme, ph::WARNING, &e);
-            if ui.button(s.t("tracker-retry")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("tracker-retry")))
+                .clicked()
+            {
                 self.connect(s);
             }
             return;
@@ -1177,7 +1187,10 @@ impl TrackerTool {
             }
             Some(Status::Failed(e)) => {
                 form::note(ui, &theme, ph::WARNING, &hs_core::fmt::sentence(&e));
-                if ui.button(s.t("tracker-retry")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("tracker-retry")))
+                    .clicked()
+                {
                     self.connect(s);
                 }
                 return;
@@ -1310,7 +1323,7 @@ impl TrackerTool {
         // Field height for the icon buttons too, so they line up with the
         // query field beside them.
         hs_ui::form::centred_row(ui, |ui| {
-            let width = (ui.available_width() - 120.0).max(120.0);
+            let width = (ui.available_width() - 260.0).max(120.0);
             let r = ui.add(
                 hs_ui::form::line_edit(&mut self.query_text)
                     .hint_text(s.t(match self.kind.as_str() {
@@ -1330,44 +1343,71 @@ impl TrackerTool {
                 go = true;
             }
             if ui
-                .button(ph::MAGNIFYING_GLASS)
+                .button(format!(
+                    "{} {}",
+                    ph::MAGNIFYING_GLASS,
+                    s.t("tracker-search")
+                ))
                 .tip(s.t("tracker-search-tip"))
                 .clicked()
             {
                 go = true;
             }
-            ui.menu_button(ph::BOOKMARK_SIMPLE, |ui| {
-                if self.queries.is_empty() {
-                    ui.weak(s.t("tracker-no-saved-queries"));
-                }
-                for (i, q) in self.queries.iter().enumerate() {
-                    ui.horizontal(|ui| {
-                        if ui.button(q).clicked() {
-                            pick = Some(q.clone());
-                            ui.close();
-                        }
-                        if ui
-                            .small_button(ph::X)
-                            .tip(s.t("tracker-remove-query"))
-                            .clicked()
-                        {
-                            remove = Some(i);
-                        }
-                    });
-                }
-                ui.separator();
-                if ui
-                    .add_enabled(
-                        !self.query_text.trim().is_empty()
-                            && !self.queries.contains(&self.query_text.trim().to_string()),
-                        egui::Button::new(format!("{} {}", ph::PLUS, s.t("tracker-save-query"))),
-                    )
-                    .clicked()
-                {
-                    save = true;
-                    ui.close();
-                }
-            })
+            ui.menu_button(
+                format!("{} {}", ph::BOOKMARK_SIMPLE, s.t("tracker-queries")),
+                |ui| {
+                    if self.queries.is_empty() {
+                        ui.weak(s.t("tracker-no-saved-queries"));
+                    }
+                    for (i, q) in self.queries.iter().enumerate() {
+                        ui.horizontal(|ui| {
+                            let r = ui.button(format!("{} {q}", ph::MAGNIFYING_GLASS));
+                            if r.clicked() {
+                                pick = Some(q.clone());
+                                ui.close();
+                            }
+                            // Delete from a right-click too, behind the same
+                            // confirmation (CR-0067).
+                            r.context_menu(|ui| {
+                                if ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::TRASH,
+                                        s.t("tracker-delete-query")
+                                    ))
+                                    .clicked()
+                                {
+                                    remove = Some(i);
+                                    ui.close();
+                                }
+                            });
+                            if ui
+                                .small_button(ph::TRASH)
+                                .tip(s.t("tracker-remove-query"))
+                                .clicked()
+                            {
+                                remove = Some(i);
+                            }
+                        });
+                    }
+                    ui.separator();
+                    if ui
+                        .add_enabled(
+                            !self.query_text.trim().is_empty()
+                                && !self.queries.contains(&self.query_text.trim().to_string()),
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::PLUS,
+                                s.t("tracker-save-query")
+                            )),
+                        )
+                        .clicked()
+                    {
+                        save = true;
+                        ui.close();
+                    }
+                },
+            )
             .response
             .tip(s.t("tracker-saved-queries"));
         });
@@ -1375,11 +1415,39 @@ impl TrackerTool {
             self.query_text = q;
             go = true;
         }
-        if save || remove.is_some() {
+        if remove.is_some() {
+            self.confirm_query = remove;
+        }
+        let mut delete = None;
+        if let Some(i) = self.confirm_query
+            && let Some(q) = self.queries.get(i)
+        {
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                &Theme::from_settings(&s.settings.read().appearance),
+                "tracker-delete-query",
+                &s.t("tracker-delete-query"),
+                &s.i18n
+                    .t_args("tracker-delete-query-body", &[("query", q.as_str())]),
+                &format!("{} {}", ph::TRASH, s.t("delete")),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    delete = Some(i);
+                    self.confirm_query = None;
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_query = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        } else {
+            self.confirm_query = None;
+        }
+        if save || delete.is_some() {
             if save {
                 self.queries.push(self.query_text.trim().to_string());
             }
-            if let Some(i) = remove {
+            if let Some(i) = delete {
                 self.queries.remove(i);
             }
             if let Err(e) = self.save_queries(s) {
@@ -1898,7 +1966,7 @@ impl TrackerTool {
         ui.add_space(form::PANE_GAP);
         ui.horizontal(|ui| {
             hs_ui::toolbar::hard_right(ui, |ui| {
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     self.pane = Pane::View;
                 }
             });
@@ -1987,7 +2055,10 @@ impl TrackerTool {
                 {
                     save = true;
                 }
-                if ui.button(s.t("tracker-back")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::ARROW_LEFT, s.t("tracker-back")))
+                    .clicked()
+                {
                     draft.review = false;
                 }
             });
@@ -2047,7 +2118,7 @@ impl TrackerTool {
                 {
                     draft.review = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     back = true;
                 }
             });
@@ -2159,7 +2230,7 @@ impl TrackerTool {
             {
                 create = true;
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                 back = true;
             }
         });
@@ -2226,7 +2297,10 @@ impl TrackerTool {
                     {
                         publish = true;
                     }
-                    if ui.button(s.t("tracker-back")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::ARROW_LEFT, s.t("tracker-back")))
+                        .clicked()
+                    {
                         draft.review = false;
                     }
                 });
@@ -2253,7 +2327,7 @@ impl TrackerTool {
                     {
                         draft.review = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         back = true;
                     }
                 });
@@ -2387,6 +2461,24 @@ impl TrackerTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every button carries a glyph before its label, and every text field
+    /// is `form::line_edit` (CR-0063, CR-0061).
+    #[test]
+    fn no_label_only_button_or_bare_field_in_the_tracker_ui() {
+        for src in [include_str!("ui.rs")] {
+            for bad in [
+                concat!("ui.button(s.", "t("),
+                concat!("small_button(s.", "t("),
+                concat!("Button::new(s.", "t("),
+                concat!("TextEdit::", "singleline"),
+                concat!(".selectable", "_label("),
+                concat!(".selectable", "_value("),
+            ] {
+                assert!(!src.contains(bad), "found {bad}");
+            }
+        }
+    }
 
     #[test]
     fn a_protected_tab_is_read_only_until_unlocked() {

@@ -13,6 +13,7 @@ use std::sync::Arc;
 use hs_core::Services;
 use hs_core::events::Event;
 use hs_core::jobs::Progress;
+mod preview;
 mod sync;
 mod tree;
 use tree::FolderTree;
@@ -121,6 +122,18 @@ struct Shared {
     policy: Load<(Option<String>, Option<String>)>,
     /// The sync dry run: what would move, and the local files behind it.
     sync_plan: Load<(Vec<sync::Diff>, Vec<sync::LocalFile>)>,
+    /// The preview column's object, by `preview::cache_id`, and what it
+    /// read; a new id (another key, or a new ETag) fetches again.
+    preview: Option<(String, Load<PreviewData>)>,
+}
+
+/// What the preview column shows for one object.
+#[derive(Clone)]
+enum PreviewData {
+    /// The text and each line's byte range in it, found once.
+    Text(Arc<str>, Arc<[std::ops::Range<usize>]>),
+    Markdown(Arc<str>),
+    Image(Arc<[u8]>),
 }
 
 /// What the details pane reads: the key, its head and its tags.
@@ -182,6 +195,14 @@ pub struct S3Tool {
     s3_client: Option<Arc<S3Client>>,
     /// The details pane is open, and the key it last read.
     details_open: bool,
+    /// The bucket column is shown (hidden from the toolbar's first item).
+    show_buckets: bool,
+    /// The preview column follows the selected object.
+    preview_open: bool,
+    /// The preview fetch in flight, aborted when the selection moves on.
+    preview_task: Option<tokio::task::JoinHandle<()>>,
+    /// The previewed Markdown parsed once: (cache id, dark theme, blocks).
+    preview_md: Option<(String, bool, Arc<hs_editor::markdown::MarkdownDoc>)>,
     details_key: Option<String>,
     details_reload: bool,
     /// The folder column's hierarchy and what is open in it (FEAT-0097).
@@ -297,6 +318,10 @@ impl S3Tool {
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             s3_client: None,
             details_open: false,
+            show_buckets: true,
+            preview_open: true,
+            preview_task: None,
+            preview_md: None,
             details_key: None,
             details_reload: false,
             folders: FolderTree::default(),
@@ -657,9 +682,24 @@ impl S3Tool {
         rows
     }
 
+    /// The selected row, looked up under the lock without cloning the
+    /// rest of the listing (it is asked for every frame).
     fn selected_row(&self) -> Option<Row> {
         let i = self.table.selected?;
-        self.rows().get(i).cloned()
+        let sh = self.shared.lock();
+        let Load::Ready((objects, prefixes, _)) = &sh.objects else {
+            return None;
+        };
+        if let Some(p) = prefixes.get(i) {
+            return Some(Row::Folder(p.clone()));
+        }
+        objects
+            .iter()
+            // The folder's own zero-byte marker, as `rows` skips it.
+            .filter(|o| o.key != self.state.prefix)
+            .nth(i - prefixes.len())
+            .cloned()
+            .map(Row::Object)
     }
 
     fn is_protected(&self, services: &Services) -> bool {
@@ -1435,7 +1475,7 @@ impl S3Tool {
                         if let Some(tags) = draft.as_mut() {
                             let mut remove: Option<usize> = None;
                             for (i, (k, v)) in tags.iter_mut().enumerate() {
-                                ui.horizontal(|ui| {
+                                form::centred_row(ui, |ui| {
                                     ui.add(
                                         hs_ui::form::line_edit(k)
                                             .hint_text(s.t("s3-tag-key"))
@@ -1463,10 +1503,16 @@ impl S3Tool {
                                 tags.remove(i);
                             }
                             ui.horizontal(|ui| {
-                                if ui.small_button(s.t("s3-tag-add")).clicked() {
+                                if form::button(ui, theme, ph::PLUS, &s.t("s3-tag-add")).clicked() {
                                     tags.push((String::new(), String::new()));
                                 }
-                                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                                if form::primary_button(
+                                    ui,
+                                    theme,
+                                    &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                                )
+                                .clicked()
+                                {
                                     save = true;
                                 }
                             });
@@ -1506,12 +1552,24 @@ impl S3Tool {
                                     ui.label(muted(human_size(v.size)));
                                     if !v.latest
                                         && !v.delete_marker
-                                        && ui.small_button(s.t("s3-version-restore")).clicked()
+                                        && ui
+                                            .small_button(format!(
+                                                "{} {}",
+                                                ph::ARROW_COUNTER_CLOCKWISE,
+                                                s.t("s3-version-restore")
+                                            ))
+                                            .clicked()
                                     {
                                         act = Some((v.version_id.clone(), true));
                                     }
                                     if !v.latest
-                                        && ui.small_button(s.t("s3-version-delete")).clicked()
+                                        && ui
+                                            .small_button(format!(
+                                                "{} {}",
+                                                ph::TRASH,
+                                                s.t("s3-version-delete")
+                                            ))
+                                            .clicked()
                                     {
                                         act = Some((v.version_id.clone(), false));
                                     }
@@ -1553,12 +1611,18 @@ impl S3Tool {
                         }
                         ui.add_space(10.0);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if form::primary_button(ui, theme, &s.t("s3-create")).clicked() || enter
+                            if form::primary_button(
+                                ui,
+                                theme,
+                                &format!("{} {}", ph::PLUS, s.t("s3-create")),
+                            )
+                            .clicked()
+                                || enter
                             {
                                 let n = name.clone();
                                 action = Some(Box::new(move |t, s| t.create_folder(s, &n)));
                             }
-                            if ui.button(s.t("cancel")).clicked() {
+                            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                                 close = true;
                             }
                         });
@@ -1604,8 +1668,12 @@ impl S3Tool {
                                 .add_enabled(
                                     allowed,
                                     egui::Button::new(
-                                        egui::RichText::new(s.t("s3-delete"))
-                                            .color(egui::Color32::WHITE),
+                                        egui::RichText::new(format!(
+                                            "{} {}",
+                                            ph::TRASH,
+                                            s.t("s3-delete")
+                                        ))
+                                        .color(egui::Color32::WHITE),
                                     )
                                     .fill(theme.error),
                                 )
@@ -1614,7 +1682,7 @@ impl S3Tool {
                                 let t = target.clone();
                                 action = Some(Box::new(move |me, s| me.delete(s, t)));
                             }
-                            if ui.button(s.t("cancel")).clicked() {
+                            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                                 close = true;
                             }
                         });
@@ -1664,7 +1732,13 @@ impl S3Tool {
                         );
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
-                            if form::primary_button(ui, theme, &s.t("s3-copy-url")).clicked() {
+                            if form::primary_button(
+                                ui,
+                                theme,
+                                &format!("{} {}", ph::COPY, s.t("s3-copy-url")),
+                            )
+                            .clicked()
+                            {
                                 ui.ctx().copy_text(url.clone());
                                 action = Some(Box::new(|t, s| {
                                     t.shared
@@ -1673,7 +1747,7 @@ impl S3Tool {
                                         .push((ToastLevel::Success, s.t("s3-url-copied")))
                                 }));
                             }
-                            if ui.button(s.t("close")).clicked() {
+                            if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                                 close = true;
                             }
                         });
@@ -1708,13 +1782,17 @@ impl S3Tool {
                             if ui
                                 .add_enabled(
                                     !chosen.is_empty(),
-                                    egui::Button::new(s.t("s3-import")),
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::DOWNLOAD_SIMPLE,
+                                        s.t("s3-import")
+                                    )),
                                 )
                                 .clicked()
                             {
                                 action = Some(Box::new(move |t, s| t.import_aws(s, chosen)));
                             }
-                            if ui.button(s.t("cancel")).clicked() {
+                            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                                 close = true;
                             }
                         });
@@ -1735,7 +1813,9 @@ impl S3Tool {
                                 )
                                 .truncate(),
                             );
-                            if ui.button(s.t("s3-sync-browse")).clicked()
+                            if ui
+                                .button(format!("{} {}", ph::FOLDER_OPEN, s.t("s3-sync-browse")))
+                                .clicked()
                                 && let Some(p) = rfd::FileDialog::new().pick_folder()
                             {
                                 *folder = p;
@@ -1825,7 +1905,14 @@ impl S3Tool {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let ready = plan.as_ref().is_some_and(|(d, _)| !d.is_empty());
                             if ui
-                                .add_enabled(ready, egui::Button::new(s.t("s3-sync-apply")))
+                                .add_enabled(
+                                    ready,
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::CHECK,
+                                        s.t("s3-sync-apply")
+                                    )),
+                                )
                                 .clicked()
                                 && let Some((diffs, local)) = plan.clone()
                             {
@@ -1834,14 +1921,17 @@ impl S3Tool {
                                     t.sync_apply(s, folder, dir2, diffs, local);
                                 }));
                             }
-                            if ui.button(s.t("s3-sync-preview")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::EYE, s.t("s3-sync-preview")))
+                                .clicked()
+                            {
                                 let folder = folder2.clone();
                                 keep_open = true;
                                 action = Some(Box::new(move |t: &mut S3Tool, s: &Services| {
                                     t.sync_preview(s, folder, dir2, del2);
                                 }));
                             }
-                            if ui.button(s.t("cancel")).clicked() {
+                            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                                 close = true;
                             }
                         });
@@ -1903,10 +1993,20 @@ impl S3Tool {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        if ui.button(s.t("close")).clicked() {
+                                        if ui
+                                            .button(format!("{} {}", ph::X, s.t("close")))
+                                            .clicked()
+                                        {
                                             close = true;
                                         }
-                                        if ui.button(s.t("s3-policy-copy")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                ph::COPY,
+                                                s.t("s3-policy-copy")
+                                            ))
+                                            .clicked()
+                                        {
                                             ui.ctx().copy_text(policy.clone().unwrap_or_default());
                                         }
                                     },
@@ -1939,65 +2039,267 @@ impl S3Tool {
     /// column of this pane now, as every other two-pane browser in the
     /// app has (owner's requirement, 2026-10-25).
     fn explorer(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
-        let full = ui.available_size();
-        // A real width, not `available_width`: inside a horizontal layout
-        // that is unbounded, and the column would grow every frame.
-        let left = (full.x * 0.26).clamp(170.0, 280.0);
-        ui.horizontal_top(|ui| {
-            // `allocate_ui` inherits the **parent's** layout, which here is
-            // horizontal: the column's rows would run across the pane
-            // instead of down it. Say top-down explicitly.
-            ui.allocate_ui_with_layout(
-                egui::vec2(left, full.y),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    ui.set_min_width(left);
-                    ui.set_max_width(left);
-                    self.container_column(ui, cx, theme);
-                },
-            );
-            ui.separator();
-            // The details pane takes its column before the browser lays
-            // out, so the table shrinks rather than being drawn over
-            // (docs/tools/s3.md §7).
-            let details_w = if self.details_open {
-                (full.x * 0.28).clamp(240.0, 380.0)
-            } else {
-                0.0
-            };
-            let middle = (full.x - left - details_w - 24.0).max(200.0);
-            ui.allocate_ui_with_layout(
-                egui::vec2(middle, full.y),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    ui.set_min_width(middle);
-                    ui.set_max_width(middle);
-                    if self.state.bucket.is_none() {
-                        ui.add_space(24.0);
-                        form::note(
-                            ui,
-                            theme,
-                            ph::INFO,
-                            &cx.services.t("s3-pick-container-hint"),
-                        );
-                        return;
-                    }
-                    self.browser(ui, cx, theme);
-                },
-            );
-            if self.details_open && self.state.bucket.is_some() {
-                ui.separator();
-                ui.allocate_ui_with_layout(
-                    egui::vec2(details_w, full.y),
-                    egui::Layout::top_down(egui::Align::Min),
-                    |ui| {
-                        ui.set_min_width(details_w);
-                        ui.set_max_width(details_w);
-                        self.details_pane(ui, cx, theme);
-                    },
-                );
+        // Each column is a resizable panel, so the objects column between
+        // them is as wide as the user drags it (owner, 2026-11-07); egui
+        // keeps each panel's width. The bucket column hides from the
+        // toolbar's first item, as the Database schema column does.
+        let mut buckets = egui::Panel::left(ui.id().with("s3-buckets"))
+            .resizable(true)
+            .default_size(220.0)
+            .size_range(170.0..=420.0);
+        if !self.show_buckets {
+            buckets = buckets.exact_size(0.0).resizable(false);
+        }
+        buckets.show(ui, |ui| {
+            if self.show_buckets {
+                self.container_column(ui, cx, theme);
             }
         });
+        // The details pane takes its column before the browser lays
+        // out, so the table shrinks rather than being drawn over
+        // (docs/tools/s3.md §7).
+        if self.details_open && self.state.bucket.is_some() {
+            egui::Panel::right(ui.id().with("s3-details"))
+                .resizable(true)
+                .default_size(300.0)
+                .size_range(240.0..=520.0)
+                .show(ui, |ui| self.details_pane(ui, cx, theme));
+        }
+        let previewed = match self.selected_row() {
+            Some(Row::Object(o)) if self.preview_open && self.state.bucket.is_some() => Some(o),
+            _ => None,
+        };
+        if let Some(obj) = previewed {
+            egui::Panel::right(ui.id().with("s3-preview"))
+                .resizable(true)
+                .default_size(360.0)
+                .size_range(240.0..=900.0)
+                .show(ui, |ui| self.preview_pane(ui, cx, theme, &obj));
+        } else {
+            self.drop_preview();
+        }
+        if self.state.bucket.is_none() {
+            ui.add_space(24.0);
+            form::note(
+                ui,
+                theme,
+                ph::INFO,
+                &cx.services.t("s3-pick-container-hint"),
+            );
+            return;
+        }
+        self.browser(ui, cx, theme);
+    }
+
+    /// Nothing is previewed any more: stop a fetch still running, and
+    /// forget a result that is not a finished preview, so coming back
+    /// fetches again rather than spinning or showing an old error.
+    fn drop_preview(&mut self) {
+        if let Some(task) = self.preview_task.take() {
+            task.abort();
+        }
+        let mut sh = self.shared.lock();
+        if sh
+            .preview
+            .as_ref()
+            .is_some_and(|(_, l)| !matches!(l, Load::Ready(_)))
+        {
+            sh.preview = None;
+        }
+    }
+
+    /// The preview column: the selected object as text, an image or
+    /// rendered Markdown, fetched once per key and ETag on the runtime
+    /// and capped at `preview::PREVIEW_LIMIT` (owner, 2026-11-07).
+    fn preview_pane(
+        &mut self,
+        ui: &mut egui::Ui,
+        cx: &mut ToolContext,
+        theme: &Theme,
+        obj: &Object,
+    ) {
+        let s = cx.services;
+        let Some(bucket) = self.state.bucket.clone() else {
+            return;
+        };
+        let name = obj.key.rsplit('/').next().unwrap_or(&obj.key).to_string();
+        ui.add_space(form::PANE_GAP);
+        form::centred_row(ui, |ui| {
+            ui.label(egui::RichText::new(format!("{} {}", ph::EYE, s.t("s3-preview"))).strong());
+            ui.add(egui::Label::new(egui::RichText::new(&name).color(theme.text_muted)).truncate());
+        });
+        ui.add_space(form::PANE_GAP);
+        ui.separator();
+        ui.add_space(form::PANE_GAP);
+        let kind = match preview::plan(&obj.key, obj.size) {
+            preview::Plan::Unsupported => {
+                form::note(ui, theme, ph::FILE, &s.t("s3-preview-unsupported"));
+                return;
+            }
+            preview::Plan::TooLarge => {
+                form::note(ui, theme, ph::WARNING, &s.t("s3-preview-too-large"));
+                return;
+            }
+            preview::Plan::Fetch(k) => k,
+        };
+        if self.client.is_none() {
+            form::note(ui, theme, ph::PLUGS, &s.t("s3-preview-offline"));
+            return;
+        }
+        let id = preview::cache_id(&bucket, &obj.key, &obj.etag);
+        let fresh = self
+            .shared
+            .lock()
+            .preview
+            .as_ref()
+            .is_none_or(|(have, _)| *have != id);
+        if fresh {
+            self.load_preview(s, id.clone(), bucket, obj.key.clone(), kind);
+        }
+        let data = {
+            let sh = self.shared.lock();
+            match sh.preview.as_ref().map(|(_, l)| l) {
+                Some(Load::Ready(d)) => Ok(Some(d.clone())),
+                Some(Load::Failed(e)) => Err(e.clone()),
+                _ => Ok(None),
+            }
+        };
+        match data {
+            Err(e) => {
+                ui.colored_label(theme.error, format!("{} {e}", ph::WARNING));
+                ui.add_space(form::ROW_GAP);
+                if form::button(ui, theme, ph::ARROW_CLOCKWISE, &s.t("s3-retry")).clicked() {
+                    // A failed read is not kept: drop it and fetch again.
+                    self.shared.lock().preview = None;
+                }
+            }
+            Ok(None) => {
+                form::centred_row(ui, |ui| {
+                    ui.spinner();
+                    ui.label(s.t("s3-loading"));
+                });
+            }
+            Ok(Some(PreviewData::Text(text, lines))) => {
+                // Only the lines in view are laid out each frame; the line
+                // breaks were found once, off the UI thread.
+                form::well(ui, theme, None, |ui| {
+                    let row_h = ui.text_style_height(&egui::TextStyle::Monospace);
+                    egui::ScrollArea::both()
+                        .id_salt("s3-preview-text")
+                        .auto_shrink([false, false])
+                        .show_rows(ui, row_h, lines.len(), |ui, range| {
+                            for r in &lines[range] {
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(&text[r.clone()]).monospace(),
+                                    )
+                                    .extend(),
+                                );
+                            }
+                        });
+                });
+            }
+            Ok(Some(PreviewData::Markdown(text))) => {
+                let style = hs_editor::markdown::MarkdownStyle {
+                    dark: theme.dark,
+                    text: theme.text,
+                    muted: theme.text_muted,
+                    link: theme.secondary,
+                    code_bg: theme.surface,
+                    quote_bar: theme.border,
+                    base_size: 14.0,
+                };
+                // Parsed once per object and theme, not every frame.
+                let stale = self
+                    .preview_md
+                    .as_ref()
+                    .is_none_or(|(have, dark, _)| *have != id || *dark != theme.dark);
+                if stale {
+                    let doc = hs_editor::markdown::parse_doc(&text, &style);
+                    self.preview_md = Some((id.clone(), theme.dark, Arc::new(doc)));
+                }
+                let Some((_, _, doc)) = self.preview_md.clone() else {
+                    return;
+                };
+                egui::ScrollArea::vertical()
+                    .id_salt("s3-preview-md")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        if let Some(url) =
+                            hs_editor::markdown::render_doc(ui, &doc, &style).link_clicked
+                        {
+                            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                        }
+                    });
+            }
+            Ok(Some(PreviewData::Image(bytes))) => {
+                egui::ScrollArea::both()
+                    .id_salt("s3-preview-image")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.add(
+                            egui::Image::from_bytes(
+                                preview::image_uri(&id, &obj.key),
+                                egui::load::Bytes::Shared(bytes),
+                            )
+                            .max_width(ui.available_width())
+                            .shrink_to_fit(),
+                        );
+                    });
+            }
+        }
+    }
+
+    /// Fetch one object for the preview column, no more than
+    /// `preview::PREVIEW_LIMIT` bytes of it. A fetch still running for
+    /// another object is aborted (its request dropped), and the result
+    /// lands only if the column still wants the same object.
+    fn load_preview(
+        &mut self,
+        s: &Services,
+        id: String,
+        bucket: String,
+        key: String,
+        kind: preview::Kind,
+    ) {
+        let Some(client) = self.client.clone() else {
+            return;
+        };
+        if let Some(task) = self.preview_task.take() {
+            task.abort();
+        }
+        self.shared.lock().preview = Some((id.clone(), Load::Loading));
+        let shared = self.shared.clone();
+        let waker = s.runtime.waker();
+        let not_an_image = s.t("s3-preview-not-image");
+        self.preview_task = Some(s.runtime.spawn(async move {
+            let got = match client
+                .get_bytes_capped(&bucket, &key, preview::PREVIEW_LIMIT)
+                .await
+            {
+                Ok(bytes) if kind == preview::Kind::Image && !preview::looks_like_image(&bytes) => {
+                    Load::Failed(not_an_image)
+                }
+                Ok(bytes) => Load::Ready(match kind {
+                    preview::Kind::Image => PreviewData::Image(bytes.into()),
+                    preview::Kind::Text => {
+                        let text: Arc<str> = String::from_utf8_lossy(&bytes).into_owned().into();
+                        let lines = preview::line_ranges(&text).into();
+                        PreviewData::Text(text, lines)
+                    }
+                    preview::Kind::Markdown => {
+                        PreviewData::Markdown(String::from_utf8_lossy(&bytes).into_owned().into())
+                    }
+                }),
+                Err(e) => Load::Failed(e.to_string()),
+            };
+            let mut sh = shared.lock();
+            if sh.preview.as_ref().is_some_and(|(have, _)| *have == id) {
+                sh.preview = Some((id, got));
+            }
+            drop(sh);
+            waker.request_repaint();
+        }));
     }
 
     /// The left column: the buckets, and the folders inside the open one.
@@ -2028,7 +2330,10 @@ impl S3Tool {
         };
         if let Some(e) = failed {
             ui.colored_label(theme.error, e);
-            if ui.button(s.t("s3-retry")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("s3-retry")))
+                .clicked()
+            {
                 self.connect(s);
             }
             return;
@@ -2267,7 +2572,9 @@ impl S3Tool {
                 .color(theme.text_muted),
             );
             if let Some(token) = next
-                && ui.button(s.t("s3-load-more")).clicked()
+                && ui
+                    .button(format!("{} {}", ph::ARROW_DOWN, s.t("s3-load-more")))
+                    .clicked()
             {
                 self.load_objects(s, Some(token));
             }
@@ -2345,8 +2652,29 @@ impl Tool for S3Tool {
             ui.add_enabled(enabled, egui::Button::new(format!("{icon} {}", s.t(key))))
                 .clicked()
         };
-        // The Details pane is S3's (phase F); its show/hide toggle is the
-        // toolbar's first item (CR-0073).
+        // Show/hide toggles come first (CR-0073): the bucket column, the
+        // preview column, then S3's own Details pane (phase F).
+        if self.client.is_some() {
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut self.show_buckets,
+                ph::SIDEBAR_SIMPLE,
+                &s.t("s3-bucket-column"),
+            )
+            .tip(s.t("s3-bucket-column-tip"));
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut self.preview_open,
+                ph::EYE,
+                &s.t("s3-preview"),
+            )
+            .tip(s.t("s3-preview-tip"));
+            if self.s3_client.is_none() {
+                ui.separator();
+            }
+        }
         if self.s3_client.is_some() {
             hs_ui::toolbar::toggle(
                 ui,
@@ -2618,7 +2946,11 @@ impl Tool for S3Tool {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);
                 ui.colored_label(theme.error, e);
-                if self.state.conn_id.is_some() && ui.button(s.t("s3-retry")).clicked() {
+                if self.state.conn_id.is_some()
+                    && ui
+                        .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("s3-retry")))
+                        .clicked()
+                {
                     self.connect(s);
                 }
             });
@@ -2736,6 +3068,8 @@ impl Tool for S3Tool {
             shortcut_action: None,
         };
         vec![
+            c("s3.buckets", "S3: Toggle Bucket Column"),
+            c("s3.preview", "S3: Toggle Preview Column"),
             c("s3.details", "S3: Toggle Details Pane"),
             c("s3.sync", "S3: Sync With a Folder…"),
             c("s3.policy", "S3: Bucket Policy and CORS"),
@@ -2753,6 +3087,8 @@ impl Tool for S3Tool {
     fn run_command(&mut self, id: &str, cx: &mut ToolContext) -> bool {
         let s = cx.services;
         match id {
+            "s3.buckets" => self.show_buckets = !self.show_buckets,
+            "s3.preview" => self.preview_open = !self.preview_open,
             "s3.details" => self.details_open = !self.details_open,
             "s3.sync" => {
                 self.dialog = Some(DialogState::Sync {

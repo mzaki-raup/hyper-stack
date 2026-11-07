@@ -81,6 +81,7 @@ pub fn var_field_width(
         .desired_width(width)
         .id(id)
         .show(ui);
+    crate::varpeek::text_edit_tip(&out, value);
     let response = out.response.response.clone();
     let changed = *value != before;
 

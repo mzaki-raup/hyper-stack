@@ -383,3 +383,16 @@ gained theirs. A tool's page is as wide as its cards
 (`form::CARD_MAX_WIDTH`), so hints wrap there; Text Diff keeps the full
 width for its two sides. TOML and XML with nothing pasted show a muted
 hint, not an error.
+
+## Addendum (2026-11-07): what the .env Editor masks, variable tooltips (BUG-0049, FEAT-0107)
+
+The .env Editor masks a value when its key looks secret, decided by the
+key's **whole words** (`envfile::looks_secret`): the key is split on `_`,
+`-`, `.` and camelCase. `PASSWORD`, `SECRET`, `TOKEN` and their kin mark
+it wherever they appear, even run together (`DBPASSWORD`); `PASS`, `PWD`,
+`KEY`, `SALT` and the like only as a word of their own (`PASS`, not
+`BYPASS`); `AUTH` only as the last word (`SMTP_AUTH`, not
+`AUTH_PROVIDER`). So `SMTP_PASS` is masked and `AUTH_LOCKOUT_THRESHOLD` /
+`AUTH_LOCKOUT_DURATION_MINUTES` are not.
+Devtools inputs that take `{{variables}}` show the hover tooltip of
+docs/04 (FEAT-0107).

@@ -153,11 +153,17 @@ impl GeneratorState {
             ui.menu_button(
                 format!("{} {}", hs_ui::icons::ph::EXPORT, s.t("gfx-gen-export")),
                 |ui| {
-                    if ui.button("PNG").clicked() {
+                    if ui
+                        .button(format!("{} PNG", hs_ui::icons::ph::FILE_PNG))
+                        .clicked()
+                    {
                         self.export(cx, ExportKind::Png);
                         ui.close();
                     }
-                    if ui.button("PDF").clicked() {
+                    if ui
+                        .button(format!("{} PDF", hs_ui::icons::ph::FILE_PDF))
+                        .clicked()
+                    {
                         self.export(cx, ExportKind::Pdf);
                         ui.close();
                     }
@@ -302,7 +308,13 @@ impl GeneratorState {
                             },
                         );
                         if providers.is_empty()
-                            && ui.button(s.t("gfx-gen-set-provider")).clicked()
+                            && ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::GEAR,
+                                    s.t("gfx-gen-set-provider")
+                                ))
+                                .clicked()
                         {
                             cx.actions.push(Action::RunCommand {
                                 id: "settings:ai".into(),
@@ -378,12 +390,18 @@ impl GeneratorState {
                             self.offline(&s);
                         }
                         if ui
-                            .button(s.t("gfx-gen-template"))
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::FILE_PLUS,
+                                s.t("gfx-gen-template")
+                            ))
                             .clicked()
                         {
                             self.template(&s);
                         }
-                        ui.menu_button(s.t("gfx-gen-templates"), |ui| {
+                        ui.menu_button(
+                            format!("{} {}", hs_ui::icons::ph::SQUARES_FOUR, s.t("gfx-gen-templates")),
+                            |ui| {
                             for (key, doc) in [
                                 ("gfx-tpl-ci", hs_diagram::template::ci_pipeline()),
                                 ("gfx-tpl-triage", hs_diagram::template::support_triage()),
@@ -400,7 +418,10 @@ impl GeneratorState {
                                 ("gfx-tpl-sequence", hs_diagram::template::sequence()),
                             ] {
                                 let label = s.t(key);
-                                if ui.button(&label).clicked() {
+                                if ui
+                                    .button(format!("{} {label}", hs_ui::icons::ph::FLOW_ARROW))
+                                    .clicked()
+                                {
                                     self.doc = Some(doc);
                                     self.error = None;
                                     self.view = GeneratorView::Preview;
@@ -412,7 +433,10 @@ impl GeneratorState {
                             }
                         });
                         if self.running.is_some() {
-                            if ui.button(s.t("gfx-gen-stop")).clicked() {
+                            if ui
+                                .button(format!("{} {}", hs_ui::icons::ph::STOP, s.t("gfx-gen-stop")))
+                                .clicked()
+                            {
                                 self.stop(&s);
                             }
                         } else if ui
@@ -478,7 +502,13 @@ impl GeneratorState {
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(s.t("gfx-source-json")).strong());
             if let Some(doc) = &self.doc
-                && ui.button(s.t("gfx-source-copy")).clicked()
+                && ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::COPY,
+                        s.t("gfx-source-copy")
+                    ))
+                    .clicked()
             {
                 ui.ctx().copy_text(hs_diagram::io::to_json(doc));
             }

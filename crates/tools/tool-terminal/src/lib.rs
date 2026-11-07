@@ -153,6 +153,14 @@ pub struct TerminalTool {
     find: Find,
     /// Give the terminal keyboard focus on the next frame.
     pending_focus: Option<egui::Id>,
+    /// The frame this tab was last drawn on: a gap means it has just
+    /// been brought to the front, and the shell takes the keyboard.
+    last_ui_frame: Option<u64>,
+    /// Frames left in which the shell asks for the keyboard after its tab
+    /// came to the front. Two, not one: egui hands focus to the clicked
+    /// tab at the end of the click's frame, after the shell asked (the
+    /// same lesson as the SSH host row, CR-0048).
+    focus_frames: u8,
     assistant: hs_ui::ai_assistant::AssistantPanel,
     /// Whether each CLI profile's command resolves on PATH, re-checked
     /// every few seconds: resolving stats every PATH entry per PATHEXT,
@@ -190,6 +198,8 @@ impl TerminalTool {
             bell: false,
             find: Find::default(),
             pending_focus: None,
+            last_ui_frame: None,
+            focus_frames: 0,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
             cli_found: std::collections::HashMap::new(),
         };
@@ -328,9 +338,8 @@ impl TerminalTool {
 
     fn find_bar(&mut self, ui: &mut egui::Ui, s: &Services, theme: &hs_ui::theme::Theme) {
         use hs_ui::icons::ph;
-        let edit = egui::TextEdit::singleline(&mut self.find.query.text)
+        let edit = hs_ui::form::line_edit(&mut self.find.query.text)
             .hint_text(s.t("terminal-find-placeholder"))
-            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(220.0);
         // `add_sized`, not `add`: a `TextEdit` in a wrapping row takes
         // whatever width is left rather than asking for its own, and the
@@ -356,13 +365,17 @@ impl TerminalTool {
         changed |= hs_ui::form::toggle_button(
             ui,
             &mut self.find.query.case_sensitive,
-            &s.t("find-match-case"),
+            &format!("{} {}", ph::TEXT_AA, s.t("find-match-case")),
         )
         .tip(s.t("terminal-find-case"))
         .clicked();
-        changed |= hs_ui::form::toggle_button(ui, &mut self.find.query.regex, &s.t("find-regex"))
-            .tip(s.t("terminal-find-regex"))
-            .clicked();
+        changed |= hs_ui::form::toggle_button(
+            ui,
+            &mut self.find.query.regex,
+            &format!("{} {}", ph::ASTERISK, s.t("find-regex")),
+        )
+        .tip(s.t("terminal-find-regex"))
+        .clicked();
         if changed {
             self.find.current = None;
             self.run_search();
@@ -401,7 +414,7 @@ impl TerminalTool {
         {
             self.step(false);
         }
-        if hs_ui::toolbar::btn(ui, theme, "", &s.t("find-close"))
+        if hs_ui::toolbar::btn(ui, theme, ph::X, &s.t("find-close"))
             .tip(s.t("terminal-find-close"))
             .clicked()
         {
@@ -1103,6 +1116,16 @@ impl Tool for TerminalTool {
             self.dashboard(ui, cx);
             return;
         }
+        // A tab brought to the front - clicked in the strip, or by any
+        // other route - hands the keyboard to its shell, so typing works
+        // without a click in it. Only on that frame, and never over the
+        // find field the user opened in this tab.
+        let frame = ui.ctx().cumulative_frame_nr();
+        if became_active(self.last_ui_frame, frame) && !self.find.open {
+            self.focus_frames = 2;
+            ui.ctx().request_repaint();
+        }
+        self.last_ui_frame = Some(frame);
         // What version of this shell is installed, asked once on the
         // blocking pool and cached for the session.
         if let Some(id) = self.state.profile.clone()
@@ -1158,6 +1181,14 @@ impl Tool for TerminalTool {
                 if let Some(id) = self.pending_focus.take() {
                     ui.memory_mut(|m| m.request_focus(id));
                 }
+                if self.focus_frames > 0 {
+                    // Never over the find field, or a field elsewhere
+                    // that has the keyboard (the strip's rename field).
+                    if !self.find.open && !hs_ui::form::focus_is_elsewhere(ui.ctx(), self.view.id) {
+                        ui.memory_mut(|m| m.request_focus(self.view.id));
+                    }
+                    self.focus_frames -= 1;
+                }
                 let r = self.view.show(ui, sess, &theme);
                 if r.clicked {
                     self.bell = false;
@@ -1181,7 +1212,14 @@ impl Tool for TerminalTool {
                                     s.i18n
                                         .t_args("terminal-exited", &[("code", &code.to_string())]),
                                 );
-                                if ui.button(s.t("terminal-restart")).clicked() {
+                                if ui
+                                    .button(format!(
+                                        "{} {}",
+                                        hs_ui::icons::ph::ARROW_CLOCKWISE,
+                                        s.t("terminal-restart")
+                                    ))
+                                    .clicked()
+                                {
                                     self.session = None;
                                     self.start(s);
                                 }
@@ -1192,7 +1230,14 @@ impl Tool for TerminalTool {
             }
             (None, Some(err)) => {
                 ui.colored_label(egui::Color32::from_rgb(0xE5, 0x4D, 0x4D), err);
-                if ui.button(s.t("terminal-restart")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::ARROW_CLOCKWISE,
+                        s.t("terminal-restart")
+                    ))
+                    .clicked()
+                {
                     self.start(s);
                 }
             }
@@ -1435,6 +1480,14 @@ fn home_dir() -> Option<PathBuf> {
 /// that order, then anything else as detected — so installing a new shell
 /// shows it without the saved list having to be rewritten, and uninstalling
 /// one leaves no gap.
+/// Whether a tab drawn on frame `now` has just come to the front: it was
+/// never drawn, or the frame before this one did not draw it. `ui` runs
+/// only for a visible tab, and a second pass of the same frame is not a
+/// new arrival.
+fn became_active(last: Option<u64>, now: u64) -> bool {
+    last.is_none_or(|l| now > l.saturating_add(1))
+}
+
 fn ordered_shells(detected: &[ShellProfile], saved: &[String]) -> Vec<ShellProfile> {
     let mut out: Vec<ShellProfile> = saved
         .iter()
@@ -1536,6 +1589,17 @@ fn shell_icon(id: &str) -> &'static str {
 #[cfg(test)]
 mod order_tests {
     use super::*;
+
+    /// The shell takes focus on the frame its tab comes to the front,
+    /// not on every frame while it stays there.
+    #[test]
+    fn focus_is_taken_only_when_the_tab_comes_to_the_front() {
+        assert!(became_active(None, 0));
+        assert!(!became_active(Some(10), 10), "second pass of one frame");
+        assert!(!became_active(Some(10), 11), "still in front");
+        assert!(became_active(Some(10), 12), "another tab was in front");
+        assert!(became_active(Some(10), 500));
+    }
 
     fn p(id: &str) -> ShellProfile {
         ShellProfile::new(id, id, "", id, &[])

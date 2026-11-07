@@ -40,6 +40,19 @@ impl Format {
         }
     }
 
+    /// The glyph before the label in the Export and Copy As menus.
+    pub fn glyph(self) -> &'static str {
+        use hs_ui::icons::ph;
+        match self {
+            Format::Tsv => ph::TABLE,
+            Format::Csv => ph::FILE_CSV,
+            Format::Json => ph::BRACKETS_CURLY,
+            Format::Markdown => ph::MARKDOWN_LOGO,
+            Format::Insert | Format::InList => ph::FILE_SQL,
+            Format::Xlsx => ph::FILE_XLS,
+        }
+    }
+
     pub fn extension(self) -> &'static str {
         match self {
             Format::Tsv => "tsv",
@@ -521,6 +534,14 @@ mod tests {
             md,
             "| id | name | price | raw |\n| --- | --- | --- | --- |\n| 1 | a, \"b\" | 10.50 | NULL |"
         );
+    }
+
+    /// Every Export and Copy As menu item leads with a glyph (CR-0063).
+    #[test]
+    fn every_format_has_a_menu_glyph() {
+        for f in Format::ALL.into_iter().chain([Format::Xlsx]) {
+            assert!(!f.glyph().is_empty(), "{f:?}");
+        }
     }
 
     #[test]

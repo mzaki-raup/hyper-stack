@@ -25,25 +25,60 @@ pub enum Line {
 }
 
 /// Keys whose value is masked until it is revealed.
+///
+/// Decided by the key's whole words (`SMTP_PASS` → SMTP, PASS;
+/// `dbPassword` → DB, PASSWORD), not by substrings: `AUTH_LOCKOUT_*` is a
+/// setting about auth, not a secret, and `BYPASS_CACHE` holds no password
+/// (owner's report, 2026-11-07).
 pub fn looks_secret(key: &str) -> bool {
-    let k = key.to_ascii_uppercase();
-    [
-        "SECRET",
+    let mut words: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut prev_lower = false;
+    for c in key.chars() {
+        if !c.is_ascii_alphanumeric() {
+            if !cur.is_empty() {
+                words.push(std::mem::take(&mut cur));
+            }
+            prev_lower = false;
+            continue;
+        }
+        if c.is_ascii_uppercase() && prev_lower && !cur.is_empty() {
+            words.push(std::mem::take(&mut cur));
+        }
+        prev_lower = c.is_ascii_lowercase();
+        cur.push(c.to_ascii_uppercase());
+    }
+    if !cur.is_empty() {
+        words.push(cur);
+    }
+    // A word that is a secret wherever it appears, whole or run together
+    // with another (`DBPASSWORD`).
+    const ALWAYS: [&str; 8] = [
         "PASSWORD",
         "PASSWD",
+        "PASSPHRASE",
+        "SECRET",
         "TOKEN",
-        "KEY",
         "CREDENTIAL",
-        "PRIVATE",
-        "SALT",
-        "AUTH",
-        "SESSION",
-        "COOKIE",
-        "DSN",
-        "CONNECTION_STRING",
-    ]
-    .iter()
-    .any(|needle| k.contains(needle))
+        "APIKEY",
+        "AUTHORIZATION",
+    ];
+    // A word that is a secret only on its own (`PASS`, not `BYPASS`).
+    const WHOLE: [&str; 10] = [
+        "PASS", "PWD", "KEY", "KEYS", "PRIVATE", "SALT", "COOKIE", "DSN", "CREDS", "PIN",
+    ];
+    let pair = |a: &str, b: &str| words.windows(2).any(|w| w[0] == a && w[1] == b);
+    // A key run together with what it unlocks (`PRIVATEKEY`, `HMACKEY`):
+    // any word ending in KEY or KEYS is masked, erring on the safe side.
+    let ends_in_key = |w: &str| w.ends_with("KEY") || w.ends_with("KEYS");
+    // AUTH names a secret when it ends the key (`PROXY_AUTH`, `SMTP_AUTH`),
+    // not when more words follow (`AUTH_PROVIDER`, `AUTH_LOCKOUT_*`).
+    let auth_last = words.last().is_some_and(|w| w == "AUTH");
+    words.iter().any(|w| {
+        ALWAYS.iter().any(|n| w.contains(n)) || WHOLE.contains(&w.as_str()) || ends_in_key(w)
+    }) || auth_last
+        || pair("BASIC", "AUTH")
+        || pair("CONNECTION", "STRING")
 }
 
 /// Parse a `.env` into lines. Nothing is dropped: a line this does not
@@ -411,6 +446,52 @@ mod tests {
         }
         for k in ["DB_HOST", "PORT", "LOG_LEVEL", "NODE_ENV"] {
             assert!(!looks_secret(k), "{k}");
+        }
+    }
+
+    /// A short password word is a secret; a setting that only mentions
+    /// auth or a session is not (owner's report, 2026-11-07: SMTP_PASS
+    /// shown, AUTH_LOCKOUT_THRESHOLD masked).
+    #[test]
+    fn whole_words_decide_what_is_secret() {
+        for k in [
+            "SMTP_PASS",
+            "MAIL_PWD",
+            "dbPassword",
+            "REDIS_PASSPHRASE",
+            "BASIC_AUTH",
+            "AUTH_TOKEN",
+            "SESSION_SECRET",
+            "DATABASE_CONNECTION_STRING",
+            "JWT_SIGNING_KEY",
+            "SENTRY_DSN",
+            "PRIVATEKEY",
+            "MASTERKEY",
+            "ENCRYPTIONKEY",
+            "SIGNINGKEY",
+            "HMACKEY",
+            "STRIPE_SECRETKEYS",
+            "AUTHORIZATION",
+            "HTTP_AUTHORIZATION",
+            "PROXY_AUTH",
+            "SMTP_AUTH",
+            "smtpAuth",
+        ] {
+            assert!(looks_secret(k), "{k} should be masked");
+        }
+        for k in [
+            "AUTH_LOCKOUT_THRESHOLD",
+            "AUTH_LOCKOUT_DURATION_MINUTES",
+            "SESSION_TIMEOUT",
+            "AUTH_PROVIDER",
+            "BYPASS_CACHE",
+            "PASSIVE_MODE",
+            "SMTP_PORT",
+            "AUTH_ENABLED",
+            "SMTP_AUTH_METHOD",
+            "KEYBOARD_LAYOUT",
+        ] {
+            assert!(!looks_secret(k), "{k} should be shown");
         }
     }
 }

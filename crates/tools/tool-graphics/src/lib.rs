@@ -903,7 +903,9 @@ impl GraphicsTool {
                 if busy {
                     ui.spinner();
                     if let Some((_, handle)) = &self.generate.running
-                        && ui.button(s.t("gfx-ai-stop")).clicked()
+                        && ui
+                            .button(format!("{} {}", ph::STOP, s.t("gfx-ai-stop")))
+                            .clicked()
                     {
                         s.jobs.cancel(handle.id());
                     }
@@ -918,7 +920,10 @@ impl GraphicsTool {
                     GenJob::Picture(ImageJob::Upscale) => "gfx-ai-upscale",
                     GenJob::Describe => "gfx-ai-describe",
                 });
-                if ui.add_enabled(can, egui::Button::new(label)).clicked() {
+                if ui
+                    .add_enabled(can, egui::Button::new(format!("{} {label}", ph::SPARKLE)))
+                    .clicked()
+                {
                     self.start_generation(s);
                 }
             });
@@ -926,7 +931,10 @@ impl GraphicsTool {
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new(s.t("gfx-ai-description")).strong());
-                    if ui.small_button(s.t("gfx-ai-copy")).clicked() {
+                    if ui
+                        .small_button(format!("{} {}", ph::COPY, s.t("gfx-ai-copy")))
+                        .clicked()
+                    {
                         ui.ctx().copy_text(text.clone());
                     }
                 });
@@ -1150,10 +1158,16 @@ impl GraphicsTool {
                 });
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("gfx-new-image-create")).clicked() {
+                if form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::FILE_PLUS, s.t("gfx-new-image-create")),
+                )
+                .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                     done = Some(false);
                 }
             });
@@ -1391,7 +1405,13 @@ impl GraphicsTool {
                         form::hint(ui, theme, &s.t("gfx-pick-hint"));
                     }
                     ui.add_space(4.0);
-                    if form::primary_button(ui, theme, &s.t("gfx-transparent-apply")).clicked() {
+                    if form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::CHECK, s.t("gfx-transparent-apply")),
+                    )
+                    .clicked()
+                    {
                         self.push(Op::TransparentColor {
                             colour: self.controls.transparent_colour,
                             tolerance: self.controls.transparent_tolerance,
@@ -1794,11 +1814,15 @@ impl GraphicsTool {
             }
             if !self.ops.is_empty() {
                 ui.add_space(4.0);
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     if ui
                         .add_enabled(
                             !self.undo_stack.is_empty(),
-                            egui::Button::new(s.t("gfx-undo")),
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::ARROW_COUNTER_CLOCKWISE,
+                                s.t("gfx-undo")
+                            )),
                         )
                         .clicked()
                     {
@@ -1807,13 +1831,20 @@ impl GraphicsTool {
                     if ui
                         .add_enabled(
                             !self.redo_stack.is_empty(),
-                            egui::Button::new(s.t("gfx-redo")),
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::ARROW_CLOCKWISE,
+                                s.t("gfx-redo")
+                            )),
                         )
                         .clicked()
                     {
                         self.redo_edit();
                     }
-                    if ui.button(s.t("gfx-reset")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::BROOM, s.t("gfx-reset")))
+                        .clicked()
+                    {
                         self.remember();
                         self.ops.clear();
                         self.dirty = true;
@@ -1940,7 +1971,7 @@ fn slider_block(
         ui.label(egui::RichText::new(label).color(theme.text_muted));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if !apply.is_empty() {
-                clicked = ui.small_button(apply).clicked();
+                clicked = ui.small_button(format!("{} {apply}", ph::CHECK)).clicked();
             }
             ui.label(egui::RichText::new(value).monospace());
         });
@@ -2044,7 +2075,10 @@ impl Rows<'_> {
             hs_ui::form::centred_row_wrapped(ui, |ui| controls(ui));
         });
         let clicked = match apply {
-            Some(text) => self.ui.small_button(text).clicked(),
+            Some(text) => self
+                .ui
+                .small_button(format!("{} {text}", ph::CHECK))
+                .clicked(),
             None => {
                 self.ui.label("");
                 false
@@ -2496,7 +2530,10 @@ impl GraphicsTool {
                 ui.add_space(6.0);
                 ui.horizontal_wrapped(|ui| {
                     if let Some(answer) = self.assistant.last_answer().map(str::to_owned) {
-                        if ui.button(s.t("gfx-ai-copy")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::COPY, s.t("gfx-ai-copy")))
+                            .clicked()
+                        {
                             ui.ctx().copy_text(answer.clone());
                         }
                         let label = if self.kind == Kind::Generator {
@@ -2514,8 +2551,10 @@ impl GraphicsTool {
                 });
                 ui.separator();
                 self.assistant.can_insert = true;
-                self.assistant.apply_label = Some(s.t("gfx-ai-replace"));
-                self.assistant.append_label = Some(s.t("gfx-ai-append"));
+                self.assistant.apply_label =
+                    Some(format!("{} {}", ph::SWAP, s.t("gfx-ai-replace")));
+                self.assistant.append_label =
+                    Some(format!("{} {}", ph::PLUS, s.t("gfx-ai-append")));
                 let output = self.assistant.ui(ui, &s, theme, "graphics");
                 if let Some(block) = output.use_block {
                     if output.run {
@@ -2709,16 +2748,23 @@ impl GraphicsTool {
         }
         r.context_menu(|ui| {
             if enabled {
-                if ui.button(&open).clicked() {
+                if ui.button(format!("{} {}", f.action_icon(), open)).clicked() {
                     ui.close();
                     self.pick_and_open(cx, f);
                 }
-                if f == Function::Image && ui.button(&new_image).clicked() {
+                if f == Function::Image
+                    && ui
+                        .button(format!("{} {}", ph::FILE_PLUS, new_image))
+                        .clicked()
+                {
                     ui.close();
                     self.new_image = Some(NewImage::default());
                 }
             } else {
-                let _ = ui.add_enabled(false, egui::Button::new(&coming));
+                let _ = ui.add_enabled(
+                    false,
+                    egui::Button::new(format!("{} {coming}", ph::HOURGLASS)),
+                );
             }
         });
     }
@@ -3241,11 +3287,31 @@ impl Tool for GraphicsTool {
                 ui.indent("gfx-recent-indent", |ui| {
                     for r in recents {
                         let Some(path) = r.path.clone() else { continue };
-                        let row = hs_ui::form::selectable_label(
-                            ui,
-                            false,
-                            format!("{}  {}", r.kind.icon(), r.title),
-                        )
+                        // The picture its tab wears (CR-0068).
+                        let row = match function_of(r.kind).map(tool_picture) {
+                            Some((Some(src), _, _)) => hs_ui::form::selectable_label(
+                                ui,
+                                false,
+                                (
+                                    egui::Image::new(src)
+                                        .fit_to_exact_size(egui::Vec2::splat(14.0)),
+                                    format!(" {}", r.title),
+                                ),
+                            ),
+                            Some((None, glyph, colour)) => hs_ui::form::selectable_label(
+                                ui,
+                                false,
+                                (
+                                    egui::RichText::new(glyph).color(colour),
+                                    format!(" {}", r.title),
+                                ),
+                            ),
+                            None => hs_ui::form::selectable_label(
+                                ui,
+                                false,
+                                format!("{}  {}", r.kind.icon(), r.title),
+                            ),
+                        }
                         .tip(path.clone());
                         if row.clicked() {
                             open_recent(cx, &path, r.kind);
@@ -4206,5 +4272,36 @@ mod close_tests {
         assert_eq!(names.len(), 1, "one draft: {names:?}");
         assert!(names[0].ends_with(".hdiag"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod button_label_tests {
+    /// CR-0063: every button and menu item names its action with a glyph
+    /// before its label - no bare translated label is left in a button.
+    #[test]
+    fn no_button_is_a_bare_label() {
+        let sources = [
+            ("activity.rs", include_str!("activity.rs")),
+            ("diagram.rs", include_str!("diagram.rs")),
+            ("generator.rs", include_str!("generator.rs")),
+            ("lib.rs", include_str!("lib.rs")),
+        ];
+        let needles = [
+            concat!(".button(", "s.t("),
+            concat!(".small_button(", "s.t("),
+            concat!("Button::new(", "s.t("),
+            concat!("menu_button(", "s.t("),
+        ];
+        for (file, text) in sources {
+            // Whitespace is dropped, so a call split over lines counts too.
+            let joined: String = text.split_whitespace().collect();
+            for needle in needles {
+                assert!(
+                    !joined.contains(needle),
+                    "{file} still has a bare `{needle}`"
+                );
+            }
+        }
     }
 }

@@ -430,6 +430,20 @@ impl ObjectStore for NexusClient {
             .to_vec())
     }
 
+    async fn get_bytes_capped(&self, container: &str, key: &str, limit: u64) -> Result<Vec<u8>> {
+        let url = self.content_url(container, key);
+        let resp = self
+            .request(reqwest::Method::GET, &url)
+            .header(reqwest::header::RANGE, super::s3::range_header(limit))
+            .send()
+            .await
+            .map_err(|e| S3Error::Http(e.to_string()))?;
+        if !resp.status().is_success() {
+            return Err(status_error(resp.status(), &url));
+        }
+        super::s3::read_capped(resp, limit).await
+    }
+
     async fn download(
         &self,
         container: &str,

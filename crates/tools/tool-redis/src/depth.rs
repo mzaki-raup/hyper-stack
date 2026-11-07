@@ -11,7 +11,7 @@ use hs_ui::icons::ph;
 use hs_ui::table::{ColumnSpec, DataTable, TableState};
 use hs_ui::theme::Theme;
 
-use crate::client::KeyType;
+use crate::client::{KeyType, SlowEntry};
 use crate::runner::{BulkAction, Cmd, Sample};
 use crate::ui::{Popup, RedisTool};
 
@@ -35,6 +35,18 @@ pub struct DepthState {
     /// The Client List and Big Keys tables' sort, filter and selection.
     pub clients_table: TableState,
     pub bigkeys_table: TableState,
+    /// The Slowlog table's sort, filter and the entry shown under it.
+    pub slowlog_table: TableState,
+    /// The Slowlog's rows and cells, built once per read
+    /// (`Shared::slowlog_version`), not every frame.
+    pub slowlog_cache: Option<SlowlogCache>,
+}
+
+/// The Slowlog as last read, laid out for the table.
+pub struct SlowlogCache {
+    version: u64,
+    rows: std::sync::Arc<Vec<SlowEntry>>,
+    cells: std::sync::Arc<Vec<Vec<String>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +76,8 @@ impl Default for DepthState {
             tool: ToolView::Slowlog,
             clients_table: TableState::default(),
             bigkeys_table: TableState::default(),
+            slowlog_table: TableState::default(),
+            slowlog_cache: None,
         }
     }
 }
@@ -94,6 +108,30 @@ fn local_time(secs: i64) -> String {
                 .to_string()
         })
         .unwrap_or_default()
+}
+
+/// The full local date and time, for the slowlog entry's detail.
+fn full_time(secs: i64) -> String {
+    chrono::DateTime::from_timestamp(secs, 0)
+        .map(|t| {
+            t.with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_default()
+}
+
+/// How slow a slowlog entry was, as a log level whose colour paints its
+/// duration (owner, 2026-11-07): under 10 ms DEBUG, under 100 ms INFO,
+/// under 1 s WARN, 1 s and over ERROR.
+pub(crate) fn slow_level(micros: i64) -> hs_core::loglevel::Level {
+    use hs_core::loglevel::Level;
+    match micros {
+        m if m < 10_000 => Level::Debug,
+        m if m < 100_000 => Level::Info,
+        m if m < 1_000_000 => Level::Warn,
+        _ => Level::Error,
+    }
 }
 
 fn human_secs(s: u64) -> String {
@@ -291,7 +329,7 @@ impl RedisTool {
                     self.depth.tool = v;
                     match v {
                         ToolView::Slowlog => {
-                            self.send(Cmd::Slowlog);
+                            self.request_slowlog();
                         }
                         ToolView::Clients => {
                             self.send(Cmd::Clients);
@@ -311,57 +349,194 @@ impl RedisTool {
         }
     }
 
+    /// Ask for the Slowlog, and show it loading until the read lands.
+    pub(crate) fn request_slowlog(&mut self) {
+        if self.send(Cmd::Slowlog) {
+            self.shared.lock().slowlog_loading = true;
+        }
+    }
+
+    /// The slowlog as the table every list uses, and the clicked entry's
+    /// whole command, client and times under it (owner, 2026-11-07). The
+    /// duration is coloured by how slow it was, with the log-level colours.
     fn slowlog_view(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
-        ui.horizontal(|ui| {
+        form::centred_row_wrapped(ui, |ui| {
             if ui
                 .button(format!("{} {}", ph::ARROWS_CLOCKWISE, s.t("redis-reload")))
                 .clicked()
             {
-                self.send(Cmd::Slowlog);
+                self.request_slowlog();
             }
             form::hint(ui, theme, &s.t("redis-slowlog-hint"));
         });
         ui.add_space(form::PANE_GAP);
-        let rows = self.shared.lock().slowlog.clone();
-        if rows.is_empty() {
-            form::hint(ui, theme, &s.t("redis-slowlog-none"));
+        let (loading, error, version) = {
+            let sh = self.shared.lock();
+            (
+                sh.slowlog_loading,
+                sh.slowlog_error.clone(),
+                sh.slowlog_version,
+            )
+        };
+        if let Some(e) = error {
+            ui.colored_label(theme.error, format!("{} {e}", ph::WARNING));
+            ui.add_space(form::ROW_GAP);
+            if form::button(ui, theme, ph::ARROW_CLOCKWISE, &s.t("redis-retry")).clicked() {
+                self.request_slowlog();
+            }
             return;
         }
-        egui::ScrollArea::both()
-            .id_salt("redis-slowlog")
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                egui::Grid::new("redis-slowlog-grid")
-                    .striped(true)
-                    .num_columns(5)
-                    .spacing([16.0, 4.0])
-                    .show(ui, |ui| {
-                        for h in ["#", "When", "Duration", "Client", "Command"] {
-                            ui.label(egui::RichText::new(h).strong().small());
-                        }
-                        ui.end_row();
-                        for e in &rows {
-                            ui.label(egui::RichText::new(e.id.to_string()).small().monospace());
-                            ui.label(egui::RichText::new(local_time(e.at)).small());
-                            ui.label(
-                                egui::RichText::new(format!("{:.3} ms", e.micros as f64 / 1000.0))
-                                    .small()
-                                    .monospace(),
-                            );
-                            ui.label(egui::RichText::new(&e.client).small().monospace());
-                            ui.add(
-                                egui::Label::new(
-                                    egui::RichText::new(&e.command).small().monospace(),
-                                )
-                                .truncate(),
-                            );
-                            ui.end_row();
-                        }
-                    });
+        // The rows are laid out once per read; a new read also drops the
+        // selection, which pointed into the old list.
+        if self
+            .depth
+            .slowlog_cache
+            .as_ref()
+            .is_none_or(|c| c.version != version)
+        {
+            let rows = self.shared.lock().slowlog.clone();
+            let cells = rows
+                .iter()
+                .map(|e| {
+                    vec![
+                        e.id.to_string(),
+                        local_time(e.at),
+                        format!("{:.3}", e.micros as f64 / 1000.0),
+                        e.command.clone(),
+                        e.client.clone(),
+                    ]
+                })
+                .collect();
+            self.depth.slowlog_table.selected = None;
+            self.depth.slowlog_cache = Some(SlowlogCache {
+                version,
+                rows: std::sync::Arc::new(rows),
+                cells: std::sync::Arc::new(cells),
             });
+        }
+        let Some((rows, cells)) = self
+            .depth
+            .slowlog_cache
+            .as_ref()
+            .map(|c| (c.rows.clone(), c.cells.clone()))
+        else {
+            return;
+        };
+        if rows.is_empty() {
+            if loading {
+                form::centred_row(ui, |ui| {
+                    ui.spinner();
+                    ui.label(s.t("redis-slowlog-loading"));
+                });
+            } else {
+                form::hint(ui, theme, &s.t("redis-slowlog-none"));
+            }
+            return;
+        }
+        let columns = [
+            ColumnSpec::new(s.t("redis-col-id"), 70.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-time"), 100.0),
+            ColumnSpec::new(s.t("redis-col-duration"), 110.0).numeric(),
+            ColumnSpec::new(s.t("redis-col-cmd"), 320.0),
+            ColumnSpec::new(s.t("redis-col-client"), 160.0),
+        ];
+        let selected = self
+            .depth
+            .slowlog_table
+            .selected
+            .and_then(|i| rows.get(i))
+            .cloned();
+        let table_h = if selected.is_some() {
+            (ui.available_height() * 0.55).max(140.0)
+        } else {
+            ui.available_height()
+        };
+        let r = ui
+            .allocate_ui(egui::vec2(ui.available_width(), table_h), |ui| {
+                ui.push_id("redis-slowlog", |ui| {
+                    DataTable {
+                        theme,
+                        columns: &columns,
+                        rows: &cells,
+                        row_height: hs_ui::table::ROW_HEIGHT,
+                        show_filter: true,
+                        copy_row_label: &s.t("redis-copy-row"),
+                        built_in_menu: true,
+                        row_icons: None,
+                        empty_hint: None,
+                    }
+                    // Only the Duration cell wears its level's colour
+                    // (owner, 2026-11-07).
+                    .show_coloured(
+                        ui,
+                        &mut self.depth.slowlog_table,
+                        &|r, c| {
+                            (c == 2)
+                                .then(|| rows.get(r))
+                                .flatten()
+                                .map(|e| hs_ui::loglevel::colour(theme, slow_level(e.micros)))
+                        },
+                    )
+                })
+                .inner
+            })
+            .inner;
+        if let Some(i) = r.clicked {
+            self.depth.slowlog_table.selected = Some(i);
+        }
+        if let Some(text) = r.copied {
+            ui.ctx().copy_text(text);
+        }
+        let Some(e) = selected else {
+            return;
+        };
+        ui.add_space(form::PANE_GAP);
+        ui.separator();
+        ui.add_space(form::PANE_GAP);
+        form::subsection(
+            ui,
+            theme,
+            &s.i18n
+                .t_args("redis-slowlog-entry", &[("id", &e.id.to_string())]),
+        );
+        ui.add_space(form::PANE_GAP);
+        let ms = e.micros as f64 / 1000.0;
+        form::centred_row(ui, |ui| {
+            ui.label(egui::RichText::new(s.t("redis-col-duration")).color(theme.text_muted));
+            ui.label(
+                egui::RichText::new(format!("{ms:.3} ms"))
+                    .monospace()
+                    .color(hs_ui::loglevel::colour(theme, slow_level(e.micros))),
+            );
+        });
+        let id = e.id.to_string();
+        let when = full_time(e.at);
+        let micros = format!("{} µs", e.micros);
+        form::detail_table(
+            ui,
+            theme,
+            "redis-slowlog-detail",
+            [
+                (s.t("redis-col-id"), id.as_str()),
+                (s.t("redis-col-time"), when.as_str()),
+                (s.t("redis-slowlog-micros"), micros.as_str()),
+                (s.t("redis-col-client"), e.client.as_str()),
+            ]
+            .iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect::<Vec<_>>(),
+        );
+        ui.add_space(form::PANE_GAP);
+        ui.label(egui::RichText::new(s.t("redis-slowlog-command")).color(theme.text_muted));
+        form::scroll_well(ui, theme, "redis-slowlog-cmd", Some(120.0), |ui| {
+            ui.add(
+                egui::TextEdit::multiline(&mut e.command.as_str())
+                    .code_editor()
+                    .desired_width(f32::INFINITY),
+            );
+        });
     }
-
     /// The clients as the table every activity's lists use: sortable,
     /// filterable, one row selected; Kill Client acts on that row
     /// (CR-0031, in place of a bare grid with a button per row).
@@ -452,7 +627,7 @@ impl RedisTool {
             let sh = self.shared.lock();
             (sh.bigkeys_running, sh.bigkeys_scanned, sh.bigkeys.clone())
         };
-        hs_ui::form::centred_row(ui, |ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-bigkeys-pattern"));
             ui.add(hs_ui::form::line_edit(&mut self.depth.bigkeys_pattern).desired_width(200.0));
             ui.label(s.t("redis-bigkeys-top"));
@@ -463,7 +638,7 @@ impl RedisTool {
                     s.i18n
                         .t_args("redis-bigkeys-scanning", &[("n", &scanned.to_string())]),
                 );
-                if ui.button(s.t("cancel")).clicked() {
+                if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                     self.shared.lock().bigkeys_stop = true;
                 }
             } else if ui
@@ -576,7 +751,7 @@ impl RedisTool {
             }
         });
         ui.add_space(form::PANE_GAP);
-        hs_ui::form::centred_row(ui, |ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-bulk-pattern"));
             ui.add(
                 hs_ui::form::line_edit(&mut self.depth.bulk_pattern)
@@ -671,7 +846,7 @@ impl RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let on = self.shared.lock().pubsub_on;
         ui.add_space(form::PANE_GAP);
-        hs_ui::form::centred_row(ui, |ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-pubsub-channels"));
             ui.add_enabled(
                 !on,
@@ -724,7 +899,7 @@ impl RedisTool {
             }
         });
         ui.add_space(form::PANE_GAP);
-        hs_ui::form::centred_row(ui, |ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-pubsub-publish"));
             ui.add(
                 hs_ui::form::line_edit(&mut self.depth.pub_channel)
@@ -799,7 +974,7 @@ impl RedisTool {
         let theme = Theme::from_settings(&s.settings.read().appearance);
         let streams: Vec<String> = self.shared.lock().tree.keys_with_kind(&KeyType::Stream);
         ui.add_space(form::PANE_GAP);
-        hs_ui::form::centred_row(ui, |ui| {
+        hs_ui::form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("redis-streams-key"));
             let shown = if self.depth.stream_key.is_empty() {
                 s.t("redis-streams-pick")
@@ -924,5 +1099,23 @@ impl RedisTool {
                         }
                     });
             });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::slow_level;
+    use hs_core::loglevel::Level;
+
+    #[test]
+    fn a_slow_entry_takes_the_level_of_its_duration() {
+        assert_eq!(slow_level(0), Level::Debug);
+        assert_eq!(slow_level(9_999), Level::Debug);
+        assert_eq!(slow_level(10_000), Level::Info);
+        assert_eq!(slow_level(99_999), Level::Info);
+        assert_eq!(slow_level(100_000), Level::Warn);
+        assert_eq!(slow_level(999_999), Level::Warn);
+        assert_eq!(slow_level(1_000_000), Level::Error);
+        assert_eq!(slow_level(30_000_000), Level::Error);
     }
 }

@@ -455,3 +455,14 @@ Right-click the History heading for **Clear History** and a history row for **Re
 
 The Manage Collection page's title wears the same gear, in the API
 Client's colour, that its tab wears.
+
+## Addendum (2026-11-07): variable tooltips, the method on Open Here, steady body buttons (FEAT-0107, CR-0089, BUG-0050)
+
+Hovering a `{{variable}}` in the URL, Params, Headers or Body (the Body
+editor through `EditorView::var_tips`) shows the reference and its value;
+a secret shows masked and is never decrypted for the tooltip, a locked
+vault or an unset name says so (`hs_ui::varpeek`). A request's Open Here
+card shows its method in the method's colour before the title, as the tab
+does. The body kinds (None, JSON, Text, XML, Form, Multipart, Binary
+File), the API key's Header / Query choice and the folder picker are
+`form::selectable_label`s, which do not grow under the pointer.

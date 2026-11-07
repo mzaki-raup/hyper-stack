@@ -102,6 +102,7 @@ pub struct AutomationTool {
     env_name: String,
     jobs_table: TableState,
     runs_table: TableState,
+    queue_table: TableState,
     last_poll: Option<Instant>,
     last_log_poll: Option<Instant>,
     run_values: RunValues,
@@ -207,6 +208,7 @@ impl AutomationTool {
             env_name: String::new(),
             jobs_table: TableState::default(),
             runs_table: TableState::default(),
+            queue_table: TableState::default(),
             last_poll: None,
             last_log_poll: None,
             run_values: RunValues::default(),
@@ -818,8 +820,7 @@ impl Tool for AutomationTool {
                 let label = s
                     .i18n
                     .t_args("automation-protected", &[("env", &self.env_name)]);
-                if ui
-                    .button(label)
+                if hs_ui::toolbar::btn(ui, &theme, ph::LOCK_SIMPLE_OPEN, &label)
                     .tip(s.t("automation-unlock-hint"))
                     .clicked()
                 {
@@ -964,7 +965,7 @@ impl AutomationTool {
         }
         if let Some(e) = self.conn_error.clone() {
             form::note(ui, &theme, ph::WARNING, &e);
-            if ui.button(s.t("automation-retry")).clicked() {
+            if form::button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("automation-retry")).clicked() {
                 self.connect(s);
             }
             return;
@@ -980,7 +981,9 @@ impl AutomationTool {
             }
             Some(Status::Failed(e)) => {
                 form::note(ui, &theme, ph::WARNING, &hs_core::fmt::sentence(&e));
-                if ui.button(s.t("automation-retry")).clicked() {
+                if form::button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("automation-retry"))
+                    .clicked()
+                {
                     self.connect(s);
                 }
                 return;
@@ -1515,25 +1518,37 @@ impl AutomationTool {
             form::note(ui, theme, ph::INFO, &s.t("automation-queue-empty"));
             return;
         }
-        egui::Grid::new("automation-queue")
-            .num_columns(3)
-            .striped(true)
-            .show(ui, |ui| {
-                for key in [
-                    "automation-col-name",
-                    "automation-col-why",
-                    "automation-col-since",
-                ] {
-                    ui.strong(s.t(key));
-                }
-                ui.end_row();
-                for q in &items {
-                    ui.label(&q.job);
-                    ui.label(&q.why);
-                    ui.label(q.since_ms.map(driver::time_ms).unwrap_or_default());
-                    ui.end_row();
-                }
-            });
+        // Read-only rows: the shared table, with its header band and
+        // centred cells, not a hand-made grid (CR-0061).
+        let columns = [
+            ColumnSpec::new(s.t("automation-col-name"), 200.0),
+            ColumnSpec::new(s.t("automation-col-why"), 220.0),
+            ColumnSpec::new(s.t("automation-col-since"), 130.0),
+        ];
+        let rows: Vec<Vec<String>> = items
+            .iter()
+            .map(|q| {
+                vec![
+                    q.job.clone(),
+                    q.why.clone(),
+                    q.since_ms.map(driver::time_ms).unwrap_or_default(),
+                ]
+            })
+            .collect();
+        let table = DataTable {
+            theme,
+            columns: &columns,
+            rows: &rows,
+            row_height: hs_ui::table::ROW_HEIGHT,
+            show_filter: false,
+            copy_row_label: &s.t("table-copy-row"),
+            built_in_menu: true,
+            row_icons: None,
+            empty_hint: None,
+        };
+        ui.push_id("automation-queue", |ui| {
+            table.show(ui, &mut self.queue_table)
+        });
     }
 
     fn dialogs(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {

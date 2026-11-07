@@ -822,7 +822,10 @@ impl RepoPane {
                     ui.label(egui::RichText::new(format!("{} {}", ph::WARNING, s.t(key))).strong());
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .add_enabled(!busy, egui::Button::new(s.t("git-abort")))
+                            .add_enabled(
+                                !busy,
+                                egui::Button::new(format!("{} {}", ph::STOP, s.t("git-abort"))),
+                            )
                             .clicked()
                         {
                             op = Some(Op::new(s.t("git-abort"), move |r| {
@@ -840,7 +843,14 @@ impl RepoPane {
                         }
                         if state == hs_git::OperationState::CherryPick
                             && ui
-                                .add_enabled(!busy, egui::Button::new(s.t("git-skip")))
+                                .add_enabled(
+                                    !busy,
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::SKIP_FORWARD,
+                                        s.t("git-skip")
+                                    )),
+                                )
                                 .clicked()
                         {
                             op = Some(Op::new(s.t("git-skip"), |r| {
@@ -848,7 +858,10 @@ impl RepoPane {
                             }));
                         }
                         if ui
-                            .add_enabled(!busy, egui::Button::new(s.t("git-continue")))
+                            .add_enabled(
+                                !busy,
+                                egui::Button::new(format!("{} {}", ph::PLAY, s.t("git-continue"))),
+                            )
                             .clicked()
                         {
                             op = Some(Op::new(s.t("git-continue"), move |r| {
@@ -1209,7 +1222,7 @@ impl RepoPane {
                         }
                     };
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             cancel = true;
                         }
                         if hs_ui::form::danger_button(ui, theme, &verb).clicked() {
@@ -1293,9 +1306,8 @@ impl RepoPane {
                 hs_ui::form::centred_row(ui, |ui| {
                     ui.label(egui::RichText::new(ph::MAGNIFYING_GLASS).color(theme.text_muted));
                     ui.add(
-                        egui::TextEdit::singleline(&mut self.filter)
+                        hs_ui::form::line_edit(&mut self.filter)
                             .hint_text(s.t("git-filter-hint"))
-                            .margin(hs_ui::form::FIELD_MARGIN)
                             .desired_width(f32::INFINITY),
                     );
                 });
@@ -1328,7 +1340,8 @@ impl RepoPane {
                     if ui
                         .add_enabled(
                             !busy && !unstaged.is_empty(),
-                            egui::Button::new(s.t("git-stage-all")).small(),
+                            egui::Button::new(format!("{} {}", ph::PLUS, s.t("git-stage-all")))
+                                .small(),
                         )
                         .clicked()
                     {
@@ -1367,7 +1380,8 @@ impl RepoPane {
                     if ui
                         .add_enabled(
                             !busy && !staged.is_empty(),
-                            egui::Button::new(s.t("git-unstage-all")).small(),
+                            egui::Button::new(format!("{} {}", ph::MINUS, s.t("git-unstage-all")))
+                                .small(),
                         )
                         .clicked()
                     {
@@ -1747,11 +1761,17 @@ fn file_row(
         action = RowAction::Pick;
     }
     resp.context_menu(|ui| {
-        if ui.button(&tips.blame).clicked() {
+        if ui
+            .button(format!("{} {}", ph::USER_FOCUS, tips.blame))
+            .clicked()
+        {
             action = RowAction::Blame;
             ui.close();
         }
-        if ui.button(&tips.history).clicked() {
+        if ui
+            .button(format!("{} {}", ph::CLOCK_COUNTER_CLOCKWISE, tips.history))
+            .clicked()
+        {
             action = RowAction::History;
             ui.close();
         }

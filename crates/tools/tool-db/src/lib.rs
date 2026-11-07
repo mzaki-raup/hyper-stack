@@ -1970,7 +1970,10 @@ impl DbTool {
                         Format::Markdown,
                         Format::Tsv,
                     ] {
-                        if ui.button(s.t(f.label_key())).clicked() {
+                        if ui
+                            .button(format!("{} {}", f.glyph(), s.t(f.label_key())))
+                            .clicked()
+                        {
                             ui.close();
                             self.export(i, f, s);
                         }
@@ -1978,7 +1981,10 @@ impl DbTool {
                 });
                 ui.menu_button(format!("{} {}", ph::COPY, s.t("db-copy-as")), |ui| {
                     for f in Format::ALL {
-                        if ui.button(s.t(f.label_key())).clicked() {
+                        if ui
+                            .button(format!("{} {}", f.glyph(), s.t(f.label_key())))
+                            .clicked()
+                        {
                             let text = self.render_result(i, f);
                             ui.ctx().copy_text(text);
                             ui.close();
@@ -2020,7 +2026,9 @@ impl DbTool {
                     if limited
                         && class == Some(Class::Read)
                         && !running
-                        && ui.button(s.t("db-fetch-more")).clicked()
+                        && ui
+                            .button(format!("{} {}", ph::ARROW_DOWN, s.t("db-fetch-more")))
+                            .clicked()
                     {
                         self.fetch_more(i, s);
                     }
@@ -2299,8 +2307,12 @@ impl DbTool {
                             .add_enabled(
                                 allowed,
                                 egui::Button::new(
-                                    egui::RichText::new(s.t("db-run-anyway"))
-                                        .color(egui::Color32::WHITE),
+                                    egui::RichText::new(format!(
+                                        "{} {}",
+                                        ph::PLAY,
+                                        s.t("db-run-anyway")
+                                    ))
+                                    .color(egui::Color32::WHITE),
                                 )
                                 .fill(theme.error),
                             )
@@ -2310,7 +2322,7 @@ impl DbTool {
                             let limit = *limit;
                             then = Some(Box::new(move |t, s| t.start_run(stmts, limit, s)));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2324,13 +2336,19 @@ impl DbTool {
                     );
                     ui.add_space(10.0);
                     ui.horizontal(|ui| {
-                        if form::danger_button(ui, theme, &s.t("db-allow-writes")).clicked() {
+                        if form::danger_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::LOCK_OPEN, s.t("db-allow-writes")),
+                        )
+                        .clicked()
+                        {
                             then = Some(Box::new(|t, s| {
                                 t.writes_unlocked = true;
                                 t.connect(s);
                             }));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2403,7 +2421,7 @@ impl DbTool {
                             }
                         });
                     ui.add_space(6.0);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         if ui
                             .button(format!("{} {}", ph::COPY, s.t("db-copy")))
                             .clicked()
@@ -2431,7 +2449,7 @@ impl DbTool {
                                 Err(e) => cx.toast(ToastLevel::Error, e.to_string()),
                             }
                         }
-                        if ui.button(s.t("close")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                             close = true;
                         }
                     });
@@ -2596,7 +2614,14 @@ impl DbTool {
                         && imp.mapping.iter().any(Option::is_some);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .add_enabled(can, egui::Button::new(s.t("db-import-run")))
+                            .add_enabled(
+                                can,
+                                egui::Button::new(format!(
+                                    "{} {}",
+                                    ph::DOWNLOAD_SIMPLE,
+                                    s.t("db-import-run")
+                                )),
+                            )
                             .clicked()
                         {
                             let st = imp.clone();
@@ -2604,7 +2629,7 @@ impl DbTool {
                                 t.import_job(st, s);
                             }));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                         if imp.columns.is_some() && !can && imp.preview.is_ok() {
@@ -2634,13 +2659,19 @@ impl DbTool {
                     ui.checkbox(null, s.t("db-edit-null"));
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                        {
                             let (i, r, c, t, n) = (*result, *row, *col, text.clone(), *null);
                             then = Some(Box::new(move |tool: &mut DbTool, _s: &Services| {
                                 tool.apply_cell_edit(i, r, c, &t, n);
                             }));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2666,16 +2697,25 @@ impl DbTool {
                         });
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, theme, &s.t("db-edit-apply")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::CHECK, s.t("db-edit-apply")),
+                        )
+                        .clicked()
+                        {
                             let (i, text) = (*result, sql.clone());
                             then = Some(Box::new(move |tool: &mut DbTool, s: &Services| {
                                 tool.apply_edits(i, &text, s);
                             }));
                         }
-                        if ui.button(s.t("db-edit-copy-sql")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::COPY, s.t("db-edit-copy-sql")))
+                            .clicked()
+                        {
                             ui.ctx().copy_text(sql.clone());
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2694,7 +2734,13 @@ impl DbTool {
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     ui.add_space(10.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if (form::primary_button(ui, theme, &s.t("save")).clicked() || enter)
+                        if (form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                        .clicked()
+                            || enter)
                             && !name.trim().is_empty()
                         {
                             let n = name.trim().to_string();
@@ -2704,7 +2750,7 @@ impl DbTool {
                                 }
                             }));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2783,16 +2829,22 @@ impl DbTool {
                         });
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if form::primary_button(ui, theme, &s.t("db-ddl-to-editor")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::ARROW_SQUARE_OUT, s.t("db-ddl-to-editor")),
+                        )
+                        .clicked()
+                        {
                             let text = sql.clone();
                             then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
                                 t.insert_text(&text);
                             }));
                         }
-                        if ui.button(s.t("copy")).clicked() {
+                        if ui.button(format!("{} {}", ph::COPY, s.t("copy"))).clicked() {
                             ui.ctx().copy_text(sql.clone());
                         }
-                        if ui.button(s.t("close")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                             close = true;
                         }
                     });
@@ -2885,8 +2937,13 @@ impl DbTool {
                     ui.add_space(12.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let ready = !conn_id.is_empty();
+                        // The form button: its accessible name is the
+                        // label alone, without the glyph.
                         if ui
-                            .add_enabled(ready, egui::Button::new(s.t("db-cmp-run")))
+                            .add_enabled_ui(ready, |ui| {
+                                form::button(ui, theme, ph::PLAY, &s.t("db-cmp-run"))
+                            })
+                            .inner
                             .clicked()
                         {
                             let (t, sc, id) = (table.clone(), schema.clone(), conn_id.clone());
@@ -2902,7 +2959,7 @@ impl DbTool {
                                 }
                             }));
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             close = true;
                         }
                     });
@@ -2989,20 +3046,30 @@ impl DbTool {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !diffs.is_empty()
                             && migration.is_none()
-                            && form::primary_button(ui, theme, &s.t("db-cmp-make-migration"))
-                                .clicked()
+                            && form::primary_button(
+                                ui,
+                                theme,
+                                &format!("{} {}", ph::FILE_SQL, s.t("db-cmp-make-migration")),
+                            )
+                            .clicked()
                         {
                             *migration =
                                 Some(compare::migration(&out.source, diffs, out.target.engine));
                         }
                         if let Some(sql) = migration.clone()
-                            && ui.button(s.t("db-cmp-to-editor")).clicked()
+                            && form::button(
+                                ui,
+                                theme,
+                                ph::ARROW_SQUARE_OUT,
+                                &s.t("db-cmp-to-editor"),
+                            )
+                            .clicked()
                         {
                             then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
                                 t.insert_text(&sql);
                             }));
                         }
-                        if ui.button(s.t("close")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                             close = true;
                         }
                     });
@@ -3092,7 +3159,12 @@ impl DbTool {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if !diffs.is_empty()
                             && migration.is_none()
-                            && form::primary_button(ui, theme, &s.t("db-cmp-make-rows")).clicked()
+                            && form::primary_button(
+                                ui,
+                                theme,
+                                &format!("{} {}", ph::FILE_SQL, s.t("db-cmp-make-rows")),
+                            )
+                            .clicked()
                         {
                             *migration = Some(compare::data_migration(
                                 &out.table,
@@ -3102,13 +3174,19 @@ impl DbTool {
                             ));
                         }
                         if let Some(sql) = migration.clone()
-                            && ui.button(s.t("db-cmp-to-editor")).clicked()
+                            && form::button(
+                                ui,
+                                theme,
+                                ph::ARROW_SQUARE_OUT,
+                                &s.t("db-cmp-to-editor"),
+                            )
+                            .clicked()
                         {
                             then = Some(Box::new(move |t: &mut DbTool, _s: &Services| {
                                 t.insert_text(&sql);
                             }));
                         }
-                        if ui.button(s.t("close")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                             close = true;
                         }
                     });
@@ -3375,76 +3453,106 @@ impl DbTool {
                         ["o", schema, kind, name] => {
                             let q = self.qualified(schema, name);
                             let table_or_view = *kind == "table" || *kind == "view";
-                            if table_or_view && item(ui, s.t("db-open-data")) {
+                            if table_or_view
+                                && item(ui, format!("{} {}", ph::TABLE, s.t("db-open-data")))
+                            {
                                 run = Some(format!("SELECT * FROM {q}"));
                             }
-                            if table_or_view && item(ui, s.t("db-select-template")) {
+                            if table_or_view
+                                && item(
+                                    ui,
+                                    format!("{} {}", ph::FILE_SQL, s.t("db-select-template")),
+                                )
+                            {
                                 insert = Some(format!("SELECT *\nFROM {q}\nWHERE ;"));
                             }
-                            if *kind == "table" && item(ui, s.t("db-count-rows")) {
+                            if *kind == "table"
+                                && item(ui, format!("{} {}", ph::HASH, s.t("db-count-rows")))
+                            {
                                 run = Some(format!("SELECT COUNT(*) FROM {q}"));
                             }
-                            if *kind == "table" && item(ui, s.t("db-design-table")) {
+                            if *kind == "table"
+                                && item(
+                                    ui,
+                                    format!("{} {}", ph::PENCIL_RULER, s.t("db-design-table")),
+                                )
+                            {
                                 design = Some((schema.to_string(), Some(name.to_string())));
                             }
-                            if *kind == "table" && item(ui, s.t("db-import-csv")) {
+                            if *kind == "table"
+                                && item(
+                                    ui,
+                                    format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("db-import-csv")),
+                                )
+                            {
                                 import_into = Some((schema.to_string(), name.to_string()));
                             }
-                            if *kind == "table" && item(ui, s.t("db-cmp-data-menu")) {
+                            if *kind == "table"
+                                && item(ui, format!("{} {}", ph::GIT_DIFF, s.t("db-cmp-data-menu")))
+                            {
                                 compare_pick = Some((Some(name.to_string()), schema.to_string()));
                             }
-                            if item(ui, s.t("db-copy-name")) {
+                            if item(ui, format!("{} {}", ph::COPY, s.t("db-copy-name"))) {
                                 copy = Some(q.clone());
                             }
                             if *kind == "table" {
                                 ui.separator();
-                                if item(ui, s.t("db-truncate")) {
+                                if item(ui, format!("{} {}", ph::BROOM, s.t("db-truncate"))) {
                                     insert = Some(format!("TRUNCATE TABLE {q};"));
                                 }
-                                if item(ui, s.t("db-drop")) {
+                                if item(ui, format!("{} {}", ph::TRASH, s.t("db-drop"))) {
                                     insert = Some(format!("DROP TABLE {q};"));
                                 }
                             } else if *kind == "view" {
                                 ui.separator();
-                                if item(ui, s.t("db-drop")) {
+                                if item(ui, format!("{} {}", ph::TRASH, s.t("db-drop"))) {
                                     insert = Some(format!("DROP VIEW {q};"));
                                 }
                             }
                         }
                         ["c", _, _, name] | ["i", _, _, name] => {
-                            if item(ui, s.t("db-copy-name")) {
+                            if item(ui, format!("{} {}", ph::COPY, s.t("db-copy-name"))) {
                                 copy = Some(sql::quote_ident(name, self.engine));
                             }
                         }
                         // A schema: the whole-schema tools of phase H.
                         ["s", schema] => {
-                            if item(ui, s.t("db-new-table")) {
+                            if item(ui, format!("{} {}", ph::PLUS, s.t("db-new-table"))) {
                                 design = Some((schema.to_string(), None));
                             }
-                            if item(ui, s.t("db-erd-menu")) {
+                            if item(ui, format!("{} {}", ph::TREE_STRUCTURE, s.t("db-erd-menu"))) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::Erd));
                             }
-                            if item(ui, s.t("db-erd-export-menu")) {
+                            if item(ui, format!("{} {}", ph::EXPORT, s.t("db-erd-export-menu"))) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::ErdExport));
                             }
-                            if item(ui, s.t("db-ddl-menu")) {
+                            if item(ui, format!("{} {}", ph::FILE_SQL, s.t("db-ddl-menu"))) {
                                 snapshot_for = Some((schema.to_string(), SnapshotUse::Ddl));
                             }
-                            if item(ui, s.t("db-cmp-schema-menu")) {
+                            if item(
+                                ui,
+                                format!("{} {}", ph::GIT_DIFF, s.t("db-cmp-schema-menu")),
+                            ) {
                                 compare_pick = Some((None, schema.to_string()));
                             }
                             ui.separator();
-                            if item(ui, s.t("db-refresh-schema")) {
+                            if item(
+                                ui,
+                                format!("{} {}", ph::ARROW_CLOCKWISE, s.t("db-refresh-schema")),
+                            ) {
                                 refresh = true;
                             }
                         }
                         _ => {
-                            if item(ui, s.t("db-refresh-schema")) {
+                            if item(
+                                ui,
+                                format!("{} {}", ph::ARROW_CLOCKWISE, s.t("db-refresh-schema")),
+                            ) {
                                 refresh = true;
                             }
                         }
                     }
-                    if item(ui, s.t("close")) {
+                    if item(ui, format!("{} {}", ph::X, s.t("close"))) {
                         close = true;
                     }
                 });
@@ -3891,13 +3999,25 @@ impl DbTool {
                 ))
                 .color(theme.warning),
             );
-            if form::primary_button(ui, theme, &s.t("db-edit-review")).clicked() {
+            if form::primary_button(
+                ui,
+                theme,
+                &format!("{} {}", ph::LIST_CHECKS, s.t("db-edit-review")),
+            )
+            .clicked()
+            {
                 self.dialog = Some(Dialog::Review {
                     result: i,
                     sql: self.edit_sql(i),
                 });
             }
-            if ui.button(s.t("db-edit-discard")).clicked()
+            if ui
+                .button(format!(
+                    "{} {}",
+                    ph::ARROW_COUNTER_CLOCKWISE,
+                    s.t("db-edit-discard")
+                ))
+                .clicked()
                 && let Some(e) = self.edits.get_mut(&i)
             {
                 e.rows.clear();
@@ -4807,9 +4927,8 @@ impl DbTool {
         }
         ui.add_space(4.0);
         ui.add(
-            egui::TextEdit::singleline(&mut self.tree_filter)
+            hs_ui::form::line_edit(&mut self.tree_filter)
                 .hint_text(s.t("db-filter-objects"))
-                .margin(hs_ui::form::FIELD_MARGIN)
                 .desired_width(f32::INFINITY),
         );
         ui.add_space(2.0);
@@ -4939,9 +5058,8 @@ impl DbTool {
                 .show(ui, |ui| {
                     if ui
                         .add(
-                            egui::TextEdit::singleline(&mut self.history_search)
+                            hs_ui::form::line_edit(&mut self.history_search)
                                 .hint_text(s.t("db-history-search"))
-                                .margin(hs_ui::form::FIELD_MARGIN)
                                 .desired_width(f32::INFINITY),
                         )
                         .changed()
@@ -5594,7 +5712,11 @@ impl DbTool {
             ui.vertical_centered(|ui| {
                 ui.add_space(30.0);
                 ui.colored_label(theme.error, e);
-                if self.state.conn_id.is_some() && ui.button(s.t("db-retry")).clicked() {
+                if self.state.conn_id.is_some()
+                    && ui
+                        .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("db-retry")))
+                        .clicked()
+                {
                     self.connect(s);
                 }
             });
@@ -5611,7 +5733,10 @@ impl DbTool {
         if let Some(Status::Failed(e)) = status {
             ui.add_space(6.0);
             ui.colored_label(theme.error, format!("{} {e}", ph::WARNING));
-            if ui.button(s.t("db-retry")).clicked() {
+            if ui
+                .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("db-retry")))
+                .clicked()
+            {
                 self.connect(s);
             }
             ui.add_space(6.0);

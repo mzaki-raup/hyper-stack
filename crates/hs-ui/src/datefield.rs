@@ -162,12 +162,18 @@ fn calendar(
         });
     ui.add_space(4.0);
     ui.horizontal(|ui| {
-        if ui.small_button(labels.today).clicked() {
+        if ui
+            .small_button(format!("{} {}", ph::CALENDAR_CHECK, labels.today))
+            .clicked()
+        {
             *value = iso_date(today.0, today.1, today.2);
             wrote = true;
             ui.close();
         }
-        if ui.small_button(labels.clear).clicked() {
+        if ui
+            .small_button(format!("{} {}", ph::BROOM, labels.clear))
+            .clicked()
+        {
             value.clear();
             wrote = true;
             ui.close();

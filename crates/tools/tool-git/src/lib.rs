@@ -64,10 +64,28 @@ struct State {
     name: String,
     language: String,
     icon: String,
-    /// The uploaded icon's image URI, refreshed from the list each frame
-    /// the tab is drawn (cheap: a stat); not saved.
+    /// The uploaded icon's image URI, registered once per change of entry
+    /// the first time the tab is drawn; not saved.
     #[serde(skip)]
     image: Option<String>,
+    /// The uploaded icon's file, read when the tab is made or shown, so a
+    /// tab restored at start-up and not yet drawn still names its picture
+    /// (the Git sidebar registers it); not saved.
+    #[serde(skip)]
+    image_file: Option<PathBuf>,
+    /// The repository id and icon generation (`git_repos::icon_generation`)
+    /// `image_file` was looked up for; the disk is read again only when
+    /// this changes, never per frame. Not saved.
+    #[serde(skip)]
+    picture_key: Option<(String, u64)>,
+    /// `image` still has to be registered with the context (the entry
+    /// changed since the tab was last drawn). Not saved.
+    #[serde(skip)]
+    image_pending: bool,
+    /// The tab's picture URI, worked out when the entry changes so
+    /// `tab_icon_uri` never touches the disk. Not saved.
+    #[serde(skip)]
+    picture: Option<String>,
     /// A host tab (FEAT-0100): the Git credential it shows, its inner
     /// repository tabs and which of them is in front.
     host_id: String,
@@ -143,6 +161,7 @@ impl GitTool {
         if let Some(p) = t.state.path.clone() {
             t.pane.set_root(services, p);
         }
+        t.refresh_from_entry(services);
         t.rebind();
         if !t.state.host_id.is_empty() {
             let id = t.state.host_id.clone();
@@ -265,9 +284,51 @@ impl GitTool {
         self.state.name = entry.label();
         self.state.language = entry.language.clone();
         self.state.icon = entry.icon.clone();
-        self.state.image = None;
+        self.state.picture_key = None;
+        self.refresh_picture(s);
         self.pane.set_root(s, entry.path.clone());
         self.pane.set_credential(&entry.credential);
+    }
+
+    /// Take the name, icon, language and picture file from the saved
+    /// entry, which may have changed since the tab was saved; a tab wears
+    /// what the list says now, drawn yet or not.
+    fn refresh_from_entry(&mut self, s: &Services) {
+        if self.state.repo_id.is_empty() {
+            return;
+        }
+        let repos = s.git_repos.read();
+        if let Some(e) = repos.by_id(&self.state.repo_id) {
+            self.state.name = e.label();
+            self.state.icon = e.icon.clone();
+            if !e.language.is_empty() {
+                self.state.language = e.language.clone();
+            }
+        }
+        drop(repos);
+        self.refresh_picture(s);
+    }
+
+    /// Look the uploaded picture up again, only when the entry or its icon
+    /// changed since the last look (`picture_key`); per frame this is a
+    /// comparison, never disk I/O.
+    fn refresh_picture(&mut self, s: &Services) {
+        let key = (
+            self.state.repo_id.clone(),
+            hs_core::git_repos::icon_generation(),
+        );
+        if self.state.picture_key.as_ref() == Some(&key) {
+            return;
+        }
+        self.state.image = None;
+        self.state.image_file = if key.0.is_empty() {
+            None
+        } else {
+            s.git_repos.read().icon_file(&key.0)
+        };
+        self.state.picture = repo_picture(&self.state);
+        self.state.image_pending = self.state.image_file.is_some();
+        self.state.picture_key = Some(key);
     }
 
     /// The glyph for this repository: the chosen icon, else its
@@ -484,6 +545,19 @@ struct SidebarRow {
 }
 
 /// The uploaded icon of saved entry `id` as an image URI, if it has one.
+/// The repository's uploaded picture: the URI registered while the tab
+/// was drawn, else the same URI named from the file without a context,
+/// so a restored tab that was never drawn (the Open Here card, its strip
+/// tab) shows what the sidebar shows.
+fn repo_picture(state: &State) -> Option<String> {
+    state.image.clone().or_else(|| {
+        state
+            .image_file
+            .as_deref()
+            .map(hs_ui::icons::image_uri_name)
+    })
+}
+
 fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
     if id.is_empty() {
         return None;
@@ -595,7 +669,7 @@ impl Tool for GitTool {
             return host_conn_icon(h.cred.kind).uri();
         }
         self.state
-            .image
+            .picture
             .clone()
             .or_else(|| repo_conn_icon(&self.state.icon, &self.state.language).uri())
     }
@@ -609,7 +683,7 @@ impl Tool for GitTool {
         if let Some(h) = &self.host {
             return host_conn_icon(h.cred.kind).brand();
         }
-        if self.state.image.is_some() {
+        if self.state.image.is_some() || self.state.image_file.is_some() {
             return None;
         }
         repo_conn_icon(&self.state.icon, &self.state.language).brand()
@@ -984,17 +1058,15 @@ impl Tool for GitTool {
         }
         // The list may have renamed or re-iconed this entry since the tab
         // was saved; a tab wears what the list says now.
-        if !self.state.repo_id.is_empty()
-            && let Some(e) = cx.services.git_repos.read().by_id(&self.state.repo_id)
-        {
-            self.state.name = e.label();
-            self.state.icon = e.icon.clone();
-            if !e.language.is_empty() {
-                self.state.language = e.language.clone();
-            }
-        }
-        if !self.state.repo_id.is_empty() {
-            self.state.image = entry_image(ui.ctx(), cx.services, &self.state.repo_id);
+        self.refresh_from_entry(cx.services);
+        if self.state.image_pending {
+            self.state.image_pending = false;
+            self.state.image = self
+                .state
+                .image_file
+                .as_deref()
+                .and_then(|f| hs_ui::icons::image_uri(ui.ctx(), f));
+            self.state.picture = repo_picture(&self.state);
         }
         hs_core::langver::ensure(&cx.services.runtime, &self.state.language);
         self.pane.ui(ui, &theme, cx);
@@ -1004,6 +1076,55 @@ impl Tool for GitTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A restored tab that was never drawn has no registered URI yet, but
+    /// names its picture from the saved file, the same URI the sidebar
+    /// registers; the registered one wins once drawn (Open Here card).
+    #[test]
+    fn a_restored_tab_names_its_picture_before_it_is_drawn() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("repo.png");
+        std::fs::write(&file, b"png").unwrap();
+        let mut state = State {
+            image_file: Some(file.clone()),
+            ..Default::default()
+        };
+        assert_eq!(
+            repo_picture(&state),
+            Some(hs_ui::icons::image_uri_name(&file))
+        );
+        state.image = Some("bytes://drawn".into());
+        assert_eq!(repo_picture(&state).as_deref(), Some("bytes://drawn"));
+        assert_eq!(repo_picture(&State::default()), None);
+    }
+
+    /// Every button carries a glyph before its label, and every text field
+    /// is `form::line_edit` (CR-0063, CR-0061).
+    #[test]
+    fn no_label_only_button_or_bare_field_in_the_git_ui() {
+        for src in [
+            include_str!("conflict.rs"),
+            include_str!("files.rs"),
+            include_str!("history.rs"),
+            include_str!("pane.rs"),
+            include_str!("tree.rs"),
+            include_str!("verbs.rs"),
+            include_str!("host.rs"),
+            include_str!("blame.rs"),
+            include_str!("diffview.rs"),
+        ] {
+            for bad in [
+                concat!("ui.button(s.", "t("),
+                concat!("small_button(s.", "t("),
+                concat!("Button::new(s.", "t("),
+                concat!("TextEdit::", "singleline"),
+                concat!(".selectable", "_label("),
+                concat!(".selectable", "_value("),
+            ] {
+                assert!(!src.contains(bad), "found {bad}");
+            }
+        }
+    }
 
     /// CR-0047: a repository with no picture and no chosen glyph wears its
     /// language's logo in the language's colour; a chosen glyph stays plain.

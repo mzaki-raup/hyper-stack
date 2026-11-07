@@ -228,3 +228,11 @@ and the shared **Open Here** grid, each section ruled apart.
 ## Addendum (2026-11-05): focus on open (CR-0048)
 
 An open request for a shell - a sidebar row, a CLI, "open terminal here" - puts the caret in the terminal on the next frame (`pending_focus`), so typing starts at once.
+
+## Addendum (2026-11-07): focus when the tab comes to the front (CR-0094)
+
+Clicking a shell's tab, or anything else that brings it to the front,
+puts the caret in that shell on the frame it becomes active
+(`became_active`), once - not on every frame it stays in front, and not
+while a dialog or another field (a tab being renamed, the find bar) has
+the keyboard (`hs_ui::form::focus_is_elsewhere`).

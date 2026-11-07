@@ -532,14 +532,21 @@ impl AiPanel {
         });
         ui.horizontal_wrapped(|ui| {
             let enabled = self.running.is_none();
-            for (key, prompt) in [
-                ("ai-explain", "ai-explain-prompt"),
-                ("ai-review", "ai-review-prompt"),
-                ("ai-improve", "ai-improve-prompt"),
-                ("ai-add-comments", "ai-add-comments-prompt"),
+            for (key, prompt, glyph) in [
+                ("ai-explain", "ai-explain-prompt", ph::LIGHTBULB),
+                ("ai-review", "ai-review-prompt", ph::MAGNIFYING_GLASS),
+                ("ai-improve", "ai-improve-prompt", ph::MAGIC_WAND),
+                (
+                    "ai-add-comments",
+                    "ai-add-comments-prompt",
+                    ph::CHAT_CIRCLE_TEXT,
+                ),
             ] {
                 if ui
-                    .add_enabled(enabled, egui::Button::new(s.t(key)).small())
+                    .add_enabled(
+                        enabled,
+                        egui::Button::new(format!("{glyph} {}", s.t(key))).small(),
+                    )
                     .clicked()
                 {
                     self.send(s, ed, s.t(prompt));

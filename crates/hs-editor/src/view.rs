@@ -253,6 +253,11 @@ pub struct EditorView {
     /// Screen rectangle of the primary cursor after the last `show`, for
     /// popups anchored at the caret (completion).
     pub cursor_rect: Option<Rect>,
+    /// Hovering a `{{ name }}` shows that variable's value (a secret
+    /// masked), through the Services `hs_ui::varpeek::install` stored. Off
+    /// by default; an owner whose text takes `{{}}` variables (an API
+    /// body, a script) turns it on.
+    pub var_tips: bool,
     highlighter: LineHighlighter,
     scroll_to_cursor: bool,
     last_version: u64,
@@ -284,6 +289,7 @@ impl EditorView {
             exec_line: None,
             line_marks: Vec::new(),
             cursor_rect: None,
+            var_tips: false,
             highlighter,
             scroll_to_cursor: false,
             last_version: u64::MAX,
@@ -507,6 +513,19 @@ impl EditorView {
             {
                 resp.hover_char = Some(pos_to_char(p));
                 resp.hover_pos = Some(p);
+                if self.var_tips {
+                    // The cell under the pointer (not the nearest gap).
+                    let line = ((p.y - origin.y) / cell.y).floor().max(0.0) as usize;
+                    let col = ((p.x - text_x) / cell.x).floor().max(0.0) as usize;
+                    if line < total_lines && col < buf.line_len(line) {
+                        let text = buf.line_text(line);
+                        if text.contains("{{")
+                            && let Some((byte, _)) = text.char_indices().nth(col)
+                        {
+                            hs_ui::varpeek::installed_reference_tip(&response, &text, byte);
+                        }
+                    }
+                }
             }
 
             // Keyboard.

@@ -23,7 +23,36 @@ pub enum ThreeWay {
     Cancel,
 }
 
+/// What [`confirm`] draws on its buttons. The dialog owns the glyphs: a
+/// glyph the caller put before the OK label is the verb's own (a trash can
+/// for Delete) and is kept, otherwise a warning for a danger and a check
+/// for the rest; Cancel always wears an X. Any glyph a caller put before
+/// Cancel is dropped, so no button ever shows two.
+#[derive(Debug, PartialEq, Eq)]
+struct ConfirmLabels<'a> {
+    ok_glyph: &'a str,
+    ok: &'a str,
+    cancel: &'a str,
+}
+
+impl<'a> ConfirmLabels<'a> {
+    fn new(ok_label: &'a str, cancel_label: &'a str, danger: bool) -> Self {
+        let (given, ok) = crate::form::split_glyph(ok_label);
+        let ok_glyph = given.unwrap_or(if danger {
+            crate::icons::ph::WARNING
+        } else {
+            crate::icons::ph::CHECK
+        });
+        Self {
+            ok_glyph,
+            ok,
+            cancel: crate::form::plain_label(cancel_label),
+        }
+    }
+}
+
 /// A yes/no modal. Returns `Ok`/`Cancel` on the frame the user decides.
+/// Pass plain labels; the dialog adds the glyphs ([`ConfirmLabels`]).
 // Eight labelled arguments read better than a struct for a one-call helper.
 #[allow(clippy::too_many_arguments)]
 pub fn confirm(
@@ -44,13 +73,20 @@ pub fn confirm(
         ui.label(body);
         ui.add_space(12.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let ok = egui::Button::new(egui::RichText::new(ok_label).color(egui::Color32::WHITE))
-                .fill(if danger { theme.error } else { theme.accent })
-                .corner_radius(CornerRadius::same(4));
-            if ui.add(ok).clicked() {
+            // Both buttons an icon and a label at the standard size; the
+            // accessible name stays the label alone (CR-0063).
+            let labels = ConfirmLabels::new(ok_label, cancel_label, danger);
+            let ok = egui::Button::new(
+                egui::RichText::new(format!("{} {}", labels.ok_glyph, labels.ok))
+                    .color(egui::Color32::WHITE),
+            )
+            .fill(if danger { theme.error } else { theme.accent })
+            .corner_radius(CornerRadius::same(4));
+            if crate::form::sized_button(ui, ok, labels.ok).clicked() {
                 result = DialogResult::Ok;
             }
-            if ui.button(cancel_label).clicked() {
+            ui.add_space(crate::form::BUTTON_GAP - ui.spacing().item_spacing.x);
+            if crate::form::button(ui, theme, crate::icons::ph::X, labels.cancel).clicked() {
                 result = DialogResult::Cancel;
             }
         });
@@ -196,4 +232,30 @@ pub fn password(
         out = Some(Err(()));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConfirmLabels;
+    use crate::icons::ph;
+
+    #[test]
+    fn confirm_labels_never_carry_two_glyphs() {
+        let ok = format!("{} Delete", ph::TRASH);
+        let cancel = format!("{} Cancel", ph::X);
+        let l = ConfirmLabels::new(&ok, &cancel, true);
+        assert_eq!(l.ok_glyph, ph::TRASH, "the verb's own glyph is kept");
+        assert_eq!(l.ok, "Delete");
+        assert_eq!(l.cancel, "Cancel");
+    }
+
+    #[test]
+    fn plain_confirm_labels_get_the_dialog_glyph() {
+        let l = ConfirmLabels::new("Remove", "Cancel", true);
+        assert_eq!(l.ok_glyph, ph::WARNING);
+        assert_eq!((l.ok, l.cancel), ("Remove", "Cancel"));
+        let l = ConfirmLabels::new("Apply", "Cancel", false);
+        assert_eq!(l.ok_glyph, ph::CHECK);
+        assert_eq!(l.ok, "Apply");
+    }
 }

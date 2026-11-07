@@ -136,11 +136,17 @@ fn chip(
             egui::Popup::context_menu(&r)
                 .id(r.id.with("favbar-folder-ctx"))
                 .show(|ui| {
-                    if ui.button(s.t("browser-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("browser-rename")))
+                        .clicked()
+                    {
                         out.edit = Some(f.id.clone());
                         ui.close();
                     }
-                    if ui.button(s.t("browser-favbar-remove")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("browser-favbar-remove")))
+                        .clicked()
+                    {
                         out.remove = Some(f.id.clone());
                         ui.close();
                     }
@@ -164,16 +170,33 @@ fn chip(
                 out.go = Some(l.url.clone());
             }
             r.context_menu(|ui| {
-                if ui.button(s.t("browser-favbar-open-new")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        ph::ARROW_SQUARE_OUT,
+                        s.t("browser-favbar-open-new")
+                    ))
+                    .clicked()
+                {
                     out.open_background = Some(l.url.clone());
                     ui.close();
                 }
-                if ui.button(s.t("browser-favbar-edit")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        ph::PENCIL_SIMPLE,
+                        s.t("browser-favbar-edit")
+                    ))
+                    .clicked()
+                {
                     out.edit = Some(l.id.clone());
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(s.t("browser-favbar-remove")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::TRASH, s.t("browser-favbar-remove")))
+                    .clicked()
+                {
                     out.remove = Some(l.id.clone());
                     ui.close();
                 }

@@ -195,6 +195,13 @@ pub struct SshTool {
     /// the shell (CR-0048). Two, not one: egui gives the clicked row the
     /// focus at the end of the click's frame, after the shell asked.
     focus_term: u8,
+    /// `focus_term` was set because the tab came to the front, not by a
+    /// click that means "the shell": then a field elsewhere that has the
+    /// keyboard (the strip's rename field) keeps it.
+    focus_soft: bool,
+    /// The frame this tab was last drawn on: a gap means it has just
+    /// been brought to the front, and the shell takes the keyboard.
+    last_ui_frame: Option<u64>,
     monitor_open: bool,
     monitor_prev: Option<monitor::Sample>,
     monitor_cur: Option<monitor::Sample>,
@@ -353,6 +360,8 @@ impl SshTool {
             broadcast: false,
             tunnels_open: false,
             focus_term: 0,
+            focus_soft: false,
+            last_ui_frame: None,
             monitor_open: false,
             monitor_prev: None,
             monitor_cur: None,
@@ -726,6 +735,20 @@ impl SshTool {
 
     // ---- UI -----------------------------------------------------------------
 
+    /// Whether a dialog or form of this tab is open, whose field must
+    /// keep the keyboard rather than hand it to the shell.
+    fn has_open_prompt(&self) -> bool {
+        self.rename.is_some()
+            || self.new_folder.is_some()
+            || self.new_file.is_some()
+            || self.perms.is_some()
+            || self.confirm_delete.is_some()
+            || self.confirm_overwrite.is_some()
+            || self.confirm_forward.is_some()
+            || self.tunnel_form.is_some()
+            || self.shared.lock().hostkey.is_some()
+    }
+
     fn hostkey_dialog(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
         let prompt = self.shared.lock().hostkey.take();
         let Some(p) = prompt else { return };
@@ -756,9 +779,9 @@ impl SshTool {
             ui.add_space(12.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let trust_label = if p.changed.is_some() {
-                    s.t("ssh-hostkey-retrust")
+                    format!("{} {}", ph::SHIELD_WARNING, s.t("ssh-hostkey-retrust"))
                 } else {
-                    s.t("ssh-hostkey-trust")
+                    format!("{} {}", ph::SHIELD_CHECK, s.t("ssh-hostkey-trust"))
                 };
                 let btn =
                     egui::Button::new(egui::RichText::new(trust_label).color(egui::Color32::WHITE))
@@ -770,7 +793,7 @@ impl SshTool {
                 if ui.add(btn).clicked() {
                     decision = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                     decision = Some(false);
                 }
             });
@@ -797,10 +820,12 @@ impl SshTool {
                 }
                 ui.add_space(10.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("ok")).clicked() {
+                    if form::primary_button(ui, theme, &format!("{} {}", ph::CHECK, s.t("ok")))
+                        .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                         cancel = true;
                     }
                 });
@@ -840,10 +865,12 @@ impl SshTool {
                 }
                 ui.add_space(10.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("ok")).clicked() {
+                    if form::primary_button(ui, theme, &format!("{} {}", ph::CHECK, s.t("ok")))
+                        .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                         cancel = true;
                     }
                 });
@@ -880,10 +907,12 @@ impl SshTool {
                 }
                 ui.add_space(10.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("ok")).clicked() {
+                    if form::primary_button(ui, theme, &format!("{} {}", ph::CHECK, s.t("ok")))
+                        .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                         cancel = true;
                     }
                 });
@@ -1039,9 +1068,7 @@ impl SshTool {
                 self.navigate(s, "~".into(), false);
             }
             let r = ui.add(
-                egui::TextEdit::singleline(&mut self.path_edit)
-                    .margin(form::FIELD_MARGIN)
-                    .desired_width(ui.available_width() - 150.0),
+                form::line_edit(&mut self.path_edit).desired_width(ui.available_width() - 150.0),
             );
             if r.changed() {
                 self.path_edit_synced = false;
@@ -1298,10 +1325,12 @@ impl SshTool {
             );
             ui.add_space(12.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
+                    .clicked()
+                {
                     apply = true;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                     cancel = true;
                 }
             });
@@ -1390,16 +1419,27 @@ impl SshTool {
             .show(ui.ctx(), |ui| {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_min_width(190.0);
-                    if !e.is_dir && ui.button(s.t("ssh-open-in-editor")).clicked() {
+                    if !e.is_dir
+                        && ui
+                            .button(format!("{} {}", ph::FILE_TEXT, s.t("ssh-open-in-editor")))
+                            .clicked()
+                    {
                         self.open_in_editor(cx, target.clone());
                         close = true;
                     }
-                    if ui.button(s.t("ssh-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL, s.t("ssh-rename")))
+                        .clicked()
+                    {
                         self.rename = Some((target.clone(), e.name.clone()));
                         close = true;
                     }
                     ui.separator();
-                    if !e.is_dir && ui.button(s.t("ssh-download")).clicked() {
+                    if !e.is_dir
+                        && ui
+                            .button(format!("{} {}", ph::DOWNLOAD_SIMPLE, s.t("ssh-download")))
+                            .clicked()
+                    {
                         if let Some(local) =
                             rfd::FileDialog::new().set_file_name(&e.name).save_file()
                         {
@@ -1421,38 +1461,61 @@ impl SshTool {
                         close = true;
                     }
                     // A folder, or a file someone wants compressed.
-                    ui.menu_button(s.t("ssh-download-zipped"), |ui| {
-                        for format in hs_core::archive::Format::ALL {
-                            if ui.button(format.extension().to_uppercase()).clicked() {
-                                self.download_zipped(s, target.clone(), e.name.clone(), format);
-                                ui.close();
-                                close = true;
+                    ui.menu_button(
+                        format!("{} {}", ph::FILE_ZIP, s.t("ssh-download-zipped")),
+                        |ui| {
+                            for format in hs_core::archive::Format::ALL {
+                                if ui
+                                    .button(format!(
+                                        "{} {}",
+                                        ph::FILE_ZIP,
+                                        format.extension().to_uppercase()
+                                    ))
+                                    .clicked()
+                                {
+                                    self.download_zipped(s, target.clone(), e.name.clone(), format);
+                                    ui.close();
+                                    close = true;
+                                }
                             }
-                        }
-                    });
+                        },
+                    );
                     ui.separator();
                     if ui
-                        .button(s.t("ssh-copy-file"))
+                        .button(format!("{} {}", ph::COPY, s.t("ssh-copy-file")))
                         .tip(s.t("ssh-copy-file-tip"))
                         .clicked()
                     {
                         self.copy_to_clipboard(s, target.clone(), e.name.clone());
                         close = true;
                     }
-                    if ui.button(s.t("editor-copy-path")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            ph::CLIPBOARD_TEXT,
+                            s.t("editor-copy-path")
+                        ))
+                        .clicked()
+                    {
                         ui.ctx().copy_text(target.clone());
                         close = true;
                     }
                     ui.separator();
                     if ui
-                        .button(egui::RichText::new(s.t("ssh-delete")).color(theme.error))
+                        .button(
+                            egui::RichText::new(format!("{} {}", ph::TRASH, s.t("ssh-delete")))
+                                .color(theme.error),
+                        )
                         .clicked()
                     {
                         self.confirm_delete = Some(target.clone());
                         close = true;
                     }
                     ui.separator();
-                    if ui.button(s.t("ssh-perms")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::LOCK_KEY, s.t("ssh-perms")))
+                        .clicked()
+                    {
                         self.perms = Some(PermsEdit {
                             path: target.clone(),
                             name: e.name.clone(),
@@ -1471,7 +1534,14 @@ impl SshTool {
                     }
                     if e.is_dir {
                         ui.separator();
-                        if ui.button(s.t("editor-open-terminal-here")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::TERMINAL_WINDOW,
+                                s.t("editor-open-terminal-here")
+                            ))
+                            .clicked()
+                        {
                             if let Some(sess) = &self.session {
                                 sess.write(
                                     format!(" cd {}\n", hs_ssh::shell_quote(&target)).as_bytes(),
@@ -1781,26 +1851,25 @@ impl SshTool {
                         ui.colored_label(theme.error, e);
                     }
                     ui.add_space(8.0);
-                    ui.horizontal(|ui| {
-                        if form::primary_button(ui, theme, &s.t("ssh-tunnel-start")).clicked() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = form::BUTTON_GAP;
+                        let start_label = format!("{} {}", ph::PLAY, s.t("ssh-tunnel-start"));
+                        if form::primary_button(ui, theme, &start_label).clicked() {
                             start = true;
                         }
                         // Adding a second forward through the same host is
                         // the common case, so the card stays open with the
                         // host kept and only the ports to fill in.
-                        if ui
-                            .button(s.t("ssh-tunnel-add-another"))
+                        if form::button(ui, theme, ph::PLUS, &s.t("ssh-tunnel-add-another"))
                             .tip(s.t("ssh-tunnel-add-another-tip"))
                             .clicked()
                         {
                             start = true;
                             keep_open = true;
                         }
-                        hs_ui::toolbar::hard_right(ui, |ui| {
-                            if ui.button(s.t("close")).clicked() {
-                                cancel = true;
-                            }
-                        });
+                        if form::button(ui, theme, ph::X, &s.t("close")).clicked() {
+                            cancel = true;
+                        }
                     });
                 });
             if start {
@@ -1925,6 +1994,14 @@ impl SshTool {
 /// A tunnel's picture, the same wherever a tunnel is drawn: two plugs
 /// joined, in a teal of its own (CR-0071). No Material picture shows a
 /// tunnel, so it is the glyph in colour.
+/// Whether a tab drawn on frame `now` has just come to the front: it was
+/// never drawn, or the frame before this one did not draw it. `ui` runs
+/// only for a visible tab, and a second pass of the same frame is not a
+/// new arrival.
+fn became_active(last: Option<u64>, now: u64) -> bool {
+    last.is_none_or(|l| now > l.saturating_add(1))
+}
+
 fn tunnel_icon() -> hs_ui::icons::ConnIcon {
     hs_ui::icons::branded(ph::PLUGS_CONNECTED, [0x26, 0xa6, 0x9a])
 }
@@ -2720,6 +2797,7 @@ impl Tool for SshTool {
                         // This tab's own host: the click means "back to
                         // the shell", so the caret goes there (CR-0048).
                         self.focus_term = 2;
+                        self.focus_soft = false;
                     } else {
                         cx.open("ssh", Some(OpenRequest::Connection { id }));
                     }
@@ -2751,6 +2829,17 @@ impl Tool for SshTool {
         let ui = &mut content;
         let s = cx.services;
         let theme = Theme::from_settings(&s.settings.read().appearance);
+        // A tab brought to the front - clicked in the strip, or by any
+        // other route - hands the keyboard to its shell, so typing works
+        // without a click in it. Only on that frame, and never over a
+        // dialog or form the user opened in this tab.
+        let frame = ui.ctx().cumulative_frame_nr();
+        if became_active(self.last_ui_frame, frame) && !self.has_open_prompt() {
+            self.focus_term = 2;
+            self.focus_soft = true;
+            ui.ctx().request_repaint();
+        }
+        self.last_ui_frame = Some(frame);
         if self.waiting_for_vault && !s.secrets.is_locked() {
             self.waiting_for_vault = false;
             self.connect(s);
@@ -2947,7 +3036,13 @@ impl Tool for SshTool {
                         }
                     }
                     if self.focus_term > 0 {
-                        ui.memory_mut(|m| m.request_focus(self.view.id));
+                        // Not over a field elsewhere that has the
+                        // keyboard (the strip's rename field).
+                        if !(self.focus_soft
+                            && hs_ui::form::focus_is_elsewhere(ui.ctx(), self.view.id))
+                        {
+                            ui.memory_mut(|m| m.request_focus(self.view.id));
+                        }
                         self.focus_term -= 1;
                     }
                     let r = self.view.show(ui, sess, &term_theme);
@@ -2972,7 +3067,13 @@ impl Tool for SshTool {
                     ui.vertical_centered(|ui| {
                         ui.colored_label(theme.error, e);
                         ui.add_space(8.0);
-                        if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
+                        if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::PLUGS_CONNECTED, s.t("ssh-connect")),
+                        )
+                        .clicked()
+                        {
                             self.connect(s);
                         }
                     });
@@ -2982,7 +3083,13 @@ impl Tool for SshTool {
                     ui.vertical_centered(|ui| {
                         if self.state.conn_id.is_none() {
                             ui.label(egui::RichText::new(s.t("ssh-pick-host")).weak());
-                        } else if form::primary_button(ui, &theme, &s.t("ssh-connect")).clicked() {
+                        } else if form::primary_button(
+                            ui,
+                            &theme,
+                            &format!("{} {}", ph::PLUGS_CONNECTED, s.t("ssh-connect")),
+                        )
+                        .clicked()
+                        {
                             self.connect(s);
                         }
                     });
@@ -3157,10 +3264,12 @@ impl Tool for SshTool {
                         self.connect(cx.services);
                     }
                     self.focus_term = 2;
+                    self.focus_soft = false;
                 } else if self.state.conn_id.is_none() {
                     self.state.conn_id = Some(id);
                     self.connect(cx.services);
                     self.focus_term = 2;
+                    self.focus_soft = false;
                 } else {
                     cx.open("ssh", Some(OpenRequest::Connection { id }));
                 }
@@ -3557,6 +3666,16 @@ impl Drop for SshTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shell takes focus on the frame its tab comes to the front,
+    /// not on every frame while it stays there.
+    #[test]
+    fn focus_is_taken_only_when_the_tab_comes_to_the_front() {
+        assert!(became_active(None, 0));
+        assert!(!became_active(Some(10), 10), "second pass of one frame");
+        assert!(!became_active(Some(10), 11), "still in front");
+        assert!(became_active(Some(10), 12), "another tab was in front");
+    }
 
     /// The probe reports one string; the band shows a name and a
     /// version, and a label with no number is all name.

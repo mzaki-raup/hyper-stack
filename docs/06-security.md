@@ -283,3 +283,11 @@ registries and providers). A store added later must be added there too.
   `"type": "secret"` on the entry), and the UI reports how many were
   omitted. Exporting is a deliberate copy for another client, not a way to
   read the vault.
+
+## Addendum (2026-11-07): variable tooltips never decrypt (FEAT-0107)
+
+The `{{variable}}` hover tooltip (`hs_ui::varpeek`) resolves a name
+without decrypting it: a reference to a vault secret is shown as a fixed
+mask and a note that it is a secret, a locked vault says so, and the
+secret's plaintext is never loaded on hover - unlike the explicit peek
+popup, which needs the user's click. Test: `a_secret_never_appears_in_the_tooltip`.

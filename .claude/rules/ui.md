@@ -208,6 +208,9 @@ look for it in `crates/hs-ui/src/` first.
   item icon, a coloured glyph), on the middle line of the two lines - in
   every activity, through the shared `dashboard` card (owner,
   2026-11-07).
+  A coloured piece the tab draws before its title (an API request's
+  method, GET in green) leads the card's title the same way; only the
+  piece is coloured (owner, 2026-11-07).
 - **A page title wears its tab's mark, and says what the page is for:**
   a tool or page title inside a work pane (each Devtools tool, API
   Client's Manage Collection) leads with the same coloured picture its
@@ -236,6 +239,45 @@ look for it in `crates/hs-ui/src/` first.
   right edge at the default window size (CR-0061).
 - **Every list row has a glyph** when any row in that list has one -
   palette commands, menus, sidebars - so the names line up (CR-0066).
+- **A variable shows its value on hover:** wherever a field, table cell
+  or editor holds a `{{name}}` reference - API Client's endpoint, Params,
+  Headers and Body, and every other activity - hovering the reference
+  shows a tooltip with its value from the active environment; a secret
+  stays masked (the eye button reveals it), an unset one says so. Built
+  into the shared `varfield`, `kv_editor` and editor, never re-rolled
+  per tool (owner, 2026-11-07).
+- **A secret is told by the key's whole words:** masking a value by its
+  key (`.env`, variables, headers) splits the key into words
+  (`SMTP_PASS`, `dbPassword`) and masks password, secret, token, key and
+  credential words - never a substring match that masks
+  `AUTH_LOCKOUT_THRESHOLD` or misses `SMTP_PASS` (owner, 2026-11-07).
+- **Every browse column can be hidden and resized:** a work pane's
+  browse column (S3 buckets, the S3 key list, Redis keys, NoSQL
+  databases, a schema or folder tree) has a show/hide toggle first in the
+  activity's toolbar and a draggable edge with a sensible minimum - in
+  every activity (owner, 2026-11-07).
+- **Picking an item shows it beside the list:** clicking an item whose
+  content is the point - an S3 object, a NoSQL document - shows its
+  preview or JSON in a resizable column to the right, not underneath,
+  where long content has room. An S3 object previews as text, image or
+  rendered Markdown, with a size cap and an empty state for other types
+  (owner, 2026-11-07).
+- **A log without levels is still a table:** a server's log view (Redis
+  Slow Log, and any like it) is a `DataTable` with the clicked row's
+  detail below; when the entries carry no level word, the value that
+  says how bad an entry is (a slow command's duration) wears the
+  log-level colours - DEBUG under 10 ms, INFO to 100 ms, WARN to 1 s,
+  ERROR beyond (owner, 2026-11-07).
+- **A shell tab takes the keyboard when it comes to the front:** clicking
+  a Terminal or SSH tab (or bringing it forward any other way) puts the
+  keyboard focus in its shell so typing works at once - without
+  stealing focus from a dialog or search field opened inside it (owner,
+  2026-11-07).
+- **Every broker field the server can list is a dropdown:** in the Queue
+  activity - exchange, routing key, queue, topic, subject, stream,
+  consumer group, partition - each field the broker can list is a
+  `form::pick_field` filled from it, plain text when the list is empty
+  (owner, 2026-11-07).
 - **Scope of these rules:** every rule here applies to every pane,
   component, row, table and activity, not only the one it was found in.
   When the owner states a UI rule for one place that applies broadly, it

@@ -367,3 +367,10 @@ Opening a host from the sidebar, or clicking its row while its tab is open, puts
 ## Addendum (2026-11-06): deleting a kept forward (CR-0067)
 
 A kept forward has **Delete Kept Forward** (trash button or right-click), confirmed; it leaves the host's profile, and a tunnel already running keeps running.
+
+## Addendum (2026-11-07): focus when the tab comes to the front (CR-0094)
+
+As in the Terminal, a host's tab that comes to the front puts the caret
+in its shell on that frame (`became_active`), unless a dialog or another
+field - the SFTP path, a tunnel form - already has the keyboard
+(`hs_ui::form::focus_is_elsewhere`).

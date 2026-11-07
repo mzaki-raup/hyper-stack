@@ -454,6 +454,8 @@ pub struct LogsTool {
     expanded: std::collections::HashSet<usize>,
     sidebar_filter: String,
     confirm_delete: Option<String>,
+    /// A filter preset waiting for its Delete to be confirmed (CR-0067).
+    confirm_preset: Option<usize>,
     status_text: String,
     /// The merge picker: saved source names with their ticks (§9).
     merge_pick: Option<Vec<(String, bool)>>,
@@ -639,6 +641,7 @@ impl LogsTool {
             logs_dir,
             sidebar_filter: String::new(),
             confirm_delete: None,
+            confirm_preset: None,
             status_text: String::new(),
             merge_pick: None,
             stats_open: false,
@@ -1789,15 +1792,21 @@ impl Tool for LogsTool {
                         let open_label = s.t("logs-open-source");
                         let edit_label = s.t("logs-edit-source");
                         r.context_menu(|ui| {
-                            if ui.button(&open_label).clicked() {
+                            if ui
+                                .button(format!("{} {open_label}", ph::ARROW_SQUARE_OUT))
+                                .clicked()
+                            {
                                 open = Some(src.clone());
                                 ui.close();
                             }
-                            if ui.button(&edit_label).clicked() {
+                            if ui
+                                .button(format!("{} {edit_label}", ph::PENCIL_SIMPLE))
+                                .clicked()
+                            {
                                 edit = Some(src.clone());
                                 ui.close();
                             }
-                            if ui.button(&del).clicked() {
+                            if ui.button(format!("{} {del}", ph::TRASH)).clicked() {
                                 delete = Some(src.name.clone());
                                 ui.close();
                             }
@@ -1887,7 +1896,7 @@ impl Tool for LogsTool {
                     }
                     let del = s.t("logs-delete-preset");
                     r.context_menu(|ui| {
-                        if ui.button(&del).clicked() {
+                        if ui.button(format!("{} {del}", ph::TRASH)).clicked() {
                             remove = Some(i);
                             ui.close();
                         }
@@ -1897,6 +1906,34 @@ impl Tool for LogsTool {
         if let Some(chips) = apply {
             self.state.chips = chips;
             self.chips_changed();
+        }
+        if remove.is_some() {
+            self.confirm_preset = remove;
+        }
+        let mut remove = None;
+        if let Some(i) = self.confirm_preset
+            && let Some(p) = self.presets.get(i)
+        {
+            match hs_ui::dialog::confirm(
+                ui.ctx(),
+                &theme,
+                "logs-delete-preset",
+                &s.t("logs-delete-preset"),
+                &s.i18n
+                    .t_args("logs-delete-preset-confirm", &[("name", &p.name)]),
+                &format!("{} {}", ph::TRASH, s.t("logs-delete-preset")),
+                &s.t("cancel"),
+                true,
+            ) {
+                hs_ui::dialog::DialogResult::Ok => {
+                    remove = Some(i);
+                    self.confirm_preset = None;
+                }
+                hs_ui::dialog::DialogResult::Cancel => self.confirm_preset = None,
+                hs_ui::dialog::DialogResult::Open => {}
+            }
+        } else {
+            self.confirm_preset = None;
         }
         if let Some(i) = remove {
             self.presets.remove(i);
@@ -1914,7 +1951,7 @@ impl Tool for LogsTool {
                 &s.t("logs-delete-source"),
                 &s.i18n
                     .t_args("logs-delete-source-confirm", &[("name", &name)]),
-                &s.t("logs-delete-source"),
+                &format!("{} {}", ph::TRASH, s.t("logs-delete-source")),
                 &s.t("cancel"),
                 true,
             ) {
@@ -2542,7 +2579,7 @@ impl LogsTool {
             );
             form::hint(ui, theme, &s.t("logs-empty-hint"));
             ui.add_space(12.0);
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 if form::primary_button(
                     ui,
                     theme,
@@ -2751,7 +2788,10 @@ impl LogsTool {
                         .color(theme.text_muted),
                     );
                     hs_ui::toolbar::hard_right(ui, |ui| {
-                        if ui.small_button(s.t("close")).clicked() {
+                        if ui
+                            .small_button(format!("{} {}", ph::X, s.t("close")))
+                            .clicked()
+                        {
                             close = true;
                         }
                         ui.label(
@@ -2921,7 +2961,7 @@ impl LogsTool {
             }
             let label = s.t("logs-delete-investigation");
             r.context_menu(|ui| {
-                if ui.button(&label).clicked() {
+                if ui.button(format!("{} {label}", ph::TRASH)).clicked() {
                     delete = Some(v.name.clone());
                     ui.close();
                 }
@@ -2963,13 +3003,17 @@ impl LogsTool {
                     if ui
                         .add_enabled(
                             !name.trim().is_empty(),
-                            egui::Button::new(s.t("logs-save-investigation")),
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::FLOPPY_DISK,
+                                s.t("logs-save-investigation")
+                            )),
                         )
                         .clicked()
                     {
                         save = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -3001,7 +3045,7 @@ impl LogsTool {
                 &s.t("logs-delete-investigation"),
                 &s.i18n
                     .t_args("logs-delete-investigation-confirm", &[("name", &name)]),
-                &s.t("logs-delete-investigation"),
+                &format!("{} {}", ph::TRASH, s.t("logs-delete-investigation")),
                 &s.t("cancel"),
                 true,
             ) {
@@ -3121,7 +3165,10 @@ impl LogsTool {
                             .color(theme.accent),
                     );
                     hs_ui::toolbar::hard_right(ui, |ui| {
-                        if ui.small_button(s.t("close")).clicked() {
+                        if ui
+                            .small_button(format!("{} {}", ph::X, s.t("close")))
+                            .clicked()
+                        {
                             close = true;
                         }
                     });
@@ -3289,8 +3336,7 @@ impl LogsTool {
                                     changed |= ui
                                         .add_sized(
                                             [300.0, field_h],
-                                            egui::TextEdit::singleline(&mut h.pattern)
-                                                .margin(form::FIELD_MARGIN)
+                                            form::line_edit(&mut h.pattern)
                                                 .font(egui::TextStyle::Monospace)
                                                 .hint_text(s.t("logs-highlight-pattern")),
                                         )
@@ -3348,7 +3394,7 @@ impl LogsTool {
                     changed = true;
                 }
                 hs_ui::toolbar::hard_right(ui, |ui| {
-                    if ui.button(s.t("close")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("close"))).clicked() {
                         close = true;
                     }
                 });
@@ -3785,7 +3831,10 @@ impl LogsTool {
                         .small()
                         .strong(),
                 );
-                if ui.small_button(s.t("logs-chart-filter")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::FUNNEL, s.t("logs-chart-filter")))
+                    .clicked()
+                {
                     // Replacing the pair already there, as §15.6 says:
                     // two overlapping time windows filter to nothing and
                     // read as a bug.
@@ -3797,11 +3846,25 @@ impl LogsTool {
                     self.chips_changed();
                     clear_sel = true;
                 }
-                if ui.small_button(s.t("logs-chart-set-a")).clicked() {
+                if ui
+                    .small_button(format!(
+                        "{} {}",
+                        ph::NUMBER_CIRCLE_ONE,
+                        s.t("logs-chart-set-a")
+                    ))
+                    .clicked()
+                {
                     self.window_a = Some(r);
                     clear_sel = true;
                 }
-                if ui.small_button(s.t("logs-chart-set-b")).clicked() {
+                if ui
+                    .small_button(format!(
+                        "{} {}",
+                        ph::NUMBER_CIRCLE_TWO,
+                        s.t("logs-chart-set-b")
+                    ))
+                    .clicked()
+                {
                     self.window_b = Some(r);
                     clear_sel = true;
                 }
@@ -3809,13 +3872,24 @@ impl LogsTool {
             if self.window_a.is_some() || self.window_b.is_some() {
                 let ready = self.window_a.is_some() && self.window_b.is_some();
                 if ui
-                    .add_enabled(ready, egui::Button::new(s.t("logs-chart-compare")).small())
+                    .add_enabled(
+                        ready,
+                        egui::Button::new(format!(
+                            "{} {}",
+                            ph::ARROWS_LEFT_RIGHT,
+                            s.t("logs-chart-compare")
+                        ))
+                        .small(),
+                    )
                     .tip(s.t("logs-chart-compare-tip"))
                     .clicked()
                 {
                     self.diff_open = true;
                 }
-                if ui.small_button(s.t("logs-chart-clear-windows")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::BROOM, s.t("logs-chart-clear-windows")))
+                    .clicked()
+                {
                     self.window_a = None;
                     self.window_b = None;
                     self.diff_open = false;
@@ -3897,7 +3971,10 @@ impl LogsTool {
                 });
             }
             if !self.state.chips.is_empty() {
-                if ui.small_button(s.t("logs-clear-chips")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::BROOM, s.t("logs-clear-chips")))
+                    .clicked()
+                {
                     self.state.chips.clear();
                     self.chips_changed();
                 }
@@ -4322,7 +4399,7 @@ impl LogsTool {
             return;
         };
         ui.add_space(form::PANE_GAP);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(
                 egui::RichText::new(format!(
                     "{} {}  {}  {}",
@@ -4339,7 +4416,11 @@ impl LogsTool {
             {
                 ui.ctx().copy_text(self.leaving(&rec.raw));
             }
-            if !rec.fields.is_empty() && ui.small_button(s.t("logs-copy-json")).clicked() {
+            if !rec.fields.is_empty()
+                && ui
+                    .small_button(format!("{} {}", ph::BRACKETS_CURLY, s.t("logs-copy-json")))
+                    .clicked()
+            {
                 let map: serde_json::Map<String, serde_json::Value> = rec
                     .fields
                     .iter()
@@ -4521,9 +4602,11 @@ impl LogsTool {
                     match a.kind {
                         0 => {
                             form::label(ui, &s.t("logs-path"));
-                            ui.horizontal(|ui| {
+                            hs_ui::form::centred_row(ui, |ui| {
                                 form::text_field_width(ui, &mut a.path, "C:\\logs\\app.log", 300.0);
-                                if ui.button(s.t("logs-browse")).clicked()
+                                if ui
+                                    .button(format!("{} {}", ph::FOLDER_OPEN, s.t("logs-browse")))
+                                    .clicked()
                                     && let Some(p) = rfd::FileDialog::new().pick_file()
                                 {
                                     a.path = p.to_string_lossy().to_string();
@@ -4649,10 +4732,10 @@ impl LogsTool {
                         }
                         6 => {
                             form::label(ui, &s.t("logs-eventlog-name"));
-                            ui.horizontal(|ui| {
+                            form::centred_row_wrapped(ui, |ui| {
                                 form::text_field_width(ui, &mut a.log_name, "Application", 200.0);
                                 for name in ["Application", "System", "Security"] {
-                                    if ui.small_button(name).clicked() {
+                                    if ui.button(format!("{} {name}", ph::NOTEBOOK)).clicked() {
                                         a.log_name = name.into();
                                     }
                                 }
@@ -4719,12 +4802,15 @@ impl LogsTool {
                         _ => !a.pasted.trim().is_empty(),
                     };
                     if ui
-                        .add_enabled(ready, egui::Button::new(s.t("logs-open")))
+                        .add_enabled(
+                            ready,
+                            egui::Button::new(format!("{} {}", ph::FOLDER_OPEN, s.t("logs-open"))),
+                        )
                         .clicked()
                     {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -4884,12 +4970,19 @@ impl LogsTool {
                 let n = picks.iter().filter(|(_, on)| *on).count();
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui
-                        .add_enabled(n >= 2, egui::Button::new(s.t("logs-merge-open")))
+                        .add_enabled(
+                            n >= 2,
+                            egui::Button::new(format!(
+                                "{} {}",
+                                ph::ARROWS_MERGE,
+                                s.t("logs-merge-open")
+                            )),
+                        )
                         .clicked()
                     {
                         open = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -5014,10 +5107,16 @@ impl LogsTool {
                 });
                 ui.add_space(10.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("logs-add-chip")).clicked() {
+                    if form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::PLUS, s.t("logs-add-chip")),
+                    )
+                    .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -5068,10 +5167,16 @@ impl LogsTool {
                 }
                 ui.add_space(8.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("logs-jump-go")).clicked() {
+                    if form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::ARROW_RIGHT, s.t("logs-jump-go")),
+                    )
+                    .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -5105,10 +5210,16 @@ impl LogsTool {
                 }
                 ui.add_space(8.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if form::primary_button(ui, theme, &s.t("save")).clicked() {
+                    if form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                    )
+                    .clicked()
+                    {
                         done = true;
                     }
-                    if ui.button(s.t("cancel")).clicked() {
+                    if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                         cancel = true;
                     }
                 });
@@ -5184,6 +5295,49 @@ impl LogsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Deleting a filter preset removes it from the stored file, and a
+    /// reload stays without it (CR-0067).
+    #[test]
+    fn a_deleted_preset_is_gone_from_the_store_after_a_reload() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut presets = vec![
+            Preset {
+                name: "errors".into(),
+                chips: Vec::new(),
+            },
+            Preset {
+                name: "slow".into(),
+                chips: Vec::new(),
+            },
+        ];
+        save_presets(tmp.path(), &presets).unwrap();
+        presets.remove(0);
+        save_presets(tmp.path(), &presets).unwrap();
+        let back = load_presets(tmp.path());
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].name, "slow");
+        presets.clear();
+        save_presets(tmp.path(), &presets).unwrap();
+        assert!(load_presets(tmp.path()).is_empty());
+    }
+
+    /// Every button carries a glyph before its label, and every text field
+    /// is `form::line_edit` (CR-0063, CR-0061).
+    #[test]
+    fn no_label_only_button_or_bare_field_in_the_logs_ui() {
+        let src = include_str!("ui.rs");
+        for bad in [
+            concat!("ui.button(s.", "t("),
+            concat!("small_button(s.", "t("),
+            concat!("Button::new(s.", "t("),
+            concat!("TextEdit::", "singleline"),
+            concat!(".selectable", "_label("),
+            concat!(".selectable", "_value("),
+        ] {
+            assert!(!src.contains(bad), "found {bad}");
+        }
+    }
 
     #[test]
     fn saved_source_colours_rotate_and_neighbours_differ() {

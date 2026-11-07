@@ -282,7 +282,8 @@ refs.
 
 Shells and CLIs wear their products' logos - PowerShell, Command Prompt,
 Git Bash, WSL distros, Nushell, and Claude Code, OpenCode, Kilo Code and
-Cursor for the AI CLIs - in the sidebar, the tab and the dashboard.
+Cursor for the AI CLIs - in the sidebar, the tab and the dashboard. Click a
+shell's tab and the keyboard goes straight to the shell.
 
 ### SSH and SFTP
 
@@ -301,7 +302,7 @@ Hosts wear their operating system's mark (Ubuntu, Alpine, FreeBSD,
 macOS…), and so does each host's group in the Tunnels list, where every
 tunnel has a coloured tunnel picture; the **Monitor** lays its figures out
 as a grid with a process table under it, and the Kept Forwards list
-scrolls.
+scrolls. Bringing a host's tab to the front puts the caret in its shell.
 
 ### S3 and S3-compatible storage
 
@@ -317,7 +318,10 @@ scrolls.
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
 
 Stores wear their provider's logo (AWS, MinIO…) in the sidebar, the tab
-and the dashboard.
+and the dashboard. Click an object and a **preview** column beside its
+details shows it - text, an image or rendered Markdown - from a capped
+read of at most 2 MiB that can be cancelled; the bucket and preview
+columns can be hidden from the toolbar and every column resized.
 
 ### Containers (Docker, Podman, Kubernetes)
 
@@ -371,7 +375,7 @@ finds. Db2 is not yet verified against a server.
 | ![Console](docs/screenshots/redis-console.png) | ![Info dashboard](docs/screenshots/redis-info.png) |
 | **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - memory, clients, ops/s, hit rate, keys and uptime as cards with five-minute sparklines, role and persistence, and every raw INFO section folded under them |
 | ![Tools: big keys](docs/screenshots/redis-tools.png) | ![Streams](docs/screenshots/redis-streams.png) |
-| **Tools** - Slowlog and Client List tables (kill is guarded), the **big-key finder** (SCAN + MEMORY USAGE, top N with type, length and TTL, cancellable) and **Bulk Ops** that preview the keys a pattern matches before delete / expire / persist / rename-prefix, with the pattern typed back on a protected environment | **Streams** - length, consumer groups with pending counts, last id and the newest entries; **Pub/Sub** subscribes to channels and patterns on a second connection and publishes |
+| **Tools** - **Slow Log** as a table with the clicked entry's detail below and each duration coloured from DEBUG to ERROR by how slow it was, Client List table (kill is guarded), the **big-key finder** (SCAN + MEMORY USAGE, top N with type, length and TTL, cancellable) and **Bulk Ops** that preview the keys a pattern matches before delete / expire / persist / rename-prefix, with the pattern typed back on a protected environment | **Streams** - length, consumer groups with pending counts, last id and the newest entries; **Pub/Sub** subscribes to channels and patterns on a second connection and publishes |
 
 ### Logs
 
@@ -434,7 +438,7 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 
 - **Destinations** - queues, topics or streams with the figures their kind has (RabbitMQ ready / unacked / consumers / rates per vhost, Kafka partitions and offsets, a stream's length and groups, NATS messages and consumers, and for MQTT the topics seen during a bounded look at `#`), refreshed while the tab is on screen.
 - **Peek** reads up to 50 messages (1 MB) without consuming them, JSON pretty-printed and binary shown as hex with its headers; RabbitMQ can only read by requeueing, and the pane says so before the first peek.
-- **Publish** to a destination picked from the broker's list, with headers, a routing key or record key, a partition, or QoS and retain.
+- **Publish** to a destination picked from the broker's list, with headers, a routing key or record key, a partition, or QoS and retain; the RabbitMQ exchange and routing key, the NATS subject and the Kafka partition are picked from what the broker lists, or typed.
 - **Consumers** - Kafka groups with lag per partition (cancellable, with progress), Redis stream groups with pending and lag, NATS consumers, RabbitMQ consumers; **Bindings** for a RabbitMQ queue.
 - **Guards** - Purge asks first, Delete asks for the name to be typed, and a protected environment's tab is read-only with the driver refusing writes too.
 - **Credentials** - username and password, token or API key, whichever the broker takes, in the vault; Kafka SASL PLAIN, SCRAM-SHA-256/512 and OAUTHBEARER.
@@ -447,6 +451,10 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 | **Containers** — databases and collections (MongoDB) or databases and document counts (CouchDB); a collection opens in **Find** with filter, projection and sort, the documents as a table and a JSON editor with delete/update guards; **Aggregate** and **Indexes** are beside it | |
 | ![Aggregate](docs/screenshots/nosql-aggregate.png) | |
 | **Aggregate** - a JSON pipeline with a page limit, previewed as a table or JSON; **Indexes** lists each collection's indexes | |
+
+Click a document in Find or Aggregate and its JSON opens in a resizable
+column to the right of the results; the database column can be hidden
+from the toolbar and resized.
 
 ### API client
 
@@ -461,7 +469,8 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 
 Collections are JSON files in the workspace; variables resolve through the
 collection, the active environment (vault secrets only when sending) and
-globals. A non-GET request to a protected environment asks first.
+globals. Hover a `{{variable}}` in the URL, Params, Headers or Body - or in
+any other activity's field - to see its value; a secret stays masked. A non-GET request to a protected environment asks first.
 
 ### Devtools
 

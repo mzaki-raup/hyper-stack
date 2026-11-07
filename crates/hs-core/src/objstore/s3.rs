@@ -190,6 +190,34 @@ fn io_err(e: std::io::Error) -> S3Error {
     S3Error::Io(e.to_string())
 }
 
+/// The `Range` header value for the first `limit` bytes of a body.
+pub(crate) fn range_header(limit: u64) -> String {
+    format!("bytes=0-{}", limit.saturating_sub(1))
+}
+
+/// Add `chunk` to `buf`, never past `limit` bytes; `true` once the cap is
+/// reached and the rest of the body should not be read.
+fn push_capped(buf: &mut Vec<u8>, chunk: &[u8], limit: u64) -> bool {
+    let room = usize::try_from(limit)
+        .unwrap_or(usize::MAX)
+        .saturating_sub(buf.len());
+    buf.extend_from_slice(&chunk[..chunk.len().min(room)]);
+    buf.len() as u64 >= limit
+}
+
+/// Read at most `limit` bytes of `resp`'s body and drop the rest, for a
+/// server that ignores `Range` and sends the whole object.
+pub(crate) async fn read_capped(resp: reqwest::Response, limit: u64) -> Result<Vec<u8>> {
+    let mut buf = Vec::new();
+    let mut stream = resp.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        if push_capped(&mut buf, &chunk.map_err(http_err)?, limit) {
+            break;
+        }
+    }
+    Ok(buf)
+}
+
 fn parse_xml(text: &str) -> Result<Element> {
     xml::parse(text).map_err(S3Error::Parse)
 }
@@ -454,6 +482,17 @@ impl S3Client {
             .send(Call::new(reqwest::Method::GET, Some(bucket), key))
             .await?;
         Ok(resp.bytes().await.map_err(http_err)?.to_vec())
+    }
+
+    /// At most the first `limit` bytes of an object, by a ranged GET
+    /// (see `ObjectStore::get_bytes_capped`).
+    pub async fn get_bytes_capped(&self, bucket: &str, key: &str, limit: u64) -> Result<Vec<u8>> {
+        let resp = self
+            .send(
+                Call::new(reqwest::Method::GET, Some(bucket), key).h("range", range_header(limit)),
+            )
+            .await?;
+        read_capped(resp, limit).await
     }
 
     /// Stream an object to `dest` (written to `dest.part`, then renamed).
@@ -1018,6 +1057,10 @@ impl super::store::ObjectStore for S3Client {
         S3Client::get_bytes(self, container, key).await
     }
 
+    async fn get_bytes_capped(&self, container: &str, key: &str, limit: u64) -> Result<Vec<u8>> {
+        S3Client::get_bytes_capped(self, container, key, limit).await
+    }
+
     async fn download(
         &self,
         container: &str,
@@ -1074,6 +1117,19 @@ impl super::store::ObjectStore for S3Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A preview read asks for its range and never keeps more than the
+    /// cap, even when the server sends the whole body.
+    #[test]
+    fn a_capped_read_stops_at_the_limit() {
+        assert_eq!(range_header(2 * 1024 * 1024), "bytes=0-2097151");
+        let mut buf = Vec::new();
+        assert!(!push_capped(&mut buf, b"abc", 5));
+        assert!(push_capped(&mut buf, b"defgh", 5));
+        assert_eq!(buf, b"abcde");
+        assert!(push_capped(&mut buf, b"more", 5));
+        assert_eq!(buf.len(), 5);
+    }
 
     fn client(endpoint: &str, path_style: bool) -> S3Client {
         S3Client::new(S3Config {

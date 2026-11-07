@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use crate::driver::{
     Binding, Caps, ConsumerGroup, Destination, Driver, Listing, Message, PeekRequest, Progress,
-    PublishRequest, Result, ServerInfo,
+    PublishRequest, PublishTargets, Result, ServerInfo,
 };
 use crate::profile::{Auth, ConnectConfig};
 
@@ -56,6 +56,41 @@ fn no_management(base: &str, e: String) -> String {
     } else {
         e
     }
+}
+
+/// The most exchanges, and routing keys, the publish form is offered.
+const MAX_TARGETS: usize = 500;
+
+/// The publish form's lists from `/api/exchanges/{vhost}` and
+/// `/api/bindings/{vhost}`: every named exchange (the default one is the
+/// field's empty value), and each exchange's bound routing keys, sorted
+/// and without repeats.
+fn publish_targets_from(exchanges: &Value, bindings: &Value) -> PublishTargets {
+    let mut targets: Vec<String> = exchanges
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e.get("name").and_then(Value::as_str))
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
+        .collect();
+    targets.sort();
+    targets.dedup();
+    targets.truncate(MAX_TARGETS);
+    let mut keys: Vec<(String, String)> = bindings
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|b| {
+            let source = b.get("source").and_then(Value::as_str)?;
+            let key = b.get("routing_key").and_then(Value::as_str)?;
+            (!key.is_empty()).then(|| (source.to_string(), key.to_string()))
+        })
+        .collect();
+    keys.sort();
+    keys.dedup();
+    keys.truncate(MAX_TARGETS);
+    PublishTargets { targets, keys }
 }
 
 fn num(v: &Value, k: &str) -> u64 {
@@ -372,6 +407,13 @@ impl Driver for Rabbit {
         Ok(())
     }
 
+    async fn publish_targets(&mut self, scope: &str) -> Result<PublishTargets> {
+        let vhost = if scope.is_empty() { "/" } else { scope };
+        let exchanges = self.get(&format!("/api/exchanges/{}", seg(vhost))).await?;
+        let bindings = self.get(&format!("/api/bindings/{}", seg(vhost))).await?;
+        Ok(publish_targets_from(&exchanges, &bindings))
+    }
+
     async fn bindings(&mut self, dest: &Destination) -> Result<Vec<Binding>> {
         let path = format!("{}/bindings", Self::queue_path(dest));
         let list = self.get(&path).await?;
@@ -404,6 +446,40 @@ impl Driver for Rabbit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The publish form offers the named exchanges and each one's bound
+    /// routing keys, sorted, once each; the default exchange is the
+    /// field's empty value, and its keys are the queue names.
+    #[test]
+    fn publish_targets_list_exchanges_and_their_routing_keys() {
+        let exchanges = json!([
+            {"name": ""},
+            {"name": "orders"},
+            {"name": "amq.topic"},
+            {"name": "orders"},
+        ]);
+        let bindings = json!([
+            {"source": "", "routing_key": "orders-created"},
+            {"source": "orders", "routing_key": "created.#"},
+            {"source": "orders", "routing_key": "created.#"},
+            {"source": "orders", "routing_key": ""},
+            {"source": "amq.topic", "routing_key": "audit"},
+        ]);
+        let t = publish_targets_from(&exchanges, &bindings);
+        assert_eq!(t.targets, vec!["amq.topic", "orders"]);
+        assert_eq!(
+            t.keys,
+            vec![
+                (String::new(), "orders-created".to_string()),
+                ("amq.topic".to_string(), "audit".to_string()),
+                ("orders".to_string(), "created.#".to_string()),
+            ]
+        );
+        assert_eq!(
+            publish_targets_from(&json!(null), &json!({})),
+            PublishTargets::default()
+        );
+    }
 
     #[test]
     fn a_vhost_and_a_queue_name_are_encoded_into_the_path() {

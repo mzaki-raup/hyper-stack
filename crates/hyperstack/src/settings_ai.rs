@@ -969,7 +969,7 @@ fn form_body(
         if kind.whole_answer_only() {
             form::note(ui, theme, hs_ui::icons::INFO, &s.t("ai-no-stream-note"));
         }
-        ui.horizontal(|ui| {
+        form::centred_row_wrapped(ui, |ui| {
             let fetch_label = if cap == Capability::Image && kind != Provider::Fal {
                 s.t("ai-fetch-checkpoints")
             } else {
@@ -1047,7 +1047,7 @@ fn form_body(
     } else if cap == Capability::Image {
         workflow_section(ui, theme, s, d);
     }
-    ui.horizontal(|ui| {
+    form::centred_row_wrapped(ui, |ui| {
         if form::primary_button(ui, theme, &format!("{} {}", ph::FLOPPY_DISK, s.t("save")))
             .clicked()
         {
@@ -1062,7 +1062,7 @@ fn form_body(
             .any(|p| p.id == d.provider.id);
         if exists
             && cap == Capability::Chat
-            && form::button(ui, theme, "★", &s.t("ai-make-default")).clicked()
+            && form::button(ui, theme, ph::STAR, &s.t("ai-make-default")).clicked()
         {
             s.settings.write().ai.default_provider = d.provider.id.clone();
             *changed = true;

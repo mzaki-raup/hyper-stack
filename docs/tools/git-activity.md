@@ -477,3 +477,11 @@ Host** right after Add Repository, running the sidebar's Add Host action
 (Settings → Git → Git Credentials with the form open). The shared
 `hs_ui::dashboard::Page` carries the second grid as `extra`
 (`Pick::OpenExtra`), so any activity can add one.
+
+## Addendum (2026-11-07): a restored tab's picture (BUG-0048)
+
+A repository tab restored at start-up names its picture from the saved
+entry (`hs_ui::icons::image_uri_name`) before its pane is first drawn, so
+its Open Here card and tab wear the repository's uploaded icon exactly as
+the sidebar row does. The lookup runs once per change to the saved
+repositories (`hs_core::git_repos::icon_generation`), never per frame.

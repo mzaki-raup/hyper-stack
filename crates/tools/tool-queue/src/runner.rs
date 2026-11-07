@@ -9,7 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::driver::{
     self, Binding, Caps, ConsumerGroup, Destination, Listing, Message, PeekRequest, Progress,
-    PublishRequest, ServerInfo,
+    PublishRequest, PublishTargets, ServerInfo,
 };
 use crate::profile::ConnectConfig;
 
@@ -27,6 +27,8 @@ pub enum Cmd {
     Publish(PublishRequest),
     Consumers(Destination),
     Bindings(Destination),
+    /// The publish form's exchanges and routing keys, for a vhost.
+    PublishTargets(String),
     Purge(Destination),
     Delete(Destination),
 }
@@ -49,6 +51,8 @@ pub struct Shared {
     pub messages: Option<For<Vec<Message>>>,
     pub consumers: Option<For<Vec<ConsumerGroup>>>,
     pub bindings: Option<For<Vec<Binding>>>,
+    /// Keyed by the vhost they were read for.
+    pub publish_targets: Option<For<PublishTargets>>,
     /// What is running now, as a Fluent key, for the spinner.
     pub busy: Option<&'static str>,
     pub progress: Arc<Progress>,
@@ -108,6 +112,7 @@ fn busy_key(cmd: &Cmd) -> &'static str {
         Cmd::Publish(_) => "queue-busy-publish",
         Cmd::Consumers(_) => "queue-busy-consumers",
         Cmd::Bindings(_) => "queue-busy-bindings",
+        Cmd::PublishTargets(_) => "queue-busy-publish-targets",
         Cmd::Purge(_) => "queue-busy-purge",
         Cmd::Delete(_) => "queue-busy-delete",
     }
@@ -178,6 +183,14 @@ async fn serve(
             let r = d.bindings(&dest).await;
             shared.lock().bindings = Some(For {
                 dest: dest.name,
+                result: r,
+            });
+            false
+        }
+        Cmd::PublishTargets(scope) => {
+            let r = d.publish_targets(&scope).await;
+            shared.lock().publish_targets = Some(For {
+                dest: scope,
                 result: r,
             });
             false

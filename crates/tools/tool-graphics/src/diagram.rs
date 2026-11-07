@@ -651,15 +651,36 @@ impl DiagramState {
                 s.t("gfx-diagram-import-menu")
             ),
             |ui| {
-                if ui.button(s.t("gfx-import-archify")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::BRACKETS_CURLY,
+                        s.t("gfx-import-archify")
+                    ))
+                    .clicked()
+                {
                     self.import(cx, ImportKind::Archify);
                     ui.close();
                 }
-                if ui.button(s.t("gfx-import-drawio")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FILE_CODE,
+                        s.t("gfx-import-drawio")
+                    ))
+                    .clicked()
+                {
                     self.import(cx, ImportKind::DrawIo);
                     ui.close();
                 }
-                if ui.button(s.t("gfx-import-mermaid")).clicked() {
+                if ui
+                    .button(format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FILE_CODE,
+                        s.t("gfx-import-mermaid")
+                    ))
+                    .clicked()
+                {
                     self.import(cx, ImportKind::Mermaid);
                     ui.close();
                 }
@@ -709,15 +730,24 @@ impl DiagramState {
         ui.menu_button(
             format!("{} {}", hs_ui::icons::ph::EXPORT, s.t("gfx-diagram-export")),
             |ui| {
-                if ui.button("PNG (2×)").clicked() {
+                if ui
+                    .button(format!("{} PNG (2×)", hs_ui::icons::ph::FILE_PNG))
+                    .clicked()
+                {
                     self.export(cx, ExportKind::Png);
                     ui.close();
                 }
-                if ui.button("SVG").clicked() {
+                if ui
+                    .button(format!("{} SVG", hs_ui::icons::ph::FILE_SVG))
+                    .clicked()
+                {
                     self.export(cx, ExportKind::Svg);
                     ui.close();
                 }
-                if ui.button("PDF").clicked() {
+                if ui
+                    .button(format!("{} PDF", hs_ui::icons::ph::FILE_PDF))
+                    .clicked()
+                {
                     self.export(cx, ExportKind::Pdf);
                     ui.close();
                 }
@@ -896,26 +926,54 @@ impl DiagramState {
             ),
             |ui| {
                 let enough = self.selection().len() >= 2;
-                for (key, mode) in [
-                    ("gfx-align-left", AlignMode::Left),
-                    ("gfx-align-centre", AlignMode::CentreX),
-                    ("gfx-align-right", AlignMode::Right),
-                    ("gfx-align-top", AlignMode::Top),
-                    ("gfx-align-middle", AlignMode::MiddleY),
-                    ("gfx-align-bottom", AlignMode::Bottom),
+                for (key, mode, glyph) in [
+                    (
+                        "gfx-align-left",
+                        AlignMode::Left,
+                        hs_ui::icons::ph::ALIGN_LEFT,
+                    ),
+                    (
+                        "gfx-align-centre",
+                        AlignMode::CentreX,
+                        hs_ui::icons::ph::ALIGN_CENTER_HORIZONTAL,
+                    ),
+                    (
+                        "gfx-align-right",
+                        AlignMode::Right,
+                        hs_ui::icons::ph::ALIGN_RIGHT,
+                    ),
+                    ("gfx-align-top", AlignMode::Top, hs_ui::icons::ph::ALIGN_TOP),
+                    (
+                        "gfx-align-middle",
+                        AlignMode::MiddleY,
+                        hs_ui::icons::ph::ALIGN_CENTER_VERTICAL,
+                    ),
+                    (
+                        "gfx-align-bottom",
+                        AlignMode::Bottom,
+                        hs_ui::icons::ph::ALIGN_BOTTOM,
+                    ),
                 ] {
-                    let label = s.t(key);
+                    let label = format!("{glyph} {}", s.t(key));
                     if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
                         self.align_selection(mode);
                         ui.close();
                     }
                 }
                 ui.separator();
-                for (key, mode) in [
-                    ("gfx-distribute-h", AlignMode::DistributeX),
-                    ("gfx-distribute-v", AlignMode::DistributeY),
+                for (key, mode, glyph) in [
+                    (
+                        "gfx-distribute-h",
+                        AlignMode::DistributeX,
+                        hs_ui::icons::ph::ARROWS_OUT_LINE_HORIZONTAL,
+                    ),
+                    (
+                        "gfx-distribute-v",
+                        AlignMode::DistributeY,
+                        hs_ui::icons::ph::ARROWS_OUT_LINE_VERTICAL,
+                    ),
                 ] {
-                    let label = s.t(key);
+                    let label = format!("{glyph} {}", s.t(key));
                     if ui.add_enabled(enough, egui::Button::new(label)).clicked() {
                         self.align_selection(mode);
                         ui.close();
@@ -964,10 +1022,20 @@ impl DiagramState {
                 });
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, &theme, &s.t("gfx-diagram-import")).clicked() {
+                if form::primary_button(
+                    ui,
+                    &theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::DOWNLOAD_SIMPLE,
+                        s.t("gfx-diagram-import")
+                    ),
+                )
+                .clicked()
+                {
                     done = Some(true);
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("cancel")).clicked() {
                     done = Some(false);
                 }
             });
@@ -1007,7 +1075,9 @@ impl DiagramState {
             ui.heading(s.t("gfx-diagram-save-project"));
             if projects.is_empty() {
                 ui.label(s.t("gfx-diagram-no-projects"));
-                if ui.button(s.t("gfx-diagram-cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("gfx-diagram-cancel"))
+                    .clicked()
+                {
                     close = true;
                 }
                 return;
@@ -1059,7 +1129,17 @@ impl DiagramState {
             }
             ui.add_space(8.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if form::primary_button(ui, &theme, &s.t("gfx-diagram-save")).clicked() {
+                if form::primary_button(
+                    ui,
+                    &theme,
+                    &format!(
+                        "{} {}",
+                        hs_ui::icons::ph::FLOPPY_DISK,
+                        s.t("gfx-diagram-save")
+                    ),
+                )
+                .clicked()
+                {
                     if path.exists() && !self.save_overwrite {
                         self.save_error = Some(s.t("gfx-diagram-exists"));
                     } else {
@@ -1080,7 +1160,9 @@ impl DiagramState {
                         }
                     }
                 }
-                if ui.button(s.t("gfx-diagram-cancel")).clicked() {
+                if form::button(ui, &theme, hs_ui::icons::ph::X, &s.t("gfx-diagram-cancel"))
+                    .clicked()
+                {
                     close = true;
                 }
             });
@@ -1132,7 +1214,14 @@ impl DiagramState {
         let text = hs_diagram::io::to_json(&self.doc);
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(s.t("gfx-source-json")).strong());
-            if ui.button(s.t("gfx-source-copy")).clicked() {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::COPY,
+                    s.t("gfx-source-copy")
+                ))
+                .clicked()
+            {
                 ui.ctx().copy_text(text.clone());
             }
         });
@@ -1205,19 +1294,54 @@ impl DiagramState {
                 ui.add_space(6.0);
                 props_label_inline(ui, theme, &s.t("gfx-prop-templates"));
                 ui.horizontal_wrapped(|ui| {
-                    if ui.button(s.t("gfx-diagram-flow-template")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::FLOW_ARROW,
+                            s.t("gfx-diagram-flow-template")
+                        ))
+                        .clicked()
+                    {
                         self.replace(hs_diagram::template::flow());
                     }
-                    if ui.button(s.t("gfx-diagram-arch-template")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::TREE_STRUCTURE,
+                            s.t("gfx-diagram-arch-template")
+                        ))
+                        .clicked()
+                    {
                         self.replace(hs_diagram::template::architecture());
                     }
-                    if ui.button(s.t("gfx-diagram-erd-template")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::TABLE,
+                            s.t("gfx-diagram-erd-template")
+                        ))
+                        .clicked()
+                    {
                         self.replace(hs_diagram::template::erd());
                     }
-                    if ui.button(s.t("gfx-diagram-sequence-template")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+                            s.t("gfx-diagram-sequence-template")
+                        ))
+                        .clicked()
+                    {
                         self.replace(hs_diagram::template::sequence());
                     }
-                    if ui.button(s.t("gfx-diagram-blank")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            hs_ui::icons::ph::FILE,
+                            s.t("gfx-diagram-blank")
+                        ))
+                        .clicked()
+                    {
                         self.replace(DiagramDoc::new(DiagramKind::Flow, "Untitled diagram"));
                     }
                 });
@@ -1357,7 +1481,10 @@ impl DiagramState {
                                                 if ui
                                                     .add_enabled(
                                                         i > 0,
-                                                        egui::Button::new("↑").small(),
+                                                        egui::Button::new(
+                                                            hs_ui::icons::ph::ARROW_UP,
+                                                        )
+                                                        .small(),
                                                     )
                                                     .tip(s.t("gfx-col-up"))
                                                     .clicked()
@@ -1367,7 +1494,10 @@ impl DiagramState {
                                                 if ui
                                                     .add_enabled(
                                                         i + 1 < n,
-                                                        egui::Button::new("↓").small(),
+                                                        egui::Button::new(
+                                                            hs_ui::icons::ph::ARROW_DOWN,
+                                                        )
+                                                        .small(),
                                                     )
                                                     .tip(s.t("gfx-col-down"))
                                                     .clicked()
@@ -1375,7 +1505,7 @@ impl DiagramState {
                                                     move_down = Some(i);
                                                 }
                                                 if ui
-                                                    .small_button("−")
+                                                    .small_button(hs_ui::icons::ph::TRASH)
                                                     .tip(s.t("gfx-col-remove"))
                                                     .clicked()
                                                 {
@@ -1400,7 +1530,14 @@ impl DiagramState {
                                     changed = true;
                                 }
                                 ui.add_space(2.0);
-                                if ui.button("+ Add Column").clicked() {
+                                if ui
+                                    .button(format!(
+                                        "{} {}",
+                                        hs_ui::icons::ph::PLUS,
+                                        s.t("gfx-col-add")
+                                    ))
+                                    .clicked()
+                                {
                                     erd.columns.push(hs_diagram::model::Column {
                                         name: String::new(),
                                         data_type: "TEXT".into(),
@@ -1411,7 +1548,14 @@ impl DiagramState {
                             }
                         }
                         ui.add_space(6.0);
-                        if ui.button(s.t("gfx-diagram-delete")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                hs_ui::icons::ph::TRASH,
+                                s.t("gfx-diagram-delete")
+                            ))
+                            .clicked()
+                        {
                             remove = true;
                         }
                         if changed {
@@ -1567,19 +1711,37 @@ impl DiagramState {
                         });
                         ui.add_space(6.0);
                         ui.horizontal_wrapped(|ui| {
-                            if ui.button(s.t("gfx-add-waypoint")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::MAP_PIN,
+                                    s.t("gfx-add-waypoint")
+                                ))
+                                .clicked()
+                            {
                                 add = true;
                             }
                             if ui
                                 .add_enabled(
                                     !edge.via.is_empty(),
-                                    egui::Button::new(s.t("gfx-clear-waypoints")),
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        hs_ui::icons::ph::BROOM,
+                                        s.t("gfx-clear-waypoints")
+                                    )),
                                 )
                                 .clicked()
                             {
                                 clear = true;
                             }
-                            if ui.button(s.t("gfx-diagram-delete-edge")).clicked() {
+                            if ui
+                                .button(format!(
+                                    "{} {}",
+                                    hs_ui::icons::ph::TRASH,
+                                    s.t("gfx-diagram-delete-edge")
+                                ))
+                                .clicked()
+                            {
                                 remove = true;
                             }
                         });
@@ -1709,7 +1871,11 @@ impl DiagramState {
                                     fragment.to = fragment.to.max(fragment.from);
                                     fragment_changed = true;
                                 }
-                                if ui.small_button("−").tip(s.t("gfx-frag-remove")).clicked() {
+                                if ui
+                                    .small_button(hs_ui::icons::ph::TRASH)
+                                    .tip(s.t("gfx-frag-remove"))
+                                    .clicked()
+                                {
                                     remove = Some(i);
                                 }
                                 ui.end_row();
@@ -1722,12 +1888,15 @@ impl DiagramState {
                     ui.add_space(2.0);
                     ui.horizontal_wrapped(|ui| {
                         for (kind, label) in [
-                            (hs_diagram::model::FragmentKind::Alt, "+ Alt"),
-                            (hs_diagram::model::FragmentKind::Loop, "+ Loop"),
-                            (hs_diagram::model::FragmentKind::Opt, "+ Opt"),
-                            (hs_diagram::model::FragmentKind::Note, "+ Note"),
+                            (hs_diagram::model::FragmentKind::Alt, "Alt"),
+                            (hs_diagram::model::FragmentKind::Loop, "Loop"),
+                            (hs_diagram::model::FragmentKind::Opt, "Opt"),
+                            (hs_diagram::model::FragmentKind::Note, "Note"),
                         ] {
-                            if ui.button(label).clicked() {
+                            if ui
+                                .button(format!("{} {label}", hs_ui::icons::ph::PLUS))
+                                .clicked()
+                            {
                                 self.doc.fragments.push(hs_diagram::model::Fragment {
                                     kind,
                                     label: String::new(),
@@ -2959,7 +3128,12 @@ fn color_cell(ui: &mut egui::Ui, s: &Services, value: &mut Option<String>, chang
         if ui
             .add_enabled(
                 value.is_some(),
-                egui::Button::new(s.t("gfx-colour-reset")).small(),
+                egui::Button::new(format!(
+                    "{} {}",
+                    hs_ui::icons::ph::BROOM,
+                    s.t("gfx-colour-reset")
+                ))
+                .small(),
             )
             .clicked()
         {

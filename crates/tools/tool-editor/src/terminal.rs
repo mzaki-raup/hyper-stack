@@ -292,7 +292,14 @@ impl TerminalPanel {
                         s.i18n
                             .t_args("terminal-exited", &[("code", &code.to_string())]),
                     );
-                    if ui.button(s.t("terminal-restart")).clicked() {
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            ph::ARROW_CLOCKWISE,
+                            s.t("terminal-restart")
+                        ))
+                        .clicked()
+                    {
                         close_shell = Some(self.active);
                         new_shell = true;
                     }

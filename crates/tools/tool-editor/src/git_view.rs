@@ -1028,7 +1028,14 @@ impl Git {
                                                     .small()
                                                     .color(theme.warning),
                                             );
-                                            if ui.button(s.t("git-keep-ours")).clicked() {
+                                            if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::ARROW_LEFT,
+                                                    s.t("git-keep-ours")
+                                                ))
+                                                .clicked()
+                                            {
                                                 requests.push((
                                                     root.clone(),
                                                     crate::git_ops::Request::ResolveConflict {
@@ -1039,7 +1046,14 @@ impl Git {
                                                 ));
                                                 ui.close();
                                             }
-                                            if ui.button(s.t("git-keep-theirs")).clicked() {
+                                            if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::ARROW_RIGHT,
+                                                    s.t("git-keep-theirs")
+                                                ))
+                                                .clicked()
+                                            {
                                                 requests.push((
                                                     root.clone(),
                                                     crate::git_ops::Request::ResolveConflict {
@@ -1050,7 +1064,14 @@ impl Git {
                                                 ));
                                                 ui.close();
                                             }
-                                            if ui.button(s.t("git-mark-resolved")).clicked() {
+                                            if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::CHECK,
+                                                    s.t("git-mark-resolved")
+                                                ))
+                                                .clicked()
+                                            {
                                                 requests.push((
                                                     root.clone(),
                                                     crate::git_ops::Request::Stage(vec![
@@ -1062,7 +1083,14 @@ impl Git {
                                             }
                                             ui.separator();
                                         } else if side == Side::Staged {
-                                            if ui.button(s.t("git-unstage")).clicked() {
+                                            if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::MINUS,
+                                                    s.t("git-unstage")
+                                                ))
+                                                .clicked()
+                                            {
                                                 requests.push((
                                                     root.clone(),
                                                     crate::git_ops::Request::Unstage(vec![
@@ -1073,7 +1101,14 @@ impl Git {
                                                 ui.close();
                                             }
                                         } else {
-                                            if ui.button(s.t("git-stage")).clicked() {
+                                            if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::PLUS,
+                                                    s.t("git-stage")
+                                                ))
+                                                .clicked()
+                                            {
                                                 requests.push((
                                                     root.clone(),
                                                     crate::git_ops::Request::Stage(vec![
@@ -1084,7 +1119,13 @@ impl Git {
                                                 ui.close();
                                             }
                                             if untracked {
-                                                if ui.button(s.t("git-delete-untracked")).clicked()
+                                                if ui
+                                                    .button(format!(
+                                                        "{} {}",
+                                                        ph::TRASH,
+                                                        s.t("git-delete-untracked")
+                                                    ))
+                                                    .clicked()
                                                 {
                                                     r.ops.confirm =
                                                         Some(crate::git_ops::Confirm::Delete(
@@ -1092,7 +1133,14 @@ impl Git {
                                                         ));
                                                     ui.close();
                                                 }
-                                            } else if ui.button(s.t("git-discard")).clicked() {
+                                            } else if ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::ARROW_COUNTER_CLOCKWISE,
+                                                    s.t("git-discard")
+                                                ))
+                                                .clicked()
+                                            {
                                                 r.ops.confirm =
                                                     Some(crate::git_ops::Confirm::Discard(vec![
                                                         path.clone(),
@@ -1101,17 +1149,37 @@ impl Git {
                                             }
                                         }
                                         ui.separator();
-                                        if ui.button(s.t("git-open-changes")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                ph::GIT_DIFF,
+                                                s.t("git-open-changes")
+                                            ))
+                                            .clicked()
+                                        {
                                             show = Some(change.clone());
                                             ui.close();
                                         }
                                         if full.is_file()
-                                            && ui.button(s.t("git-open-file")).clicked()
+                                            && ui
+                                                .button(format!(
+                                                    "{} {}",
+                                                    ph::FILE,
+                                                    s.t("git-open-file")
+                                                ))
+                                                .clicked()
                                         {
                                             actions.push(GitAction::OpenFile(full.clone()));
                                             ui.close();
                                         }
-                                        if ui.button(s.t("git-copy-path")).clicked() {
+                                        if ui
+                                            .button(format!(
+                                                "{} {}",
+                                                ph::COPY,
+                                                s.t("git-copy-path")
+                                            ))
+                                            .clicked()
+                                        {
                                             actions.push(GitAction::CopyPath(
                                                 full.to_string_lossy().to_string(),
                                             ));
@@ -1128,7 +1196,8 @@ impl Git {
                             };
                             if let Some((label, unstage)) = all_key {
                                 group.header_response.context_menu(|ui| {
-                                    if ui.button(s.t(label)).clicked() {
+                                    let glyph = if unstage { ph::MINUS } else { ph::PLUS };
+                                    if ui.button(format!("{glyph} {}", s.t(label))).clicked() {
                                         requests.push((
                                             r.root.clone(),
                                             if unstage {
@@ -1256,7 +1325,11 @@ impl Git {
                         counts_label(ui, theme, counts);
                     },
                     |ui| {
-                        if full.is_file() && ui.button(s.t("git-open-file")).clicked() {
+                        if full.is_file()
+                            && ui
+                                .button(format!("{} {}", ph::FILE, s.t("git-open-file")))
+                                .clicked()
+                        {
                             open = true;
                         }
                         mode_toggle(ui, s, &mut side_by_side);
@@ -1317,10 +1390,17 @@ impl Git {
                         }
                     },
                     |ui| {
-                        if full.is_file() && ui.button(s.t("git-open-file")).clicked() {
+                        if full.is_file()
+                            && ui
+                                .button(format!("{} {}", ph::FILE, s.t("git-open-file")))
+                                .clicked()
+                        {
                             open = true;
                         }
-                        if ui.button(s.t("git-refresh")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("git-refresh")))
+                            .clicked()
+                        {
                             reload = true;
                         }
                     },
@@ -1342,17 +1422,35 @@ impl Git {
                 } else {
                     let ready = total > 0 && chosen == total;
                     ui.horizontal(|ui| {
-                        if ui.button(s.t("git-conflict-all-ours")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::ARROW_LEFT,
+                                s.t("git-conflict-all-ours")
+                            ))
+                            .clicked()
+                        {
                             c.choices.fill(hs_git::conflict::Choice::Ours);
                         }
-                        if ui.button(s.t("git-conflict-all-theirs")).clicked() {
+                        if ui
+                            .button(format!(
+                                "{} {}",
+                                ph::ARROW_RIGHT,
+                                s.t("git-conflict-all-theirs")
+                            ))
+                            .clicked()
+                        {
                             c.choices.fill(hs_git::conflict::Choice::Theirs);
                         }
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if ui
                                 .add_enabled(
                                     ready && !c.save.busy(),
-                                    egui::Button::new(s.t("git-conflict-save")),
+                                    egui::Button::new(format!(
+                                        "{} {}",
+                                        ph::FLOPPY_DISK,
+                                        s.t("git-conflict-save")
+                                    )),
                                 )
                                 .clicked()
                             {
@@ -2027,16 +2125,26 @@ fn diff_body(
         }
         Some(Ok(rows)) => {
             // What one hunk can be asked to do, by where the file sits.
-            let ops: &[(&str, hs_git::write::HunkOp)] = match side {
-                Some(Side::Staged) => &[("git-unstage-hunk", hs_git::write::HunkOp::Unstage)],
+            let ops: &[(&str, &str, hs_git::write::HunkOp)] = match side {
+                Some(Side::Staged) => &[(
+                    ph::MINUS,
+                    "git-unstage-hunk",
+                    hs_git::write::HunkOp::Unstage,
+                )],
                 Some(Side::Unstaged) => &[
-                    ("git-stage-hunk", hs_git::write::HunkOp::Stage),
-                    ("git-discard-hunk", hs_git::write::HunkOp::Discard),
+                    (ph::PLUS, "git-stage-hunk", hs_git::write::HunkOp::Stage),
+                    (
+                        ph::ARROW_COUNTER_CLOCKWISE,
+                        "git-discard-hunk",
+                        hs_git::write::HunkOp::Discard,
+                    ),
                 ],
                 Some(Side::Untracked) | None => &[],
             };
-            let labels: Vec<(String, hs_git::write::HunkOp)> =
-                ops.iter().map(|(k, op)| (s.t(k), *op)).collect();
+            let labels: Vec<(String, hs_git::write::HunkOp)> = ops
+                .iter()
+                .map(|(g, k, op)| (format!("{g} {}", s.t(k)), *op))
+                .collect();
             draw_diff(
                 ui,
                 theme,

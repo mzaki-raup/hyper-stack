@@ -23,7 +23,7 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use crate::driver::{self, Destination, PeekRequest, PublishRequest};
+use crate::driver::{self, Destination, PeekRequest, PublishRequest, PublishTargets};
 use crate::payload::{self, Body};
 use crate::profile::{ProfileError, QueueFields};
 use crate::runner::{self, Cmd, Shared, Status};
@@ -122,12 +122,19 @@ pub struct QueueTool {
     table: TableState,
     messages_table: TableState,
     consumers_table: TableState,
+    lag_table: TableState,
     bindings_table: TableState,
     last_poll: Option<Instant>,
     peek_count: usize,
     peek_from: String,
     peek_partition: String,
     publish: PublishForm,
+    /// When to ask the broker for the publish form's exchanges and
+    /// routing keys: once per vhost, again after a failure.
+    targets_ask: TargetsAsk,
+    /// What the publish form offers behind its carets, built once per
+    /// destination, target and listing rather than every frame.
+    publish_lists: Option<(ListsKey, Arc<PublishLists>)>,
     popup: Option<Popup>,
     /// The detail pane last asked for, and for which destination, so a
     /// restored tab that opens on Consumers loads them once by itself.
@@ -161,11 +168,14 @@ impl QueueTool {
             table: TableState::default(),
             messages_table: TableState::default(),
             consumers_table: TableState::default(),
+            lag_table: TableState::default(),
             bindings_table: TableState::default(),
             last_poll: None,
             peek_count: 10,
             peek_from: String::new(),
             peek_partition: String::new(),
+            targets_ask: TargetsAsk::default(),
+            publish_lists: None,
             publish: PublishForm::default(),
             popup: None,
             detail_requested: None,
@@ -182,6 +192,8 @@ impl QueueTool {
     fn connect(&mut self, s: &Services) {
         self.cmd = None; // closes the old session
         self.shared = Arc::new(Mutex::new(Shared::default()));
+        self.targets_ask = TargetsAsk::default();
+        self.publish_lists = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         self.popup = None;
@@ -298,6 +310,7 @@ impl QueueTool {
         match self.state.detail {
             Detail::Consumers if caps.consumers => {
                 self.consumers_table = TableState::default();
+                self.lag_table = TableState::default();
                 self.send(Cmd::Consumers(dest));
             }
             Detail::Bindings if caps.bindings => {
@@ -343,6 +356,96 @@ impl QueueTool {
                 typed: String::new(),
             });
         }
+    }
+
+    /// Ask the broker, once per vhost, for the exchanges and routing keys
+    /// the publish form offers behind its carets. Marked asked only when
+    /// the request went out; after a failure it is asked again once the
+    /// listing refreshes.
+    fn request_publish_targets(&mut self, scope: &str) {
+        let generation = self.shared.lock().generation;
+        if !self.targets_ask.should_ask(scope, generation) {
+            return;
+        }
+        if self.send(Cmd::PublishTargets(scope.to_string())) {
+            self.targets_ask.sent(scope);
+            // The failed answer this replaces is not read as the new one.
+            let mut sh = self.shared.lock();
+            if sh
+                .publish_targets
+                .as_ref()
+                .is_some_and(|f| f.dest == scope && f.result.is_err())
+            {
+                sh.publish_targets = None;
+            }
+        }
+    }
+
+    /// The publish form's caret lists for `dest`, rebuilt only when the
+    /// destination, the chosen target, the listing or the broker's
+    /// answer changes. A failed read of the exchanges is noted (the form
+    /// says so) and asked again later.
+    fn publish_lists(&mut self, dest: &Destination) -> Arc<PublishLists> {
+        if self.kind == "rabbitmq" {
+            self.request_publish_targets(&dest.scope);
+        }
+        let (generation, answer) = {
+            let sh = self.shared.lock();
+            let answer = sh
+                .publish_targets
+                .as_ref()
+                .filter(|f| f.dest == dest.scope)
+                .map(|f| f.result.clone());
+            (sh.generation, answer)
+        };
+        match &answer {
+            Some(Err(e)) => self.targets_ask.failed(&dest.scope, generation, e),
+            Some(Ok(_)) => self.targets_ask.succeeded(&dest.scope),
+            None => {}
+        }
+        let key = ListsKey {
+            scope: dest.scope.clone(),
+            dest: dest.name.clone(),
+            target: self.publish.target.clone(),
+            generation,
+            answered: answer.as_ref().map(Result::is_ok),
+        };
+        if let Some((have, lists)) = &self.publish_lists
+            && *have == key
+        {
+            return lists.clone();
+        }
+        let mut lists = PublishLists {
+            partitions: kafka_partitions(dest),
+            ..Default::default()
+        };
+        match self.kind.as_str() {
+            "rabbitmq" => {
+                if let Some(Ok(t)) = &answer {
+                    lists.keys = routing_keys(t, &self.publish.target);
+                    lists.targets = t.targets.clone();
+                }
+            }
+            "nats" => lists.targets = nats_subjects(dest),
+            _ => {
+                lists.targets = self
+                    .shared
+                    .lock()
+                    .listing
+                    .as_ref()
+                    .map(|l| {
+                        l.destinations
+                            .iter()
+                            .filter(|d| d.scope == dest.scope)
+                            .map(|d| d.name.clone())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+            }
+        }
+        let lists = Arc::new(lists);
+        self.publish_lists = Some((key, lists.clone()));
+        lists
     }
 
     /// The Publish form, filled for the destination the user chose: what
@@ -422,6 +525,112 @@ impl QueueTool {
         }
         self.send(Cmd::Publish(req));
     }
+}
+
+/// The routing keys bound to `exchange` ("" the default exchange, whose
+/// keys are the queue names), for the publish form's Routing Key caret.
+fn routing_keys(t: &PublishTargets, exchange: &str) -> Vec<String> {
+    t.keys
+        .iter()
+        .filter(|(source, _)| source == exchange.trim())
+        .map(|(_, key)| key.clone())
+        .collect()
+}
+
+/// A Kafka topic's partitions, `0` to its count less one, from the
+/// listing's Partitions column. Empty when the count is unknown.
+fn kafka_partitions(dest: &Destination) -> Vec<String> {
+    let n: usize = dest
+        .figures
+        .first()
+        .and_then(|f| f.trim().parse().ok())
+        .unwrap_or(0);
+    (0..n.min(1024)).map(|p| p.to_string()).collect()
+}
+
+/// A NATS stream's subjects, from the listing's Subjects column: what a
+/// publish to that stream is addressed to.
+fn nats_subjects(dest: &Destination) -> Vec<String> {
+    dest.figures
+        .get(3)
+        .map(|s| {
+            s.split(", ")
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// When the publish form asks the broker for its exchanges and routing
+/// keys: once per vhost while that works; after a failure, again once the
+/// listing has refreshed (its generation moved), never every frame.
+#[derive(Debug, Default)]
+struct TargetsAsk {
+    /// The vhost the request went out for.
+    requested: Option<String>,
+    /// (vhost, listing generation, error) of the last failed read.
+    failed: Option<(String, u64, String)>,
+}
+
+impl TargetsAsk {
+    fn should_ask(&self, scope: &str, generation: u64) -> bool {
+        if self.requested.as_deref() == Some(scope) {
+            return false;
+        }
+        !self
+            .failed
+            .as_ref()
+            .is_some_and(|(s, g, _)| s == scope && *g == generation)
+    }
+
+    fn sent(&mut self, scope: &str) {
+        self.requested = Some(scope.to_string());
+    }
+
+    /// The read for `scope` failed: forget it was asked, so it is asked
+    /// again after the next refresh.
+    fn failed(&mut self, scope: &str, generation: u64, error: &str) {
+        if self.requested.as_deref() == Some(scope) {
+            self.requested = None;
+            self.failed = Some((scope.to_string(), generation, error.to_string()));
+        }
+    }
+
+    /// The read for `scope` worked: no warning any more.
+    fn succeeded(&mut self, scope: &str) {
+        if self.failed.as_ref().is_some_and(|(s, _, _)| s == scope) {
+            self.failed = None;
+        }
+    }
+
+    /// The error of the last failed read for `scope`, for the form.
+    fn error_for(&self, scope: &str) -> Option<&str> {
+        self.failed
+            .as_ref()
+            .filter(|(s, _, _)| s == scope)
+            .map(|(_, _, e)| e.as_str())
+    }
+}
+
+/// What the publish form's caret lists were built from.
+#[derive(Debug, Clone, PartialEq)]
+struct ListsKey {
+    scope: String,
+    dest: String,
+    target: String,
+    generation: u64,
+    /// The broker's answer for the vhost: none yet, read, or failed.
+    answered: Option<bool>,
+}
+
+/// The publish form's caret lists.
+#[derive(Debug, Default)]
+struct PublishLists {
+    targets: Vec<String>,
+    keys: Vec<String>,
+    partitions: Vec<String>,
 }
 
 /// The Fluent key of what a kind calls its destinations.
@@ -822,7 +1031,10 @@ impl Tool for QueueTool {
             if self.protected && !self.writes_unlocked && !self.read_only_profile {
                 ui.separator();
                 let label = s.i18n.t_args("queue-protected", &[("env", &self.env_name)]);
-                if ui.button(label).tip(s.t("queue-unlock-hint")).clicked() {
+                if hs_ui::toolbar::btn(ui, &theme, ph::LOCK_SIMPLE_OPEN, &label)
+                    .tip(s.t("queue-unlock-hint"))
+                    .clicked()
+                {
                     // The runner was started read-only; writes need a
                     // session that is not.
                     self.writes_unlocked = true;
@@ -965,7 +1177,7 @@ impl QueueTool {
         }
         if let Some(e) = self.conn_error.clone() {
             form::note(ui, &theme, ph::WARNING, &e);
-            if ui.button(s.t("queue-retry")).clicked() {
+            if form::button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("queue-retry")).clicked() {
                 self.connect(s);
             }
             return;
@@ -981,7 +1193,7 @@ impl QueueTool {
             }
             Some(Status::Failed(e)) => {
                 form::note(ui, &theme, ph::WARNING, &e);
-                if ui.button(s.t("queue-retry")).clicked() {
+                if form::button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("queue-retry")).clicked() {
                     self.connect(s);
                 }
                 return;
@@ -1221,6 +1433,12 @@ impl QueueTool {
             _ => form::hint(ui, theme, &s.t("queue-peek-safe")),
         }
         ui.add_space(form::PANE_GAP);
+        // The partition caret, built once per listing rather than per frame.
+        let partitions = if self.kind == "kafka" {
+            self.publish_lists(dest)
+        } else {
+            Arc::default()
+        };
         hs_ui::form::centred_row(ui, |ui| {
             ui.label(s.t("queue-peek-count"));
             ui.add(egui::DragValue::new(&mut self.peek_count).range(1..=driver::PEEK_MAX));
@@ -1238,10 +1456,13 @@ impl QueueTool {
             }
             if self.kind == "kafka" {
                 ui.label(s.t("queue-partition"));
-                ui.add(
-                    hs_ui::form::line_edit(&mut self.peek_partition)
-                        .hint_text(s.t("queue-partition-all"))
-                        .desired_width(60.0),
+                form::pick_field_width(
+                    ui,
+                    theme,
+                    &mut self.peek_partition,
+                    &partitions.partitions,
+                    &s.t("queue-partition-all"),
+                    110.0,
                 );
             }
             if ui
@@ -1380,25 +1601,17 @@ impl QueueTool {
         self.fill_publish(dest);
         let kind = self.kind.clone();
         let mut send = false;
-        // The broker's destinations behind the target's caret, where a
-        // destination is something to publish to: a RabbitMQ queue is not
-        // an exchange and a NATS stream is not a subject, so those two
-        // keep a plain field (CR-0038's pick_field rule).
-        let targets: Vec<String> = if matches!(kind.as_str(), "rabbitmq" | "nats") {
-            Vec::new()
+        // What the broker knows behind each field's caret (CR-0038's
+        // pick_field rule). A RabbitMQ queue is not an exchange, so its
+        // exchanges and routing keys are read from the management API; a
+        // NATS stream is not a subject, so its subjects come from the
+        // stream; elsewhere a destination is what is published to. An
+        // empty list (not read yet, or unreachable) leaves a plain field.
+        let lists = self.publish_lists(dest);
+        let targets_failed = if kind == "rabbitmq" {
+            self.targets_ask.error_for(&dest.scope).map(str::to_string)
         } else {
-            self.shared
-                .lock()
-                .listing
-                .as_ref()
-                .map(|l| {
-                    l.destinations
-                        .iter()
-                        .filter(|d| d.scope == dest.scope)
-                        .map(|d| d.name.clone())
-                        .collect()
-                })
-                .unwrap_or_default()
+            None
         };
         form::field_grid(ui, "queue-publish", |ui| {
             let target_key = match kind.as_str() {
@@ -1413,8 +1626,24 @@ impl QueueTool {
             } else {
                 String::new()
             };
-            form::pick_field(ui, theme, &mut self.publish.target, &targets, &hint);
+            form::pick_field(ui, theme, &mut self.publish.target, &lists.targets, &hint);
             ui.end_row();
+            if let Some(err) = &targets_failed {
+                // The exchanges could not be read: say so rather than
+                // leaving a plain field without a word (asked again on
+                // the next refresh).
+                form::label(ui, "");
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        ph::WARNING,
+                        s.t("queue-publish-targets-failed")
+                    ))
+                    .color(theme.warning),
+                )
+                .on_hover_text(err);
+                ui.end_row();
+            }
             match kind.as_str() {
                 "rabbitmq" | "kafka" => {
                     form::label(
@@ -1425,16 +1654,22 @@ impl QueueTool {
                             "queue-col-key"
                         }),
                     );
-                    form::text_field(ui, &mut self.publish.key, "");
+                    if kind == "rabbitmq" {
+                        form::pick_field(ui, theme, &mut self.publish.key, &lists.keys, "");
+                    } else {
+                        form::text_field(ui, &mut self.publish.key, "");
+                    }
                     ui.end_row();
                 }
                 _ => {}
             }
             if kind == "kafka" {
                 form::label(ui, &s.t("queue-partition"));
-                form::text_field(
+                form::pick_field(
                     ui,
+                    theme,
                     &mut self.publish.partition,
+                    &lists.partitions,
                     &s.t("queue-partition-by-key"),
                 );
                 ui.end_row();
@@ -1464,7 +1699,7 @@ impl QueueTool {
             ui.strong(s.t(headers_label));
             let mut remove = None;
             for (i, (k, v)) in self.publish.headers.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
+                form::centred_row(ui, |ui| {
                     ui.add(
                         hs_ui::form::line_edit(k)
                             .hint_text(s.t("queue-name"))
@@ -1488,7 +1723,7 @@ impl QueueTool {
             } else {
                 "queue-add-header"
             };
-            if ui.button(format!("{} {}", ph::PLUS, s.t(add))).clicked() {
+            if form::button(ui, theme, ph::PLUS, &s.t(add)).clicked() {
                 self.publish.headers.push((String::new(), String::new()));
             }
         }
@@ -1509,23 +1744,25 @@ impl QueueTool {
         } else {
             s.t("queue-refused-protected")
         };
-        ui.horizontal(|ui| {
+        // Standard-size buttons, wrapping in a narrow pane (CR-0063).
+        form::centred_row_wrapped(ui, |ui| {
+            ui.spacing_mut().item_spacing.x = form::BUTTON_GAP;
             if ui
-                .add_enabled(
-                    !self.read_only(),
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::PAPER_PLANE_RIGHT,
-                        s.t("queue-publish")
-                    )),
-                )
+                .add_enabled_ui(!self.read_only(), |ui| {
+                    form::primary_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::PAPER_PLANE_RIGHT, s.t("queue-publish")),
+                    )
+                })
+                .inner
                 .tip_disabled(reason)
                 .clicked()
             {
                 send = true;
             }
             if hs_core::fmt::pretty_json(&self.publish.payload).is_some()
-                && ui.button(s.t("queue-format-json")).clicked()
+                && form::button(ui, theme, ph::BRACKETS_CURLY, &s.t("queue-format-json")).clicked()
                 && let Some(p) = hs_core::fmt::pretty_json(&self.publish.payload)
             {
                 self.publish.payload = p;
@@ -1569,7 +1806,10 @@ impl QueueTool {
                         ],
                     ));
                 }
-                if ui.button(s.t("queue-stop")).clicked() {
+                if ui
+                    .button(format!("{} {}", ph::STOP, s.t("queue-stop")))
+                    .clicked()
+                {
                     progress.cancel.store(true, Ordering::Relaxed);
                 }
             }
@@ -1633,27 +1873,39 @@ impl QueueTool {
             && !g.detail.is_empty()
         {
             ui.separator();
-            egui::Grid::new("queue-lag")
-                .num_columns(4)
-                .striped(true)
-                .show(ui, |ui| {
-                    for key in [
-                        "queue-partition",
-                        "queue-col-committed",
-                        "queue-col-latest",
-                        "queue-col-lag",
-                    ] {
-                        ui.strong(s.t(key));
-                    }
-                    ui.end_row();
-                    for l in &g.detail {
-                        ui.label(l.partition.to_string());
-                        ui.label(dash(l.committed.map(|v| v.to_string())));
-                        ui.label(dash(l.latest.map(|v| v.to_string())));
-                        ui.label(dash(l.lag.map(|v| v.to_string())));
-                        ui.end_row();
-                    }
-                });
+            // Read-only rows: the shared table, not a hand-made grid
+            // (CR-0061).
+            let columns = [
+                ColumnSpec::new(s.t("queue-partition"), 100.0).numeric(),
+                ColumnSpec::new(s.t("queue-col-committed"), 120.0).numeric(),
+                ColumnSpec::new(s.t("queue-col-latest"), 120.0).numeric(),
+                ColumnSpec::new(s.t("queue-col-lag"), 80.0).numeric(),
+            ];
+            let lag_empty = s.t("queue-lag-none");
+            let rows: Vec<Vec<String>> = g
+                .detail
+                .iter()
+                .map(|l| {
+                    vec![
+                        l.partition.to_string(),
+                        dash(l.committed.map(|v| v.to_string())),
+                        dash(l.latest.map(|v| v.to_string())),
+                        dash(l.lag.map(|v| v.to_string())),
+                    ]
+                })
+                .collect();
+            let table = DataTable {
+                theme,
+                columns: &columns,
+                rows: &rows,
+                row_height: hs_ui::table::ROW_HEIGHT,
+                show_filter: false,
+                copy_row_label: &s.t("table-copy-row"),
+                built_in_menu: true,
+                row_icons: None,
+                empty_hint: Some(&lag_empty),
+            };
+            ui.push_id("queue-lag", |ui| table.show(ui, &mut self.lag_table));
         }
     }
 
@@ -1783,8 +2035,12 @@ impl QueueTool {
                             .add_enabled(
                                 matches,
                                 egui::Button::new(
-                                    egui::RichText::new(s.t("queue-delete"))
-                                        .color(egui::Color32::WHITE),
+                                    egui::RichText::new(format!(
+                                        "{} {}",
+                                        ph::TRASH,
+                                        s.t("queue-delete")
+                                    ))
+                                    .color(egui::Color32::WHITE),
                                 )
                                 .fill(theme.error),
                             )
@@ -1792,7 +2048,7 @@ impl QueueTool {
                         {
                             answer = Some(true);
                         }
-                        if ui.button(s.t("cancel")).clicked() {
+                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                             answer = Some(false);
                         }
                     });
@@ -1874,6 +2130,49 @@ impl QueueTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The publish form asks for exchanges once per vhost; a failed read
+    /// is asked again after the next refresh, not every frame, and the
+    /// warning goes once a read works.
+    #[test]
+    fn a_failed_publish_targets_read_is_asked_again_after_a_refresh() {
+        let mut ask = TargetsAsk::default();
+        assert!(ask.should_ask("/", 1));
+        ask.sent("/");
+        assert!(!ask.should_ask("/", 1), "asked once");
+        ask.failed("/", 1, "503");
+        assert_eq!(ask.error_for("/"), Some("503"));
+        assert!(!ask.should_ask("/", 1), "not again in the same listing");
+        assert!(ask.should_ask("/", 2), "again once the listing refreshed");
+        ask.sent("/");
+        ask.succeeded("/");
+        assert_eq!(ask.error_for("/"), None);
+        assert!(!ask.should_ask("/", 3));
+        assert!(ask.should_ask("other", 3), "another vhost is its own ask");
+    }
+
+    /// The publish form's carets hold what the broker listed: a topic's
+    /// partitions, a stream's subjects, an exchange's routing keys.
+    #[test]
+    fn the_publish_pick_lists_come_from_the_broker() {
+        let topic = dest("orders", &["3", "0", "10", "10"]);
+        assert_eq!(kafka_partitions(&topic), vec!["0", "1", "2"]);
+        assert!(kafka_partitions(&dest("x", &[""])).is_empty());
+        assert!(kafka_partitions(&dest("x", &[])).is_empty());
+        let stream = dest("ORDERS", &["5", "100", "1", "orders.created, orders.>"]);
+        assert_eq!(nats_subjects(&stream), vec!["orders.created", "orders.>"]);
+        assert!(nats_subjects(&dest("EMPTY", &["0", "0", "0", ""])).is_empty());
+        let t = PublishTargets {
+            targets: vec!["orders".into()],
+            keys: vec![
+                (String::new(), "orders-created".into()),
+                ("orders".into(), "created.#".into()),
+            ],
+        };
+        assert_eq!(routing_keys(&t, ""), vec!["orders-created"]);
+        assert_eq!(routing_keys(&t, "orders"), vec!["created.#"]);
+        assert!(routing_keys(&t, "missing").is_empty());
+    }
 
     fn dest(name: &str, figures: &[&str]) -> Destination {
         Destination {

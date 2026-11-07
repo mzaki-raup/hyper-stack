@@ -843,24 +843,28 @@ pub(crate) fn box_ui(
     ui.add_enabled_ui(enabled, |ui| {
         ui.horizontal_wrapped(|ui| {
             if ui
-                .small_button(ph::ARROWS_CLOCKWISE)
+                .small_button(format!(
+                    "{} {}",
+                    ph::ARROWS_CLOCKWISE,
+                    s.t("git-fetch-button")
+                ))
                 .tip(s.t("git-fetch"))
                 .clicked()
             {
                 out.push(Request::Fetch);
             }
             let pull = if status.behind > 0 {
-                format!("{} {}", ph::ARROW_DOWN, status.behind)
+                format!("{} {} {}", ph::ARROW_DOWN, s.t("git-pull"), status.behind)
             } else {
-                ph::ARROW_DOWN.to_string()
+                format!("{} {}", ph::ARROW_DOWN, s.t("git-pull"))
             };
             if ui.small_button(pull).tip(s.t("git-pull")).clicked() {
                 out.push(Request::Pull);
             }
             let push = if status.ahead > 0 {
-                format!("{} {}", ph::ARROW_UP, status.ahead)
+                format!("{} {} {}", ph::ARROW_UP, s.t("git-push"), status.ahead)
             } else {
-                ph::ARROW_UP.to_string()
+                format!("{} {}", ph::ARROW_UP, s.t("git-push"))
             };
             let push_tip = if protected {
                 s.t("git-push-protected-tip")
@@ -926,7 +930,14 @@ pub(crate) fn box_ui(
             if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 done = Some(false);
             }
-            if ui.button(s.t("git-rename-branch-apply")).clicked() {
+            if ui
+                .button(format!(
+                    "{} {}",
+                    ph::PENCIL_SIMPLE,
+                    s.t("git-rename-branch-apply")
+                ))
+                .clicked()
+            {
                 done = Some(true);
             }
         });
@@ -968,7 +979,10 @@ pub(crate) fn box_ui(
                 |ui| {
                     ui.set_min_width(180.0);
                     for (prefix, key) in COMMIT_PREFIXES {
-                        if ui.button(format!("{prefix}:  {}", s.t(key))).clicked() {
+                        if ui
+                            .button(format!("{} {prefix}:  {}", ph::TAG, s.t(key)))
+                            .clicked()
+                        {
                             if !has_commit_prefix(&ops.message) {
                                 ops.message = format!("{prefix}: {}", ops.message.trim_start());
                             }
@@ -976,7 +990,10 @@ pub(crate) fn box_ui(
                         }
                     }
                     ui.separator();
-                    if ui.button(s.t("git-prefix-clear")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::BROOM, s.t("git-prefix-clear")))
+                        .clicked()
+                    {
                         if has_commit_prefix(&ops.message) {
                             let text = ops.message.trim_start();
                             if let Some(i) = text.find(':') {
@@ -993,14 +1010,20 @@ pub(crate) fn box_ui(
         ui.horizontal(|ui| {
             let can = staged > 0 && !ops.message.trim().is_empty();
             if ui
-                .add_enabled(can, egui::Button::new(s.t("git-commit")))
+                .add_enabled(
+                    can,
+                    egui::Button::new(format!("{} {}", ph::GIT_COMMIT, s.t("git-commit"))),
+                )
                 .tip(s.t("git-commit-tip"))
                 .clicked()
             {
                 out.push(Request::Commit { push: false });
             }
             if ui
-                .add_enabled(can, egui::Button::new(s.t("git-commit-push")))
+                .add_enabled(
+                    can,
+                    egui::Button::new(format!("{} {}", ph::ARROW_UP, s.t("git-commit-push"))),
+                )
                 .clicked()
             {
                 out.push(Request::Commit { push: true });
@@ -1047,7 +1070,10 @@ fn rebase_panel(
                     .color(theme.accent),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(s.t("cancel")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("cancel")))
+                    .clicked()
+                {
                     close = true;
                 }
             });
@@ -1065,7 +1091,14 @@ fn rebase_panel(
             w,
         );
         if ui
-            .add_enabled(!panel.loading, egui::Button::new(s.t("git-rebase-load")))
+            .add_enabled(
+                !panel.loading,
+                egui::Button::new(format!(
+                    "{} {}",
+                    ph::DOWNLOAD_SIMPLE,
+                    s.t("git-rebase-load")
+                )),
+            )
             .clicked()
         {
             panel.load(s, root);
@@ -1179,7 +1212,10 @@ fn rebase_panel(
                 .iter()
                 .any(|a| *a != hs_git::write::RebaseAction::Drop);
             if ui
-                .add_enabled(runnable, egui::Button::new(s.t("git-rebase-start")))
+                .add_enabled(
+                    runnable,
+                    egui::Button::new(format!("{} {}", ph::PLAY, s.t("git-rebase-start"))),
+                )
                 .clicked()
             {
                 start = true;
@@ -1288,7 +1324,10 @@ fn tag_panel(
                     .color(theme.accent),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(s.t("cancel")).clicked() {
+                if ui
+                    .small_button(format!("{} {}", ph::X, s.t("cancel")))
+                    .clicked()
+                {
                     close = true;
                 }
             });
@@ -1307,7 +1346,7 @@ fn tag_panel(
         if ui
             .add_enabled(
                 !name.trim().is_empty(),
-                egui::Button::new(s.t("git-tag-create")),
+                egui::Button::new(format!("{} {}", ph::TAG, s.t("git-tag-create"))),
             )
             .clicked()
         {
@@ -1331,15 +1370,15 @@ fn tag_panel(
 /// popup tall enough for the fields was drawn under its parent.
 fn tag_menu(ops: &mut Ops, ui: &mut egui::Ui, s: &Services, out: &mut Vec<Request>) {
     let label = if ops.lists.tags.is_empty() {
-        ph::TAG.to_string()
+        format!("{} {}", ph::TAG, s.t("git-tags"))
     } else {
-        format!("{} {}", ph::TAG, ops.lists.tags.len())
+        format!("{} {} {}", ph::TAG, s.t("git-tags"), ops.lists.tags.len())
     };
     ui.menu_button(label, |ui| {
         ui.set_min_width(280.0);
         ui.set_max_width(320.0);
         if ui
-            .button(s.t("git-tag-new"))
+            .button(format!("{} {}", ph::PLUS, s.t("git-tag-new")))
             .tip(s.t("git-tag-new-tip"))
             .clicked()
         {
@@ -1396,9 +1435,14 @@ fn stash_menu(
     out: &mut Vec<Request>,
 ) {
     let label = if ops.lists.stashes.is_empty() {
-        ph::ARCHIVE.to_string()
+        format!("{} {}", ph::ARCHIVE, s.t("git-stash"))
     } else {
-        format!("{} {}", ph::ARCHIVE, ops.lists.stashes.len())
+        format!(
+            "{} {} {}",
+            ph::ARCHIVE,
+            s.t("git-stash"),
+            ops.lists.stashes.len()
+        )
     };
     ui.menu_button(label, |ui| {
         ui.set_min_width(240.0);
@@ -1409,7 +1453,11 @@ fn stash_menu(
                 .desired_width(f32::INFINITY),
         );
         let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-        if ui.button(s.t("git-stash-push")).clicked() || enter {
+        if ui
+            .button(format!("{} {}", ph::ARCHIVE, s.t("git-stash-push")))
+            .clicked()
+            || enter
+        {
             out.push(Request::StashPush);
             ui.close();
         }
@@ -1435,7 +1483,11 @@ fn stash_menu(
                         ui.close();
                     }
                     if ui
-                        .small_button(s.t("git-stash-pop"))
+                        .small_button(format!(
+                            "{} {}",
+                            ph::ARROW_BEND_UP_LEFT,
+                            s.t("git-stash-pop")
+                        ))
                         .tip(s.t("git-stash-pop-tip"))
                         .clicked()
                     {
@@ -1443,7 +1495,7 @@ fn stash_menu(
                         ui.close();
                     }
                     if ui
-                        .small_button(s.t("git-stash-apply"))
+                        .small_button(format!("{} {}", ph::CHECK, s.t("git-stash-apply")))
                         .tip(s.t("git-stash-apply-tip"))
                         .clicked()
                     {
@@ -1467,14 +1519,18 @@ fn branch_menu(
     status: &hs_git::Status,
     out: &mut Vec<Request>,
 ) {
-    ui.menu_button(ph::GIT_BRANCH, |ui| {
+    let branches_label = format!("{} {}", ph::GIT_BRANCH, s.t("git-branches"));
+    ui.menu_button(branches_label, |ui| {
         ui.set_min_width(220.0);
-        ui.horizontal(|ui| {
-            if ui.button(s.t("git-new-branch")).clicked() {
+        ui.horizontal_wrapped(|ui| {
+            if ui
+                .button(format!("{} {}", ph::PLUS, s.t("git-new-branch")))
+                .clicked()
+            {
                 ops.new_branch = Some(String::new());
                 ui.close();
             }
-            ui.menu_button(s.t("git-remotes"), |ui| {
+            ui.menu_button(format!("{} {}", ph::CLOUD, s.t("git-remotes")), |ui| {
                 ui.set_min_width(320.0);
                 let remotes = ops.lists.remotes.clone();
                 for remote in remotes {
@@ -1527,9 +1583,9 @@ fn branch_menu(
                     );
                     if ui
                         .button(if ops.editing_remote.is_some() {
-                            s.t("save")
+                            format!("{} {}", ph::FLOPPY_DISK, s.t("save"))
                         } else {
-                            s.t("git-remote-add")
+                            format!("{} {}", ph::PLUS, s.t("git-remote-add"))
                         })
                         .clicked()
                         && !ops.remote_name.trim().is_empty()
@@ -1551,7 +1607,11 @@ fn branch_menu(
                         ops.remote_url.clear();
                         ui.close();
                     }
-                    if ops.editing_remote.is_some() && ui.small_button(s.t("cancel")).clicked() {
+                    if ops.editing_remote.is_some()
+                        && ui
+                            .small_button(format!("{} {}", ph::X, s.t("cancel")))
+                            .clicked()
+                    {
                         ops.editing_remote = None;
                         ops.remote_name.clear();
                         ops.remote_url.clear();
@@ -1559,7 +1619,8 @@ fn branch_menu(
                     }
                 });
             });
-            ui.menu_button(s.t("git-merge-rebase"), |ui| {
+            let merge_label = format!("{} {}", ph::GIT_MERGE, s.t("git-merge-rebase"));
+            ui.menu_button(merge_label, |ui| {
                 ui.set_min_width(260.0);
                 if let Some(operation) = ops.operation {
                     let label = match operation {
@@ -1572,35 +1633,56 @@ fn branch_menu(
                     ui.label(egui::RichText::new(label).color(theme.warning));
                     match operation {
                         hs_git::OperationState::Merge => {
-                            if ui.button(s.t("git-continue")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PLAY, s.t("git-continue")))
+                                .clicked()
+                            {
                                 out.push(Request::MergeContinue);
                                 ui.close();
                             }
-                            if ui.button(s.t("git-abort")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PROHIBIT, s.t("git-abort")))
+                                .clicked()
+                            {
                                 out.push(Request::MergeAbort);
                                 ui.close();
                             }
                         }
                         hs_git::OperationState::Rebase => {
-                            if ui.button(s.t("git-continue")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PLAY, s.t("git-continue")))
+                                .clicked()
+                            {
                                 out.push(Request::RebaseContinue);
                                 ui.close();
                             }
-                            if ui.button(s.t("git-abort")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PROHIBIT, s.t("git-abort")))
+                                .clicked()
+                            {
                                 out.push(Request::RebaseAbort);
                                 ui.close();
                             }
                         }
                         hs_git::OperationState::CherryPick => {
-                            if ui.button(s.t("git-continue")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PLAY, s.t("git-continue")))
+                                .clicked()
+                            {
                                 out.push(Request::CherryPickContinue);
                                 ui.close();
                             }
-                            if ui.button(s.t("git-skip")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::SKIP_FORWARD, s.t("git-skip")))
+                                .clicked()
+                            {
                                 out.push(Request::CherryPickSkip);
                                 ui.close();
                             }
-                            if ui.button(s.t("git-abort")).clicked() {
+                            if ui
+                                .button(format!("{} {}", ph::PROHIBIT, s.t("git-abort")))
+                                .clicked()
+                            {
                                 out.push(Request::CherryPickAbort);
                                 ui.close();
                             }
@@ -1625,7 +1707,9 @@ fn branch_menu(
                 ui.add_space(hs_ui::form::OPTION_GAP);
                 ui.checkbox(&mut ops.merge_input.squash, s.t("git-merge-squash"));
                 ui.add_space(hs_ui::form::OPTION_GAP);
-                if ui.button(s.t("git-merge-run")).clicked()
+                if ui
+                    .button(format!("{} {}", ph::GIT_MERGE, s.t("git-merge-run")))
+                    .clicked()
                     && !ops.merge_input.source.trim().is_empty()
                 {
                     out.push(Request::Merge {
@@ -1646,14 +1730,21 @@ fn branch_menu(
                     &s.t("git-rebase-onto"),
                     220.0,
                 );
-                if ui.button(s.t("git-rebase-run")).clicked() && !ops.rebase_onto.trim().is_empty()
+                if ui
+                    .button(format!("{} {}", ph::GIT_FORK, s.t("git-rebase-run")))
+                    .clicked()
+                    && !ops.rebase_onto.trim().is_empty()
                 {
                     out.push(Request::Rebase(ops.rebase_onto.trim().to_string()));
                     ops.rebase_onto.clear();
                     ui.close();
                 }
                 if ui
-                    .button(s.t("git-rebase-interactive-open"))
+                    .button(format!(
+                        "{} {}",
+                        ph::LIST_BULLETS,
+                        s.t("git-rebase-interactive-open")
+                    ))
                     .tip(s.t("git-rebase-interactive-tip"))
                     .clicked()
                 {
@@ -1673,7 +1764,9 @@ fn branch_menu(
                     hs_ui::form::line_edit(&mut ops.cherry_pick_commit)
                         .hint_text(s.t("git-cherry-pick-commit")),
                 );
-                if ui.button(s.t("git-cherry-pick-run")).clicked()
+                if ui
+                    .button(format!("{} {}", ph::CHERRIES, s.t("git-cherry-pick-run")))
+                    .clicked()
                     && !ops.cherry_pick_commit.trim().is_empty()
                 {
                     out.push(Request::CherryPick(
@@ -1854,14 +1947,22 @@ pub(crate) fn confirm_ui(
         ui.add_space(10.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let yes = if danger {
-                hs_ui::form::danger_button(ui, theme, &s.t("git-confirm-yes"))
+                hs_ui::form::danger_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::CHECK, s.t("git-confirm-yes")),
+                )
             } else {
-                hs_ui::form::primary_button(ui, theme, &s.t("git-confirm-yes"))
+                hs_ui::form::primary_button(
+                    ui,
+                    theme,
+                    &format!("{} {}", ph::CHECK, s.t("git-confirm-yes")),
+                )
             };
             if yes.clicked() {
                 answer = Some(true);
             }
-            if ui.button(s.t("git-confirm-no")).clicked() {
+            if hs_ui::form::button(ui, theme, ph::X, &s.t("git-confirm-no")).clicked() {
                 answer = Some(false);
             }
         });

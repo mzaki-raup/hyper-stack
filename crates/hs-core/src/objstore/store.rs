@@ -124,6 +124,11 @@ pub trait ObjectStore: Send + Sync {
     /// A small object into memory (the editor round trip).
     async fn get_bytes(&self, container: &str, key: &str) -> Result<Vec<u8>>;
 
+    /// At most the first `limit` bytes of an object (a preview): asks for
+    /// only that range and stops reading there even if the server sends
+    /// the whole body, so it never pulls an unbounded object.
+    async fn get_bytes_capped(&self, container: &str, key: &str, limit: u64) -> Result<Vec<u8>>;
+
     async fn download(
         &self,
         container: &str,

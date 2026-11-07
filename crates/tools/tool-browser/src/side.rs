@@ -135,9 +135,8 @@ pub fn sidebar(
     }
     ui.add_space(4.0);
     ui.add(
-        egui::TextEdit::singleline(&mut t.side.filter)
+        form::line_edit(&mut t.side.filter)
             .hint_text(s.t("browser-side-filter"))
-            .margin(hs_ui::form::FIELD_MARGIN)
             .desired_width(f32::INFINITY),
     );
     ui.add_space(4.0);
@@ -292,16 +291,25 @@ fn fav_level(
                     }
                 }
                 r.header_response.context_menu(|ui| {
-                    if ui.button(s.t("browser-new-folder")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::FOLDER_PLUS, s.t("browser-new-folder")))
+                        .clicked()
+                    {
                         acts.new_folder_in = Some(Some(f.id.clone()));
                         ui.close();
                     }
-                    if ui.button(s.t("browser-rename")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("browser-rename")))
+                        .clicked()
+                    {
                         acts.edit = Some(f.id.clone());
                         ui.close();
                     }
                     ui.separator();
-                    if ui.button(s.t("browser-delete")).clicked() {
+                    if ui
+                        .button(format!("{} {}", ph::TRASH, s.t("browser-delete")))
+                        .clicked()
+                    {
                         acts.confirm = Some(Confirm {
                             id: f.id.clone(),
                             name: f.name.clone(),
@@ -327,16 +335,25 @@ fn fav_level(
                         out.open = Some(l.url.clone());
                     }
                     row.context_menu(|ui| {
-                        if ui.button(s.t("browser-open")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::ARROW_SQUARE_OUT, s.t("browser-open")))
+                            .clicked()
+                        {
                             acts.open = Some(l.url.clone());
                             ui.close();
                         }
-                        if ui.button(s.t("browser-edit")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("browser-edit")))
+                            .clicked()
+                        {
                             acts.edit = Some(l.id.clone());
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(s.t("browser-delete")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::TRASH, s.t("browser-delete")))
+                            .clicked()
+                        {
                             acts.confirm = Some(Confirm {
                                 id: l.id.clone(),
                                 name: l.name.clone(),
@@ -520,12 +537,18 @@ fn passwords(
                         edit = Some(l.id.clone());
                     }
                     row.context_menu(|ui| {
-                        if ui.button(s.t("browser-edit")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::PENCIL_SIMPLE, s.t("browser-edit")))
+                            .clicked()
+                        {
                             edit = Some(l.id.clone());
                             ui.close();
                         }
                         ui.separator();
-                        if ui.button(s.t("browser-delete")).clicked() {
+                        if ui
+                            .button(format!("{} {}", ph::TRASH, s.t("browser-delete")))
+                            .clicked()
+                        {
                             confirm = Some(Confirm {
                                 id: l.id.clone(),
                                 name: l.name.clone(),
@@ -739,7 +762,7 @@ fn confirm_dialog(t: &mut BrowserTool, ui: &mut egui::Ui, cx: &mut ToolContext, 
         "browser-delete",
         &s.t("browser-delete-title"),
         &body,
-        &s.t("browser-delete"),
+        &format!("{} {}", ph::TRASH, s.t("browser-delete")),
         &s.t("cancel"),
         true,
     ) {
@@ -899,7 +922,10 @@ fn icon_field(
     ui.horizontal(|ui| {
         if !icon.is_empty() {
             ui.add(egui::Image::from_uri(icon.clone()).fit_to_exact_size(egui::Vec2::splat(16.0)));
-            if ui.small_button(s.t("browser-icon-clear")).clicked() {
+            if ui
+                .small_button(format!("{} {}", ph::BROOM, s.t("browser-icon-clear")))
+                .clicked()
+            {
                 icon.clear();
                 *changed = true;
             }
@@ -1209,7 +1235,9 @@ pub fn add_favorite_dialog(
         }
         ui.add_space(12.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if form::primary_button(ui, theme, &s.t("browser-add")).clicked() {
+            if form::primary_button(ui, theme, &format!("{} {}", ph::PLUS, s.t("browser-add")))
+                .clicked()
+            {
                 if d.making_folder {
                     let name = d.new_folder.trim().to_string();
                     if !name.is_empty() {
@@ -1219,7 +1247,7 @@ pub fn add_favorite_dialog(
                     add = Some(d.folder.clone());
                 }
             }
-            if ui.button(s.t("cancel")).clicked() {
+            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                 close = true;
             }
         });
@@ -1312,7 +1340,7 @@ pub fn fill_password_dialog(
         }
         ui.add_space(12.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button(s.t("cancel")).clicked() {
+            if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
                 close = true;
             }
         });

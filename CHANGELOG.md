@@ -11,32 +11,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.131.0 — 2026-11-07
+
 ### Added
 
-- Hovering a `{{variable}}` shows its value in a tooltip - the API Client's URL, Params, Headers and Body, and every shared field, key/value editor and Devtools input; a secret shows masked and is never decrypted for it, a locked vault or an unset name says so (FEAT-0107)
-- S3: clicking an object shows a preview of it - text, an image or rendered Markdown - in a column right of its details; it reads at most 2 MiB as a ranged read, can be cancelled, is cached by the object's ETag and has Retry, and a larger or unsupported object says so (FEAT-0108)
-
-### Changed
-
-- Open Here request cards show the request's method in its colour before the title, as the tab does (CR-0089)
-- Every button across the activities and Settings has a glyph before its label, including the ones confirmation dialogs, row menus, variable peeks, the AI Assistant and the date field draw; `dialog::confirm` adds its glyphs itself (CR-0063)
-- The notification list has Remove and Clear All behind a confirmation, and Delete on a Containers saved command or config, a Logs filter preset and a Tracker saved query asks first (CR-0067)
-- The key/value editor, launcher, Scratchpad, SSH and Terminal fields are a field's height, and the Automation queue and Queue consumer-lag tables are standard tables (CR-0061)
-- Queue Publish: the RabbitMQ exchange and routing key, the NATS subject and the Kafka partition are picked from what the broker lists, or typed when it lists nothing (CR-0090)
-- The S3 bucket column, the Redis key list and the NoSQL database column can be hidden from the toolbar and resized, and S3's objects, details and preview columns are resizable (CR-0091)
-- Redis Slow Log is a table with the clicked entry's detail under it, its Duration coloured by the log-level colours (under 10 ms DEBUG, 100 ms INFO, 1 s WARN, else ERROR) (CR-0092)
-- NoSQL Find and Aggregate show the clicked document's JSON in a resizable column right of the results (CR-0093)
-- A Terminal or SSH shell takes the keyboard when its tab comes to the front, unless a dialog or another field already has it (CR-0094)
-
-### Fixed
-
-- S3 preview: a file named like an image whose content is not one now says so, with Retry, instead of a bare red triangle (FEAT-0108)
-- S3 preview column has a structured header: the Preview heading, a rule, the file name with its kind's coloured icon, a rule (FEAT-0108)
-- Queue: the publish form's Add Header, Publish and Format JSON are standard-size buttons (CR-0063)
-- API Client: the sidebar's labelled buttons keep their label on one line and wrap as a whole (CR-0063)
-- Git: an Open Here card for a restored repository tab wears the repository's own icon, as its sidebar row does (BUG-0048)
-- Devtools .env Editor: whether a value is masked is decided by whole words of its key, so `SMTP_PASS` is masked and `AUTH_LOCKOUT_THRESHOLD` is not (BUG-0049)
-- API Client: the Body tab's kind buttons (None, JSON, Text, XML, Form, Multipart, Binary File) no longer grow under the pointer (BUG-0050)
+- A structured header for the preview column (6c90fb28)
+- Icon+label buttons everywhere, S3 preview, Redis Slow Log table, NoSQL JSON column, variable tooltips, shell focus (65b14b18)
 
 ## 0.130.0 — 2026-11-07
 

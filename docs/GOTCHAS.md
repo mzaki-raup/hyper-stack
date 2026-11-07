@@ -300,6 +300,20 @@ Known mistakes and their fixes. Read the section for your area before starting w
   `Frame::new().fill(theme.gutter_bg).inner_margin(Margin::symmetric(8, 6))`;
   the go-to-line bar beside it had none, so its label touched the left
   border. Bars that appear in the same place want the same frame.
+- **A header band painted to the clip edge spills out of its card.**
+  `table::begin_header_band` took the band's right edge from
+  `ui.clip_rect()`, which inside a `form::section` card is the whole
+  pane, so the Devtools Hashes and Cron tables' accent band ran past the
+  card to the window edge. Bound it by `ui.max_rect()` as well: the clip
+  edge only matters for a table that scrolls sideways.
+- **`Reorder::row` centres its grip on everything the closure drew.**
+  An open collection or folder draws its children inside the row, so
+  the grip slid down beside them. A row that opens below itself uses
+  `Reorder::group_row(ui, i, head_h, …)`, which centres the grip on
+  the header's `head_h` only.
+- **A `DataTable` with no columns still drew its header band** - a bare
+  purple bar under NoSQL's "No documents". `DataTable::show` now
+  returns early with no columns.
 
 ## Tool-Specific: Terminal and Editor
 

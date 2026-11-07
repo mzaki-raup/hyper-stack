@@ -463,24 +463,32 @@ impl AssistantPanel {
             return output;
         }
         crate::form::centred_row(ui, |ui| {
-            let selected = providers
-                .iter()
-                .find(|p| p.id == self.provider)
-                .map(|p| p.name.clone())
-                .unwrap_or_default();
-            egui::ComboBox::from_id_salt(ui.id().with("assistant-provider"))
-                .width(130.0)
-                .selected_text(selected)
-                .show_ui(ui, |ui| {
+            let current = providers.iter().find(|p| p.id == self.provider);
+            let selected = current.map(|p| p.name.clone()).unwrap_or_default();
+            // The provider's mark leads the closed box and every row (CR-0081).
+            let mark = |p: &hs_core::settings::AiProvider| {
+                crate::form::Mark::conn(crate::icons::ai_provider_icon(p.kind, &p.base_url), theme)
+            };
+            let current_mark = current.map_or_else(
+                || crate::form::Mark::glyph(crate::icons::ph::SPARKLE, None),
+                mark,
+            );
+            crate::form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt(ui.id().with("assistant-provider")).width(130.0),
+                current_mark,
+                selected,
+                |ui| {
                     for p in &providers {
-                        if crate::form::selectable_label(ui, p.id == self.provider, &p.name)
+                        if crate::form::mark_selectable(ui, p.id == self.provider, mark(p), &p.name)
                             .clicked()
                         {
                             self.provider = p.id.clone();
                             self.model = p.model.clone();
                         }
                     }
-                });
+                },
+            );
             ui.add(
                 crate::form::line_edit(&mut self.model)
                     .hint_text(s.t("ai-model"))

@@ -127,31 +127,31 @@ pub fn render(body: &str, fills: &[(String, String)]) -> String {
 }
 
 pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+    use hs_ui::table::{EditColumn, edit_table};
+    use hs_ui::tip::TipExt;
     let dir = s.workspace.read().root().to_path_buf();
     if !state.loaded {
         state.items = load(&dir);
         state.loaded = true;
     }
+    crate::util::page_title(ui, s, theme, "dt-snippets", Some("dt-snippets-sub"));
     form::section(ui, theme, &s.t("dt-snippets"), |ui| {
         form::hint(ui, theme, &s.t("dt-snippets-hint"));
-        ui.horizontal(|ui| {
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
             ui.add(
-                egui::TextEdit::singleline(&mut state.search)
+                form::line_edit(&mut state.search)
                     .hint_text(s.t("dt-snippets-search"))
-                    .margin(hs_ui::form::FIELD_MARGIN)
-                    .desired_width(260.0),
+                    .desired_width(form::FIELD_MIN_WIDTH),
             );
-            if ui
-                .button(format!("{} {}", ph::PLUS, s.t("dt-snippets-new")))
-                .clicked()
-            {
+            if form::button(ui, theme, ph::PLUS, &s.t("dt-snippets-new")).clicked() {
                 state.editing = Some((None, Snippet::default()));
             }
         });
         if let Some(e) = &state.error {
             form::note(ui, theme, ph::WARNING, e);
         }
-        ui.add_space(6.0);
+        ui.add_space(form::ROW_GAP);
         let found: Vec<(usize, Snippet)> = {
             let hits = search(&state.items, &state.search);
             hits.into_iter()
@@ -164,84 +164,100 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 })
                 .collect()
         };
-        if found.is_empty() {
-            form::hint(ui, theme, &s.t("dt-snippets-none"));
-        }
-        // Fixed slots for the name and the language, so the language,
-        // the tags and the row actions line up down the list instead of
-        // starting wherever the name happens to end.
-        let total = ui.available_width().clamp(420.0, 900.0);
-        let name_w = (total * 0.34).clamp(160.0, 280.0);
-        let lang_w = 70.0;
         let mut edit: Option<usize> = None;
         let mut remove: Option<usize> = None;
         let mut pick: Option<usize> = None;
+        let (name_col, lang_col, tags_col, actions_col, empty) = (
+            s.t("dt-snippets-name"),
+            s.t("dt-snippets-language"),
+            s.t("dt-snippets-tags"),
+            s.t("dt-col-actions"),
+            s.t("dt-snippets-none"),
+        );
+        let delete_label = s.t("delete");
+        let edit_label = s.t("dt-snippets-edit");
+        let selected = state.selected;
         egui::ScrollArea::vertical()
             .id_salt("dt-snippets-list")
-            .max_height(220.0)
+            .max_height(260.0)
             .show(ui, |ui| {
-                for (i, sn) in &found {
-                    ui.horizontal(|ui| {
-                        let open = state.selected == Some(*i);
-                        let slot = egui::Layout::left_to_right(egui::Align::Center);
-                        let row = ui
-                            .allocate_ui_with_layout(egui::vec2(name_w, 22.0), slot, |ui| {
-                                // The slot keeps its width when the name is
-                                // short: allocate_ui otherwise takes only
-                                // what the child used.
-                                ui.set_min_width(name_w);
-                                hs_ui::form::add_selectable(
+                edit_table(
+                    ui,
+                    theme,
+                    "dt-snippets-table",
+                    &[
+                        EditColumn::new(&name_col, 220.0),
+                        EditColumn::new(&lang_col, 100.0),
+                        EditColumn::new(&tags_col, 200.0),
+                        EditColumn::new(&actions_col, 0.0),
+                    ],
+                    found.len(),
+                    Some(&empty),
+                    |ui, r, c| {
+                        let (i, sn) = &found[r];
+                        match c {
+                            0 => {
+                                let row = form::selectable_label(
                                     ui,
-                                    egui::Button::selectable(open, &sn.name),
-                                )
-                            })
-                            .inner;
-                        row.context_menu(|ui| {
-                            if ui
-                                .button(format!("{} {}", hs_ui::icons::TRASH, s.t("delete")))
-                                .clicked()
-                            {
-                                remove = Some(*i);
-                                ui.close();
+                                    selected == Some(*i),
+                                    sn.name.as_str(),
+                                );
+                                row.context_menu(|ui| {
+                                    if hs_ui::toolbar::btn(
+                                        ui,
+                                        theme,
+                                        hs_ui::icons::TRASH,
+                                        &delete_label,
+                                    )
+                                    .clicked()
+                                    {
+                                        remove = Some(*i);
+                                        ui.close();
+                                    }
+                                });
+                                if row.clicked() {
+                                    pick = Some(*i);
+                                }
                             }
-                        });
-                        if row.clicked() {
-                            pick = Some(*i);
-                        }
-                        ui.allocate_ui_with_layout(egui::vec2(lang_w, 22.0), slot, |ui| {
-                            ui.set_min_width(lang_w);
-                            if !sn.language.is_empty() {
+                            1 => {
                                 ui.add(
                                     egui::Label::new(
-                                        egui::RichText::new(&sn.language)
-                                            .small()
-                                            .color(theme.accent),
+                                        egui::RichText::new(&sn.language).color(theme.accent),
                                     )
                                     .truncate(),
                                 );
                             }
-                        });
-                        for t in &sn.tags {
-                            ui.label(
-                                egui::RichText::new(format!("#{t}"))
-                                    .small()
-                                    .color(theme.text_muted),
-                            );
+                            2 => {
+                                let tags = sn
+                                    .tags
+                                    .iter()
+                                    .map(|t| format!("#{t}"))
+                                    .collect::<Vec<_>>()
+                                    .join(" ");
+                                ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(tags).color(theme.text_muted),
+                                    )
+                                    .truncate(),
+                                );
+                            }
+                            _ => {
+                                if form::icon_button(ui, theme, ph::PENCIL_SIMPLE, 14.0, false)
+                                    .tip(edit_label.as_str())
+                                    .clicked()
+                                {
+                                    edit = Some(*i);
+                                }
+                                if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                                    .tip(delete_label.as_str())
+                                    .clicked()
+                                {
+                                    remove = Some(*i);
+                                }
+                            }
                         }
-                        hs_ui::toolbar::hard_right(ui, |ui| {
-                            if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
-                                .clicked()
-                            {
-                                remove = Some(*i);
-                            }
-                            if form::icon_button(ui, theme, ph::PENCIL_SIMPLE, 14.0, false)
-                                .clicked()
-                            {
-                                edit = Some(*i);
-                            }
-                        });
-                    });
-                }
+                    },
+                );
             });
         if let Some(i) = pick {
             state.selected = (state.selected != Some(i)).then_some(i);
@@ -277,8 +293,8 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 &s.t("dt-snippets-delete"),
                 &s.i18n
                     .t_args("dt-snippets-delete-body", &[("name", name.as_str())]),
-                &s.t("delete"),
-                &s.t("cancel"),
+                &format!("{} {}", hs_ui::icons::TRASH, s.t("delete")),
+                &format!("{} {}", ph::X, s.t("cancel")),
                 true,
             ) {
                 hs_ui::dialog::DialogResult::Ok => {
@@ -299,24 +315,21 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         if let Some(i) = state.selected
             && let Some(sn) = state.items.get(i).cloned()
         {
-            ui.add_space(8.0);
+            ui.add_space(form::PANE_GAP);
             ui.separator();
+            ui.add_space(form::PANE_GAP);
             ui.label(egui::RichText::new(&sn.name).strong());
-            for (name, value) in state.fills.iter_mut() {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(
-                        egui::RichText::new(format!("{{{{{name}}}}}"))
-                            .small()
-                            .monospace()
-                            .color(theme.text_muted),
-                    );
-                    ui.add(
-                        hs_ui::form::line_edit(value)
-                            .hint_text(name.as_str())
-                            .desired_width(200.0),
-                    );
+            if !state.fills.is_empty() {
+                ui.add_space(form::ROW_GAP);
+                form::field_grid(ui, "dt-snippet-fills", |ui| {
+                    for (name, value) in state.fills.iter_mut() {
+                        form::label(ui, &format!("{{{{{name}}}}}"));
+                        form::text_field(ui, value, name.as_str());
+                        ui.end_row();
+                    }
                 });
             }
+            ui.add_space(form::ROW_GAP);
             let filled = render(&sn.body, &state.fills);
             let mut shown = filled.clone();
             ui.add(
@@ -326,11 +339,16 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     .desired_width(f32::INFINITY)
                     .interactive(false),
             );
-            ui.horizontal(|ui| {
-                if form::primary_button(ui, theme, &s.t("dt-copy")).clicked() {
-                    ui.ctx().copy_text(filled.clone());
-                }
-            });
+            ui.add_space(form::ROW_GAP);
+            if form::primary_button(
+                ui,
+                theme,
+                &format!("{} {}", hs_ui::icons::COPY, s.t("dt-copy")),
+            )
+            .clicked()
+            {
+                ui.ctx().copy_text(filled.clone());
+            }
         }
     });
     // The editor.
@@ -370,6 +388,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 }
                 ui.end_row();
             });
+            ui.add_space(form::ROW_GAP);
             ui.label(s.t("dt-snippets-body"));
             ui.add(
                 egui::TextEdit::multiline(&mut draft.body)
@@ -380,9 +399,17 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             form::hint(ui, theme, &s.t("dt-snippets-placeholder-hint"));
             ui.add_space(10.0);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = form::BUTTON_GAP;
                 let ready = !draft.name.trim().is_empty() && !draft.body.trim().is_empty();
                 if ui
-                    .add_enabled(ready, egui::Button::new(s.t("save")))
+                    .add_enabled_ui(ready, |ui| {
+                        form::primary_button(
+                            ui,
+                            theme,
+                            &format!("{} {}", ph::FLOPPY_DISK, s.t("save")),
+                        )
+                    })
+                    .inner
                     .clicked()
                 {
                     match index {
@@ -399,7 +426,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     close = true;
                     keep = false;
                 }
-                if ui.button(s.t("cancel")).clicked() {
+                if form::button(ui, theme, ph::X, &s.t("cancel")).clicked() {
                     close = true;
                     keep = false;
                 }

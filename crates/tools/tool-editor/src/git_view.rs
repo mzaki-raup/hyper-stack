@@ -1704,6 +1704,18 @@ fn folder_header(
     root: &Path,
     right: Option<&mut dyn FnMut(&mut egui::Ui)>,
 ) {
+    // The row is its tallest item's height before it opens - the 15 px
+    // icon buttons on the right (`form::icon_button`'s square: size plus
+    // 0.45 x size each side), or the name - so the folder picture and the
+    // name share the buttons' middle line (owner, 2026-11-07).
+    let text_h = ui.text_style_height(&egui::TextStyle::Body) + 2.0 * ui.spacing().button_padding.y;
+    let row_h = if right.is_some() {
+        text_h.max(15.0 + 2.0 * (15.0_f32 * 0.45).round())
+    } else {
+        text_h
+    };
+    let saved_h = ui.spacing().interact_size.y;
+    ui.spacing_mut().interact_size.y = row_h;
     ui.horizontal(|ui| {
         fileicons::show_icon(
             ui,
@@ -1717,6 +1729,7 @@ fn folder_header(
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
         }
     });
+    ui.spacing_mut().interact_size.y = saved_h;
 }
 
 /// The sentence to show instead of git's own words for a status that

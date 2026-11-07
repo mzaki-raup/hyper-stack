@@ -1102,6 +1102,9 @@ impl SshTool {
             ui.colored_label(theme.error, e);
         }
         if loading {
+            // Air between the toolbar and the status line (owner,
+            // 2026-11-07).
+            ui.add_space(form::ROW_GAP);
             ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(egui::RichText::new(s.t("ssh-loading")).weak());
@@ -1685,11 +1688,17 @@ impl SshTool {
             ui.label(egui::RichText::new(s.t("ssh-tunnels-none")).weak());
         }
         if let Some(form_state) = &mut self.tunnel_form {
-            let hosts: Vec<(String, String)> = s
+            let hosts: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                 .connections
                 .read()
                 .of_kind("ssh")
-                .map(|c| (c.id.clone(), c.name.clone()))
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        hs_ui::icons::profile_conn_icon(c),
+                    )
+                })
                 .collect();
             let mut start = false;
             let mut cancel = false;
@@ -1719,27 +1728,33 @@ impl SshTool {
                             .desired_width(f32::INFINITY),
                     );
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-via")).weak());
-                    let current = hosts
-                        .iter()
-                        .find(|(id, _)| *id == form_state.ssh_id)
-                        .map(|(_, n)| n.clone())
-                        .unwrap_or_default();
+                    let current = hosts.iter().find(|(id, ..)| *id == form_state.ssh_id);
+                    // No host picked yet: the computer the host groups use.
+                    let unpicked = hs_ui::icons::ConnIcon::glyph(ph::COMPUTER_TOWER);
+                    let current_mark =
+                        hs_ui::form::Mark::conn(current.map_or(unpicked, |h| h.2), theme);
+                    let current = current.map(|(_, n, _)| n.clone()).unwrap_or_default();
                     hs_ui::form::match_field_height(ui);
                     // Widths below stay inside the sidebar: anything wider
                     // grows the panel a little every frame.
-                    egui::ComboBox::from_id_salt("ssh-tunnel-host")
-                        .selected_text(current)
-                        .width((ui.available_width() - 24.0).max(60.0))
-                        .show_ui(ui, |ui| {
-                            for (id, name) in &hosts {
-                                hs_ui::form::selectable_value(
+                    hs_ui::form::mark_combo(
+                        ui,
+                        egui::ComboBox::from_id_salt("ssh-tunnel-host")
+                            .width((ui.available_width() - 24.0).max(60.0)),
+                        current_mark,
+                        current,
+                        |ui| {
+                            for (id, name, icon) in &hosts {
+                                hs_ui::form::mark_selectable_value(
                                     ui,
                                     &mut form_state.ssh_id,
                                     id.clone(),
+                                    hs_ui::form::Mark::conn(*icon, theme),
                                     name,
                                 );
                             }
-                        });
+                        },
+                    );
                     ui.label(egui::RichText::new(s.t("ssh-tunnel-remote-host")).weak());
                     ui.add(
                         hs_ui::form::line_edit(&mut form_state.remote_host)

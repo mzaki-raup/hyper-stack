@@ -74,7 +74,11 @@ and theme.
 > **Automation**, **Queue** and **Tracker** (2026-10-31). Since then: Git
 > hosts with a tab per host and a Files view (2026-11-05), Puppet and Kafka
 > SASL (2026-11-05), and a **table designer** in the Database activity
-> (v0.127.0, 2026-11-06). Cassandra, pull requests / issues / CI status in
+> (v0.127.0, 2026-11-06). Then a UI pass (2026-11-06/07): one layout
+> standard for every pane, table and Settings form, products' real logos
+> and coloured marks wherever an item is drawn, **29 colour schemes**,
+> **environment tiers** with their own marks, and lettered tiles for
+> workspaces without a logo. Cassandra, pull requests / issues / CI status in
 > Git, and ELK are still to come. The remaining
 > milestones are in [docs/07-roadmap.md](docs/07-roadmap.md). Sibling project:
 > `../eden-explorer` (Rust + egui file manager) serves as a **reference
@@ -151,8 +155,38 @@ band, equal-width summary boxes, **Start Here** buttons that open the
 right Settings form with the kind already chosen, a grid of the saved
 things (shells, hosts, databases, collections, repositories, notes…) and
 **Open Here**, the activity's open tabs each carrying the last picture
-taken of its pane. Opening a connection, a note or a shell always makes a
+taken of its pane and the tab's own coloured icon beside its title and
+subtitle. Opening a connection, a note or a shell always makes a
 tab beside it. Pinning a tab puts it directly after the permanent one.
+
+Across every activity (2026-11-06/07):
+
+- **Environment tiers** - each environment wears its tier's icon and
+  colour (Local, Development, Integration, Testing, Training, Acceptance,
+  Staging, Production Support, Production), matched from its name or set
+  by hand in Settings → Environments; a protected one always shows the red
+  shield, and Production and Production Support start out protected.
+- **Workspace tiles** - a workspace without a logo shows a lettered tile
+  (one or two initials) in a colour of its own, in the title bar, Home and
+  Settings.
+- **Real marks, in colour** - saved shells and CLIs, Git hosts, SSH hosts
+  and S3 stores wear their products' logos in their list row, tab,
+  dashboard card, Home's Recent and Settings; dropdown items (workspace,
+  environment, shell, connection, engine, AI provider…) show their kind's
+  mark in colour; every work-pane header wears its tab's mark; Quick Open
+  and the command palette colour their icons by kind.
+- **Lists** - History and Recent lists clear from a right-click (Clear
+  History, Remove) and saved items have Delete there, behind a
+  confirmation; menu items carry glyphs; list rows wear Material pictures
+  when Material icons are on.
+- **Layout** - one standard for margins, field heights, tables (an accent
+  header band, centred cells) and button rows that wrap at a narrow
+  window; a pane holding tabs is never narrower than its tabs; show/hide
+  toggles for a pane's columns sit first in the activity's toolbar;
+  hovering a control highlights it without making it grow.
+- **Log colours** - log lines outside the Logs activity (the Output dock,
+  Automation run logs, the API console, the debug console) colour the
+  level word with the Logs activity's colours.
 
 | | |
 |---|---|
@@ -230,7 +264,10 @@ repository opens beside it; one not cloned yet asks for a parent folder
 (remembered per host), clones there (shallow if Settings → Git says so)
 and is registered as an Editor project too. A repository's **Files** view reads, edits, adds, renames,
 deletes and uploads files, with a branch picker; the dashboard has a
-Saved Hosts card and Add Host.
+Saved Hosts card and Add Host. Hosts wear their forge's logo (GitHub,
+GitLab, Forgejo, Gitea, Bitbucket, Azure DevOps), and the tag target, the
+rebase base and the merge source are picked from the repository's own
+refs.
 
 ### Terminal
 
@@ -242,6 +279,10 @@ Saved Hosts card and Add Host.
 | **Shell list** - PowerShell 7, Command Prompt, Nushell and Git Bash, ordered by preference | **Links** - hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
 | ![CLI tools](docs/screenshots/terminal-cli.png) | |
 | **CLI tools** (Settings → Terminal) - a profile such as `cmd /k echo Hello from CLI`, `mysql`, `psql`, `claude` or `opencode` opens a terminal tab and types its command line once the shell is ready | |
+
+Shells and CLIs wear their products' logos - PowerShell, Command Prompt,
+Git Bash, WSL distros, Nushell, and Claude Code, OpenCode, Kilo Code and
+Cursor for the AI CLIs - in the sidebar, the tab and the dashboard.
 
 ### SSH and SFTP
 
@@ -256,6 +297,12 @@ Saved Hosts card and Add Host.
 | | |
 | **Clipboard** — Copy puts a remote entry (a folder with everything in it) on the system clipboard; paste uploads what the clipboard holds (Windows) | |
 
+Hosts wear their operating system's mark (Ubuntu, Alpine, FreeBSD,
+macOS…), and so does each host's group in the Tunnels list, where every
+tunnel has a coloured tunnel picture; the **Monitor** lays its figures out
+as a grid with a process table under it, and the Kept Forwards list
+scrolls.
+
 ### S3 and S3-compatible storage
 
 | | |
@@ -269,6 +316,9 @@ Saved Hosts card and Add Host.
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
 
+Stores wear their provider's logo (AWS, MinIO…) in the sidebar, the tab
+and the dashboard.
+
 ### Containers (Docker, Podman, Kubernetes)
 
 | | |
@@ -277,6 +327,10 @@ Saved Hosts card and Add Host.
 | **Dashboard** — every engine and cluster the workspace knows (Docker and Podman engines, Kubernetes contexts, Windows containers), **Scan Local** to find the ones on this machine and in WSL, the saved commands and Compose files, and the open tabs with their last picture | **An engine's tab** — the host's figures (running, stopped, images, volumes, networks), then Containers, Projects (Compose), Images, Volumes, Networks and the Swarm stacks, services and nodes as tables with a filter; a selected container's row offers start, stop, restart, remove, its logs (streamed into the Logs activity) and a shell in it |
 | ![Images](docs/screenshots/containers-images.png) | |
 | **Images and the rest** — images with size, age and id (pull, remove, prune), volumes and networks; a Kubernetes context shows namespaces, pods, workloads, services, config, nodes, events and custom resources, with YAML, pod logs, restart / scale / delete, `apply` behind a server-side dry-run diff, and port forwards; destructive verbs are guarded and read-only on a protected environment | |
+
+The column of item kinds (Containers, Projects, Images, Volumes, Networks,
+Swarm…) uses larger pictures, each kind in its own colour, and a
+container's Ports offer **Open in Browser**.
 
 ### SQL databases (PostgreSQL, MySQL / MariaDB, SQLite)
 
@@ -304,7 +358,7 @@ finds. Db2 is not yet verified against a server.
 | ![ER diagram from the catalog](docs/screenshots/db-erd.png) | ![Generated DDL](docs/screenshots/db-ddl.png) |
 | **ER diagram** — the schema's tables and their foreign keys drawn as an ERD and opened in the Diagram Editor, columns badged PK / FK / UQ and the relationship's cardinality read from whether the key's own columns are unique; **Export** writes it as an SVG | **Generate DDL** — CREATE TABLE, CREATE INDEX and ALTER TABLE … FOREIGN KEY for a whole schema in any of the three dialects, whichever the source is, with IF NOT EXISTS, DROP first, indexes and keys each optional |
 | ![Table designer](docs/screenshots/db-designer.png) | |
-| **Table designer** — Design Table… or New Table… opens a tab beside the queries: columns, indexes and foreign keys as a form, the ALTER or CREATE script underneath, what the engine cannot do in place said in the script, and Apply through the same guards as a typed script | |
+| **Table designer** — Design Table… or New Table… opens a tab beside the queries: columns, indexes and foreign keys as a form (index and key columns picked from the table's and the referenced table's columns), the ALTER or CREATE script underneath, what the engine cannot do in place said in the script, and Apply through the same guards as a typed script; New Query or a history entry brings its own tab back to the front | |
 | ![Schema compare and migration](docs/screenshots/db-compare.png) | ![Data compare](docs/screenshots/db-data-compare.png) |
 | **Compare Schema** against another saved connection — tables, columns, keys and indexes as New / Missing / Differs with both spellings side by side, and a generated migration whose additive steps are SQL and whose drops are commented out | **Compare Table Data** — one table sampled on both sides by primary key under a row bound, the rows that are new, missing or differ (with the columns that differ named), and generated INSERT / UPDATE with deletes left commented |
 
@@ -329,6 +383,10 @@ finds. Db2 is not yet verified against a server.
 | **Parsers and filters** — plain, JSON lines, logfmt, syslog, Nginx/Apache, PostgreSQL and JVM thread dumps detected from the first lines, levels normalised, terminal colour codes stripped at ingest so a coloured container log is readable *and* parsable, stack traces glued to their line; a thread dump becomes one record per thread with its state, locks and top frame as filterable fields (**Open Thread Dump…**, or paste one); filter chips (text, regex, level ≥, field, time; negatable), highlight rules, Follow and Pause, Find, Jump to Time, bookmarks, Save Filtered… | **App log in the dock** — the bottom dock's Logs tab shows HyperStack's own log at the level set in Settings → General → Behaviour, with a level picker, search, Copy and Clear; every error a tool reports lands there too |
 | ![Merged sources with statistics](docs/screenshots/logs-merge.png) | ![Windows Event Log](docs/screenshots/logs-eventlog.png) |
 | **Merge and statistics** — several saved sources in one view in time order, each record tagged with its source; the Statistics panel counts the filtered window by level, rate per minute, commonest messages and field values; highlight rules can **Alert** (a toast in front, a bell count on the tab behind, with a cooldown) | **journald and the Windows Event Log** — `journalctl -o json` on this machine or an SSH host with the unit's fields kept, and the Event Log followed through `Get-WinEvent` with levels mapped |
+
+Each saved source wears a colour of its own, picked by its place in the
+list so it is stable across restarts, on its sidebar row, its tab and its
+dashboard card.
 
 ### Automation
 
@@ -376,7 +434,7 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 
 - **Destinations** - queues, topics or streams with the figures their kind has (RabbitMQ ready / unacked / consumers / rates per vhost, Kafka partitions and offsets, a stream's length and groups, NATS messages and consumers, and for MQTT the topics seen during a bounded look at `#`), refreshed while the tab is on screen.
 - **Peek** reads up to 50 messages (1 MB) without consuming them, JSON pretty-printed and binary shown as hex with its headers; RabbitMQ can only read by requeueing, and the pane says so before the first peek.
-- **Publish** to the selected destination with headers, a routing key or record key, a partition, or QoS and retain.
+- **Publish** to a destination picked from the broker's list, with headers, a routing key or record key, a partition, or QoS and retain.
 - **Consumers** - Kafka groups with lag per partition (cancellable, with progress), Redis stream groups with pending and lag, NATS consumers, RabbitMQ consumers; **Bindings** for a RabbitMQ queue.
 - **Guards** - Purge asks first, Delete asks for the name to be typed, and a protected environment's tab is read-only with the driver refusing writes too.
 - **Credentials** - username and password, token or API key, whichever the broker takes, in the vault; Kafka SASL PLAIN, SCRAM-SHA-256/512 and OAUTHBEARER.
@@ -427,7 +485,12 @@ globals. A non-GET request to a protected environment asks first.
 | **Utility tabs** (2026-10-29) - every utility opens in its own tab under a toolbar row that names it and keeps the hard-right corner for an AI Assistant control; the activity's dashboard lists all fifteen | |
 
 Also **TOML** and **XML** (check, format, convert) and **Firebase tokens**;
-keys typed into a utility are never saved.
+keys typed into a utility are never saved. Each utility wears its own
+coloured picture, the same in the sidebar, the dashboard and its tab, and
+its tab shows the utility's whole name. Every utility's form follows the
+app's layout standard - fields on one middle line, standard buttons with
+an icon and a label, results in proper tables that say when they are
+empty, and Listening Ports' Kill asking before it acts.
 
 ### Graphics
 
@@ -471,7 +534,10 @@ See [docs/tools/diagrams.md](docs/tools/diagrams.md).
 
 The picture operations are resize, scale, extend canvas, crop, rotate, flip,
 brightness, contrast, hue, saturation, grayscale, invert, blur and sharpen,
-each removable; the AI assistant is review-only.
+each removable; the AI assistant is review-only. Image, Icon, Diagram
+Editor and Diagram Generator each wear their own picture in the sidebar,
+the dashboard and the tab, and the Image and Icon editors have a
+Properties toggle that hides the settings column.
 
 ### Scratchpad and assistant
 
@@ -521,6 +587,18 @@ Every tab can be **snipped** to a PNG (Ctrl+Alt+S, camera menu) or
 opens in your browser: code with its highlighting, the Markdown preview,
 a query with its result table, a console screen, an S3 listing, a request
 with its response, a picture.
+
+**Appearance** offers 29 colour schemes, each checked for readable
+contrast: HyperStack Dark and Light, Ayu, Catppuccin (Mocha, Macchiato,
+Latte), Dracula, Everforest, GitHub, Gruvbox, Kanagawa, Material
+Palenight, Monokai, Night Owl and Light Owl, Nord, One Dark and One Light,
+Rosé Pine and Rosé Pine Dawn, Solarized, Tokyo Night and Tokyo Night Day,
+and Tomorrow. **Environments** has a Tier dropdown beside the protected
+flag. Every Settings page is laid out as two columns - labels
+left-aligned, sub-settings indented under their parent, every control
+starting at the same x - with even spacing and one button size; About
+keeps the data folder on one row and the update policy and Check for
+Updates share one Updates card; Settings → Workspace has a Switch button per workspace.
 
 ## Why
 

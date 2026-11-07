@@ -389,7 +389,8 @@ fn ws_logo(
         .and_then(|root| crate::app::ws_logo_image(&root))
 }
 
-/// Draw a workspace's logo (the folder glyph when it has none) at `size`.
+/// Draw a workspace's logo (its lettered tile when it has none, CR-0082)
+/// at `size`.
 /// Every place that names a workspace shows the same mark, at one of the
 /// `crate::app::WS_MARK_*` sizes, centred on the name beside it.
 fn ws_icon(
@@ -399,7 +400,17 @@ fn ws_icon(
     name: &str,
     size: f32,
 ) {
-    crate::app::ws_mark(ui, ws_logo(s, registry, name), size);
+    crate::app::ws_mark(ui, name, ws_logo(s, registry, name), size);
+}
+
+/// A workspace's mark for a dropdown (CR-0081), the same picture as
+/// [`ws_icon`].
+fn ws_dropdown_mark(
+    s: &Services,
+    registry: &hs_core::workspace::Registry,
+    name: &str,
+) -> hs_ui::form::Mark {
+    crate::app::ws_dropdown_mark(name, ws_logo(s, registry, name))
 }
 
 /// The "Copy Variables From…" dialog on the Environments page: which source
@@ -728,13 +739,7 @@ fn workspace(
                                 .fit_to_exact_size(egui::vec2(40.0, 40.0))
                                 .paint_at(ui, rect.shrink(2.0)),
                             None => {
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    hs_ui::icons::WORKSPACE,
-                                    egui::FontId::proportional(22.0),
-                                    theme.text_muted,
-                                );
+                                hs_ui::lettered::paint(ui.painter(), rect.shrink(2.0), &current)
                             }
                         }
                         ui.add_space(8.0);
@@ -839,27 +844,23 @@ fn workspace(
             }
             form::field_grid(ui, "ws-compare", |ui| {
                 form::label(ui, &s.t("settings-workspace-compare-with"));
-                ui.horizontal(|ui| {
-                    egui::ComboBox::from_id_salt("ws-compare-with")
-                        .width(form::FIELD_MIN_WIDTH)
-                        .selected_text(state.ws_compare.clone())
-                        .show_ui(ui, |ui| {
-                            for n in &others {
-                                ui.horizontal(|ui| {
-                                    ws_icon(ui, s, &registry, n, crate::app::WS_MARK_ROW);
-                                    hs_ui::form::selectable_value(
-                                        ui,
-                                        &mut state.ws_compare,
-                                        n.clone(),
-                                        n,
-                                    );
-                                });
-                            }
-                        });
-                    // The mark after the dropdown, so the dropdown starts
-                    // at the control column (owner, 2026-11-06).
-                    ws_icon(ui, s, &registry, &state.ws_compare, crate::app::WS_MARK_ROW);
-                });
+                form::mark_combo(
+                    ui,
+                    egui::ComboBox::from_id_salt("ws-compare-with").width(form::FIELD_MIN_WIDTH),
+                    ws_dropdown_mark(s, &registry, &state.ws_compare),
+                    state.ws_compare.clone(),
+                    |ui| {
+                        for n in &others {
+                            form::mark_selectable_value(
+                                ui,
+                                &mut state.ws_compare,
+                                n.clone(),
+                                ws_dropdown_mark(s, &registry, n),
+                                n,
+                            );
+                        }
+                    },
+                );
                 ui.end_row();
             });
             let here: Vec<(String, usize, bool)> = s
@@ -1111,37 +1112,27 @@ fn general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec<Set
             form::label(ui, &s.t("settings-startup-workspace"));
             let registry = hs_core::workspace::Registry::load(&s.paths);
             let names: Vec<String> = registry.workspaces.iter().map(|w| w.name.clone()).collect();
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("startup-ws")
-                    .width(form::FIELD_MIN_WIDTH)
-                    .selected_text(settings.general.startup_workspace.clone())
-                    .show_ui(ui, |ui| {
-                        for n in names {
-                            ui.horizontal(|ui| {
-                                ws_icon(ui, s, &registry, &n, crate::app::WS_MARK_ROW);
-                                if hs_ui::form::selectable_label(
-                                    ui,
-                                    settings.general.startup_workspace == n,
-                                    &n,
-                                )
-                                .clicked()
-                                {
-                                    settings.general.startup_workspace = n.clone();
-                                    changed = true;
-                                }
-                            });
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("startup-ws").width(form::FIELD_MIN_WIDTH),
+                ws_dropdown_mark(s, &registry, &settings.general.startup_workspace),
+                settings.general.startup_workspace.clone(),
+                |ui| {
+                    for n in names {
+                        if form::mark_selectable(
+                            ui,
+                            settings.general.startup_workspace == n,
+                            ws_dropdown_mark(s, &registry, &n),
+                            &n,
+                        )
+                        .clicked()
+                        {
+                            settings.general.startup_workspace = n.clone();
+                            changed = true;
                         }
-                    });
-                // The mark after the dropdown, so the dropdown starts at
-                // the control column (owner, 2026-11-06).
-                ws_icon(
-                    ui,
-                    s,
-                    &registry,
-                    &settings.general.startup_workspace,
-                    crate::app::WS_MARK_ROW,
-                );
-            });
+                    }
+                },
+            );
             ui.end_row();
             form::row_hint(ui, theme, &s.t("settings-startup-workspace-hint"));
             form::label(ui, &s.t("settings-language"));
@@ -2017,26 +2008,26 @@ fn appearance(
             .unwrap_or_else(|| open_name.clone());
         form::field_grid(ui, "rail-ws-pick", |ui| {
             form::label(ui, &s.t("settings-rail-workspace"));
-            ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("rail-ws")
-                    .width(form::FIELD_MIN_WIDTH)
-                    .selected_text(selected.clone())
-                    .show_ui(ui, |ui| {
-                        for w in &registry.workspaces {
-                            ui.horizontal(|ui| {
-                                ws_icon(ui, s, &registry, &w.name, crate::app::WS_MARK_ROW);
-                                if hs_ui::form::selectable_label(ui, selected == w.name, &w.name)
-                                    .clicked()
-                                {
-                                    state.rail_ws = Some(w.name.clone());
-                                }
-                            });
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("rail-ws").width(form::FIELD_MIN_WIDTH),
+                ws_dropdown_mark(s, &registry, &selected),
+                selected.clone(),
+                |ui| {
+                    for w in &registry.workspaces {
+                        if form::mark_selectable(
+                            ui,
+                            selected == w.name,
+                            ws_dropdown_mark(s, &registry, &w.name),
+                            &w.name,
+                        )
+                        .clicked()
+                        {
+                            state.rail_ws = Some(w.name.clone());
                         }
-                    });
-                // The mark after the dropdown, so the dropdown starts at
-                // the control column (owner, 2026-11-06).
-                ws_icon(ui, s, &registry, &selected, crate::app::WS_MARK_ROW);
-            });
+                    }
+                },
+            );
             ui.end_row();
             form::row_hint(ui, theme, &s.t("settings-rail-workspace-hint"));
         });
@@ -2341,25 +2332,39 @@ fn environments(
                     state.env_draft = Some((e, Vec::new()));
                     state.var_source = None;
                 }
-                let envs: Vec<(String, String, Option<String>, bool)> = s
+                type EnvRow = (
+                    String,
+                    String,
+                    Option<String>,
+                    (&'static str, egui::Color32),
+                );
+                let envs: Vec<EnvRow> = s
                     .environments
                     .read()
                     .all()
                     .iter()
-                    .map(|e| (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected))
+                    .map(|e| {
+                        (
+                            e.id.clone(),
+                            e.name.clone(),
+                            e.colour.clone(),
+                            hs_ui::envmark::env_mark(e, theme),
+                        )
+                    })
                     .collect();
                 if envs.is_empty() {
                     form::hint(ui, theme, &s.t("env-none-yet"));
                 }
-                for (id, name, colour, protected) in envs {
+                for (id, name, colour, (glyph, mark_col)) in envs {
                     let col = theme.env_colour(&name, colour.as_deref());
-                    let icon = if protected {
-                        hs_ui::icons::LOCK
-                    } else {
-                        hs_ui::icons::ENVIRONMENT
+                    // The tier's mark, the red shield when protected (FEAT-0106).
+                    let icon = hs_ui::icons::ConnIcon {
+                        glyph,
+                        image: None,
+                        tint: hs_ui::icons::ConnTint::Brand(mark_col),
                     };
                     let selected = state.env_selected.as_deref() == Some(&id);
-                    let r = form::list_row(ui, theme, selected, icon, &name, None);
+                    let r = form::conn_list_row(ui, theme, selected, icon, &name, None);
                     // Colour dot at the right edge.
                     let dot = egui::pos2(r.rect.right() - 14.0, r.rect.center().y);
                     ui.painter().circle_filled(dot, 5.0, col);
@@ -2482,46 +2487,110 @@ fn environments(
                         draft.colour = Some(hs_ui::theme::to_hex(col));
                     }
                     ui.end_row();
+                    // The tier: Automatic (matched from the name) or one
+                    // set by hand; Production and Production Support turn
+                    // Protected on when chosen (FEAT-0106).
+                    form::label(ui, &s.t("env-tier"));
+                    let matched = hs_core::environments::matched_tier(&draft.name);
+                    let tier_mark = |tier: Option<hs_core::environments::Tier>| {
+                        let (glyph, colour) = hs_ui::envmark::mark(false, tier, theme);
+                        form::Mark::glyph(glyph, Some(colour))
+                    };
+                    let auto_label = s.i18n.t_args(
+                        "env-tier-automatic",
+                        &[(
+                            "tier",
+                            &matched
+                                .map(|t| s.t(t.i18n_key()))
+                                .unwrap_or_else(|| s.t("env-tier-none")),
+                        )],
+                    );
+                    let mut tier = draft.tier;
+                    let tier_text = match tier {
+                        Some(t) => s.t(t.i18n_key()),
+                        None => auto_label.clone(),
+                    };
+                    form::mark_combo(
+                        ui,
+                        egui::ComboBox::from_id_salt("env-tier").width(form::FIELD_MIN_WIDTH),
+                        tier_mark(tier.or(matched)),
+                        tier_text,
+                        |ui| {
+                            form::mark_selectable_value(
+                                ui,
+                                &mut tier,
+                                None,
+                                tier_mark(matched),
+                                auto_label.clone(),
+                            );
+                            for t in hs_core::environments::Tier::ALL {
+                                form::mark_selectable_value(
+                                    ui,
+                                    &mut tier,
+                                    Some(t),
+                                    tier_mark(Some(t)),
+                                    s.t(t.i18n_key()),
+                                );
+                            }
+                        },
+                    );
+                    draft.set_tier(tier);
+                    ui.end_row();
                     form::label(ui, &s.t("env-parent"));
-                    let parents: Vec<(String, String)> = s
+                    let parents: Vec<(String, String, form::Mark)> = s
                         .environments
                         .read()
                         .all()
                         .iter()
                         .filter(|e| e.id != draft.id)
-                        .map(|e| (e.id.clone(), e.name.clone()))
+                        .map(|e| {
+                            (
+                                e.id.clone(),
+                                e.name.clone(),
+                                crate::app::env_dropdown_mark(theme, Some(e)),
+                            )
+                        })
                         .collect();
                     let current = draft
                         .parent
                         .clone()
-                        .and_then(|p| {
-                            parents
-                                .iter()
-                                .find(|(id, _)| *id == p)
-                                .map(|(_, n)| n.clone())
-                        })
+                        .and_then(|p| parents.iter().find(|(id, ..)| *id == p));
+                    let current_mark = current
+                        .map(|(_, _, m)| m.clone())
+                        .unwrap_or_else(|| crate::app::env_dropdown_mark(theme, None));
+                    let current = current
+                        .map(|(_, n, _)| n.clone())
                         .unwrap_or_else(|| "—".into());
-                    egui::ComboBox::from_id_salt("env-parent")
-                        .width(form::FIELD_MIN_WIDTH)
-                        .selected_text(current)
-                        .show_ui(ui, |ui| {
-                            if hs_ui::form::selectable_label(ui, draft.parent.is_none(), "—")
-                                .clicked()
+                    form::mark_combo(
+                        ui,
+                        egui::ComboBox::from_id_salt("env-parent").width(form::FIELD_MIN_WIDTH),
+                        current_mark,
+                        current,
+                        |ui| {
+                            if form::mark_selectable(
+                                ui,
+                                draft.parent.is_none(),
+                                crate::app::env_dropdown_mark(theme, None),
+                                "—",
+                            )
+                            .clicked()
                             {
                                 draft.parent = None;
                             }
-                            for (id, name) in parents {
-                                if hs_ui::form::selectable_label(
+                            for (id, name, mark) in &parents {
+                                if form::mark_selectable(
                                     ui,
-                                    draft.parent.as_deref() == Some(&id),
+                                    draft.parent.as_deref() == Some(id.as_str()),
+                                    mark.clone(),
                                     name,
                                 )
                                 .clicked()
                                 {
-                                    draft.parent = Some(id);
+                                    draft.parent = Some(id.clone());
                                 }
                             }
-                        });
+                        },
+                    );
                     ui.end_row();
                     form::label(ui, "");
                     ui.checkbox(&mut draft.protected, s.t("env-protected-flag"))
@@ -2582,6 +2651,12 @@ fn environments(
                 {
                     let mut env = draft.clone();
                     env.variables.clear();
+                    // A new environment of a production tier starts
+                    // protected; show it on the form too (FEAT-0106).
+                    if s.environments.read().by_id(&env.id).is_none() {
+                        env.apply_protected_default();
+                        draft.protected = env.protected;
+                    }
                     let vault_locked = s.secrets.is_locked();
                     let mut problem = None;
                     for row in vars
@@ -2872,13 +2947,23 @@ fn collection_copy_dialog(
             .show(ui, |ui| {
                 ui.label(s.t("env-copy-workspace"));
                 hs_ui::form::match_field_height(ui);
-                egui::ComboBox::from_id_salt("col-copy-ws")
-                    .selected_text(&cp.source_ws)
-                    .show_ui(ui, |ui| {
+                form::mark_combo(
+                    ui,
+                    egui::ComboBox::from_id_salt("col-copy-ws"),
+                    ws_dropdown_mark(s, &registry, &cp.source_ws),
+                    cp.source_ws.clone(),
+                    |ui| {
                         for n in &ws_names {
-                            hs_ui::form::selectable_value(ui, &mut cp.source_ws, n.clone(), n);
+                            form::mark_selectable_value(
+                                ui,
+                                &mut cp.source_ws,
+                                n.clone(),
+                                ws_dropdown_mark(s, &registry, n),
+                                n,
+                            );
                         }
-                    });
+                    },
+                );
                 ui.end_row();
                 ui.label(s.t("col-compare-collection"));
                 let sel_name = sources
@@ -3168,13 +3253,23 @@ fn env_copy_dialog(
             .show(ui, |ui| {
                 ui.label(s.t("env-copy-workspace"));
                 hs_ui::form::match_field_height(ui);
-                egui::ComboBox::from_id_salt("env-copy-ws")
-                    .selected_text(&cp.source_ws)
-                    .show_ui(ui, |ui| {
+                form::mark_combo(
+                    ui,
+                    egui::ComboBox::from_id_salt("env-copy-ws"),
+                    ws_dropdown_mark(s, &registry, &cp.source_ws),
+                    cp.source_ws.clone(),
+                    |ui| {
                         for n in &ws_names {
-                            hs_ui::form::selectable_value(ui, &mut cp.source_ws, n.clone(), n);
+                            form::mark_selectable_value(
+                                ui,
+                                &mut cp.source_ws,
+                                n.clone(),
+                                ws_dropdown_mark(s, &registry, n),
+                                n,
+                            );
                         }
-                    });
+                    },
+                );
                 ui.end_row();
                 ui.label(s.t("env-copy-environment"));
                 let sel_name = source_envs
@@ -4495,19 +4590,23 @@ fn conn_detail(
             // among its own page's kinds only (CR-0044).
             let (family, own_page) = kind_family(&draft.kind);
             let before = draft.kind.clone();
-            egui::ComboBox::from_id_salt("conn-kind")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(hs_core::connections::kind_label(&draft.kind))
-                .show_ui(ui, |ui| {
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("conn-kind").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(hs_ui::icons::conn_icon(&draft.kind, ""), theme),
+                hs_core::connections::kind_label(&draft.kind).to_string(),
+                |ui| {
                     for k in family {
-                        hs_ui::form::selectable_value(
+                        form::mark_selectable_value(
                             ui,
                             &mut draft.kind,
                             (*k).to_string(),
+                            form::Mark::conn(hs_ui::icons::conn_icon(k, ""), theme),
                             hs_core::connections::kind_label(k),
                         );
                     }
-                });
+                },
+            );
             // The Kind field is how a new one is chosen there, so a new
             // profile takes the chosen kind's defaults, and its name when
             // it still has the old kind's.
@@ -4534,38 +4633,57 @@ fn conn_detail(
             }
             ui.end_row();
             form::label(ui, &s.t("conn-environment"));
-            let envs: Vec<(String, String)> = s
+            let envs: Vec<(String, String, form::Mark)> = s
                 .environments
                 .read()
                 .all()
                 .iter()
-                .map(|e| (e.id.clone(), e.name.clone()))
+                .map(|e| {
+                    (
+                        e.id.clone(),
+                        e.name.clone(),
+                        crate::app::env_dropdown_mark(theme, Some(e)),
+                    )
+                })
                 .collect();
             let cur = draft
                 .environment
                 .clone()
-                .and_then(|id| envs.iter().find(|(i, _)| *i == id).map(|(_, n)| n.clone()))
-                .unwrap_or_else(|| "—".into());
-            egui::ComboBox::from_id_salt("conn-env")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(cur)
-                .show_ui(ui, |ui| {
-                    if hs_ui::form::selectable_label(ui, draft.environment.is_none(), "—").clicked()
+                .and_then(|id| envs.iter().find(|(i, ..)| *i == id));
+            let cur_mark = cur
+                .map(|(_, _, m)| m.clone())
+                .unwrap_or_else(|| crate::app::env_dropdown_mark(theme, None));
+            let cur = cur.map(|(_, n, _)| n.clone()).unwrap_or_else(|| "—".into());
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("conn-env").width(form::FIELD_MIN_WIDTH),
+                cur_mark,
+                cur,
+                |ui| {
+                    if form::mark_selectable(
+                        ui,
+                        draft.environment.is_none(),
+                        crate::app::env_dropdown_mark(theme, None),
+                        "—",
+                    )
+                    .clicked()
                     {
                         draft.environment = None;
                     }
-                    for (id, name) in envs {
-                        if hs_ui::form::selectable_label(
+                    for (id, name, mark) in &envs {
+                        if form::mark_selectable(
                             ui,
-                            draft.environment.as_deref() == Some(&id),
+                            draft.environment.as_deref() == Some(id.as_str()),
+                            mark.clone(),
                             name,
                         )
                         .clicked()
                         {
-                            draft.environment = Some(id);
+                            draft.environment = Some(id.clone());
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::label(ui, "");
             ui.checkbox(&mut draft.read_only, s.t("conn-read-only"));
@@ -5820,14 +5938,23 @@ fn terminal(
                 .or(profiles.first())
                 .map(|p| p.name.clone())
                 .unwrap_or_default();
-            egui::ComboBox::from_id_salt("term-default")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(current)
-                .show_ui(ui, |ui| {
+            let current_mark = profiles
+                .iter()
+                .find(|p| p.id == settings.terminal.default_profile)
+                .or(profiles.first())
+                .map(|p| tool_terminal::shell_conn_icon(&p.id))
+                .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL));
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("term-default").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(current_mark, theme),
+                current,
+                |ui| {
                     for p in profiles.iter() {
-                        if hs_ui::form::selectable_label(
+                        if form::mark_selectable(
                             ui,
                             settings.terminal.default_profile == p.id,
+                            form::Mark::conn(tool_terminal::shell_conn_icon(&p.id), theme),
                             &p.name,
                         )
                         .tip(&p.exe)
@@ -5837,7 +5964,8 @@ fn terminal(
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::label(ui, &s.t("settings-terminal-scrollback"));
             changed |= ui
@@ -6454,28 +6582,33 @@ fn project_detail(
                     name.to_string()
                 }
             };
-            egui::ComboBox::from_id_salt("project-language")
-                .selected_text(format!(
-                    "{} {current}",
-                    hs_ui::icons::language_icon(&draft.entry.language)
-                ))
-                .width(form::FIELD_MIN_WIDTH)
-                .show_ui(ui, |ui| {
-                    hs_ui::form::selectable_value(
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("project-language").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(
+                    hs_ui::icons::language_conn_icon(&draft.entry.language),
+                    theme,
+                ),
+                current,
+                |ui| {
+                    form::mark_selectable_value(
                         ui,
                         &mut draft.entry.language,
                         String::new(),
+                        form::Mark::conn(hs_ui::icons::language_conn_icon(""), theme),
                         s.t("settings-project-language-auto"),
                     );
                     for (id, name) in hs_core::projects::LANGUAGES {
-                        hs_ui::form::selectable_value(
+                        form::mark_selectable_value(
                             ui,
                             &mut draft.entry.language,
                             (*id).to_string(),
-                            format!("{} {name}", hs_ui::icons::language_icon(id)),
+                            form::Mark::conn(hs_ui::icons::language_conn_icon(id), theme),
+                            *name,
                         );
                     }
-                });
+                },
+            );
             ui.end_row();
         });
         form::subsection(ui, theme, &s.t("settings-project-git"));
@@ -6810,24 +6943,31 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
             form::row_hint(ui, theme, &s.t("settings-git-clone-folder-hint"));
 
             form::label(ui, &s.t("settings-git-terminal-profile"));
-            let clis: Vec<(String, String)> = settings
+            let clis: Vec<(String, String, hs_ui::icons::ConnIcon)> = settings
                 .terminal
                 .cli
                 .iter()
-                .map(|c| (c.id.clone(), c.name.clone()))
+                .map(|c| {
+                    let icon = hs_ui::icons::cli_conn_icon(&c.command, cli_icon(&c.icon));
+                    (c.id.clone(), c.name.clone(), icon)
+                })
                 .collect();
-            let current = clis
+            let default_mark = hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL);
+            let (current, current_mark) = clis
                 .iter()
-                .find(|(id, _)| *id == settings.git.terminal_profile)
-                .map(|(_, n)| n.clone())
-                .unwrap_or_else(|| s.t("settings-git-terminal-default"));
-            egui::ComboBox::from_id_salt("git-terminal-profile")
-                .selected_text(current)
-                .width(form::FIELD_MIN_WIDTH)
-                .show_ui(ui, |ui| {
-                    if hs_ui::form::selectable_label(
+                .find(|(id, ..)| *id == settings.git.terminal_profile)
+                .map(|(_, n, icon)| (n.clone(), *icon))
+                .unwrap_or_else(|| (s.t("settings-git-terminal-default"), default_mark));
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("git-terminal-profile").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(current_mark, theme),
+                current,
+                |ui| {
+                    if form::mark_selectable(
                         ui,
                         settings.git.terminal_profile.is_empty(),
+                        form::Mark::conn(default_mark, theme),
                         s.t("settings-git-terminal-default"),
                     )
                     .clicked()
@@ -6835,10 +6975,11 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                         settings.git.terminal_profile.clear();
                         changed = true;
                     }
-                    for (id, name) in &clis {
-                        if hs_ui::form::selectable_label(
+                    for (id, name, icon) in &clis {
+                        if form::mark_selectable(
                             ui,
                             settings.git.terminal_profile == *id,
+                            form::Mark::conn(*icon, theme),
                             name,
                         )
                         .clicked()
@@ -6847,7 +6988,8 @@ fn git_general(ui: &mut egui::Ui, theme: &Theme, s: &Services, effects: &mut Vec
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::row_hint(ui, theme, &s.t("settings-git-terminal-profile-hint"));
         });
@@ -7032,12 +7174,15 @@ fn credential_detail(
             ui.end_row();
 
             form::label(ui, &s.t("settings-git-cred-kind"));
-            egui::ComboBox::from_id_salt("git-cred-kind")
-                .selected_text(cred.kind.name())
-                .width(form::FIELD_MIN_WIDTH)
-                .show_ui(ui, |ui| {
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("git-cred-kind").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(hs_ui::icons::git_host_icon(cred.kind), theme),
+                cred.kind.name(),
+                |ui| {
                     for k in hs_core::git_hosts::HostKind::all() {
-                        if hs_ui::form::selectable_label(ui, cred.kind == k, k.name()).clicked() {
+                        let mark = form::Mark::conn(hs_ui::icons::git_host_icon(k), theme);
+                        if form::mark_selectable(ui, cred.kind == k, mark, k.name()).clicked() {
                             // The public host's address follows the kind
                             // until the user has typed one of their own.
                             let was_default = cred.base_url.is_empty()
@@ -7048,7 +7193,8 @@ fn credential_detail(
                             }
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
 
             form::label(ui, &s.t("settings-git-cred-url"));
@@ -7545,34 +7691,46 @@ fn repo_detail(
                 ui.end_row();
 
                 form::label(ui, &s.t("settings-git-repo-credential"));
-                let creds: Vec<(String, String)> = s
+                let creds: Vec<(String, String, hs_core::git_hosts::HostKind)> = s
                     .git_credentials
                     .read()
                     .all()
                     .iter()
-                    .map(|c| (c.id.clone(), c.label()))
+                    .map(|c| (c.id.clone(), c.label(), c.kind))
                     .collect();
-                let current = creds
-                    .iter()
-                    .find(|(id, _)| *id == e.credential)
-                    .map(|(_, n)| n.clone())
+                let current = creds.iter().find(|(id, ..)| *id == e.credential);
+                // No credential is an anonymous, generic remote.
+                let generic = hs_core::git_hosts::HostKind::Generic;
+                let current_mark =
+                    hs_ui::icons::git_host_icon(current.map_or(generic, |(.., k)| *k));
+                let current = current
+                    .map(|(_, n, _)| n.clone())
                     .unwrap_or_else(|| s.t("settings-git-repo-credential-none"));
-                egui::ComboBox::from_id_salt("git-repo-credential")
-                    .selected_text(current)
-                    .width(form::FIELD_MIN_WIDTH)
-                    .show_ui(ui, |ui| {
-                        if hs_ui::form::selectable_label(
+                form::mark_combo(
+                    ui,
+                    egui::ComboBox::from_id_salt("git-repo-credential")
+                        .width(form::FIELD_MIN_WIDTH),
+                    form::Mark::conn(current_mark, theme),
+                    current,
+                    |ui| {
+                        if form::mark_selectable(
                             ui,
                             e.credential.is_empty(),
+                            form::Mark::conn(hs_ui::icons::git_host_icon(generic), theme),
                             s.t("settings-git-repo-credential-none"),
                         )
                         .clicked()
                         {
                             e.credential.clear();
                         }
-                        for (id, name) in &creds {
-                            if hs_ui::form::selectable_label(ui, e.credential == *id, name)
-                                .clicked()
+                        for (id, name, kind) in &creds {
+                            if form::mark_selectable(
+                                ui,
+                                e.credential == *id,
+                                form::Mark::conn(hs_ui::icons::git_host_icon(*kind), theme),
+                                name,
+                            )
+                            .clicked()
                             {
                                 e.credential = id.clone();
                                 if let Some(c) = s.git_credentials.read().by_id(id) {
@@ -7580,7 +7738,8 @@ fn repo_detail(
                                 }
                             }
                         }
-                    });
+                    },
+                );
                 ui.end_row();
 
                 form::label(ui, &s.t("settings-git-repo-project"));
@@ -7765,16 +7924,16 @@ fn repo_detail(
                     name.to_string()
                 }
             };
-            egui::ComboBox::from_id_salt("git-repo-language")
-                .selected_text(format!(
-                    "{} {current}",
-                    hs_ui::icons::language_icon(&e.language)
-                ))
-                .width(form::FIELD_MIN_WIDTH)
-                .show_ui(ui, |ui| {
-                    if hs_ui::form::selectable_label(
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("git-repo-language").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(hs_ui::icons::language_conn_icon(&e.language), theme),
+                current,
+                |ui| {
+                    if form::mark_selectable(
                         ui,
                         e.language.is_empty(),
+                        form::Mark::conn(hs_ui::icons::language_conn_icon(""), theme),
                         s.t("settings-project-language-auto"),
                     )
                     .clicked()
@@ -7782,17 +7941,19 @@ fn repo_detail(
                         e.language = hs_core::projects::detect_language(&e.path).to_string();
                     }
                     for (id, name) in hs_core::projects::LANGUAGES {
-                        if hs_ui::form::selectable_label(
+                        if form::mark_selectable(
                             ui,
                             e.language == *id,
-                            format!("{} {name}", hs_ui::icons::language_icon(id)),
+                            form::Mark::conn(hs_ui::icons::language_conn_icon(id), theme),
+                            *name,
                         )
                         .clicked()
                         {
                             e.language = id.to_string();
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
         });
         let has_path = !e.path.as_os_str().is_empty();
@@ -8033,40 +8194,40 @@ fn editor(
                 .find(|p| p.id == settings.editor.terminal_profile)
                 .map(|p| p.name.clone())
                 .unwrap_or_else(|| s.t("settings-editor-terminal-shell-default"));
-            // Each shell beside its mark, the chosen one's beside the box
-            // (CR-0079).
-            ui.horizontal(|ui| {
-                let chosen = profiles
-                    .iter()
-                    .find(|p| p.id == settings.editor.terminal_profile)
-                    .map(|p| tool_terminal::shell_conn_icon(&p.id))
-                    .unwrap_or(hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL));
-                conn_mark(ui, theme, chosen);
-                egui::ComboBox::from_id_salt("editor-terminal-shell")
-                    .selected_text(current)
-                    .width(260.0)
-                    .show_ui(ui, |ui| {
-                        changed |= hs_ui::form::selectable_value(
+            // Each shell with its mark, the chosen one's in the box
+            // (CR-0079, CR-0081).
+            let default_mark = hs_ui::icons::ConnIcon::glyph(hs_ui::icons::ph::TERMINAL);
+            let chosen = profiles
+                .iter()
+                .find(|p| p.id == settings.editor.terminal_profile)
+                .map(|p| tool_terminal::shell_conn_icon(&p.id))
+                .unwrap_or(default_mark);
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("editor-terminal-shell").width(260.0),
+                form::Mark::conn(chosen, theme),
+                current,
+                |ui| {
+                    changed |= form::mark_selectable_value(
+                        ui,
+                        &mut settings.editor.terminal_profile,
+                        String::new(),
+                        form::Mark::conn(default_mark, theme),
+                        s.t("settings-editor-terminal-shell-default"),
+                    )
+                    .changed();
+                    for p in profiles.iter() {
+                        changed |= form::mark_selectable_value(
                             ui,
                             &mut settings.editor.terminal_profile,
-                            String::new(),
-                            s.t("settings-editor-terminal-shell-default"),
+                            p.id.clone(),
+                            form::Mark::conn(tool_terminal::shell_conn_icon(&p.id), theme),
+                            &p.name,
                         )
                         .changed();
-                        for p in profiles.iter() {
-                            ui.horizontal(|ui| {
-                                conn_mark(ui, theme, tool_terminal::shell_conn_icon(&p.id));
-                                changed |= hs_ui::form::selectable_value(
-                                    ui,
-                                    &mut settings.editor.terminal_profile,
-                                    p.id.clone(),
-                                    &p.name,
-                                )
-                                .changed();
-                            });
-                        }
-                    });
-            });
+                    }
+                },
+            );
             ui.end_row();
             form::row_hint(ui, theme, &s.t("settings-editor-terminal-hint"));
         });
@@ -8931,12 +9092,16 @@ fn s3_form(
     form::section(ui, theme, &s.t("conn-s3-section-endpoint"), |ui| {
         form::field_grid(ui, "s3-endpoint", |ui| {
             form::label(ui, &s.t("conn-s3-provider"));
-            egui::ComboBox::from_id_salt("s3-provider")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(provider_label(&f.provider))
-                .show_ui(ui, |ui| {
+            let label = provider_label(&f.provider).to_string();
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("s3-provider").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(hs_ui::icons::s3_provider_icon(&f.provider), theme),
+                label,
+                |ui| {
                     for p in PROVIDERS {
-                        if hs_ui::form::selectable_label(ui, f.provider == *p, provider_label(p))
+                        let mark = form::Mark::conn(hs_ui::icons::s3_provider_icon(p), theme);
+                        if form::mark_selectable(ui, f.provider == *p, mark, provider_label(p))
                             .clicked()
                             && f.provider != *p
                         {
@@ -8947,7 +9112,8 @@ fn s3_form(
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::label(ui, &s.t("conn-s3-endpoint"));
             changed |=
@@ -9187,7 +9353,7 @@ fn container_form(
                     }
                     Transport::Ssh => {
                         form::label(ui, &s.t("conn-container-over-ssh"));
-                        changed |= ssh_profile_picker(ui, s, &mut f.tunnel_ssh);
+                        changed |= ssh_profile_picker(ui, theme, s, &mut f.tunnel_ssh);
                         ui.end_row();
                     }
                     Transport::Wsl => {
@@ -9268,39 +9434,60 @@ fn container_form(
 
 /// A picker over the saved `ssh` profiles, for reaching an engine on
 /// another machine. Returns whether the choice changed.
-fn ssh_profile_picker(ui: &mut egui::Ui, s: &Services, chosen: &mut String) -> bool {
-    let profiles: Vec<(String, String)> = s
+fn ssh_profile_picker(ui: &mut egui::Ui, theme: &Theme, s: &Services, chosen: &mut String) -> bool {
+    let profiles: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
         .connections
         .read()
         .all()
         .iter()
         .filter(|p| p.kind == "ssh")
-        .map(|p| (p.id.clone(), p.name.clone()))
+        .map(|p| {
+            (
+                p.id.clone(),
+                p.name.clone(),
+                hs_ui::icons::profile_conn_icon(p),
+            )
+        })
         .collect();
     let mut changed = false;
-    let label = profiles
-        .iter()
-        .find(|(id, _)| id == chosen)
-        .map(|(_, name)| name.clone())
+    let none_mark = form::Mark::glyph(
+        hs_ui::icons::connection_icon("ssh", ""),
+        Some(theme.text_muted),
+    );
+    let current = profiles.iter().find(|(id, ..)| id == chosen);
+    let mark = current.map_or(none_mark.clone(), |(.., icon)| {
+        form::Mark::conn(*icon, theme)
+    });
+    let label = current
+        .map(|(_, name, _)| name.clone())
         .unwrap_or_else(|| s.t("conn-container-no-ssh"));
     hs_ui::form::match_field_height(ui);
-    egui::ComboBox::from_id_salt("container-ssh")
-        .width(form::FIELD_MIN_WIDTH)
-        .selected_text(label)
-        .show_ui(ui, |ui| {
-            if hs_ui::form::selectable_label(ui, chosen.is_empty(), s.t("conn-container-no-ssh"))
-                .clicked()
+    form::mark_combo(
+        ui,
+        egui::ComboBox::from_id_salt("container-ssh").width(form::FIELD_MIN_WIDTH),
+        mark,
+        label,
+        |ui| {
+            if form::mark_selectable(
+                ui,
+                chosen.is_empty(),
+                none_mark,
+                s.t("conn-container-no-ssh"),
+            )
+            .clicked()
             {
                 chosen.clear();
                 changed = true;
             }
-            for (id, name) in &profiles {
-                if hs_ui::form::selectable_label(ui, chosen == id, name).clicked() {
+            for (id, name, icon) in &profiles {
+                let mark = form::Mark::conn(*icon, theme);
+                if form::mark_selectable(ui, chosen == id, mark, name).clicked() {
                     *chosen = id.clone();
                     changed = true;
                 }
             }
-        });
+        },
+    );
     changed
 }
 
@@ -9368,12 +9555,15 @@ fn db_form(
                 .find(|(id, _)| f.engine.eq_ignore_ascii_case(id))
                 .map(|(_, l)| *l)
                 .unwrap_or("?");
-            egui::ComboBox::from_id_salt("db-engine")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(current)
-                .show_ui(ui, |ui| {
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("db-engine").width(form::FIELD_MIN_WIDTH),
+                form::Mark::conn(hs_ui::icons::conn_icon("db", &f.engine), theme),
+                current,
+                |ui| {
                     for (id, label) in engines {
-                        if hs_ui::form::selectable_label(ui, f.engine == id, label).clicked()
+                        let mark = form::Mark::conn(hs_ui::icons::conn_icon("db", id), theme);
+                        if form::mark_selectable(ui, f.engine == id, mark, label).clicked()
                             && f.engine != id
                         {
                             let old_default = f.engine().map(Engine::default_port);
@@ -9384,7 +9574,8 @@ fn db_form(
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             if f.engine().is_some_and(Engine::is_file) {
                 form::label(ui, &s.t("conn-db-file"));
@@ -9525,36 +9716,56 @@ fn db_form(
                     ui.end_row();
                 }
                 form::label(ui, &s.t("conn-db-tunnel"));
-                let hosts: Vec<(String, String)> = s
+                let hosts: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                     .connections
                     .read()
                     .of_kind("ssh")
-                    .map(|c| (c.id.clone(), c.name.clone()))
+                    .map(|c| {
+                        (
+                            c.id.clone(),
+                            c.name.clone(),
+                            hs_ui::icons::profile_conn_icon(c),
+                        )
+                    })
                     .collect();
                 let none = s.t("conn-db-no-tunnel");
-                let current = hosts
-                    .iter()
-                    .find(|(id, _)| *id == f.tunnel_ssh)
-                    .map(|(_, n)| n.clone())
+                let none_mark = form::Mark::glyph(
+                    hs_ui::icons::connection_icon("ssh", ""),
+                    Some(theme.text_muted),
+                );
+                let current = hosts.iter().find(|(id, ..)| *id == f.tunnel_ssh);
+                let current_mark = current.map_or(none_mark.clone(), |(.., icon)| {
+                    form::Mark::conn(*icon, theme)
+                });
+                let current = current
+                    .map(|(_, n, _)| n.clone())
                     .unwrap_or_else(|| none.clone());
-                egui::ComboBox::from_id_salt("db-tunnel")
-                    .width(form::FIELD_MIN_WIDTH)
-                    .selected_text(current)
-                    .show_ui(ui, |ui| {
-                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
-                            .clicked()
+                form::mark_combo(
+                    ui,
+                    egui::ComboBox::from_id_salt("db-tunnel").width(form::FIELD_MIN_WIDTH),
+                    current_mark,
+                    current,
+                    |ui| {
+                        if form::mark_selectable(
+                            ui,
+                            f.tunnel_ssh.is_empty(),
+                            none_mark,
+                            none.clone(),
+                        )
+                        .clicked()
                         {
                             f.tunnel_ssh.clear();
                             changed = true;
                         }
-                        for (id, name) in hosts {
-                            if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked()
-                            {
+                        for (id, name, icon) in hosts {
+                            let mark = form::Mark::conn(icon, theme);
+                            if form::mark_selectable(ui, f.tunnel_ssh == id, mark, name).clicked() {
                                 f.tunnel_ssh = id;
                                 changed = true;
                             }
                         }
-                    });
+                    },
+                );
                 ui.end_row();
                 form::row_hint(ui, theme, &s.t("conn-db-auth-hint"));
             });
@@ -9670,35 +9881,51 @@ fn redis_form(
                 ui.end_row();
             }
             form::label(ui, &s.t("conn-db-tunnel"));
-            let hosts: Vec<(String, String)> = s
+            let hosts: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                 .connections
                 .read()
                 .of_kind("ssh")
-                .map(|c| (c.id.clone(), c.name.clone()))
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        hs_ui::icons::profile_conn_icon(c),
+                    )
+                })
                 .collect();
             let none = s.t("conn-db-no-tunnel");
-            let current = hosts
-                .iter()
-                .find(|(id, _)| *id == f.tunnel_ssh)
-                .map(|(_, n)| n.clone())
+            let none_mark = form::Mark::glyph(
+                hs_ui::icons::connection_icon("ssh", ""),
+                Some(theme.text_muted),
+            );
+            let current = hosts.iter().find(|(id, ..)| *id == f.tunnel_ssh);
+            let current_mark = current.map_or(none_mark.clone(), |(.., icon)| {
+                form::Mark::conn(*icon, theme)
+            });
+            let current = current
+                .map(|(_, n, _)| n.clone())
                 .unwrap_or_else(|| none.clone());
-            egui::ComboBox::from_id_salt("redis-tunnel")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(current)
-                .show_ui(ui, |ui| {
-                    if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("redis-tunnel").width(form::FIELD_MIN_WIDTH),
+                current_mark,
+                current,
+                |ui| {
+                    if form::mark_selectable(ui, f.tunnel_ssh.is_empty(), none_mark, none.clone())
                         .clicked()
                     {
                         f.tunnel_ssh.clear();
                         changed = true;
                     }
-                    for (id, name) in hosts {
-                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked() {
+                    for (id, name, icon) in hosts {
+                        let mark = form::Mark::conn(icon, theme);
+                        if form::mark_selectable(ui, f.tunnel_ssh == id, mark, name).clicked() {
                             f.tunnel_ssh = id;
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::label(ui, &s.t("conn-redis-delimiter"));
             changed |= form::text_field(ui, &mut f.delimiter, ":").changed();
@@ -9808,35 +10035,51 @@ fn nosql_form(
                 ui.end_row();
             }
             form::label(ui, &s.t("conn-db-tunnel"));
-            let hosts: Vec<(String, String)> = s
+            let hosts: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                 .connections
                 .read()
                 .of_kind("ssh")
-                .map(|c| (c.id.clone(), c.name.clone()))
+                .map(|c| {
+                    (
+                        c.id.clone(),
+                        c.name.clone(),
+                        hs_ui::icons::profile_conn_icon(c),
+                    )
+                })
                 .collect();
             let none = s.t("conn-db-no-tunnel");
-            let current = hosts
-                .iter()
-                .find(|(id, _)| *id == f.tunnel_ssh)
-                .map(|(_, n)| n.clone())
+            let none_mark = form::Mark::glyph(
+                hs_ui::icons::connection_icon("ssh", ""),
+                Some(theme.text_muted),
+            );
+            let current = hosts.iter().find(|(id, ..)| *id == f.tunnel_ssh);
+            let current_mark = current.map_or(none_mark.clone(), |(.., icon)| {
+                form::Mark::conn(*icon, theme)
+            });
+            let current = current
+                .map(|(_, n, _)| n.clone())
                 .unwrap_or_else(|| none.clone());
-            egui::ComboBox::from_id_salt("nosql-tunnel")
-                .width(form::FIELD_MIN_WIDTH)
-                .selected_text(current)
-                .show_ui(ui, |ui| {
-                    if hs_ui::form::selectable_label(ui, f.tunnel_ssh.is_empty(), none.clone())
+            form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("nosql-tunnel").width(form::FIELD_MIN_WIDTH),
+                current_mark,
+                current,
+                |ui| {
+                    if form::mark_selectable(ui, f.tunnel_ssh.is_empty(), none_mark, none.clone())
                         .clicked()
                     {
                         f.tunnel_ssh.clear();
                         changed = true;
                     }
-                    for (id, name) in hosts {
-                        if hs_ui::form::selectable_label(ui, f.tunnel_ssh == id, name).clicked() {
+                    for (id, name, icon) in hosts {
+                        let mark = form::Mark::conn(icon, theme);
+                        if form::mark_selectable(ui, f.tunnel_ssh == id, mark, name).clicked() {
                             f.tunnel_ssh = id;
                             changed = true;
                         }
                     }
-                });
+                },
+            );
             ui.end_row();
             form::row_hint(ui, theme, &s.t("conn-ssh-secret-hint"));
         });

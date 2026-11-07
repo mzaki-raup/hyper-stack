@@ -142,6 +142,12 @@ impl DataTable<'_> {
 
     pub fn show(&self, ui: &mut egui::Ui, state: &mut TableState) -> TableResponse {
         let mut resp = TableResponse::default();
+        // No columns is no table: a header band with no titles reads as a
+        // bug (NoSQL with no documents, 2026-11-07). The caller's empty
+        // state says why.
+        if self.columns.is_empty() {
+            return resp;
+        }
         if self.show_filter {
             crate::form::centred_row(ui, |ui| {
                 ui.label(crate::icons::SEARCH);
@@ -343,7 +349,11 @@ pub fn begin_header_band(ui: &egui::Ui) -> HeaderBand {
     HeaderBand {
         idx: ui.painter().add(egui::Shape::Noop),
         left: r.left(),
-        right: r.right().max(ui.clip_rect().right()),
+        // Out to the visible edge for a table that scrolls sideways, but
+        // never past the area the table sits in (a card).
+        right: r
+            .right()
+            .max(ui.clip_rect().right().min(ui.max_rect().right())),
         top: ui.cursor().top(),
     }
 }
@@ -577,5 +587,66 @@ mod tests {
         assert_ne!(normal, accent);
         assert_eq!(text_colour(&shapes, "picked"), Some(normal));
         assert_eq!(text_colour(&shapes, "other"), Some(normal));
+    }
+
+    /// A header band inside a card stops at the card's edge; it never
+    /// spills to the window's clip edge (Devtools Hashes and Cron,
+    /// 2026-11-07).
+    #[test]
+    fn header_band_stays_inside_its_area() {
+        let theme = Theme::dark();
+        let cols = [EditColumn::new("name", 80.0)];
+        let ctx = egui::Context::default();
+        let mut out = None;
+        for _ in 0..2 {
+            out = Some(ctx.run_ui(egui::RawInput::default(), |ui| {
+                let area =
+                    egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 400.0));
+                ui.scope_builder(egui::UiBuilder::new().max_rect(area), |ui| {
+                    edit_table(ui, &theme, "band", &cols, 1, None, |ui, _, _| {
+                        ui.label("x");
+                    });
+                });
+            }));
+        }
+        let fill = header_fill(&theme);
+        let band = out
+            .expect("ran")
+            .shapes
+            .iter()
+            .find_map(|c| match &c.shape {
+                egui::Shape::Rect(r) if r.fill == fill => Some(r.rect),
+                _ => None,
+            })
+            .expect("a header band");
+        assert!(band.right() <= 300.5, "band runs to {}", band.right());
+    }
+
+    /// A table with no columns draws nothing, not an empty header band.
+    #[test]
+    fn a_table_with_no_columns_draws_no_band() {
+        let theme = Theme::dark();
+        let rows: Vec<Vec<String>> = Vec::new();
+        let t = DataTable {
+            theme: &theme,
+            columns: &[],
+            rows: &rows,
+            row_height: ROW_HEIGHT,
+            show_filter: false,
+            copy_row_label: "Copy Row",
+            built_in_menu: false,
+            row_icons: None,
+            empty_hint: None,
+        };
+        let ctx = egui::Context::default();
+        let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            t.show(ui, &mut TableState::default());
+        });
+        let fill = header_fill(&theme);
+        assert!(
+            !out.shapes
+                .iter()
+                .any(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.fill == fill))
+        );
     }
 }

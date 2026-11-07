@@ -264,26 +264,43 @@ impl GeneratorState {
                     let providers = s.settings.read().ai.chat_providers();
                     hs_ui::form::centred_row(ui, |ui| {
                         ui.label(s.t("gfx-gen-provider"));
-                        let selected_name = providers
-                            .iter()
-                            .find(|p| p.id == self.provider_id)
+                        let current = providers.iter().find(|p| p.id == self.provider_id);
+                        let selected_name = current
                             .map(|p| p.name.clone())
                             .unwrap_or_else(|| s.t("gfx-gen-provider-default"));
-                        egui::ComboBox::from_id_salt("gfx-gen-provider")
-                            .selected_text(selected_name)
-                            .show_ui(ui, |ui| {
+                        // The provider's mark leads the closed box and every
+                        // row (CR-0081).
+                        let mark = |p: &hs_core::settings::AiProvider| {
+                            hs_ui::form::Mark::conn(
+                                hs_ui::icons::ai_provider_icon(p.kind, &p.base_url),
+                                theme,
+                            )
+                        };
+                        let current_mark = current.map_or_else(
+                            || hs_ui::form::Mark::glyph(hs_ui::icons::ph::SPARKLE, None),
+                            mark,
+                        );
+                        hs_ui::form::mark_combo(
+                            ui,
+                            egui::ComboBox::from_id_salt("gfx-gen-provider"),
+                            current_mark,
+                            selected_name,
+                            |ui| {
                                 for p in &providers {
-                                    if hs_ui::form::selectable_label(ui,
-                                            self.provider_id == p.id,
-                                            &p.name,
-                                        )
-                                        .clicked()
+                                    if hs_ui::form::mark_selectable(
+                                        ui,
+                                        self.provider_id == p.id,
+                                        mark(p),
+                                        &p.name,
+                                    )
+                                    .clicked()
                                     {
                                         self.provider_id = p.id.clone();
                                         self.model = p.model.clone();
                                     }
                                 }
-                            });
+                            },
+                        );
                         if providers.is_empty()
                             && ui.button(s.t("gfx-gen-set-provider")).clicked()
                         {

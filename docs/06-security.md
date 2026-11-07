@@ -66,8 +66,20 @@ Rules:
 
 ## 3. Environment protection
 
-An environment can be `protected = true` (defaults: anything named `prod*`,
-`production`, `live` gets a one-time suggestion). Effects:
+An environment can be `protected = true`. Effects:
+
+**Production and Production Support default to protected** (owner,
+2026-11-07, FEAT-0106). Every environment has a tier - Local, Development,
+Integration, Testing, Training, Acceptance, Staging, Production Support,
+Production - set by hand in Settings → Environments, else matched from its
+name by keyword (`hs_core::environments::matched_tier`; case and separators
+ignored, Production Support - `PROD-SUPPORT`, `PRODSUPPORT`, `HOTFIX` -
+checked before Production - `PROD`, `PRODUCTION`, `LIVE`, `PRD` - and
+`PREPROD` read as Acceptance). When an environment is **created**, or its
+tier is **set or changed**, and its tier is Production or Production
+Support, `protected` is turned on. It is a default, not a lock: the user
+may untick it, and loading a saved environment never changes it, so an
+existing workspace keeps exactly the protection it had.
 
 | Tool | Effect in protected environment |
 |---|---|
@@ -79,7 +91,8 @@ An environment can be `protected = true` (defaults: anything named `prod*`,
 | Containers | stop/remove/prune require confirmation naming the context |
 
 The whole main area gets a 2 px frame in the environment colour, and the title
-bar shows a lock icon.
+bar, the banner and Settings → Environments show the red shield in place of
+the tier's icon (docs/04 §5).
 
 ## 4. Destructive SQL classifier
 

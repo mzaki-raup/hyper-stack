@@ -445,8 +445,9 @@ pub struct Appearance {
 
 /// The activities whose work-pane lists can draw Material item icons, and
 /// so the only ones the Appearance card offers a switch for (FEAT-0084).
-/// The rest - API Client, Terminal, Automation, Tracker, Graphics,
-/// Devtools, Browser and Logs - have no file- or item-shaped lists.
+/// The Browser joined for its favourites folders and saved logins
+/// (CR-0060). The rest - API Client, Terminal, Automation, Tracker,
+/// Graphics, Devtools and Logs - have no file- or item-shaped lists.
 pub const MATERIAL_ICON_TOOLS: &[&str] = &[
     "scratchpad",
     "editor",
@@ -458,6 +459,7 @@ pub const MATERIAL_ICON_TOOLS: &[&str] = &[
     "redis",
     "s3",
     "queue",
+    "browser",
 ];
 
 /// A window tab row's height. Taller than it was before CR-0029, where
@@ -960,7 +962,7 @@ impl Settings {
 #[cfg(test)]
 mod tests {
 
-    /// Material item icons are on for the ten activities that have lists
+    /// Material item icons are on for the activities that have lists
     /// and meaningless for the rest, and the setting stores only the
     /// exceptions so a fresh install writes nothing (FEAT-0084).
     #[test]
@@ -973,14 +975,7 @@ mod tests {
         for tool in MATERIAL_ICON_TOOLS {
             assert!(a.material_icons(tool), "{tool} starts on");
         }
-        for tool in [
-            "logs",
-            "terminal",
-            "automation",
-            "tracker",
-            "api",
-            "browser",
-        ] {
+        for tool in ["logs", "terminal", "automation", "tracker", "api"] {
             assert!(!a.material_icons(tool), "{tool} has no item lists");
         }
 
@@ -1002,6 +997,22 @@ mod tests {
         // Turning an activity off that was never on is not a way in.
         a.set_material_icons("logs", false);
         assert!(!a.material_icons("logs"));
+    }
+
+    /// The Browser has its own switch in the Material Icon list, and
+    /// turning it off survives a save and load (CR-0060).
+    #[test]
+    fn the_browser_is_in_the_material_list_and_its_switch_round_trips() {
+        assert!(MATERIAL_ICON_TOOLS.contains(&"browser"));
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("settings.toml");
+        let mut s = Settings::default();
+        assert!(s.appearance.material_icons("browser"), "on by default");
+        s.appearance.set_material_icons("browser", false);
+        s.save(&p).unwrap();
+        let back = Settings::load(&p).unwrap();
+        assert!(!back.appearance.material_icons("browser"));
+        assert!(back.appearance.material_icons("editor"));
     }
     use super::*;
 

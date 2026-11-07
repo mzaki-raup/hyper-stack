@@ -12,6 +12,15 @@ the document **in the same commit**.
    or fix, in code or deployment.
 3. `README.md` — when features, requirements, build commands or restrictions
    change.
+   **Screenshots and GIFs too:** a batch that changes what a screen looks
+   like retakes the README's screenshots of that screen and, where a flow
+   changed, its GIF animation (`docs/screenshots/`, made as
+   `docs/screenshots/README.md` describes: the GUI harness on a scratch
+   `--data-dir`, quantised PNGs, ImageMagick for the GIFs), before the
+   batch merges. A new feature with a visible screen gets a screenshot in
+   the README, and every new feature, activity, setting or option the
+   batch adds is described in the README's feature text too — not only in
+   CHANGELOG. Owner's rule, 2026-11-07.
 4. The affected `docs/*.md` and `docs/tools/*.md` spec.
 5. `CHECKLIST.md` — only after the work is verified. States are exactly
    `Completed`, `In-Progress`, `Pending`.

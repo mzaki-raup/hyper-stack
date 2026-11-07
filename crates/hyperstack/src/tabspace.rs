@@ -119,6 +119,8 @@ pub struct TabView {
     pub icon_image: Option<egui::ImageSource<'static>>,
     /// The glyph's own colour: a fixed tab's activity colour (CR-0043).
     pub icon_colour: Option<Color32>,
+    /// The title is shown whole (`Tool::tab_title_whole`).
+    pub whole_title: bool,
 }
 
 impl TabItem for TabView {
@@ -130,6 +132,9 @@ impl TabItem for TabView {
     }
     fn icon(&self) -> &str {
         self.icon
+    }
+    fn whole_title(&self) -> bool {
+        self.whole_title
     }
     fn icon_uri(&self) -> Option<String> {
         self.icon_uri.clone()
@@ -275,6 +280,7 @@ impl TabSpace {
                     .filter(|_| material(&t.factory_id))
                     .and_then(hs_ui::fileicons::for_kind),
                 dirty: t.tool.dirty(),
+                whole_title: t.tool.tab_title_whole(),
                 // The tab's own colour, when the user chose one. It used
                 // to fall back to the colour of the environment the tool
                 // named, which is the same tab-to-environment tie the

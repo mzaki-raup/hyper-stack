@@ -234,7 +234,7 @@ impl State {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-jasypt"), Some(&s.t("dt-jasypt-sub")));
+    crate::util::page_title(ui, s, theme, "dt-jasypt", Some("dt-jasypt-sub"));
     form::section(ui, theme, &s.t("dt-jasypt-config"), |ui| {
         form::field_grid(ui, "jasypt-cfg", |ui| {
             form::label(ui, &s.t("dt-jasypt-algorithm"));
@@ -271,18 +271,27 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.add(egui::DragValue::new(&mut st.cfg.iv_bytes).range(0..=32));
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-output"));
-            ui.horizontal(|ui| {
+            form::centred_row(ui, |ui| {
                 hs_ui::form::selectable_value(ui, &mut st.cfg.hex, false, "Base64");
-                hs_ui::form::selectable_value(ui, &mut st.cfg.hex, true, "hex");
+                hs_ui::form::selectable_value(ui, &mut st.cfg.hex, true, s.t("dt-hash-hex"));
+                ui.add_space(form::OPTION_GAP);
                 ui.checkbox(&mut st.cfg.enc_wrapper, s.t("dt-jasypt-enc"));
             });
             ui.end_row();
         });
+        ui.add_space(form::ROW_GAP);
         form::hint(ui, theme, &s.t("dt-jasypt-layout-hint"));
     });
     form::section(ui, theme, &s.t("dt-encrypt"), |ui| {
         util::input(ui, s, theme, &mut st.plain, &s.t("dt-jasypt-plain-hint"), 3);
-        if form::primary_button(ui, theme, &s.t("dt-encrypt")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::LOCK_KEY, s.t("dt-encrypt")),
+        )
+        .clicked()
+        {
             st.encrypted_out =
                 Some(util::expand(s, &st.password).and_then(|pw| encrypt(&st.cfg, &pw, &st.plain)));
         }
@@ -304,7 +313,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             &s.t("dt-jasypt-cipher-hint"),
             3,
         );
-        if form::primary_button(ui, theme, &s.t("dt-decrypt")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::LOCK_KEY_OPEN, s.t("dt-decrypt")),
+        )
+        .clicked()
+        {
             st.decrypted_out = Some(
                 util::expand(s, &st.password).and_then(|pw| decrypt(&st.cfg, &pw, &st.cipher_in)),
             );
@@ -320,6 +336,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     });
     form::section(ui, theme, &s.t("dt-jasypt-legacy"), |ui| {
         form::hint(ui, theme, &s.t("dt-jasypt-legacy-hint"));
+        ui.add_space(form::ROW_GAP);
         form::field_grid(ui, "jasypt-legacy", |ui| {
             form::label(ui, &s.t("dt-jasypt-des-key"));
             util::secret_line(ui, s, theme, &mut st.legacy_des_key, "");
@@ -336,32 +353,34 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             &s.t("dt-jasypt-legacy-input-hint"),
             3,
         );
-        ui.horizontal_wrapped(|ui| {
-            if ui.button(s.t("dt-jasypt-des-encrypt")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        util::button_row(ui, |ui| {
+            use hs_ui::icons::ph;
+            if form::button(ui, theme, ph::LOCK_KEY, &s.t("dt-jasypt-des-encrypt")).clicked() {
                 st.legacy_out = Some(
                     util::expand(s, &st.legacy_des_key)
                         .and_then(|k| legacy_des(&k, &st.legacy_in, false)),
                 );
             }
-            if ui.button(s.t("dt-jasypt-des-decrypt")).clicked() {
+            if form::button(ui, theme, ph::LOCK_KEY_OPEN, &s.t("dt-jasypt-des-decrypt")).clicked() {
                 st.legacy_out = Some(
                     util::expand(s, &st.legacy_des_key)
                         .and_then(|k| legacy_des(&k, &st.legacy_in, true)),
                 );
             }
-            if ui.button(s.t("dt-jasypt-aes-encrypt")).clicked() {
+            if form::button(ui, theme, ph::LOCK_KEY, &s.t("dt-jasypt-aes-encrypt")).clicked() {
                 st.legacy_out = Some(
                     util::expand(s, &st.legacy_aes_key)
                         .and_then(|k| legacy_aes(&k, &st.legacy_in, false)),
                 );
             }
-            if ui.button(s.t("dt-jasypt-aes-decrypt")).clicked() {
+            if form::button(ui, theme, ph::LOCK_KEY_OPEN, &s.t("dt-jasypt-aes-decrypt")).clicked() {
                 st.legacy_out = Some(
                     util::expand(s, &st.legacy_aes_key)
                         .and_then(|k| legacy_aes(&k, &st.legacy_in, true)),
                 );
             }
-            if ui.button(s.t("dt-jasypt-md5")).clicked() {
+            if form::button(ui, theme, ph::HASH, &s.t("dt-jasypt-md5")).clicked() {
                 st.legacy_out = Some(Ok(legacy_md5_b64(&st.legacy_in)));
             }
         });

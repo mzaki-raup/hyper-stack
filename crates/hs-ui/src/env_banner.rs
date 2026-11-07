@@ -9,6 +9,9 @@ pub struct EnvBanner<'a> {
     pub name: Option<&'a str>,
     pub colour: Color32,
     pub protected: bool,
+    /// The environment's tier mark (`hs_ui::envmark`), drawn before its
+    /// name (FEAT-0106).
+    pub mark: (&'a str, Color32),
     pub none_label: &'a str,
     pub protected_label: &'a str,
 }
@@ -38,15 +41,17 @@ impl EnvBanner<'_> {
         );
         let mut text = self.name.unwrap_or(self.none_label).to_string();
         if self.protected {
-            text = format!(
-                "{} {}  ·  {}",
-                crate::icons::LOCK,
-                text,
-                self.protected_label
-            );
+            text = format!("{}  ·  {}", text, self.protected_label);
         }
-        p.text(
+        let mark = p.text(
             egui::pos2(rect.left() + 12.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            self.mark.0,
+            egui::FontId::proportional(13.0),
+            self.mark.1,
+        );
+        p.text(
+            egui::pos2(mark.right() + 6.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             text,
             egui::FontId::proportional(12.0),

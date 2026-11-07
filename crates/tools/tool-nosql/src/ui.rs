@@ -1079,6 +1079,13 @@ impl NoSqlTool {
                             for c in list {
                                 let selected = self.state.database.as_deref() == Some(db.as_str())
                                     && self.state.container.as_deref() == Some(c.name.as_str());
+                                // The row is the name button's height before
+                                // it opens, so the picture shares its middle
+                                // line (owner, 2026-11-07).
+                                let row_h = ui.text_style_height(&egui::TextStyle::Body)
+                                    + 2.0 * ui.spacing().button_padding.y;
+                                let saved_h = ui.spacing().interact_size.y;
+                                ui.spacing_mut().interact_size.y = row_h;
                                 ui.horizontal(|ui| {
                                     ui.add_space(14.0);
                                     ui.spacing_mut().item_spacing.x = 4.0;
@@ -1115,6 +1122,7 @@ impl NoSqlTool {
                                         pick = Some((db.clone(), c.name.clone()));
                                     }
                                 });
+                                ui.spacing_mut().interact_size.y = saved_h;
                             }
                             if list.is_empty() {
                                 ui.horizontal(|ui| {

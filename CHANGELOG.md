@@ -11,7 +11,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Dropdown items - workspace, environment, shell, connection, engine, AI provider and others - show their kind's mark in colour, in the list and the closed box (CR-0081)
+- 18 more colour schemes: Tokyo Night, Rosé Pine, Kanagawa, Everforest Dark, Ayu Dark, Night Owl, Material Palenight, GitHub Dark, Catppuccin Macchiato, One Light, Gruvbox Light, Catppuccin Latte, Rosé Pine Dawn, Ayu Light, Everforest Light, Tokyo Night Day, Tomorrow and Light Owl, each checked for readable contrast (FEAT-0105)
+- Environment tiers: each environment wears its tier's icon and colour (matched from its name or set by hand), a protected one always the red shield; Production and Production Support default to protected (FEAT-0106)
+- A workspace without a logo shows a lettered tile in a colour of its own (CR-0082)
+- Devtools tabs show the whole tool name beside its icon; the strip widens its tabs to the longest name and wraps rows instead of eliding (CR-0086)
+- Every Open Here card on an activity's dashboard wears its tab's coloured icon, on the middle line of its title and subtitle (CR-0087)
+- Every Devtools tool's title and API Client's Manage Collection title wear their tab's coloured picture; Network Check, Listening Ports, Snippets and .env Editor gain a title and description; Devtools hints wrap at the cards' width and an empty TOML/XML shows a hint, not an error (CR-0088)
+
+### Fixed
+
+- A table's header band ends at its card instead of the window edge; a collection's or folder's drag grip sits on its header line in the API Client and Scratchpad; a results table with no columns no longer draws a bare header band (NoSQL) (CR-0085)
+
+### Changed
+
+- Devtools forms follow the layout standard: fields in grids on one middle line, every button standard size with an icon and a label, results and lists as standard tables with empty hints (Hashes, Cron, Unit Conversion, Network Check, Regex, Snippets, .env, JWT, URL), Jasypt's password and Save to Environment on one row, Title Case labels, and Listening Ports' Kill disabled until a row is selected and confirmed before it acts (CR-0062)
+- List and tree rows put their caret, picture and name on one middle line - Redis keys, NoSQL collections, API Client collections and folders, Database saved queries and history, Scratchpad and Source Control folders, the Containers host title - and status lines in Redis, Browser, Logs and SSH have air above them (CR-0084)
 
 ## 0.129.0 — 2026-11-06
 

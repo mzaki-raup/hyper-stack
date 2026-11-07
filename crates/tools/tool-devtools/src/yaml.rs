@@ -731,8 +731,8 @@ pub fn to_yaml(node: &Node) -> String {
 // ---- UI --------------------------------------------------------------------------
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-yaml"), Some(&s.t("dt-yaml-sub")));
-    ui.horizontal(|ui| {
+    crate::util::page_title(ui, s, theme, "dt-yaml", Some("dt-yaml-sub"));
+    ui.horizontal_wrapped(|ui| {
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Check, s.t("dt-yaml-check"));
         hs_ui::form::selectable_value(
             ui,
@@ -768,7 +768,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         }
         Mode::YamlToProperties => {
             let (node, problems) = parse_yaml(&input);
-            (problems, to_properties(&node), "properties")
+            (problems, to_properties(&node), "Properties")
         }
         Mode::PropertiesToYaml => {
             let (node, problems) = parse_properties(&input);

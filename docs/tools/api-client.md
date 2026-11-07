@@ -450,3 +450,8 @@ A package library the user wrote in the app (`LibraryKind::Custom`) is marked in
 ## Addendum (2026-11-06): clearing history (CR-0067)
 
 Right-click the History heading for **Clear History** and a history row for **Remove from History**, each confirmed; the workspace's stored history changes, not only the view.
+
+## Addendum (2026-11-07): Manage Collection's title (CR-0088)
+
+The Manage Collection page's title wears the same gear, in the API
+Client's colour, that its tab wears.

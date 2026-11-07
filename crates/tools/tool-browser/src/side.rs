@@ -215,13 +215,22 @@ fn fav_level(
     out: &mut SideOut,
 ) {
     let scope = folder.unwrap_or("").to_string();
+    let material = s.settings.read().appearance.material_icons("browser");
     let mut reorder = hs_ui::reorder::Reorder::scoped(("browser-fav", scope.clone()), scope);
     for (index, it) in items.iter().enumerate() {
         match it {
             FavItem::Folder(f) => {
                 let open = t.side.open_folders.contains(&f.id);
                 let r = reorder.row(ui, index, |ui| {
-                    egui::CollapsingHeader::new(format!("{} {}", ph::FOLDER, f.name))
+                    let icon = hs_ui::fileicons::folder_icon(material, &f.name, ph::FOLDER);
+                    let title: egui::WidgetText = match &icon {
+                        hs_ui::tree::TreeIcon::Glyph(g) => format!("{g} {}", f.name).into(),
+                        // Room for the picture, painted over it below.
+                        hs_ui::tree::TreeIcon::Image(_) => {
+                            folder_title_after_picture(ui, &f.name).into()
+                        }
+                    };
+                    let r = egui::CollapsingHeader::new(title)
                         .id_salt(("browser-fav-folder", &f.id))
                         .default_open(open || !filter.is_empty())
                         .show(ui, |ui| {
@@ -237,7 +246,23 @@ fn fav_level(
                                 acts,
                                 out,
                             );
-                        })
+                        });
+                    if let hs_ui::tree::TreeIcon::Image(src) = icon {
+                        // The header lays its text out one indent in from
+                        // its left edge, which is where the gap starts.
+                        let h = r.header_response.rect;
+                        let at = egui::Rect::from_min_size(
+                            egui::pos2(
+                                h.left() + ui.spacing().indent,
+                                h.center().y - FOLDER_PICTURE / 2.0,
+                            ),
+                            egui::Vec2::splat(FOLDER_PICTURE),
+                        );
+                        egui::Image::new(src)
+                            .fit_to_exact_size(egui::Vec2::splat(FOLDER_PICTURE))
+                            .paint_at(ui, at);
+                    }
+                    r
                 });
                 if r.header_response.clicked() {
                     if open {
@@ -296,7 +321,8 @@ fn fav_level(
                 }
                 reorder.row(ui, index, |ui| {
                     let icon = site_icon(&l.icon, &l.url, icons);
-                    let row = icon_row(ui, theme, &icon, &l.name, &l.url, false);
+                    let fallback = material_fallback(material, "url");
+                    let row = icon_row(ui, theme, &icon, fallback, &l.name, &l.url, false);
                     if row.clicked() {
                         out.open = Some(l.url.clone());
                     }
@@ -456,6 +482,7 @@ fn passwords(
         form::note(ui, theme, ph::KEY, &s.t("browser-no-logins"));
     }
     let filter = t.side.filter.trim().to_lowercase();
+    let material = s.settings.read().appearance.material_icons("browser");
     let selected = match &t.side.editing {
         Some(Editing::Login(id)) => Some(id.clone()),
         _ => None,
@@ -484,6 +511,7 @@ fn passwords(
                         ui,
                         theme,
                         &icon,
+                        material_fallback(material, "login"),
                         &l.name,
                         &sub,
                         selected.as_deref() == Some(l.id.as_str()),
@@ -560,12 +588,43 @@ pub(crate) fn site_icon(
     icons.get(url).cloned().flatten()
 }
 
+/// A favourites folder's Material picture, in points (CR-0060).
+const FOLDER_PICTURE: f32 = 16.0;
+
+/// A folder header's title when a Material picture stands before it: the
+/// name, led by a gap the picture is painted into, since a collapsing
+/// header takes text only.
+fn folder_title_after_picture(ui: &egui::Ui, name: &str) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.append(
+        name,
+        FOLDER_PICTURE + 6.0,
+        egui::TextFormat {
+            font_id: egui::TextStyle::Button.resolve(ui.style()),
+            // The header's own text colour, so hover still shows.
+            color: egui::Color32::PLACEHOLDER,
+            valign: egui::Align::Center,
+            ..Default::default()
+        },
+    );
+    job
+}
+
+/// The Material picture a row without a favicon wears when the Browser
+/// has Material icons on (CR-0060): a link for a favourite, a key for a
+/// login. `None` keeps the globe.
+fn material_fallback(on: bool, kind: &str) -> Option<egui::ImageSource<'static>> {
+    on.then(|| hs_ui::fileicons::for_kind(kind)).flatten()
+}
+
 /// A row with an image (or glyph) on the left, a name, and a quieter
-/// second line.
+/// second line. With no `icon`, `fallback` is drawn if there is one, else
+/// the globe glyph.
 fn icon_row(
     ui: &mut egui::Ui,
     theme: &Theme,
     icon: &Option<String>,
+    fallback: Option<egui::ImageSource<'static>>,
     name: &str,
     sub: &str,
     selected: bool,
@@ -586,13 +645,18 @@ fn icon_row(
         egui::pos2(rect.left() + 6.0, rect.center().y - 8.0),
         egui::Vec2::splat(16.0),
     );
-    match icon {
-        Some(uri) => {
+    match (icon, fallback) {
+        (Some(uri), _) => {
             egui::Image::from_uri(uri.clone())
                 .fit_to_exact_size(egui::Vec2::splat(16.0))
                 .paint_at(ui, icon_rect);
         }
-        None => {
+        (None, Some(src)) => {
+            egui::Image::new(src)
+                .fit_to_exact_size(egui::Vec2::splat(16.0))
+                .paint_at(ui, icon_rect);
+        }
+        (None, None) => {
             ui.painter().text(
                 icon_rect.center(),
                 egui::Align2::CENTER_CENTER,
@@ -1365,6 +1429,25 @@ fn fill_script(username: &str, password: &str, api_key: &str) -> String {
 #[cfg(test)]
 mod dialog_tests {
     use super::*;
+
+    /// With Material icons on, a folder, a favourite without a favicon and
+    /// a login each resolve to a bundled picture; off, none does (CR-0060).
+    #[test]
+    fn the_browser_material_pictures_resolve_and_off_keeps_the_glyphs() {
+        assert!(hs_core::settings::MATERIAL_ICON_TOOLS.contains(&"browser"));
+        assert!(matches!(
+            hs_ui::fileicons::folder_icon(true, "Work", ph::FOLDER),
+            hs_ui::tree::TreeIcon::Image(_)
+        ));
+        assert!(matches!(
+            hs_ui::fileicons::folder_icon(false, "Work", ph::FOLDER),
+            hs_ui::tree::TreeIcon::Glyph(_)
+        ));
+        assert!(material_fallback(true, "url").is_some());
+        assert!(material_fallback(true, "login").is_some());
+        assert!(material_fallback(false, "url").is_none());
+        assert!(material_fallback(false, "login").is_none());
+    }
 
     #[test]
     fn a_filled_value_cannot_escape_the_string_it_sits_in() {

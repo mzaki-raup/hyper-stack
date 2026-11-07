@@ -467,17 +467,34 @@ impl AiPanel {
                 .find(|p| p.0 == self.provider)
                 .map(|p| p.1.clone())
                 .unwrap_or_default();
-            egui::ComboBox::from_id_salt("ai-provider")
-                .width(110.0)
-                .selected_text(name)
-                .show_ui(ui, |ui| {
+            // The provider's mark leads the closed box and every row (CR-0081).
+            let mark = |id: &str| {
+                all.iter().find(|p| p.id == id).map_or_else(
+                    || hs_ui::form::Mark::glyph(ph::SPARKLE, None),
+                    |p| {
+                        hs_ui::form::Mark::conn(
+                            hs_ui::icons::ai_provider_icon(p.kind, &p.base_url),
+                            theme,
+                        )
+                    },
+                )
+            };
+            hs_ui::form::mark_combo(
+                ui,
+                egui::ComboBox::from_id_salt("ai-provider").width(110.0),
+                mark(&self.provider),
+                name,
+                |ui| {
                     for (id, name, model) in &providers {
-                        if hs_ui::form::selectable_label(ui, self.provider == *id, name).clicked() {
+                        if hs_ui::form::mark_selectable(ui, self.provider == *id, mark(id), name)
+                            .clicked()
+                        {
                             self.provider = id.clone();
                             self.model = model.clone();
                         }
                     }
-                });
+                },
+            );
             if let Some(p) = all.iter().find(|p| p.id == self.provider) {
                 self.model_picker(ui, s, theme, p);
             }

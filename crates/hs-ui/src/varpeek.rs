@@ -185,10 +185,10 @@ pub fn save_to_env_button(
     let mut st = ui.data_mut(|d| d.get_temp::<SaveState>(id).unwrap_or_default());
     let has_value = !value.trim().is_empty() && references(value).is_empty();
     let button = ui
-        .add_enabled(
-            has_value,
-            egui::Button::new(format!("{} {}", ph::LOCK_KEY, s.t("var-save-env"))).small(),
-        )
+        .add_enabled_ui(has_value, |ui| {
+            crate::form::button(ui, theme, ph::LOCK_KEY, &s.t("var-save-env"))
+        })
+        .inner
         .tip(s.t("var-save-env-tip"));
     if button.clicked() {
         st.open = !st.open;

@@ -9454,7 +9454,6 @@ dependencies = [
  "crc32fast",
  "des",
  "egui",
- "egui_extras",
  "egui_kittest",
  "hickory-resolver",
  "hmac 0.12.1",

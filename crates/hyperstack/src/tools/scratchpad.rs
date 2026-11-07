@@ -795,7 +795,12 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
                 // get from `CollapsingHeader` (FEAT-0084).
                 let header_id = ui.make_persistent_id(("scratchpad-folder", f));
                 let open_now = !t.collapsed.contains(f);
-                let r = reorder.row(ui, index, |ui| {
+                // The grip sits on the folder's own line, not beside its
+                // open children (owner, 2026-11-07).
+                let head_h = (ui.text_style_height(&egui::TextStyle::Body)
+                    + 2.0 * ui.spacing().button_padding.y)
+                    .max(FOLDER_GLYPH);
+                let r = reorder.group_row(ui, index, head_h, |ui| {
                     // `ui.vertical` is required, not tidiness:
                     // `CollapsingState::body` indents, and
                     // `Ui::indent` asserts the layout is vertical.
@@ -812,9 +817,22 @@ fn draw_level(ui: &mut egui::Ui, t: &Tree, folder: &str, acts: &mut Vec<SideAct>
                                 header_id,
                                 open_now,
                             );
+                        // The header row is the folder picture's height
+                        // before it opens, so the caret, picture and name
+                        // share one middle line; the body gets the usual
+                        // height back (owner, 2026-11-07).
+                        let row_h = (ui.text_style_height(&egui::TextStyle::Body)
+                            + 2.0 * ui.spacing().button_padding.y)
+                            .max(FOLDER_GLYPH);
+                        let saved_h = ui.spacing().interact_size.y;
+                        ui.spacing_mut().interact_size.y = row_h;
                         let (_, header, _) = state
                             .show_header(ui, |ui| folder_header_row(ui, t, leaf_of(f)))
-                            .body(|ui| draw_level(ui, t, f, acts));
+                            .body(|ui| {
+                                ui.spacing_mut().interact_size.y = saved_h;
+                                draw_level(ui, t, f, acts)
+                            });
+                        ui.spacing_mut().interact_size.y = saved_h;
                         header.response
                     })
                     .inner

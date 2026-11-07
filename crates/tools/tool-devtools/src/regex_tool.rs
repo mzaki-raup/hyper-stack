@@ -146,7 +146,7 @@ pub fn replace(re: &Regex, text: &str, replacement: &str, first_only: bool) -> S
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_ui::theme::Theme) {
     use hs_ui::form;
-    form::page_title(ui, theme, &s.t("dt-regex"), Some(&s.t("dt-regex-sub")));
+    crate::util::page_title(ui, s, theme, "dt-regex", Some("dt-regex-sub"));
     ui.add_space(4.0);
     form::section(ui, theme, &s.t("dt-regex-pattern"), |ui| {
         ui.add(
@@ -189,9 +189,6 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 .i18n
                 .t_args("dt-regex-matches", &[("n", &found.len().to_string())]);
             form::section(ui, theme, &title, |ui| {
-                if found.is_empty() {
-                    form::hint(ui, theme, &s.t("dt-regex-none"));
-                }
                 // The text with the matches marked, so where they fall is
                 // visible without counting characters.
                 if !found.is_empty() {
@@ -233,45 +230,89 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                         });
                     ui.add_space(6.0);
                 }
+                // Every match as a table row: where it is, what it is, and
+                // its groups (CR-0062).
+                let none = s.t("dt-regex-none");
+                let (n_col, at_col, match_col, groups_col, actions_col) = (
+                    s.t("dt-regex-col-n"),
+                    s.t("dt-regex-col-at"),
+                    s.t("dt-regex-col-match"),
+                    s.t("dt-regex-col-groups"),
+                    s.t("dt-col-actions"),
+                );
                 egui::ScrollArea::vertical()
                     .id_salt("dt-regex-list")
-                    .max_height(220.0)
+                    .max_height(260.0)
                     .show(ui, |ui| {
-                        for (i, f) in found.iter().enumerate() {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(format!("{}", i + 1))
-                                        .small()
-                                        .color(theme.text_muted),
-                                );
-                                ui.label(
-                                    egui::RichText::new(format!("{}..{}", f.start, f.end))
-                                        .small()
-                                        .monospace()
-                                        .color(theme.text_muted),
-                                );
-                                ui.label(egui::RichText::new(&f.text).monospace());
-                                if ui
-                                    .small_button(hs_ui::icons::ph::COPY)
-                                    .tip(s.t("dt-copy"))
-                                    .clicked()
-                                {
-                                    ui.ctx().copy_text(f.text.clone());
+                        hs_ui::table::edit_table(
+                            ui,
+                            theme,
+                            "dt-regex-table",
+                            &[
+                                hs_ui::table::EditColumn::new(&n_col, 40.0),
+                                hs_ui::table::EditColumn::new(&at_col, 100.0),
+                                hs_ui::table::EditColumn::new(&match_col, 260.0),
+                                hs_ui::table::EditColumn::new(&groups_col, 260.0),
+                                hs_ui::table::EditColumn::new(&actions_col, 0.0),
+                            ],
+                            found.len(),
+                            Some(&none),
+                            |ui, r, c| {
+                                let f = &found[r];
+                                match c {
+                                    0 => {
+                                        ui.colored_label(theme.text_muted, (r + 1).to_string());
+                                    }
+                                    1 => {
+                                        ui.label(
+                                            egui::RichText::new(format!("{}..{}", f.start, f.end))
+                                                .monospace()
+                                                .color(theme.text_muted),
+                                        );
+                                    }
+                                    2 => {
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(&f.text).monospace(),
+                                            )
+                                            .truncate(),
+                                        )
+                                        .tip(&f.text);
+                                    }
+                                    3 => {
+                                        let groups = f
+                                            .groups
+                                            .iter()
+                                            .map(|(label, text)| format!("${label} = {text}"))
+                                            .collect::<Vec<_>>()
+                                            .join("   ");
+                                        ui.add(
+                                            egui::Label::new(
+                                                egui::RichText::new(&groups)
+                                                    .monospace()
+                                                    .color(theme.accent),
+                                            )
+                                            .truncate(),
+                                        )
+                                        .tip(groups);
+                                    }
+                                    _ => {
+                                        if hs_ui::form::icon_button(
+                                            ui,
+                                            theme,
+                                            hs_ui::icons::ph::COPY,
+                                            14.0,
+                                            false,
+                                        )
+                                        .tip(s.t("dt-copy"))
+                                        .clicked()
+                                        {
+                                            ui.ctx().copy_text(f.text.clone());
+                                        }
+                                    }
                                 }
-                            });
-                            for (label, text) in &f.groups {
-                                ui.horizontal(|ui| {
-                                    ui.add_space(24.0);
-                                    ui.label(
-                                        egui::RichText::new(format!("${label}"))
-                                            .small()
-                                            .monospace()
-                                            .color(theme.accent),
-                                    );
-                                    ui.label(egui::RichText::new(text).monospace());
-                                });
-                            }
-                        }
+                            },
+                        );
                     });
             });
             form::section(ui, theme, &s.t("dt-regex-replace"), |ui| {
@@ -283,28 +324,8 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
                 );
                 if !st.replacement.is_empty() || !found.is_empty() {
                     let out = replace(re, &st.text, &st.replacement, st.first_only);
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(s.t("dt-regex-replace-result"))
-                                .small()
-                                .color(theme.text_muted),
-                        );
-                        if ui
-                            .small_button(hs_ui::icons::ph::COPY)
-                            .tip(s.t("dt-copy"))
-                            .clicked()
-                        {
-                            ui.ctx().copy_text(out.clone());
-                        }
-                    });
-                    let mut shown = out;
-                    ui.add(
-                        egui::TextEdit::multiline(&mut shown)
-                            .font(egui::TextStyle::Monospace)
-                            .desired_rows(4)
-                            .desired_width(f32::INFINITY)
-                            .interactive(false),
-                    );
+                    ui.add_space(form::ROW_GAP);
+                    crate::util::output(ui, s, theme, &s.t("dt-regex-replace-result"), &out, 4);
                 }
             });
         }

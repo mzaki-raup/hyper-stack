@@ -121,9 +121,10 @@ fn parse_payload(text: &str) -> (String, String) {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-pki"), Some(&s.t("dt-pki-sub")));
+    crate::util::page_title(ui, s, theme, "dt-pki", Some("dt-pki-sub"));
     form::section(ui, theme, &s.t("dt-pki-keys"), |ui| {
         form::hint(ui, theme, &s.t("dt-pki-keys-hint"));
+        ui.add_space(form::ROW_GAP);
         form::field_grid(ui, "pki-ids", |ui| {
             form::label(ui, &s.t("dt-pki-device-id"));
             util::line(ui, s, theme, &mut st.device_id, "");
@@ -217,7 +218,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     };
     form::section(ui, theme, &seal_title, |ui| {
         util::input(ui, s, theme, &mut st.plain, &s.t("dt-pki-plain-hint"), 5);
-        if form::primary_button(ui, theme, &s.t("dt-pki-seal")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::LOCK_KEY, s.t("dt-pki-seal")),
+        )
+        .clicked()
+        {
             st.sealed = Some(
                 util::expand(s, &seal_key)
                     .and_then(|k| Ok((k, util::expand(s, &st.shared_key)?)))
@@ -240,7 +248,14 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             &s.t("dt-pki-payload-hint"),
             5,
         );
-        if form::primary_button(ui, theme, &s.t("dt-pki-open")).clicked() {
+        ui.add_space(form::ROW_GAP);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::ph::LOCK_KEY_OPEN, s.t("dt-pki-open")),
+        )
+        .clicked()
+        {
             let (enc, sig) = parse_payload(&st.payload_in);
             let open_key = util::expand(s, &open_key).unwrap_or_default();
             let shared = util::expand(s, &st.shared_key).unwrap_or_default();

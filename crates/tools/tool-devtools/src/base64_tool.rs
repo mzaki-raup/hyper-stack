@@ -53,8 +53,8 @@ fn hash_of(text: &str) -> u64 {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-base64"), Some(&s.t("dt-base64-sub")));
-    ui.horizontal(|ui| {
+    crate::util::page_title(ui, s, theme, "dt-base64", Some("dt-base64-sub"));
+    ui.horizontal_wrapped(|ui| {
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Decode, s.t("dt-base64-decode"));
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::Encode, s.t("dt-base64-encode"));
         hs_ui::form::selectable_value(ui, &mut st.mode, Mode::BasicAuth, s.t("dt-base64-basic"));
@@ -107,7 +107,7 @@ fn decode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         Err(e) => util::error(ui, theme, e),
         Ok(bytes) => {
             let sn = sniff::sniff(bytes);
-            ui.horizontal(|ui| {
+            util::button_row(ui, |ui| {
                 ui.label(
                     egui::RichText::new(format!(
                         "{} · {} · {}",
@@ -118,12 +118,7 @@ fn decode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     ))
                     .color(theme.text_muted),
                 );
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::FLOPPY_DISK,
-                        s.t("dt-save-as")
-                    ))
+                if form::button(ui, theme, hs_ui::icons::ph::FLOPPY_DISK, &s.t("dt-save-as"))
                     .clicked()
                     && let Some(path) = rfd::FileDialog::new()
                         .set_file_name(format!("decoded.{}", sn.ext))
@@ -178,9 +173,17 @@ fn encode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             .map(|(p, b)| (p.display().to_string(), b.len()));
         match file_info {
             Some((path, len)) => {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{} {path} ({len} bytes)", hs_ui::icons::ph::FILE));
-                    if ui.button(s.t("dt-use-text-instead")).clicked() {
+                util::button_row(ui, |ui| {
+                    let size = s.i18n.t_args("dt-bytes", &[("count", &len.to_string())]);
+                    ui.label(format!("{} {path} ({size})", hs_ui::icons::ph::FILE));
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::TEXT_T,
+                        &s.t("dt-use-text-instead"),
+                    )
+                    .clicked()
+                    {
                         st.file = None;
                     }
                 });
@@ -194,13 +197,14 @@ fn encode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     &s.t("dt-base64-encode-hint"),
                     6,
                 );
-                if ui
-                    .button(format!(
-                        "{} {}",
-                        hs_ui::icons::ph::FOLDER_OPEN,
-                        s.t("dt-base64-file")
-                    ))
-                    .clicked()
+                ui.add_space(form::ROW_GAP);
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::FOLDER_OPEN,
+                    &s.t("dt-base64-file"),
+                )
+                .clicked()
                     && let Some(p) = rfd::FileDialog::new().pick_file()
                 {
                     match std::fs::read(&p) {
@@ -210,7 +214,8 @@ fn encode(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 }
             }
         }
-        ui.horizontal(|ui| {
+        ui.add_space(form::ROW_GAP);
+        form::centred_row(ui, |ui| {
             ui.checkbox(&mut st.url_safe, s.t("dt-base64-url-safe"));
             ui.add_space(hs_ui::form::OPTION_GAP);
             ui.checkbox(&mut st.no_padding, s.t("dt-base64-no-padding"));

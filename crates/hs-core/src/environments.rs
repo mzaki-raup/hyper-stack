@@ -24,6 +24,10 @@ pub struct Environment {
     pub variables: HashMap<String, String>,
     /// Per tool kind, the default connection id(s).
     pub defaults: HashMap<String, toml::Value>,
+    /// The tier set by hand; `None` means matched from the name
+    /// ([`matched_tier`], FEAT-0106).
+    #[serde(default)]
+    pub tier: Option<Tier>,
 }
 
 impl Default for Environment {
@@ -37,6 +41,139 @@ impl Default for Environment {
             parent: None,
             variables: HashMap::new(),
             defaults: HashMap::new(),
+            tier: None,
+        }
+    }
+}
+
+/// How far an environment is from production (FEAT-0106): it chooses the
+/// environment's icon and colour, and Production and Production Support
+/// default to protected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Tier {
+    Local,
+    Development,
+    Integration,
+    Testing,
+    Training,
+    Acceptance,
+    Staging,
+    ProductionSupport,
+    Production,
+}
+
+impl Tier {
+    pub const ALL: [Tier; 9] = [
+        Tier::Local,
+        Tier::Development,
+        Tier::Integration,
+        Tier::Testing,
+        Tier::Training,
+        Tier::Acceptance,
+        Tier::Staging,
+        Tier::ProductionSupport,
+        Tier::Production,
+    ];
+
+    /// The tier's English name, for logs and tests; the UI shows
+    /// [`Tier::i18n_key`] through Fluent.
+    pub fn label(self) -> &'static str {
+        match self {
+            Tier::Local => "Local",
+            Tier::Development => "Development",
+            Tier::Integration => "Integration",
+            Tier::Testing => "Testing",
+            Tier::Training => "Training",
+            Tier::Acceptance => "Acceptance",
+            Tier::Staging => "Staging",
+            Tier::ProductionSupport => "Production Support",
+            Tier::Production => "Production",
+        }
+    }
+
+    /// The Fluent message id of the tier's name.
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            Tier::Local => "env-tier-local",
+            Tier::Development => "env-tier-development",
+            Tier::Integration => "env-tier-integration",
+            Tier::Testing => "env-tier-testing",
+            Tier::Training => "env-tier-training",
+            Tier::Acceptance => "env-tier-acceptance",
+            Tier::Staging => "env-tier-staging",
+            Tier::ProductionSupport => "env-tier-production-support",
+            Tier::Production => "env-tier-production",
+        }
+    }
+
+    /// Production and Production Support are read-only by default.
+    pub fn is_production(self) -> bool {
+        matches!(self, Tier::Production | Tier::ProductionSupport)
+    }
+}
+
+/// The tier an environment's name implies, by keyword (FEAT-0106). Case
+/// is ignored and the name is split on anything not a letter or digit,
+/// with trailing digits dropped from each word (`uat2` reads as `uat`).
+/// Production Support is checked before Production, and "pre prod"
+/// before both, so `PROD-SUPPORT` and `PREPROD` are not Production.
+pub fn matched_tier(name: &str) -> Option<Tier> {
+    let lower = name.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric())
+        .map(|w| w.trim_end_matches(|c: char| c.is_ascii_digit()))
+        .filter(|w| !w.is_empty())
+        .collect();
+    let has = |set: &[&str]| words.iter().any(|w| set.iter().any(|k| k == w));
+    if has(&["prodsupport", "prodsupp", "psupport", "hotfix"])
+        || (has(&["prod", "production"]) && has(&["support", "supp"]))
+    {
+        return Some(Tier::ProductionSupport);
+    }
+    if has(&["preprod", "uat", "acceptance"])
+        || words.windows(2).any(|p| p[0] == "pre" && p[1] == "prod")
+    {
+        return Some(Tier::Acceptance);
+    }
+    if has(&["prod", "production", "live", "prd"]) {
+        return Some(Tier::Production);
+    }
+    let rest: [(Tier, &[&str]); 6] = [
+        (Tier::Staging, &["staging", "stage", "stg"]),
+        (Tier::Training, &["training", "trn", "demo"]),
+        (Tier::Testing, &["test", "testing", "qa"]),
+        (Tier::Integration, &["sit", "int", "integration"]),
+        (
+            Tier::Development,
+            &["dev", "development", "lower", "sandbox"],
+        ),
+        (Tier::Local, &["local", "localhost"]),
+    ];
+    rest.into_iter().find(|&(_, set)| has(set)).map(|(t, _)| t)
+}
+
+impl Environment {
+    /// The tier set by hand, else the one matched from the name.
+    pub fn effective_tier(&self) -> Option<Tier> {
+        self.tier.or_else(|| matched_tier(&self.name))
+    }
+
+    /// Production and Production Support default to protected: called
+    /// when an environment is created and when its tier is set or
+    /// changed, never on load, so the user's later choice stands.
+    pub fn apply_protected_default(&mut self) {
+        if self.effective_tier().is_some_and(Tier::is_production) {
+            self.protected = true;
+        }
+    }
+
+    /// Set the manual tier (`None` = automatic) and, when it changed,
+    /// apply the protected default.
+    pub fn set_tier(&mut self, tier: Option<Tier>) {
+        if self.tier != tier {
+            self.tier = tier;
+            self.apply_protected_default();
         }
     }
 }
@@ -106,6 +243,11 @@ impl Environments {
 
     pub fn upsert(&mut self, mut e: Environment) -> storage::Result<()> {
         e.schema = SCHEMA;
+        if self.by_id(&e.id).is_none() {
+            // A new environment: Production and Production Support start
+            // protected (FEAT-0106).
+            e.apply_protected_default();
+        }
         if let Some(old) = self.envs.iter().find(|x| x.id == e.id) {
             let old_file = self.dir.join(format!("{}.toml", storage::slug(&old.name)));
             if old.name != e.name && old_file.exists() {
@@ -468,5 +610,126 @@ mod tests {
         assert_eq!(e2.by_name("dev").unwrap().variables["db_user"], "me");
         let on_disk: Environment = storage::read_toml(&tmp.path().join("dev.toml")).unwrap();
         assert_eq!(on_disk.variables["db_user"], "app");
+    }
+
+    #[test]
+    fn every_listed_name_maps_to_its_tier() {
+        let cases = [
+            ("LOCAL", Tier::Local),
+            ("LOCALHOST", Tier::Local),
+            ("LOWER", Tier::Development),
+            ("DEV", Tier::Development),
+            ("sandbox", Tier::Development),
+            ("SIT", Tier::Integration),
+            ("integration", Tier::Integration),
+            ("TESTING", Tier::Testing),
+            ("QA", Tier::Testing),
+            ("TRAINING", Tier::Training),
+            ("demo", Tier::Training),
+            ("UAT", Tier::Acceptance),
+            ("PREPROD", Tier::Acceptance),
+            ("pre prod", Tier::Acceptance),
+            ("uat-eu", Tier::Acceptance),
+            ("UAT_2", Tier::Acceptance),
+            ("STAGING", Tier::Staging),
+            ("stg", Tier::Staging),
+            ("PROD-SUPPORT", Tier::ProductionSupport),
+            ("PRODSUPPORT", Tier::ProductionSupport),
+            ("PROD_SUPP", Tier::ProductionSupport),
+            ("HOTFIX", Tier::ProductionSupport),
+            ("PROD", Tier::Production),
+            ("PRODUCTION", Tier::Production),
+            ("live", Tier::Production),
+            ("prd", Tier::Production),
+        ];
+        for (name, tier) in cases {
+            assert_eq!(matched_tier(name), Some(tier), "{name}");
+        }
+        assert_ne!(matched_tier("PROD-SUPPORT"), Some(Tier::Production));
+        assert_eq!(matched_tier("customer-a"), None);
+        assert_eq!(matched_tier(""), None);
+    }
+
+    #[test]
+    fn a_manual_tier_wins_over_the_name() {
+        let mut e = Environment {
+            name: "uat".into(),
+            ..Default::default()
+        };
+        assert_eq!(e.effective_tier(), Some(Tier::Acceptance));
+        e.tier = Some(Tier::Training);
+        assert_eq!(e.effective_tier(), Some(Tier::Training));
+        e.tier = None;
+        e.name = "customer-a".into();
+        assert_eq!(e.effective_tier(), None);
+    }
+
+    #[test]
+    fn production_tiers_default_to_protected_on_create_and_tier_change() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut envs = Environments::load(tmp.path());
+        for name in ["PROD", "prod-support", "dev"] {
+            envs.upsert(Environment {
+                name: name.into(),
+                ..Default::default()
+            })
+            .unwrap();
+        }
+        assert!(envs.by_name("PROD").unwrap().protected);
+        assert!(envs.by_name("prod-support").unwrap().protected);
+        assert!(!envs.by_name("dev").unwrap().protected);
+
+        // The user may untick it; saving again keeps their choice.
+        let mut prod = envs.by_name("PROD").unwrap().clone();
+        prod.protected = false;
+        envs.upsert(prod).unwrap();
+        assert!(!envs.by_name("PROD").unwrap().protected);
+        // Nor does loading change it.
+        let reloaded = Environments::load(tmp.path());
+        assert!(!reloaded.by_name("PROD").unwrap().protected);
+
+        // A tier set to Production Support protects; an unchanged tier
+        // does not re-apply it; a non-production tier leaves it alone.
+        let mut dev = envs.by_name("dev").unwrap().clone();
+        dev.set_tier(Some(Tier::Staging));
+        assert!(!dev.protected);
+        dev.set_tier(Some(Tier::ProductionSupport));
+        assert!(dev.protected);
+        dev.protected = false;
+        dev.set_tier(Some(Tier::ProductionSupport));
+        assert!(!dev.protected);
+    }
+
+    #[test]
+    fn the_tier_round_trips_with_and_without_a_value() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mut envs = Environments::load(tmp.path());
+        envs.upsert(Environment {
+            name: "alpha".into(),
+            tier: Some(Tier::ProductionSupport),
+            ..Default::default()
+        })
+        .unwrap();
+        envs.upsert(Environment {
+            name: "beta".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        let text = std::fs::read_to_string(tmp.path().join("alpha.toml")).unwrap();
+        assert!(text.contains("tier = \"production-support\""), "{text}");
+        let reloaded = Environments::load(tmp.path());
+        assert_eq!(
+            reloaded.by_name("alpha").unwrap().tier,
+            Some(Tier::ProductionSupport)
+        );
+        assert_eq!(reloaded.by_name("beta").unwrap().tier, None);
+        // A file written before tiers existed still loads.
+        std::fs::write(
+            tmp.path().join("old.toml"),
+            "schema = 1\nid = \"x\"\nname = \"old\"\nprotected = false\n",
+        )
+        .unwrap();
+        let old = Environments::load(tmp.path());
+        assert_eq!(old.by_name("old").unwrap().tier, None);
     }
 }

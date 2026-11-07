@@ -4,6 +4,7 @@
 use hmac::{Hmac, Mac};
 use hs_core::Services;
 use hs_ui::form;
+use hs_ui::table::{EditColumn, edit_table};
 use hs_ui::theme::Theme;
 use md5::Digest;
 use serde::{Deserialize, Serialize};
@@ -173,7 +174,7 @@ impl State {
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
-    form::page_title(ui, theme, &s.t("dt-hash"), Some(&s.t("dt-hash-sub")));
+    crate::util::page_title(ui, s, theme, "dt-hash", Some("dt-hash-sub"));
     form::section(ui, theme, &s.t("dt-input"), |ui| {
         let file_info = st
             .file
@@ -181,23 +182,32 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             .map(|(p, b)| (p.display().to_string(), b.len()));
         match file_info {
             Some((path, len)) => {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{} {path} ({len} bytes)", hs_ui::icons::ph::FILE));
-                    if ui.button(s.t("dt-use-text-instead")).clicked() {
+                util::button_row(ui, |ui| {
+                    let size = s.i18n.t_args("dt-bytes", &[("count", &len.to_string())]);
+                    ui.label(format!("{} {path} ({size})", hs_ui::icons::ph::FILE));
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::TEXT_T,
+                        &s.t("dt-use-text-instead"),
+                    )
+                    .clicked()
+                    {
                         st.file = None;
                     }
                 });
             }
             None => {
                 util::input(ui, s, theme, &mut st.input, &s.t("dt-hash-input-hint"), 5);
-                ui.horizontal(|ui| {
-                    if ui
-                        .button(format!(
-                            "{} {}",
-                            hs_ui::icons::ph::FOLDER_OPEN,
-                            s.t("dt-hash-file")
-                        ))
-                        .clicked()
+                ui.add_space(form::ROW_GAP);
+                util::button_row(ui, |ui| {
+                    if form::button(
+                        ui,
+                        theme,
+                        hs_ui::icons::ph::FOLDER_OPEN,
+                        &s.t("dt-hash-file"),
+                    )
+                    .clicked()
                         && let Some(p) = rfd::FileDialog::new().pick_file()
                     {
                         match std::fs::read(&p) {
@@ -205,31 +215,36 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                             Err(e) => tracing::warn!("hash file: {e}"),
                         }
                     }
+                    ui.add_space(form::OPTION_GAP);
                     ui.checkbox(&mut st.minify_json, s.t("dt-hash-minify"));
                 });
             }
         }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.checkbox(&mut st.use_hmac, s.t("dt-hash-hmac"));
+        ui.add_space(form::ROW_GAP);
+        form::field_grid(ui, "dt-hash-options", |ui| {
+            form::label(ui, &s.t("dt-hash-format"));
+            form::centred_row(ui, |ui| {
+                form::selectable_value(ui, &mut st.output, Output::Hex, s.t("dt-hash-hex"));
+                form::selectable_value(ui, &mut st.output, Output::Base64, "Base64");
+            });
+            ui.end_row();
+            form::label(ui, &s.t("dt-hash-hmac"));
+            ui.checkbox(&mut st.use_hmac, s.t("dt-hash-use-hmac"));
+            ui.end_row();
             if st.use_hmac {
-                util::secret_line(ui, s, theme, &mut st.hmac_key, &s.t("dt-hash-hmac-key"));
+                form::sub_label(ui, &s.t("dt-hash-hmac-key"));
+                util::secret_line(ui, s, theme, &mut st.hmac_key, "");
+                ui.end_row();
             }
-            ui.separator();
-            hs_ui::form::selectable_value(ui, &mut st.output, Output::Hex, "hex");
-            hs_ui::form::selectable_value(ui, &mut st.output, Output::Base64, "Base64");
         });
     });
     form::section(ui, theme, &s.t("dt-hash-results"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.label(s.t("dt-hash-compare"));
-            ui.add(
-                hs_ui::form::line_edit(&mut st.expected)
-                    .hint_text(s.t("dt-hash-compare-hint"))
-                    .desired_width(f32::INFINITY),
-            );
+        form::field_grid(ui, "dt-hash-compare", |ui| {
+            form::label(ui, &s.t("dt-hash-compare"));
+            form::text_field(ui, &mut st.expected, &s.t("dt-hash-compare-hint"));
+            ui.end_row();
         });
-        ui.add_space(6.0);
+        ui.add_space(form::ROW_GAP);
         let expected = st.expected.trim().to_ascii_lowercase();
         let hmac_key = if st.use_hmac {
             util::expand(s, &st.hmac_key).unwrap_or_default()
@@ -252,99 +267,97 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .collect();
             st.cache = Some((fp, rows));
         }
-        let rows: Vec<(Algo, Option<Vec<u8>>)> = st
+        // Each row as it is drawn: the digest in the chosen output, whether
+        // it matches the compare field, and its length in bits.
+        type Row = (Algo, Option<(String, bool, usize)>);
+        let rows: Vec<Row> = st
             .cache
             .as_ref()
-            .map(|(_, r)| r.clone())
-            .unwrap_or_default();
-        egui_extras::TableBuilder::new(ui)
-            .striped(true)
-            .cell_layout(egui::Layout::left_to_right(egui::Align::Center))
-            .column(egui_extras::Column::exact(110.0))
-            .column(egui_extras::Column::remainder().clip(true))
-            .column(egui_extras::Column::exact(44.0))
-            .column(egui_extras::Column::exact(84.0))
-            .header(26.0, |mut h| {
-                h.col(|ui| {
-                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                    ui.label(egui::RichText::new(s.t("dt-hash-col-algorithm")).strong());
+            .map(|(_, r)| r.as_slice())
+            .unwrap_or_default()
+            .iter()
+            .map(|(algo, bytes)| {
+                let shown = bytes.as_ref().map(|b| {
+                    let text = match st.output {
+                        Output::Hex => hex_encode(b),
+                        Output::Base64 => b64_encode(b),
+                    };
+                    let matches = !expected.is_empty()
+                        && (expected == text.to_ascii_lowercase()
+                            || expected == hex_encode(b)
+                            || st.expected.trim() == b64_encode(b));
+                    (text, matches, b.len() * 8)
                 });
-                h.col(|ui| {
-                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                    ui.label(egui::RichText::new(s.t("dt-hash-col-digest")).strong());
-                });
-                h.col(|ui| {
-                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                    ui.label(egui::RichText::new(s.t("dt-hash-col-bits")).strong());
-                });
-                h.col(|ui| {
-                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                    ui.label(egui::RichText::new(s.t("dt-hash-col-actions")).strong());
-                });
+                (*algo, shown)
             })
-            .body(|mut body| {
-                for (algo, bytes) in rows {
-                    body.row(28.0, |mut row| {
-                        row.col(|ui| {
-                            ui.add_space(hs_ui::table::HEADER_INDENT);
-                            ui.label(egui::RichText::new(algo.name()).strong());
-                        });
-                        match bytes {
-                            Some(b) => {
-                                let text = match st.output {
-                                    Output::Hex => hex_encode(&b),
-                                    Output::Base64 => b64_encode(&b),
-                                };
-                                let matches = !expected.is_empty()
-                                    && (expected == text.to_ascii_lowercase()
-                                        || expected == hex_encode(&b)
-                                        || st.expected.trim() == b64_encode(&b));
-                                row.col(|ui| {
-                                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                                    ui.add(
-                                        egui::Label::new(
-                                            egui::RichText::new(&text).monospace().color(
-                                                if matches { theme.success } else { theme.text },
-                                            ),
-                                        )
-                                        .truncate()
-                                        .selectable(true),
-                                    )
-                                    .tip(&text);
-                                });
-                                row.col(|ui| {
-                                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                                    ui.label(
-                                        egui::RichText::new((b.len() * 8).to_string())
-                                            .color(theme.text_muted),
-                                    );
-                                });
-                                row.col(|ui| {
-                                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                                    if ui
-                                        .small_button(hs_ui::icons::COPY)
-                                        .tip(s.t("dt-copy"))
-                                        .clicked()
-                                    {
-                                        ui.ctx().copy_text(text.clone());
-                                    }
-                                    if matches {
-                                        ui.colored_label(theme.success, hs_ui::icons::CHECK);
-                                    }
-                                });
-                            }
-                            None => {
-                                row.col(|ui| {
-                                    ui.add_space(hs_ui::table::HEADER_INDENT);
-                                    ui.colored_label(theme.text_muted, s.t("dt-hash-no-hmac"));
-                                });
-                                row.col(|_| {});
-                                row.col(|_| {});
-                            }
+            .collect();
+        let (algorithm, digest_col, bits, actions) = (
+            s.t("dt-hash-col-algorithm"),
+            s.t("dt-hash-col-digest"),
+            s.t("dt-hash-col-bits"),
+            s.t("dt-col-actions"),
+        );
+        let columns = [
+            EditColumn::new(&algorithm, 120.0),
+            EditColumn::new(&digest_col, 520.0),
+            EditColumn::new(&bits, 60.0),
+            EditColumn::new(&actions, 0.0),
+        ];
+        edit_table(
+            ui,
+            theme,
+            "dt-hash-table",
+            &columns,
+            rows.len(),
+            None,
+            |ui, r, c| {
+                let (algo, shown) = &rows[r];
+                match (c, shown) {
+                    (0, _) => {
+                        ui.label(egui::RichText::new(algo.name()).strong());
+                    }
+                    (1, Some((text, matches, _))) => {
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(text).monospace().color(if *matches {
+                                    theme.success
+                                } else {
+                                    theme.text
+                                }),
+                            )
+                            .truncate()
+                            .selectable(true),
+                        )
+                        .tip(text);
+                    }
+                    (1, None) => {
+                        ui.colored_label(theme.text_muted, s.t("dt-hash-no-hmac"));
+                    }
+                    (2, Some((_, _, n))) => {
+                        ui.colored_label(theme.text_muted, n.to_string());
+                    }
+                    (3, shown) => {
+                        // Drawn disabled on a row with no digest, so the
+                        // column stays aligned (CR-0061).
+                        let copy = ui
+                            .add_enabled_ui(shown.is_some(), |ui| {
+                                form::icon_button(ui, theme, hs_ui::icons::COPY, 14.0, false)
+                            })
+                            .inner
+                            .tip(s.t("dt-copy"));
+                        if copy.clicked()
+                            && let Some((text, _, _)) = shown
+                        {
+                            ui.ctx().copy_text(text.clone());
                         }
-                    });
+                        if let Some((_, true, _)) = shown {
+                            ui.colored_label(theme.success, hs_ui::icons::CHECK);
+                        }
+                    }
+                    _ => {}
                 }
-            });
+            },
+        );
     });
 }
 

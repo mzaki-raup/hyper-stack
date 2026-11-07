@@ -148,17 +148,19 @@ pub fn open(state: &mut State, path: std::path::PathBuf) {
 }
 
 pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
+    use hs_ui::table::{EditColumn, edit_table};
+    use hs_ui::tip::TipExt;
     // Masking is on until the user turns it off (a .env is usually full
     // of secrets, and this view is as shareable as a screenshot).
     if state.path.is_none() && !state.mask {
         state.mask = true;
     }
+    crate::util::page_title(ui, s, theme, "dt-env", Some("dt-env-sub"));
     form::section(ui, theme, &s.t("dt-env"), |ui| {
         form::hint(ui, theme, &s.t("dt-env-hint"));
-        ui.horizontal(|ui| {
-            if ui
-                .button(format!("{} {}", ph::FOLDER_OPEN, s.t("dt-env-open")))
-                .clicked()
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
+            if form::button(ui, theme, ph::FOLDER_OPEN, &s.t("dt-env-open")).clicked()
                 && let Some(p) = rfd::FileDialog::new()
                     .add_filter("env", &["env", "txt"])
                     .pick_file()
@@ -178,9 +180,10 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
         if state.path.is_none() {
             return;
         }
-        ui.horizontal(|ui| {
+        ui.add_space(form::ROW_GAP);
+        form::centred_row(ui, |ui| {
             ui.checkbox(&mut state.mask, s.t("dt-env-mask"));
-            ui.separator();
+            ui.add_space(form::OPTION_GAP);
             let pairs = state
                 .lines
                 .iter()
@@ -192,110 +195,117 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     .color(theme.text_muted),
             );
         });
-        ui.add_space(4.0);
-        // The width of the Show/Hide slot, held open on every row. Wide
-        // enough for the button itself: a slot narrower than its
-        // content grows, and the delete column stops lining up.
-        const REVEAL_W: f32 = 64.0;
-        // Every cell in a row is this tall, so the actions can be
-        // centred against the key and value fields: a field's height
-        // (CR-0061), so a `line_edit` fits its row.
-        let row_h = hs_ui::form::field_height(ui);
-        // Fixed sizes: inside a grid the leftover width is tiny on the
-        // first frame and the fields collapse to an ellipsis
-        // (hs_ui::kv_editor learned this first).
-        let total = ui.available_width().clamp(420.0, 900.0);
-        let key_w = (total * 0.32).clamp(140.0, 260.0);
-        let value_w = (total - key_w - 150.0).max(200.0);
+        ui.add_space(form::ROW_GAP);
+        // The rows of the table are the pairs; comments and blank lines
+        // stay in `lines` where they are, unseen.
+        let pairs: Vec<usize> = state
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(_, l)| matches!(l, Line::Pair { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        let (key_col, value_col, actions_col, empty) = (
+            s.t("dt-env-col-key"),
+            s.t("dt-env-col-value"),
+            s.t("dt-col-actions"),
+            s.t("dt-env-none"),
+        );
+        let (show, hide) = (s.t("dt-env-show"), s.t("dt-env-hide"));
         let mut reveal: Option<String> = None;
         let mut remove: Option<usize> = None;
+        let mut dirty = false;
+        let mask = state.mask;
+        let revealed = &state.revealed;
+        let lines = &mut state.lines;
         egui::ScrollArea::vertical()
             .id_salt("dt-env-rows")
-            .max_height(320.0)
+            .max_height(360.0)
             .show(ui, |ui| {
-                egui::Grid::new("dt-env-grid")
-                    .num_columns(3)
-                    .striped(true)
-                    .spacing([10.0, 4.0])
-                    .show(ui, |ui| {
-                        for (i, line) in state.lines.iter_mut().enumerate() {
-                            let Line::Pair { key, value, .. } = line else {
-                                continue;
-                            };
-                            let secret = looks_secret(key);
-                            let hidden =
-                                state.mask && secret && !state.revealed.iter().any(|r| r == key);
-                            ui.add_sized(
-                                [key_w, row_h],
-                                hs_ui::form::line_edit(key).font(egui::TextStyle::Monospace),
-                            );
-                            if hidden {
-                                let mut dots = "•".repeat(value.chars().count().clamp(6, 24));
-                                ui.add_enabled_ui(false, |ui| {
-                                    ui.add_sized(
-                                        [value_w, row_h],
-                                        hs_ui::form::line_edit(&mut dots),
-                                    );
-                                });
-                            } else if ui
-                                .add_sized(
-                                    [value_w, row_h],
-                                    hs_ui::form::line_edit(value).font(egui::TextStyle::Monospace),
-                                )
-                                .changed()
-                            {
-                                state.dirty = true;
-                            }
-                            // A fixed-height row with centre alignment, so
-                            // Show/Hide and the delete button sit on the
-                            // middle of the fields rather than their top.
-                            ui.allocate_ui_with_layout(
-                                egui::vec2(REVEAL_W + 60.0, row_h),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.set_min_height(row_h);
-                                    // The reveal slot is held open on a plain
-                                    // key as well, so Show/Hide and the delete
-                                    // button line up down the whole table.
-                                    if secret {
-                                        let label = if hidden {
-                                            s.t("dt-env-show")
-                                        } else {
-                                            s.t("dt-env-hide")
-                                        };
-                                        if ui
-                                            .add_sized(
-                                                [REVEAL_W, 20.0],
-                                                egui::Button::new(
-                                                    egui::RichText::new(label).small(),
-                                                ),
-                                            )
-                                            .clicked()
-                                        {
-                                            reveal = Some(key.clone());
-                                        }
-                                    } else {
-                                        // Plus the gap the button itself
-                                        // would have been followed by.
-                                        ui.add_space(REVEAL_W + ui.spacing().item_spacing.x);
-                                    }
-                                    if form::icon_button(
-                                        ui,
-                                        theme,
-                                        hs_ui::icons::TRASH,
-                                        14.0,
-                                        false,
+                edit_table(
+                    ui,
+                    theme,
+                    "dt-env-table",
+                    &[
+                        EditColumn::new(&key_col, 220.0),
+                        EditColumn::new(&value_col, 380.0),
+                        EditColumn::new(&actions_col, 0.0),
+                    ],
+                    pairs.len(),
+                    Some(&empty),
+                    |ui, r, c| {
+                        let i = pairs[r];
+                        let Some(Line::Pair { key, value, .. }) = lines.get_mut(i) else {
+                            return;
+                        };
+                        let secret = looks_secret(key);
+                        let hidden = mask && secret && !revealed.iter().any(|x| x == key);
+                        match c {
+                            0 => {
+                                let w = ui.available_width();
+                                if ui
+                                    .add(
+                                        form::line_edit(key)
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_width(w),
                                     )
+                                    .changed()
+                                {
+                                    dirty = true;
+                                }
+                            }
+                            1 => {
+                                let w = ui.available_width();
+                                if hidden {
+                                    let mut dots = "•".repeat(value.chars().count().clamp(6, 24));
+                                    ui.add_enabled(
+                                        false,
+                                        form::line_edit(&mut dots).desired_width(w),
+                                    );
+                                } else if ui
+                                    .add(
+                                        form::line_edit(value)
+                                            .font(egui::TextStyle::Monospace)
+                                            .desired_width(w),
+                                    )
+                                    .changed()
+                                {
+                                    dirty = true;
+                                }
+                            }
+                            _ => {
+                                // Show/Hide is drawn on every row, disabled on
+                                // a key that is not secret-looking, so the
+                                // column stays aligned (CR-0061).
+                                let (icon, tip) = if hidden {
+                                    (hs_ui::icons::EYE, &show)
+                                } else {
+                                    (hs_ui::icons::EYE_SLASH, &hide)
+                                };
+                                if ui
+                                    .add_enabled_ui(secret, |ui| {
+                                        form::icon_button(ui, theme, icon, 14.0, false)
+                                    })
+                                    .inner
+                                    .tip(tip.as_str())
                                     .clicked()
-                                    {
-                                        remove = Some(i);
-                                    }
-                                },
-                            );
-                            ui.end_row();
+                                {
+                                    reveal = Some(key.clone());
+                                }
+                                if form::icon_button(ui, theme, hs_ui::icons::TRASH, 14.0, false)
+                                    .tip(s.t("delete"))
+                                    .clicked()
+                                {
+                                    remove = Some(i);
+                                }
+                            }
                         }
-                    });
+                    },
+                );
             });
+        if dirty {
+            state.dirty = true;
+        }
         if let Some(k) = reveal {
             match state.revealed.iter().position(|x| *x == k) {
                 Some(i) => {
@@ -308,12 +318,9 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             state.lines.remove(i);
             state.dirty = true;
         }
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            if ui
-                .button(format!("{} {}", ph::PLUS, s.t("dt-env-add")))
-                .clicked()
-            {
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
+            if form::button(ui, theme, ph::PLUS, &s.t("dt-env-add")).clicked() {
                 state.lines.push(Line::Pair {
                     key: "NEW_KEY".into(),
                     value: String::new(),
@@ -322,11 +329,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 });
                 state.dirty = true;
             }
-            if ui
-                .add_enabled(
-                    state.dirty,
-                    egui::Button::new(format!("{} {}", ph::FLOPPY_DISK, s.t("save"))),
-                )
+            if crate::util::button_if(ui, theme, state.dirty, ph::FLOPPY_DISK, &s.t("save"))
                 .clicked()
                 && let Some(p) = state.path.clone()
             {
@@ -338,7 +341,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                     Err(e) => state.error = Some(e.to_string()),
                 }
             }
-            if ui.button(s.t("dt-copy")).clicked() {
+            if form::button(ui, theme, hs_ui::icons::COPY, &s.t("dt-copy")).clicked() {
                 ui.ctx().copy_text(render(&state.lines));
             }
         });

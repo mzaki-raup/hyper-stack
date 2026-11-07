@@ -207,19 +207,19 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
     if state.rows.is_empty() && state.error.is_none() && !state.busy && state.slot.is_none() {
         refresh(state, s);
     }
+    crate::util::page_title(ui, s, theme, "dt-ports", Some("dt-ports-sub"));
     form::section(ui, theme, &s.t("dt-ports"), |ui| {
         form::hint(ui, theme, &s.t("dt-ports-hint"));
-        hs_ui::form::centred_row(ui, |ui| {
-            if ui
-                .add_enabled(
-                    !state.busy,
-                    egui::Button::new(format!(
-                        "{} {}",
-                        ph::ARROWS_CLOCKWISE,
-                        s.t("dt-ports-refresh")
-                    )),
-                )
-                .clicked()
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
+            if crate::util::button_if(
+                ui,
+                theme,
+                !state.busy,
+                ph::ARROWS_CLOCKWISE,
+                &s.t("dt-ports-refresh"),
+            )
+            .clicked()
             {
                 refresh(state, s);
             }
@@ -229,7 +229,7 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             ui.add(
                 hs_ui::form::line_edit(&mut state.filter)
                     .hint_text(s.t("dt-ports-filter"))
-                    .desired_width(200.0),
+                    .desired_width(form::FIELD_MIN_WIDTH),
             );
             ui.label(
                 egui::RichText::new(
@@ -297,15 +297,19 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             .table
             .selected
             .and_then(|i| shown.get(i).map(|l| (*l).clone()));
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        ui.add_space(form::ROW_GAP);
+        crate::util::button_row(ui, |ui| {
             // Killing a process is destructive, so it asks first
             // (docs/06-security.md §3).
             if ui
-                .add_enabled(
-                    selected.is_some(),
-                    egui::Button::new(format!("{} {}", ph::SKULL, s.t("dt-ports-kill"))),
-                )
+                .add_enabled_ui(selected.is_some(), |ui| {
+                    form::danger_button(
+                        ui,
+                        theme,
+                        &format!("{} {}", ph::SKULL, s.t("dt-ports-kill")),
+                    )
+                })
+                .inner
                 .clicked()
             {
                 state.confirm = selected.clone();
@@ -319,37 +323,34 @@ pub fn ui(state: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             }
         });
     });
-    // The confirmation.
+    // The confirmation, through the shared dialog.
     if let Some(target) = state.confirm.clone() {
-        let mut close = false;
-        egui::Modal::new(egui::Id::new("dt-ports-kill")).show(ui.ctx(), |ui| {
-            ui.set_width(420.0);
-            ui.heading(s.t("dt-ports-kill-title"));
-            ui.add_space(6.0);
-            ui.label(s.i18n.t_args(
+        match hs_ui::dialog::confirm(
+            ui.ctx(),
+            theme,
+            "dt-ports-kill",
+            &s.t("dt-ports-kill-title"),
+            &s.i18n.t_args(
                 "dt-ports-kill-body",
                 &[
                     ("process", &target.process),
                     ("pid", &target.pid.to_string()),
                     ("port", &target.port.to_string()),
                 ],
-            ));
-            ui.add_space(12.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(s.t("dt-ports-kill")).clicked() {
-                    match kill(target.pid, s) {
-                        Ok(()) => refresh(state, s),
-                        Err(e) => state.error = Some(e),
-                    }
-                    close = true;
+            ),
+            &format!("{} {}", ph::SKULL, s.t("dt-ports-kill")),
+            &format!("{} {}", ph::X, s.t("cancel")),
+            true,
+        ) {
+            hs_ui::dialog::DialogResult::Ok => {
+                state.confirm = None;
+                match kill(target.pid, s) {
+                    Ok(()) => refresh(state, s),
+                    Err(e) => state.error = Some(e),
                 }
-                if ui.button(s.t("cancel")).clicked() {
-                    close = true;
-                }
-            });
-        });
-        if close {
-            state.confirm = None;
+            }
+            hs_ui::dialog::DialogResult::Cancel => state.confirm = None,
+            hs_ui::dialog::DialogResult::Open => {}
         }
     }
 }

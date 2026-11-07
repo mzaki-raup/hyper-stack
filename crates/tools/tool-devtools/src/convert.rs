@@ -485,6 +485,9 @@ pub struct State {
     pub rate_to: RateUnit,
     /// A size to time at that rate, in megabytes.
     pub transfer_mb: String,
+    /// Sort and selection of the Every Unit table, shared by the panes
+    /// that show one.
+    pub units: hs_ui::table::TableState,
 }
 
 impl Default for State {
@@ -507,13 +510,13 @@ impl Default for State {
             rate_from: RateUnit::Megabit,
             rate_to: RateUnit::Megabyte,
             transfer_mb: String::new(),
+            units: hs_ui::table::TableState::default(),
         }
     }
 }
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_ui::theme::Theme) {
-    use hs_ui::form;
-    form::page_title(ui, theme, &s.t("dt-convert"), Some(&s.t("dt-convert-sub")));
+    crate::util::page_title(ui, s, theme, "dt-convert", Some("dt-convert-sub"));
     ui.horizontal_wrapped(|ui| {
         for p in Pane::ALL {
             hs_ui::form::selectable_value(ui, &mut st.pane, p, s.t(p.label_key()));
@@ -548,6 +551,69 @@ fn unit_combo<T: PartialEq + Copy>(
         });
 }
 
+/// The Every Unit table: one row per unit with the value in it, to the
+/// table standard (CR-0062).
+fn units_table(
+    ui: &mut egui::Ui,
+    s: &hs_core::Services,
+    theme: &hs_ui::theme::Theme,
+    state: &mut hs_ui::table::TableState,
+    rows: &[Vec<String>],
+) {
+    let columns = [
+        hs_ui::table::ColumnSpec::new(s.t("dt-conv-col-unit"), 200.0),
+        hs_ui::table::ColumnSpec::new(s.t("dt-conv-col-value"), 320.0),
+    ];
+    let copy_label = s.t("table-copy-row");
+    let empty = s.t("dt-conv-units-empty");
+    hs_ui::table::DataTable {
+        theme,
+        columns: &columns,
+        rows,
+        row_height: hs_ui::table::ROW_HEIGHT,
+        show_filter: false,
+        copy_row_label: &copy_label,
+        built_in_menu: true,
+        row_icons: None,
+        empty_hint: Some(&empty),
+    }
+    .show(ui, state);
+}
+
+/// A value, a unit to convert from, a unit to convert to, and Swap: one
+/// row that wraps when the pane is narrow (CR-0062).
+fn unit_row<T: PartialEq + Copy>(
+    ui: &mut egui::Ui,
+    s: &hs_core::Services,
+    theme: &hs_ui::theme::Theme,
+    input: &mut String,
+    (from, to): (&mut T, &mut T),
+    (id, all): (&str, &[T]),
+    label: impl Fn(T) -> String,
+) {
+    crate::util::button_row(ui, |ui| {
+        ui.add(
+            hs_ui::form::line_edit(input)
+                .hint_text(s.t("dt-conv-value"))
+                .desired_width(140.0),
+        );
+        unit_combo(ui, &format!("{id}-from"), from, all, &label);
+        ui.label("\u{2192}");
+        unit_combo(ui, &format!("{id}-to"), to, all, &label);
+        if hs_ui::form::button(
+            ui,
+            theme,
+            hs_ui::icons::ph::ARROWS_LEFT_RIGHT,
+            &s.t("dt-conv-swap-label"),
+        )
+        .tip(s.t("dt-conv-swap"))
+        .clicked()
+        {
+            std::mem::swap(from, to);
+        }
+    });
+}
+
 fn time_pane(
     st: &mut State,
     ui: &mut egui::Ui,
@@ -556,27 +622,15 @@ fn time_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-time"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.add(
-                hs_ui::form::line_edit(&mut st.time_input)
-                    .hint_text(s.t("dt-conv-value"))
-                    .desired_width(120.0),
-            );
-            unit_combo(ui, "dt-time-from", &mut st.time_from, &TimeUnit::ALL, |u| {
-                s.t(u.key())
-            });
-            ui.label("\u{2192}");
-            unit_combo(ui, "dt-time-to", &mut st.time_to, &TimeUnit::ALL, |u| {
-                s.t(u.key())
-            });
-            if ui
-                .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .tip(s.t("dt-conv-swap"))
-                .clicked()
-            {
-                std::mem::swap(&mut st.time_from, &mut st.time_to);
-            }
-        });
+        unit_row(
+            ui,
+            s,
+            theme,
+            &mut st.time_input,
+            (&mut st.time_from, &mut st.time_to),
+            ("dt-time", &TimeUnit::ALL[..]),
+            |u| s.t(u.key()),
+        );
     });
     let parsed = st.time_input.trim().parse::<f64>().ok();
     match parsed {
@@ -592,20 +646,12 @@ fn time_pane(
             );
             // Every unit at once: the answer that was not asked for is
             // often the one wanted next.
+            let rows: Vec<Vec<String>> = TimeUnit::ALL
+                .iter()
+                .map(|u| vec![s.t(u.key()), format_number(time(v, st.time_from, *u))])
+                .collect();
             form::section(ui, theme, &s.t("dt-conv-all-units"), |ui| {
-                for u in TimeUnit::ALL {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(s.t(u.key()))
-                                .color(theme.text_muted)
-                                .monospace(),
-                        );
-                        ui.label(
-                            egui::RichText::new(format_number(time(v, st.time_from, u)))
-                                .monospace(),
-                        );
-                    });
-                }
+                units_table(ui, s, theme, &mut st.units, &rows);
             });
         }
         None if !st.time_input.trim().is_empty() => {
@@ -623,27 +669,16 @@ fn data_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-data"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.add(
-                hs_ui::form::line_edit(&mut st.data_input)
-                    .hint_text(s.t("dt-conv-value"))
-                    .desired_width(120.0),
-            );
-            unit_combo(ui, "dt-data-from", &mut st.data_from, &DataUnit::ALL, |u| {
-                u.label().to_string()
-            });
-            ui.label("\u{2192}");
-            unit_combo(ui, "dt-data-to", &mut st.data_to, &DataUnit::ALL, |u| {
-                u.label().to_string()
-            });
-            if ui
-                .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .tip(s.t("dt-conv-swap"))
-                .clicked()
-            {
-                std::mem::swap(&mut st.data_from, &mut st.data_to);
-            }
-        });
+        unit_row(
+            ui,
+            s,
+            theme,
+            &mut st.data_input,
+            (&mut st.data_from, &mut st.data_to),
+            ("dt-data", &DataUnit::ALL[..]),
+            |u| u.label().to_string(),
+        );
+        ui.add_space(form::ROW_GAP);
         form::hint(ui, theme, &s.t("dt-conv-data-hint"));
     });
     let parsed = st.data_input.trim().parse::<f64>().ok();
@@ -658,20 +693,17 @@ fn data_pane(
                 &format!("{out} {}", st.data_to.label()),
                 1,
             );
+            let rows: Vec<Vec<String>> = DataUnit::ALL
+                .iter()
+                .map(|u| {
+                    vec![
+                        u.label().to_string(),
+                        format_number(data(v, st.data_from, *u)),
+                    ]
+                })
+                .collect();
             form::section(ui, theme, &s.t("dt-conv-all-units"), |ui| {
-                for u in DataUnit::ALL {
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(u.label())
-                                .color(theme.text_muted)
-                                .monospace(),
-                        );
-                        ui.label(
-                            egui::RichText::new(format_number(data(v, st.data_from, u)))
-                                .monospace(),
-                        );
-                    });
-                }
+                units_table(ui, s, theme, &mut st.units, &rows);
             });
         }
         None if !st.data_input.trim().is_empty() => {
@@ -689,17 +721,19 @@ fn number_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-number"), |ui| {
-        ui.horizontal(|ui| {
-            ui.add(
-                hs_ui::form::line_edit(&mut st.number_input)
-                    .hint_text(s.t("dt-conv-number-hint"))
-                    .desired_width(220.0),
-            );
-            for (base, label) in [(10u32, "DEC"), (2, "BIN"), (8, "OCT"), (16, "HEX")] {
-                hs_ui::form::selectable_value(ui, &mut st.number_base, base, label);
-            }
+        form::field_grid(ui, "dt-conv-number-grid", |ui| {
+            form::label(ui, &s.t("dt-conv-value"));
+            form::text_field(ui, &mut st.number_input, &s.t("dt-conv-number-hint"));
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("dt-conv-number-note"));
+            form::label(ui, &s.t("dt-conv-base"));
+            form::centred_row(ui, |ui| {
+                for (base, label) in [(10u32, "DEC"), (2, "BIN"), (8, "OCT"), (16, "HEX")] {
+                    form::selectable_value(ui, &mut st.number_base, base, label);
+                }
+            });
+            ui.end_row();
         });
-        form::hint(ui, theme, &s.t("dt-conv-number-note"));
     });
     if st.number_input.trim().is_empty() {
         return;
@@ -730,43 +764,43 @@ fn epoch_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-epoch"), |ui| {
-        ui.horizontal(|ui| {
-            hs_ui::form::selectable_value(
-                ui,
-                &mut st.epoch_unit,
-                EpochUnit::Seconds,
-                s.t("dt-unit-s"),
-            );
-            hs_ui::form::selectable_value(
-                ui,
-                &mut st.epoch_unit,
-                EpochUnit::Milliseconds,
-                s.t("dt-unit-ms"),
-            );
-            if ui.small_button(s.t("dt-conv-now")).clicked() {
-                let now = chrono::Utc::now();
-                st.epoch_input = match st.epoch_unit {
-                    EpochUnit::Seconds => now.timestamp().to_string(),
-                    EpochUnit::Milliseconds => now.timestamp_millis().to_string(),
-                };
-                st.iso_input.clear();
-            }
+        form::field_grid(ui, "dt-conv-epoch-grid", |ui| {
+            form::label(ui, &s.t("dt-conv-epoch-unit"));
+            crate::util::button_row(ui, |ui| {
+                form::selectable_value(
+                    ui,
+                    &mut st.epoch_unit,
+                    EpochUnit::Seconds,
+                    s.t("dt-unit-s"),
+                );
+                form::selectable_value(
+                    ui,
+                    &mut st.epoch_unit,
+                    EpochUnit::Milliseconds,
+                    s.t("dt-unit-ms"),
+                );
+                ui.add_space(form::OPTION_GAP);
+                if form::button(ui, theme, hs_ui::icons::ph::CLOCK, &s.t("dt-conv-now"))
+                    .tip(s.t("dt-conv-now-tip"))
+                    .clicked()
+                {
+                    let now = chrono::Utc::now();
+                    st.epoch_input = match st.epoch_unit {
+                        EpochUnit::Seconds => now.timestamp().to_string(),
+                        EpochUnit::Milliseconds => now.timestamp_millis().to_string(),
+                    };
+                    st.iso_input.clear();
+                }
+            });
+            ui.end_row();
+            form::label(ui, &s.t("dt-conv-epoch-value"));
+            form::text_field(ui, &mut st.epoch_input, "1760659200");
+            ui.end_row();
+            form::label(ui, &s.t("dt-conv-iso-value"));
+            form::text_field(ui, &mut st.iso_input, "2026-10-17T00:00:00Z");
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("dt-conv-epoch-hint"));
         });
-        ui.add_space(4.0);
-        ui.label(s.t("dt-conv-epoch-value"));
-        ui.add(
-            hs_ui::form::line_edit(&mut st.epoch_input)
-                .hint_text("1760659200")
-                .desired_width(f32::INFINITY),
-        );
-        ui.add_space(6.0);
-        ui.label(s.t("dt-conv-iso-value"));
-        ui.add(
-            hs_ui::form::line_edit(&mut st.iso_input)
-                .hint_text("2026-10-17T00:00:00Z")
-                .desired_width(f32::INFINITY),
-        );
-        form::hint(ui, theme, &s.t("dt-conv-epoch-hint"));
     });
     // Whichever side has text is the question; the other is the answer.
     if !st.epoch_input.trim().is_empty() {
@@ -805,27 +839,16 @@ fn bandwidth_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-bandwidth"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.add(
-                hs_ui::form::line_edit(&mut st.rate_input)
-                    .hint_text(s.t("dt-conv-value"))
-                    .desired_width(120.0),
-            );
-            unit_combo(ui, "dt-rate-from", &mut st.rate_from, &RateUnit::ALL, |u| {
-                u.label().to_string()
-            });
-            ui.label("→");
-            unit_combo(ui, "dt-rate-to", &mut st.rate_to, &RateUnit::ALL, |u| {
-                u.label().to_string()
-            });
-            if ui
-                .small_button(hs_ui::icons::ph::ARROWS_LEFT_RIGHT)
-                .tip(s.t("dt-conv-swap"))
-                .clicked()
-            {
-                std::mem::swap(&mut st.rate_from, &mut st.rate_to);
-            }
-        });
+        unit_row(
+            ui,
+            s,
+            theme,
+            &mut st.rate_input,
+            (&mut st.rate_from, &mut st.rate_to),
+            ("dt-rate", &RateUnit::ALL[..]),
+            |u| u.label().to_string(),
+        );
+        ui.add_space(form::ROW_GAP);
         form::hint(ui, theme, &s.t("dt-conv-bandwidth-hint"));
     });
     let Some(v) = st.rate_input.trim().parse::<f64>().ok() else {
@@ -843,28 +866,28 @@ fn bandwidth_pane(
         &format!("{out} {}", st.rate_to.label()),
         1,
     );
+    let rows: Vec<Vec<String>> = RateUnit::ALL
+        .iter()
+        .map(|u| {
+            vec![
+                u.label().to_string(),
+                format_number(rate(v, st.rate_from, *u)),
+            ]
+        })
+        .collect();
     form::section(ui, theme, &s.t("dt-conv-all-units"), |ui| {
-        for u in RateUnit::ALL {
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new(u.label())
-                        .color(theme.text_muted)
-                        .monospace(),
-                );
-                ui.label(egui::RichText::new(format_number(rate(v, st.rate_from, u))).monospace());
-            });
-        }
+        units_table(ui, s, theme, &mut st.units, &rows);
     });
     // How long something takes at this rate: the other half of the
     // question people bring to a bandwidth converter.
     form::section(ui, theme, &s.t("dt-conv-transfer"), |ui| {
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.add(
-                hs_ui::form::line_edit(&mut st.transfer_mb)
-                    .hint_text(s.t("dt-conv-transfer-hint"))
-                    .desired_width(120.0),
-            );
-            ui.label("MB");
+        form::field_grid(ui, "dt-conv-transfer-grid", |ui| {
+            form::label(ui, &s.t("dt-conv-transfer-hint"));
+            form::centred_row(ui, |ui| {
+                ui.add(hs_ui::form::line_edit(&mut st.transfer_mb).desired_width(140.0));
+                ui.label("MB");
+            });
+            ui.end_row();
         });
     });
     if st.transfer_mb.trim().is_empty() {
@@ -901,12 +924,12 @@ fn duration_pane(
 ) {
     use hs_ui::form;
     form::section(ui, theme, &s.t("dt-conv-duration"), |ui| {
-        ui.add(
-            hs_ui::form::line_edit(&mut st.duration_input)
-                .hint_text(s.t("dt-conv-duration-hint"))
-                .desired_width(f32::INFINITY),
-        );
-        form::hint(ui, theme, &s.t("dt-conv-duration-note"));
+        form::field_grid(ui, "dt-conv-duration-grid", |ui| {
+            form::label(ui, &s.t("dt-conv-duration"));
+            form::text_field(ui, &mut st.duration_input, &s.t("dt-conv-duration-hint"));
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("dt-conv-duration-note"));
+        });
     });
     if st.duration_input.trim().is_empty() {
         return;
@@ -916,15 +939,23 @@ fn duration_pane(
         return;
     };
     crate::util::output(ui, s, theme, &s.t("dt-conv-readable"), &humanise(total), 1);
-    for (key, unit) in [
+    let rows: Vec<Vec<String>> = [
         ("dt-unit-s", TimeUnit::Seconds),
         ("dt-unit-min", TimeUnit::Minutes),
         ("dt-unit-h", TimeUnit::Hours),
         ("dt-unit-d", TimeUnit::Days),
-    ] {
-        let v = time(total as f64, TimeUnit::Seconds, unit);
-        crate::util::output(ui, s, theme, &s.t(key), &format_number(v), 1);
-    }
+    ]
+    .into_iter()
+    .map(|(key, unit)| {
+        vec![
+            s.t(key),
+            format_number(time(total as f64, TimeUnit::Seconds, unit)),
+        ]
+    })
+    .collect();
+    form::section(ui, theme, &s.t("dt-conv-all-units"), |ui| {
+        units_table(ui, s, theme, &mut st.units, &rows);
+    });
 }
 
 #[cfg(test)]

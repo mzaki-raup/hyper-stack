@@ -143,9 +143,14 @@ fn ws_menu_width(ui: &egui::Ui, names: &[String], can_delete: bool, new_label: &
     rows.max(new_item).min(WS_MENU_MAX)
 }
 
-/// A workspace's logo at `size`, or the folder glyph scaled to match.
+/// A workspace's logo at `size`, or its lettered tile (CR-0082).
 /// Inside a horizontal row egui centres both on the text beside them.
-pub(crate) fn ws_mark(ui: &mut egui::Ui, logo: Option<egui::Image<'static>>, size: f32) {
+pub(crate) fn ws_mark(
+    ui: &mut egui::Ui,
+    name: &str,
+    logo: Option<egui::Image<'static>>,
+    size: f32,
+) {
     match logo {
         Some(img) => {
             ui.add(
@@ -154,40 +159,38 @@ pub(crate) fn ws_mark(ui: &mut egui::Ui, logo: Option<egui::Image<'static>>, siz
             );
         }
         None => {
-            ui.add(
-                egui::Label::new(egui::RichText::new(hs_ui::icons::WORKSPACE).size(size * 0.82))
-                    .selectable(false),
-            );
+            hs_ui::lettered::tile(ui, name, size);
         }
     }
 }
 
-/// The same mark as one run of a button's text, so a workspace button
-/// with no logo still shows a larger glyph centred on its name.
-pub(crate) fn ws_glyph_text(ui: &egui::Ui, name: &str, size: f32) -> egui::text::LayoutJob {
-    let colour = ui.visuals().widgets.inactive.fg_stroke.color;
-    let mut job = egui::text::LayoutJob::default();
-    job.append(
-        hs_ui::icons::WORKSPACE,
-        0.0,
-        egui::TextFormat {
-            font_id: egui::FontId::proportional(size * 0.82),
-            color: colour,
-            valign: egui::Align::Center,
-            ..Default::default()
-        },
-    );
-    job.append(
-        &format!("  {name}"),
-        0.0,
-        egui::TextFormat {
-            font_id: egui::TextStyle::Button.resolve(ui.style()),
-            color: colour,
-            valign: egui::Align::Center,
-            ..Default::default()
-        },
-    );
-    job
+/// A workspace's mark for a dropdown row or closed box (CR-0081): its
+/// logo, or its lettered tile (CR-0082), at the row size.
+pub(crate) fn ws_dropdown_mark(
+    name: &str,
+    logo: Option<egui::Image<'static>>,
+) -> hs_ui::form::Mark {
+    match logo {
+        Some(img) => hs_ui::form::Mark::image(img.corner_radius(4.0)),
+        None => hs_ui::form::Mark::tile(name),
+    }
+    .sized(WS_MARK_ROW)
+}
+
+/// An environment's mark for a dropdown row or closed box (CR-0081): its
+/// tier's glyph and colour, the red shield when protected (FEAT-0106);
+/// `None` (no environment) is the muted environment glyph.
+pub(crate) fn env_dropdown_mark(
+    theme: &hs_ui::theme::Theme,
+    env: Option<&hs_core::environments::Environment>,
+) -> hs_ui::form::Mark {
+    match env {
+        Some(e) => {
+            let (glyph, colour) = hs_ui::envmark::env_mark(e, theme);
+            hs_ui::form::Mark::glyph(glyph, Some(colour))
+        }
+        None => hs_ui::form::Mark::glyph(hs_ui::icons::ENVIRONMENT, Some(theme.text_muted)),
+    }
 }
 
 /// The application icon, shown beside the name in the top bar.
@@ -366,6 +369,10 @@ impl HyperStackApp {
             graphics_hub,
         );
         home_hub.lock().tools = factories.iter().map(|f| f.descriptor().clone()).collect();
+        settings_hub.lock().state.ai.activity_icons = factories
+            .iter()
+            .map(|f| (f.descriptor().id, f.descriptor().icon))
+            .collect();
         settings_hub.lock().state.rail_tools = factories
             .iter()
             .map(|f| {
@@ -1772,7 +1779,8 @@ impl HyperStackApp {
                         icon: Some(hs_ui::icons::WORKSPACE.into()),
                         shortcut: None,
                         image: None,
-                        colour: None,
+                        // The workspace's lettered-tile colour (CR-0082).
+                        colour: Some(hs_ui::palette8::by_name(&w.name)),
                     });
                 }
             }
@@ -2402,19 +2410,7 @@ impl HyperStackApp {
         );
         match ws_logo_image(root) {
             Some(img) => img.corner_radius(3.0).paint_at(ui, mark),
-            None => {
-                ui.painter().text(
-                    mark.center(),
-                    egui::Align2::CENTER_CENTER,
-                    hs_ui::icons::WORKSPACE,
-                    egui::FontId::proportional(WS_MARK_ROW * 0.82),
-                    if current {
-                        theme.accent
-                    } else {
-                        theme.text_muted
-                    },
-                );
-            }
+            None => hs_ui::lettered::paint(ui.painter(), mark, name),
         }
 
         // The name stops where the Delete button starts, so the two
@@ -2483,7 +2479,12 @@ impl HyperStackApp {
             } => {
                 let mut create = false;
                 let mut cancel = false;
-                let ws_names = self.registry.names();
+                let ws_roots: Vec<(String, std::path::PathBuf)> = self
+                    .registry
+                    .workspaces
+                    .iter()
+                    .map(|w| (w.name.clone(), s.paths.resolve_path(&w.path)))
+                    .collect();
                 let modal = egui::Modal::new(egui::Id::new("hs-ws-new")).show(ctx, |ui| {
                     ui.set_width(440.0);
                     ui.heading(s.t("workspace-new-title"));
@@ -2514,13 +2515,7 @@ impl HyperStackApp {
                                 img.fit_to_exact_size(egui::vec2(36.0, 36.0))
                                     .paint_at(ui, rect.shrink(2.0));
                             } else {
-                                ui.painter().text(
-                                    rect.center(),
-                                    egui::Align2::CENTER_CENTER,
-                                    hs_ui::icons::WORKSPACE,
-                                    egui::FontId::proportional(20.0),
-                                    theme.text_muted,
-                                );
+                                hs_ui::lettered::paint(ui.painter(), rect.shrink(2.0), name);
                             }
                             ui.add_space(6.0);
                             if ui.button(s.t("workspace-logo-choose")).clicked()
@@ -2542,19 +2537,44 @@ impl HyperStackApp {
                         ui.label(s.t("workspace-copy-from"));
                         let none = s.t("workspace-copy-none");
                         let selected = copy_from.clone().unwrap_or_else(|| none.clone());
-                        egui::ComboBox::from_id_salt("ws-copy-from")
-                            .selected_text(selected)
-                            .show_ui(ui, |ui| {
-                                hs_ui::form::selectable_value(ui, copy_from, None, &none);
-                                for n in &ws_names {
-                                    hs_ui::form::selectable_value(
+                        let none_mark = hs_ui::form::Mark::glyph(
+                            hs_ui::icons::WORKSPACE,
+                            Some(theme.text_muted),
+                        )
+                        .sized(WS_MARK_ROW);
+                        let mark_of = |name: &str| {
+                            ws_dropdown_mark(
+                                name,
+                                ws_roots
+                                    .iter()
+                                    .find(|(n, _)| n == name)
+                                    .and_then(|(_, root)| ws_logo_image(root)),
+                            )
+                        };
+                        let selected_mark = match copy_from.as_deref() {
+                            Some(n) => mark_of(n),
+                            None => none_mark.clone(),
+                        };
+                        hs_ui::form::mark_combo(
+                            ui,
+                            egui::ComboBox::from_id_salt("ws-copy-from"),
+                            selected_mark,
+                            selected,
+                            |ui| {
+                                hs_ui::form::mark_selectable_value(
+                                    ui, copy_from, None, none_mark, &none,
+                                );
+                                for (n, _) in &ws_roots {
+                                    hs_ui::form::mark_selectable_value(
                                         ui,
                                         copy_from,
                                         Some(n.clone()),
+                                        mark_of(n),
                                         n,
                                     );
                                 }
-                            });
+                            },
+                        );
                     });
                     ui.add_space(2.0);
                     hs_ui::form::hint(ui, &theme, &s.t("workspace-copy-from-hint"));
@@ -2932,6 +2952,9 @@ impl HyperStackApp {
         let ws_name = s.workspace.read().meta.name.clone();
         let ws_root = s.workspace.read().root().to_path_buf();
         let ws_logo = ws_logo_image(&ws_root);
+        // No logo: the button keeps a tile's room and the tile is painted
+        // into it once laid out (CR-0082).
+        let tile_id = egui::Id::new("ws-title-tile");
         let workspace_button = match ws_logo {
             Some(image) => egui::Button::image_and_text(
                 image
@@ -2939,7 +2962,10 @@ impl HyperStackApp {
                     .corner_radius(4.0),
                 ws_name.clone(),
             ),
-            None => egui::Button::new(ws_glyph_text(ui, &ws_name, WS_MARK_TITLE)),
+            None => egui::Button::new((
+                egui::Atom::custom(tile_id, egui::Vec2::splat(WS_MARK_TITLE)),
+                ws_name.clone(),
+            )),
         }
         .right_text(hs_ui::icons::CARET_DOWN);
         let rows: Vec<(String, std::path::PathBuf)> = self
@@ -2956,7 +2982,11 @@ impl HyperStackApp {
         // `Popup::menu` rather than `MenuButton`, because this
         // menu is not in a menu bar and the width has to be
         // ours to set.
-        let ws_response = ui.add(workspace_button);
+        let ws_atoms = workspace_button.atom_ui(ui);
+        if let Some(rect) = ws_atoms.rect(tile_id) {
+            hs_ui::lettered::paint(ui.painter(), rect, &ws_name);
+        }
+        let ws_response = ws_atoms.response;
         egui::Popup::menu(&ws_response).width(menu_w).show(|ui| {
             ui.set_width(menu_w);
             for (n, root) in rows {
@@ -2995,30 +3025,33 @@ impl HyperStackApp {
     fn environment_switcher(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
         // Environment switcher
-        let (active_name, active_col, active_protected) = {
+        let (active_name, active_col, active_mark) = {
             let envs = s.environments.read();
             match envs.active_env() {
                 Some(e) => (
                     e.name.clone(),
                     self.theme.env_colour(&e.name, e.colour.as_deref()),
-                    e.protected,
+                    env_dropdown_mark(&self.theme, Some(e)),
                 ),
-                None => (s.t("env-none"), self.theme.text_muted, false),
+                None => (
+                    s.t("env-none"),
+                    self.theme.text_muted,
+                    env_dropdown_mark(&self.theme, None),
+                ),
             }
         };
-        let label = egui::RichText::new(format!(
-            "{} {}{}",
-            hs_ui::icons::ENVIRONMENT,
-            if active_protected { "🔒 " } else { "" },
-            active_name
-        ))
-        .color(active_col);
-        egui::ComboBox::from_id_salt("env")
-            .selected_text(label)
-            .show_ui(ui, |ui| {
-                if hs_ui::form::selectable_label(
+        // The protected state is the mark's red shield (FEAT-0106).
+        let label = egui::RichText::new(active_name).color(active_col);
+        hs_ui::form::mark_combo(
+            ui,
+            egui::ComboBox::from_id_salt("env"),
+            active_mark,
+            label,
+            |ui| {
+                if hs_ui::form::mark_selectable(
                     ui,
                     s.environments.read().active.is_none(),
+                    env_dropdown_mark(&self.theme, None),
                     s.t("env-none"),
                 )
                 .clicked()
@@ -3026,23 +3059,25 @@ impl HyperStackApp {
                     self.pending_actions
                         .push(Action::RunCommand { id: "env:".into() });
                 }
-                let list: Vec<(String, String, Option<String>, bool)> = s
+                let list: Vec<(String, String, Option<String>, hs_ui::form::Mark)> = s
                     .environments
                     .read()
                     .all()
                     .iter()
-                    .map(|e| (e.id.clone(), e.name.clone(), e.colour.clone(), e.protected))
+                    .map(|e| {
+                        (
+                            e.id.clone(),
+                            e.name.clone(),
+                            e.colour.clone(),
+                            env_dropdown_mark(&self.theme, Some(e)),
+                        )
+                    })
                     .collect();
                 let active = s.environments.read().active.clone();
-                for (id, name, colour, protected) in list {
+                for (id, name, colour, mark) in list {
                     let col = self.theme.env_colour(&name, colour.as_deref());
-                    let txt = egui::RichText::new(format!(
-                        "{}{}",
-                        if protected { "🔒 " } else { "" },
-                        name
-                    ))
-                    .color(col);
-                    if hs_ui::form::selectable_label(ui, active.as_deref() == Some(&id), txt)
+                    let txt = egui::RichText::new(name).color(col);
+                    if hs_ui::form::mark_selectable(ui, active.as_deref() == Some(&id), mark, txt)
                         .clicked()
                     {
                         self.pending_actions.push(Action::RunCommand {
@@ -3050,7 +3085,8 @@ impl HyperStackApp {
                         });
                     }
                 }
-            });
+            },
+        );
     }
 
     fn tab_strip(&mut self, ui: &mut egui::Ui) {
@@ -3249,6 +3285,10 @@ impl HyperStackApp {
                 .map(|e| self.theme.env_colour(&e.name, e.colour.as_deref()))
                 .unwrap_or(self.theme.border),
             protected: shown.is_some_and(|e| e.protected),
+            mark: match shown {
+                Some(e) => hs_ui::envmark::env_mark(e, &self.theme),
+                None => (hs_ui::icons::ENVIRONMENT, self.theme.text_muted),
+            },
             none_label: &s.t("env-none"),
             protected_label: &s.t("env-protected"),
         };
@@ -3856,11 +3896,24 @@ impl HyperStackApp {
     /// can be is the last one taken while it was on screen.
     fn publish_tabs(&mut self, ctx: &egui::Context) {
         let active = self.tabs.active;
+        // Each tab's mark, worked out as the strip works it out, so the
+        // dashboard's Open Here card wears the same icon (owner,
+        // 2026-11-07).
+        let s = self.services.clone();
+        let material = |id: &str| s.settings.read().appearance.material_icons(id);
+        let look = crate::tabspace::ViewLook {
+            coloured: s.settings.read().appearance.rail_coloured,
+            logo: hs_ui::icons::workspace_logo_uri(ctx, &s),
+        };
+        let views = self
+            .tabs
+            .views(&|id: &str| id.to_string(), &material, &look);
         let tabs: Vec<hs_core::open_tabs::TabInfo> = self
             .tabs
             .tabs
             .iter()
-            .map(|t| hs_core::open_tabs::TabInfo {
+            .zip(views)
+            .map(|(t, v)| hs_core::open_tabs::TabInfo {
                 id: t.id,
                 factory_id: t.factory_id.clone(),
                 title: t.tool.title().to_string(),
@@ -3871,6 +3924,13 @@ impl HyperStackApp {
                 home: t.home,
                 active: Some(t.id) == active,
                 uri: t.tool.current_uri(),
+                icon: v.icon.to_string(),
+                icon_uri: v
+                    .icon_image
+                    .as_ref()
+                    .and_then(|i| i.uri().map(str::to_string))
+                    .or(v.icon_uri),
+                icon_colour: v.icon_colour,
             })
             .collect();
         self.services.open_tabs.set(tabs);

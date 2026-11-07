@@ -336,14 +336,7 @@ impl Tool for HomeTool {
             let w = s.workspace.read();
             (w.meta.name.clone(), w.root().to_path_buf())
         };
-        hs_ui::form::sidebar_header_icon(
-            ui,
-            &theme,
-            crate::app::ws_logo_image(&root),
-            hs_ui::icons::WORKSPACE,
-            &ws,
-            &[],
-        );
+        hs_ui::form::sidebar_header_icon(ui, &theme, crate::app::ws_logo_image(&root), &ws, &[]);
         ui.add_space(4.0);
         let descs: Vec<&ToolDescriptor> = hub.tools.iter().collect();
         let r = launcher::side(ui, &theme, s, &descs, &hub.closed);
@@ -553,19 +546,11 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
             } else {
                 theme.surface
             };
-            // The workspace's own logo when it has one, else the folder.
+            // The workspace's own logo when it has one, else its lettered
+            // tile (CR-0082).
             let logo = hs_core::workspace::workspace_icon_file(&workspaces_dir.join(&name))
                 .and_then(|p| crate::app::logo_image(&p));
-            let r = workspace_card(
-                ui,
-                theme,
-                &name,
-                logo,
-                hs_ui::icons::WORKSPACE,
-                fill,
-                selected,
-            )
-            .tip(if selected {
+            let r = workspace_card(ui, theme, &name, logo, None, fill, selected).tip(if selected {
                 s.t("home-workspace-current")
             } else {
                 s.t("home-workspace-switch")
@@ -582,7 +567,7 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
             theme,
             &s.t("workspace-new"),
             None,
-            hs_ui::icons::ph::PLUS_CIRCLE,
+            Some(hs_ui::icons::ph::PLUS_CIRCLE),
             theme.panel_bg,
             false,
         )
@@ -595,7 +580,8 @@ fn workspaces(ui: &mut egui::Ui, theme: &Theme, s: &Services, hub: &mut HomeHub)
     ui.add_space(8.0);
 }
 
-/// One workspace in the list: a 26 px logo (`glyph` when it has none)
+/// One workspace in the list: a 26 px logo (`glyph` when it has none, the
+/// name's lettered tile when there is no glyph either, CR-0082)
 /// and the name at 15 px on a pill that highlights the open workspace.
 /// Every card is the same height, whether it carries an image or a glyph,
 /// so a row of them lines up.
@@ -604,7 +590,7 @@ fn workspace_card(
     theme: &Theme,
     name: &str,
     logo: Option<egui::Image<'static>>,
-    glyph: &str,
+    glyph: Option<&str>,
     fill: egui::Color32,
     selected: bool,
 ) -> egui::Response {
@@ -625,14 +611,14 @@ fn workspace_card(
             ui.set_min_height(icon_px);
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 10.0;
-                match logo {
-                    Some(img) => {
+                match (logo, glyph) {
+                    (Some(img), _) => {
                         ui.add(
                             img.fit_to_exact_size(egui::vec2(icon_px, icon_px))
                                 .corner_radius(4.0),
                         );
                     }
-                    None => {
+                    (None, Some(glyph)) => {
                         ui.label(egui::RichText::new(glyph).size(icon_px * 0.85).color(
                             if selected {
                                 theme.text
@@ -640,6 +626,9 @@ fn workspace_card(
                                 theme.text_muted
                             },
                         ));
+                    }
+                    (None, None) => {
+                        hs_ui::lettered::tile(ui, name, icon_px);
                     }
                 }
                 ui.label(

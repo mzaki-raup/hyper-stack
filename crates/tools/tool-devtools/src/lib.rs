@@ -408,6 +408,10 @@ impl Tool for DevtoolsTool {
         true
     }
 
+    fn tab_title_whole(&self) -> bool {
+        true
+    }
+
     fn descriptor(&self) -> &ToolDescriptor {
         &DESCRIPTOR
     }
@@ -523,7 +527,16 @@ impl Tool for DevtoolsTool {
                 egui::Frame::new()
                     .inner_margin(egui::Margin::symmetric(16, 12))
                     .show(ui, |ui| {
-                        ui.set_min_width(ui.available_width());
+                        // A tool's hints and notes line up with its cards
+                        // (`CARD_MAX_WIDTH`) rather than running to the
+                        // window edge; Text Diff's two sides use the whole
+                        // width (2026-11-07).
+                        let width = if matches!(self.utility, Utility::Diff) {
+                            ui.available_width()
+                        } else {
+                            ui.available_width().min(hs_ui::form::CARD_MAX_WIDTH)
+                        };
+                        ui.set_width(width);
                         match self.utility {
                             Utility::Base64 => base64_tool::ui(&mut self.base64, ui, s, &theme),
                             Utility::Url => url_tool::ui(&mut self.url, ui, s, &theme),
@@ -815,6 +828,58 @@ mod tests {
                 }
             };
             assert!(seen.insert(look), "{u:?} looks like another utility");
+        }
+    }
+
+    /// CR-0062: every field is a `form::line_edit` / `text_field` (a bare
+    /// single-line `TextEdit` draws short), every button a `form::button`
+    /// with an icon and a label, and every table goes through
+    /// `DataTable` / `edit_table`. The needles are split so this test's
+    /// own source does not match them.
+    #[test]
+    fn no_bare_text_field_button_or_table_is_left_in_the_crate() {
+        let sources = [
+            ("base64_tool.rs", include_str!("base64_tool.rs")),
+            ("convert.rs", include_str!("convert.rs")),
+            ("cron.rs", include_str!("cron.rs")),
+            ("crypto.rs", include_str!("crypto.rs")),
+            ("diff_tool.rs", include_str!("diff_tool.rs")),
+            ("envfile.rs", include_str!("envfile.rs")),
+            ("firebase.rs", include_str!("firebase.rs")),
+            ("generate.rs", include_str!("generate.rs")),
+            ("hash.rs", include_str!("hash.rs")),
+            ("jasypt.rs", include_str!("jasypt.rs")),
+            ("jwt.rs", include_str!("jwt.rs")),
+            ("lib.rs", include_str!("lib.rs")),
+            ("markup.rs", include_str!("markup.rs")),
+            ("net.rs", include_str!("net.rs")),
+            ("pki.rs", include_str!("pki.rs")),
+            ("ports.rs", include_str!("ports.rs")),
+            ("regex_tool.rs", include_str!("regex_tool.rs")),
+            ("snippets.rs", include_str!("snippets.rs")),
+            ("url_tool.rs", include_str!("url_tool.rs")),
+            ("util.rs", include_str!("util.rs")),
+            ("yaml.rs", include_str!("yaml.rs")),
+        ];
+        let needles = [
+            concat!("TextEdit::", "singleline"),
+            concat!("ui.", "button("),
+            concat!(".small_", "button("),
+            concat!("Button::new(", "s.t("),
+            concat!("TableBuilder::", "new"),
+            concat!("egui::Grid::", "new"),
+        ];
+        for (file, text) in sources {
+            // Whitespace is dropped, so a method call split over two lines
+            // counts too.
+            let joined: String = text.split_whitespace().collect();
+            for needle in needles {
+                let compact: String = needle.split_whitespace().collect();
+                assert!(
+                    !joined.contains(&compact) && !joined.contains(&compact.replace("ui.", ".")),
+                    "{file} still has a bare `{needle}`"
+                );
+            }
         }
     }
 }

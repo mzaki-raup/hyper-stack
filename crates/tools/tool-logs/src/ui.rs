@@ -971,6 +971,9 @@ impl LogsTool {
             .max_height(height)
             .show(ui, |ui| {
                 if self.services_scan.is_some() && self.services.is_empty() {
+                    // Air between the header row and the status line
+                    // (owner, 2026-11-07).
+                    ui.add_space(form::ROW_GAP);
                     form::hint(ui, theme, &s.t("logs-services-scanning"));
                 } else if offered.is_empty() {
                     form::hint(ui, theme, &s.t("logs-no-services"));
@@ -1146,25 +1149,12 @@ const SERVICE_GREEN: egui::Color32 = egui::Color32::from_rgb(0x22, 0xc5, 0x5e);
 const INVESTIGATION_AMBER: egui::Color32 = egui::Color32::from_rgb(0xf5, 0x9e, 0x0b);
 const PRESET_PURPLE: egui::Color32 = egui::Color32::from_rgb(0xa8, 0x55, 0xf7);
 
-/// Eight colours for the saved sources, mid-tones that read on the dark
-/// and the light theme alike, ordered so two neighbours never look alike
-/// (CR-0059): blue, orange, emerald, violet, gold, cyan, rose, fuchsia.
-const SOURCE_PALETTE: [egui::Color32; 8] = [
-    egui::Color32::from_rgb(0x3b, 0x82, 0xf6),
-    egui::Color32::from_rgb(0xea, 0x58, 0x0c),
-    egui::Color32::from_rgb(0x10, 0xb9, 0x81),
-    egui::Color32::from_rgb(0x8b, 0x5c, 0xf6),
-    egui::Color32::from_rgb(0xca, 0x8a, 0x04),
-    egui::Color32::from_rgb(0x06, 0xb6, 0xd4),
-    egui::Color32::from_rgb(0xf4, 0x3f, 0x5e),
-    egui::Color32::from_rgb(0xd9, 0x46, 0xef),
-];
-
 /// A saved source's colour, from its position in the saved list, so it
 /// is the same after a restart and follows the source to its row, its tab
-/// and its dashboard card (CR-0059).
+/// and its dashboard card (CR-0059), out of the shared palette of eight
+/// (`hs_ui::palette8`, CR-0082).
 fn source_colour(position: usize) -> egui::Color32 {
-    SOURCE_PALETTE[position % SOURCE_PALETTE.len()]
+    hs_ui::palette8::by_index(position)
 }
 
 /// A glyph in a section's colour, for the shared row.
@@ -3136,7 +3126,10 @@ impl LogsTool {
                         }
                     });
                 });
+                // A status line under the header row has air above it
+                // (owner, 2026-11-07).
                 let Some(answers) = answers else {
+                    ui.add_space(form::ROW_GAP);
                     ui.horizontal(|ui| {
                         ui.spinner();
                         form::hint(ui, theme, &s.t("logs-find-everywhere-running"));
@@ -3144,6 +3137,7 @@ impl LogsTool {
                     return;
                 };
                 if answers.is_empty() {
+                    ui.add_space(form::ROW_GAP);
                     form::hint(ui, theme, &s.t("logs-find-everywhere-none"));
                     return;
                 }
@@ -4539,29 +4533,43 @@ impl LogsTool {
                         }
                         1 | 3 => {
                             form::label(ui, &s.t("logs-connection"));
-                            let conns: Vec<(String, String)> = s
+                            let conns: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                                 .connections
                                 .read()
                                 .of_kind("ssh")
-                                .map(|c| (c.id.clone(), c.name.clone()))
+                                .map(|c| {
+                                    let icon = hs_ui::icons::profile_conn_icon(c);
+                                    (c.id.clone(), c.name.clone(), icon)
+                                })
                                 .collect();
-                            let current = conns
-                                .iter()
-                                .find(|(id, _)| *id == a.conn_id)
-                                .map(|(_, n)| n.clone())
+                            let current = conns.iter().find(|(id, ..)| *id == a.conn_id);
+                            let current_mark = match current {
+                                Some((.., icon)) => hs_ui::form::Mark::conn(*icon, theme),
+                                None => hs_ui::form::Mark::glyph(
+                                    hs_ui::icons::connection_icon("ssh", ""),
+                                    Some(theme.text_muted),
+                                ),
+                            };
+                            let current = current
+                                .map(|(_, n, _)| n.clone())
                                 .unwrap_or_else(|| s.t("logs-pick-connection"));
-                            egui::ComboBox::from_id_salt("logs-add-conn")
-                                .selected_text(current)
-                                .show_ui(ui, |ui| {
-                                    for (id, name) in &conns {
-                                        hs_ui::form::selectable_value(
+                            hs_ui::form::mark_combo(
+                                ui,
+                                egui::ComboBox::from_id_salt("logs-add-conn"),
+                                current_mark,
+                                current,
+                                |ui| {
+                                    for (id, name, icon) in &conns {
+                                        hs_ui::form::mark_selectable_value(
                                             ui,
                                             &mut a.conn_id,
                                             id.clone(),
+                                            hs_ui::form::Mark::conn(*icon, theme),
                                             name,
                                         );
                                     }
-                                });
+                                },
+                            );
                             ui.end_row();
                             if a.kind == 1 {
                                 form::label(ui, &s.t("logs-remote-path"));
@@ -4584,35 +4592,53 @@ impl LogsTool {
                         5 => {
                             // journald as JSON: local, or on an SSH host.
                             form::label(ui, &s.t("logs-connection"));
-                            let conns: Vec<(String, String)> = s
+                            let conns: Vec<(String, String, hs_ui::icons::ConnIcon)> = s
                                 .connections
                                 .read()
                                 .of_kind("ssh")
-                                .map(|c| (c.id.clone(), c.name.clone()))
+                                .map(|c| {
+                                    let icon = hs_ui::icons::profile_conn_icon(c);
+                                    (c.id.clone(), c.name.clone(), icon)
+                                })
                                 .collect();
-                            let current = conns
-                                .iter()
-                                .find(|(id, _)| *id == a.conn_id)
-                                .map(|(_, n)| n.clone())
+                            let current = conns.iter().find(|(id, ..)| *id == a.conn_id);
+                            let current_mark = match current {
+                                Some((.., icon)) => hs_ui::form::Mark::conn(*icon, theme),
+                                None => hs_ui::form::Mark::conn(
+                                    hs_ui::icons::os_conn_icon(std::env::consts::OS),
+                                    theme,
+                                ),
+                            };
+                            let current = current
+                                .map(|(_, n, _)| n.clone())
                                 .unwrap_or_else(|| s.t("logs-this-machine"));
-                            egui::ComboBox::from_id_salt("logs-add-conn-j")
-                                .selected_text(current)
-                                .show_ui(ui, |ui| {
-                                    hs_ui::form::selectable_value(
+                            hs_ui::form::mark_combo(
+                                ui,
+                                egui::ComboBox::from_id_salt("logs-add-conn-j"),
+                                current_mark,
+                                current,
+                                |ui| {
+                                    hs_ui::form::mark_selectable_value(
                                         ui,
                                         &mut a.conn_id,
                                         String::new(),
+                                        hs_ui::form::Mark::conn(
+                                            hs_ui::icons::os_conn_icon(std::env::consts::OS),
+                                            theme,
+                                        ),
                                         s.t("logs-this-machine"),
                                     );
-                                    for (id, name) in &conns {
-                                        hs_ui::form::selectable_value(
+                                    for (id, name, icon) in &conns {
+                                        hs_ui::form::mark_selectable_value(
                                             ui,
                                             &mut a.conn_id,
                                             id.clone(),
+                                            hs_ui::form::Mark::conn(*icon, theme),
                                             name,
                                         );
                                     }
-                                });
+                                },
+                            );
                             ui.end_row();
                             form::label(ui, &s.t("logs-unit"));
                             form::text_field(ui, &mut a.unit, "nginx.service");
@@ -5162,13 +5188,14 @@ mod tests {
     #[test]
     fn saved_source_colours_rotate_and_neighbours_differ() {
         // Eight distinct colours, then round again.
-        for (i, a) in SOURCE_PALETTE.iter().enumerate() {
-            for b in &SOURCE_PALETTE[i + 1..] {
+        let palette = hs_ui::palette8::COLOURS;
+        for (i, a) in palette.iter().enumerate() {
+            for b in &palette[i + 1..] {
                 assert_ne!(a, b);
             }
         }
         for i in 0..32 {
-            assert_eq!(source_colour(i), source_colour(i + SOURCE_PALETTE.len()));
+            assert_eq!(source_colour(i), source_colour(i + palette.len()));
             assert_ne!(source_colour(i), source_colour(i + 1), "{i} and {}", i + 1);
         }
     }

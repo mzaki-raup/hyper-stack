@@ -173,6 +173,15 @@ Tab anatomy: `[tool icon] [title, middle-elided] [dirty dot | env dot] [✕]`.
 Hover shows a tooltip with the full title, the connection, the environment and
 the file path or URL.
 
+**Whole titles (2026-11-07, CR-0086).** A tool whose tab titles are fixed
+names rather than user data returns true from `Tool::tab_title_whole()`
+(passed to the strip as `TabItem::whole_title()`); Devtools is the only one.
+The strip then raises its minimum tab width to the widest such title,
+above the usual cap, so "Unit Conversion" or "Firebase Tokens" shows whole
+beside its icon, and wraps rows (rule 3) instead of eliding. Every other
+activity keeps the shared width and the middle ellipsis - the owner's
+choice: "Only Devtools, because the label name is fixed."
+
 **Row height is a setting** (Settings → Appearance → Tabs, 2026-11-03):
 *Minimum Main Tab Height* for the window strip (28–48, default 36) and
 *Minimum Sub Tab Height* for an inner strip — the editor's files, the
@@ -491,6 +500,30 @@ needed in `OpenRequest::Terminal`).
 - Protected environments: database connections default to read-only, API
   requests with non-GET methods ask for confirmation, SFTP/S3 deletes ask with
   the environment named, `git push --force` is disabled.
+- **Environment marks** (FEAT-0106): every environment wears its tier's icon
+  and colour (`hs_ui::envmark`) - in the title-bar switcher (closed box and
+  rows), the banner, Settings → Environments (list rows and the Inherits
+  From picker) and every connection's Environment picker. The tier is set
+  by hand with the **Tier** field (Automatic (Matched: …) or a tier), else
+  matched from the name (docs/06 §3):
+
+  | Tier | Icon | Colour |
+  |---|---|---|
+  | Local | laptop | muted grey |
+  | Development | code | blue |
+  | Integration | plugs connected | teal |
+  | Testing | flask | purple |
+  | Training | graduation cap | green |
+  | Acceptance | check square | amber |
+  | Staging | stack | orange |
+  | Production Support | lifebuoy | red-orange |
+  | Production | shield warning | red |
+  | no match | globe | muted |
+
+  A **protected** environment always wears the red shield (warning shield in
+  the theme's error colour), whatever its tier. The name keeps the
+  environment's own colour. No tab carries a mark, since no tab is bound to
+  an environment (above).
 
 ## 6. Shared widgets (`hs-ui`)
 
@@ -622,6 +655,19 @@ hands egui both palettes and follows the OS switch live (ADR-022).
 - Theme system: dark/light base, prebuilt themes, custom palette editor with
   live preview, accent/secondary derivation, font picker (same feature set
   users know from Eden Explorer, written for `hs-ui`).
+- Bundled schemes (`Theme::schemes()`, FEAT-0105), listed HyperStack first,
+  then dark and light each A–Z, from each theme's published palette:
+  - Dark: HyperStack Dark, Ayu Dark, Catppuccin Macchiato, Catppuccin Mocha,
+    Dracula, Everforest Dark, GitHub Dark, Gruvbox Dark, Kanagawa, Material
+    Palenight, Monokai, Night Owl, Nord, One Dark, Rosé Pine, Solarized Dark,
+    Tokyo Night.
+  - Light: HyperStack Light, Ayu Light, Catppuccin Latte, Everforest Light,
+    GitHub Light, Gruvbox Light, Light Owl, One Light, Rosé Pine Dawn,
+    Solarized Light, Tokyo Night Day, Tomorrow.
+  - Every scheme keeps text at 4.5:1 on its window, panel and surface, and
+    muted text and the accent at 3:1 on the window (tested). Where a
+    published colour falls short it is darkened just enough, with a comment
+    naming the original.
 - Additional semantic colours: `env.dev`, `env.test`, `env.staging`, `env.prod`,
   `diff.added`, `diff.removed`, `diff.changed`, `terminal.ansi[16]`,
   `syntax.*` (mapped to a syntect theme), `method.get/post/put/patch/delete`,
@@ -1391,3 +1437,33 @@ History / Recent list has a right-click Clear History and Remove, and every
 saved item a Delete, each behind a confirmation and changing what is stored;
 any action that opens or fills a tab brings it to the front; list rows wear
 the Material picture their tab wears when Material icons are on.
+
+## Addendum (2026-11-07): row middle lines, tables in their cards, Open Here marks (CR-0084, CR-0085, CR-0087)
+
+Written in full in `.claude/rules/ui.md`; in short:
+
+- **A list or tree row is one middle line** (CR-0084): the row's height is
+  set to its tallest item before it opens, so caret, picture, name and
+  badge line up - the Redis key tree, NoSQL collections, API Client
+  collections and folders, Database saved queries and history, Scratchpad
+  and Source Control folders, the Containers host title. A status line (a
+  count, "Scanning…", a result summary) has `form::ROW_GAP` above it.
+- **Tables stay in their cards** (CR-0085): `table::begin_header_band` is
+  bounded by `ui.max_rect()` as well as the clip rect, so the band ends at
+  its card; a `DataTable` with no columns draws nothing and leaves the
+  empty state to say why.
+- **A group's grip is on its header** (CR-0085): a row that opens below
+  itself (a collection, a folder) draws its drag grip with
+  `reorder::Reorder::group_row` and the header's height.
+- **Open Here cards wear their tab's mark** (CR-0087): `hs_core::open_tabs::TabInfo`
+  carries `icon`, `icon_uri` and `icon_colour`, filled by the shell from
+  the same tab views the strip draws, and the shared `hs_ui::dashboard`
+  Open Here card draws a 20 px mark on the middle line of its title and
+  subtitle - a logo, a tool's picture, a Material icon or a coloured
+  glyph, exactly as the tab shows it - in all 17 activities with an Open
+  Here section.
+
+- **A page title wears its tab's mark** (CR-0088): `form::page_title_marked`
+  leads a work-pane title with the same coloured picture its tab wears,
+  on the title's middle line, with a one-line description under it.
+  Every Devtools tool and API Client's Manage Collection use it.

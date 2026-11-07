@@ -124,6 +124,11 @@ pub trait TabItem {
     fn tooltip(&self) -> String {
         self.title()
     }
+    /// The title is the app's own name, shown whole: the strip's tabs are
+    /// made at least as wide as it needs (owner, 2026-11-07).
+    fn whole_title(&self) -> bool {
+        false
+    }
 }
 
 /// How wide a pinned tab's slot is.
@@ -222,7 +227,7 @@ pub fn compute_tab_layout(
     if one_row_width >= min_width {
         return TabLayout {
             rows: vec![regular],
-            tab_width: one_row_width.min(MAX_TAB_WIDTH),
+            tab_width: one_row_width.min(MAX_TAB_WIDTH.max(min_width)),
             lead_widths: lead.iter().map(|&i| slot_width(i)).collect(),
             lead,
         };
@@ -257,7 +262,7 @@ pub fn compute_tab_layout(
         };
         fit = fit.min((avail + gap) / row.len() as f32 - gap);
     }
-    let tab_width = fit.clamp(min_width, MAX_TAB_WIDTH);
+    let tab_width = fit.clamp(min_width, MAX_TAB_WIDTH.max(min_width));
     TabLayout {
         rows,
         tab_width,
@@ -477,6 +482,22 @@ impl TabStrip<'_> {
                 }
             })
             .collect();
+        // A strip whose titles are the app's own names (Devtools) makes
+        // every tab as wide as the longest of them needs - the icon, the
+        // name, the gap and the close button's slot - so none is elided
+        // (owner, 2026-11-07).
+        let whole = tabs
+            .iter()
+            .filter(|t| t.whole_title() && !(t.pinned() || t.permanent()))
+            .map(|t| {
+                let title = ui
+                    .painter()
+                    .layout_no_wrap(t.title(), font.clone(), Color32::WHITE)
+                    .size()
+                    .x;
+                16.0 + m.icon + title + 8.0 + m.close_box * 1.28 + 4.0
+            })
+            .fold(0.0f32, f32::max);
         let layout = compute_tab_layout(
             &pinned,
             &permanent,
@@ -484,7 +505,7 @@ impl TabStrip<'_> {
             &ranks,
             &fit,
             layout_width,
-            self.min_width,
+            self.min_width.max(whole),
             self.gap,
         );
         let total_height = layout.row_count() as f32 * (self.row_h() + self.gap);
@@ -1355,5 +1376,24 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// Devtools raises the minimum to its longest name; a minimum above
+    /// the usual cap still lays out (no clamp panic) and every tab gets it.
+    #[test]
+    fn a_whole_title_minimum_above_the_cap_is_honoured() {
+        let n = 6;
+        let l = compute_tab_layout(
+            &vec![false; n],
+            &vec![false; n],
+            &vec![false; n],
+            &vec![None; n],
+            &vec![0.0; n],
+            900.0,
+            MAX_TAB_WIDTH + 30.0,
+            4.0,
+        );
+        assert!(l.tab_width >= MAX_TAB_WIDTH + 30.0);
+        assert!(l.row_count() >= 2);
     }
 }

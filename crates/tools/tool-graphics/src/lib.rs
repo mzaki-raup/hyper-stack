@@ -352,6 +352,8 @@ struct ImageProvider {
     id: String,
     name: String,
     kind: hs_core::ai::Provider,
+    /// The endpoint, for the provider's mark (CR-0081).
+    base_url: String,
     checkpoint: String,
     /// fal.ai's model per purpose (empty elsewhere).
     fal: hs_core::ai_fal::FalModels,
@@ -699,6 +701,7 @@ impl GraphicsTool {
                 id: p.id,
                 name: p.name,
                 kind: p.kind,
+                base_url: p.base_url,
                 checkpoint: p.image.checkpoint,
                 fal: p.fal,
             })
@@ -818,19 +821,29 @@ impl GraphicsTool {
                 .show(ui, |ui| {
                     ui.label(s.t("gfx-ai-generate-provider"));
                     hs_ui::form::match_field_height(ui);
-                    egui::ComboBox::from_id_salt("gfx-generate-provider")
-                        .width(ui.available_width())
-                        .selected_text(provider.name.clone())
-                        .show_ui(ui, |ui| {
+                    // The provider's mark leads the closed box and every
+                    // row (CR-0081).
+                    let mark = |p: &ImageProvider| {
+                        form::Mark::conn(hs_ui::icons::ai_provider_icon(p.kind, &p.base_url), theme)
+                    };
+                    form::mark_combo(
+                        ui,
+                        egui::ComboBox::from_id_salt("gfx-generate-provider")
+                            .width(ui.available_width()),
+                        mark(&provider),
+                        provider.name.clone(),
+                        |ui| {
                             for p in providers {
-                                hs_ui::form::selectable_value(
+                                form::mark_selectable_value(
                                     ui,
                                     &mut self.generate.provider,
                                     p.id.clone(),
+                                    mark(p),
                                     &p.name,
                                 );
                             }
-                        });
+                        },
+                    );
                     ui.end_row();
                     // A self-hosted Upscale runs the provider's upscale
                     // model, not a checkpoint, so the row would mislead.
@@ -948,6 +961,7 @@ impl GraphicsTool {
             id: provider.id.clone(),
             name: provider.name.clone(),
             kind: provider.kind,
+            base_url: provider.base_url.clone(),
             checkpoint: provider.image.checkpoint.clone(),
             fal: provider.fal.clone(),
         });

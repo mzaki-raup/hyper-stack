@@ -745,13 +745,8 @@ impl Mode {
 
 pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_ui::theme::Theme) {
     use hs_ui::form;
-    form::page_title(
-        ui,
-        theme,
-        &s.t("dt-generate"),
-        Some(&s.t("dt-generate-sub")),
-    );
-    ui.horizontal(|ui| {
+    crate::util::page_title(ui, s, theme, "dt-generate", Some("dt-generate-sub"));
+    ui.horizontal_wrapped(|ui| {
         for mode in [Mode::Uuid, Mode::Number, Mode::Password, Mode::Passphrase] {
             hs_ui::form::selectable_value(ui, &mut st.mode, mode, s.t(mode.label_key()));
         }
@@ -759,98 +754,121 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &hs_core::Services, theme: &hs_u
     ui.add_space(8.0);
     let mut note: Option<String> = None;
     form::section(ui, theme, &s.t("dt-gen-options"), |ui| {
-        match st.mode {
-            Mode::Uuid => {
-                ui.horizontal(|ui| {
-                    hs_ui::form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V4, "v4");
-                    hs_ui::form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V7, "v7");
-                    hs_ui::form::selectable_value(
-                        ui,
-                        &mut st.uuid_kind,
-                        UuidSetting::Nil,
-                        s.t("dt-gen-nil"),
-                    );
-                });
-                form::hint(ui, theme, &s.t("dt-gen-uuid-hint"));
-            }
-            Mode::Number => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-gen-from"));
+        form::field_grid(ui, "dt-gen-grid", |ui| {
+            match st.mode {
+                Mode::Uuid => {
+                    form::label(ui, &s.t("dt-gen-version"));
+                    form::centred_row(ui, |ui| {
+                        form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V4, "v4");
+                        form::selectable_value(ui, &mut st.uuid_kind, UuidSetting::V7, "v7");
+                        form::selectable_value(
+                            ui,
+                            &mut st.uuid_kind,
+                            UuidSetting::Nil,
+                            s.t("dt-gen-nil"),
+                        );
+                    });
+                    ui.end_row();
+                    form::row_hint(ui, theme, &s.t("dt-gen-uuid-hint"));
+                }
+                Mode::Number => {
+                    form::label(ui, &s.t("dt-gen-from"));
                     ui.add(egui::DragValue::new(&mut st.low));
-                    ui.label(s.t("dt-gen-to"));
+                    ui.end_row();
+                    form::label(ui, &s.t("dt-gen-to"));
                     ui.add(egui::DragValue::new(&mut st.high));
-                });
-                form::hint(ui, theme, &s.t("dt-gen-seed-hint"));
-            }
-            Mode::Password => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-gen-length"));
+                    ui.end_row();
+                }
+                Mode::Password => {
+                    form::label(ui, &s.t("dt-gen-length"));
                     ui.add(egui::DragValue::new(&mut st.pw_length).range(1..=512));
-                });
-                ui.horizontal_wrapped(|ui| {
-                    ui.checkbox(&mut st.pw_lower, "a-z");
-                    ui.add_space(hs_ui::form::OPTION_GAP);
-                    ui.checkbox(&mut st.pw_upper, "A-Z");
-                    ui.add_space(hs_ui::form::OPTION_GAP);
-                    ui.checkbox(&mut st.pw_digits, "0-9");
-                    ui.add_space(hs_ui::form::OPTION_GAP);
-                    ui.checkbox(&mut st.pw_symbols, s.t("dt-gen-symbols"));
-                    ui.add_space(hs_ui::form::OPTION_GAP);
-                    ui.checkbox(&mut st.pw_avoid_ambiguous, s.t("dt-gen-no-ambiguous"));
-                });
-                note = Some(s.i18n.t_args(
-                    "dt-gen-entropy",
-                    &[(
-                        "bits",
-                        &format!("{:.0}", password_entropy(&st.password_rules())),
-                    )],
-                ));
-            }
-            Mode::Passphrase => {
-                hs_ui::form::centred_row(ui, |ui| {
-                    ui.label(s.t("dt-gen-words"));
-                    ui.add(egui::DragValue::new(&mut st.phrase_words).range(1..=64));
-                    ui.label(s.t("dt-gen-separator"));
-                    ui.add(hs_ui::form::line_edit(&mut st.phrase_separator).desired_width(60.0));
-                });
-                ui.horizontal_wrapped(|ui| {
-                    ui.checkbox(&mut st.phrase_capitalise, s.t("dt-gen-capitalise"));
-                    ui.add_space(hs_ui::form::OPTION_GAP);
-                    ui.checkbox(&mut st.phrase_number, s.t("dt-gen-add-number"));
-                });
-                note = Some(s.i18n.t_args(
-                    "dt-gen-phrase-entropy",
-                    &[
-                        (
+                    ui.end_row();
+                    // Options in a form grid stay one per row (CR-0078).
+                    let symbols = s.t("dt-gen-symbols");
+                    let no_ambiguous = s.t("dt-gen-no-ambiguous");
+                    for (i, (value, text)) in [
+                        (&mut st.pw_lower, "a-z"),
+                        (&mut st.pw_upper, "A-Z"),
+                        (&mut st.pw_digits, "0-9"),
+                        (&mut st.pw_symbols, symbols.as_str()),
+                        (&mut st.pw_avoid_ambiguous, no_ambiguous.as_str()),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
+                        form::label(
+                            ui,
+                            &if i == 0 {
+                                s.t("dt-gen-characters")
+                            } else {
+                                String::new()
+                            },
+                        );
+                        ui.checkbox(value, text);
+                        ui.end_row();
+                    }
+                    note = Some(s.i18n.t_args(
+                        "dt-gen-entropy",
+                        &[(
                             "bits",
-                            &format!("{:.0}", passphrase_entropy(st.phrase_words)),
-                        ),
-                        ("words", &WORDS.len().to_string()),
-                    ],
-                ));
+                            &format!("{:.0}", password_entropy(&st.password_rules())),
+                        )],
+                    ));
+                }
+                Mode::Passphrase => {
+                    form::label(ui, &s.t("dt-gen-words"));
+                    ui.add(egui::DragValue::new(&mut st.phrase_words).range(1..=64));
+                    ui.end_row();
+                    form::label(ui, &s.t("dt-gen-separator"));
+                    ui.add(form::line_edit(&mut st.phrase_separator).desired_width(80.0));
+                    ui.end_row();
+                    form::label(ui, &s.t("dt-gen-style"));
+                    ui.checkbox(&mut st.phrase_capitalise, s.t("dt-gen-capitalise"));
+                    ui.end_row();
+                    form::label(ui, "");
+                    ui.checkbox(&mut st.phrase_number, s.t("dt-gen-add-number"));
+                    ui.end_row();
+                    note = Some(s.i18n.t_args(
+                        "dt-gen-phrase-entropy",
+                        &[
+                            (
+                                "bits",
+                                &format!("{:.0}", passphrase_entropy(st.phrase_words)),
+                            ),
+                            ("words", &WORDS.len().to_string()),
+                        ],
+                    ));
+                }
             }
-        }
-        if st.mode != Mode::Password && st.mode != Mode::Passphrase {
-            hs_ui::form::centred_row(ui, |ui| {
-                ui.label(s.t("dt-gen-count"));
+            if st.mode != Mode::Password && st.mode != Mode::Passphrase {
+                form::label(ui, &s.t("dt-gen-count"));
                 ui.add(egui::DragValue::new(&mut st.count).range(1..=1000));
-            });
-        }
-        hs_ui::form::centred_row(ui, |ui| {
-            ui.label(s.t("dt-gen-seed"));
+                ui.end_row();
+            }
+            form::label(ui, &s.t("dt-gen-seed"));
             ui.add(
-                hs_ui::form::line_edit(&mut st.seed)
+                form::line_edit(&mut st.seed)
                     .hint_text(s.t("dt-gen-seed-empty"))
-                    .desired_width(140.0),
+                    .desired_width(form::FIELD_MIN_WIDTH),
             );
+            ui.end_row();
+            if st.mode == Mode::Number {
+                form::row_hint(ui, theme, &s.t("dt-gen-seed-hint"));
+            }
+            if let Some(n) = &note {
+                form::row_hint(ui, theme, n);
+            }
         });
-        if let Some(n) = &note {
-            form::hint(ui, theme, n);
-        }
     });
     ui.add_space(8.0);
     let mut error: Option<String> = None;
-    if form::primary_button(ui, theme, &s.t("dt-gen-go")).clicked() {
+    if form::primary_button(
+        ui,
+        theme,
+        &format!("{} {}", hs_ui::icons::ph::SPARKLE, s.t("dt-gen-go")),
+    )
+    .clicked()
+    {
         // A seed makes the output reproducible, which is the one thing a
         // password must never be; those two modes always draw from the OS.
         let seed = if matches!(st.mode, Mode::Password | Mode::Passphrase) {

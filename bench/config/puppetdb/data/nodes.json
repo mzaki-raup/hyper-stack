@@ -1,0 +1,5 @@
+[
+ {"certname":"db1.example.com","latest_report_hash":"h-db1-2","latest_report_status":"unchanged","latest_report_noop":false,"report_timestamp":"2026-11-06T09:00:00.000Z","report_environment":"production"},
+ {"certname":"staging1.example.com","latest_report_hash":"h-stg-1","latest_report_status":"changed","latest_report_noop":true,"report_timestamp":"2026-11-06T09:15:00.000Z","report_environment":"staging"},
+ {"certname":"web1.example.com","latest_report_hash":"h-web1-3","latest_report_status":"failed","latest_report_noop":false,"report_timestamp":"2026-11-06T09:30:00.000Z","report_environment":"production"}
+]

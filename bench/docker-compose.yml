@@ -1,0 +1,596 @@
+# HyperStack bench kit: the servers HyperStack's activities are tested against.
+# Same images and host ports as the Windows/WSL bench, so saved profiles work.
+#
+#   cp .env.example .env
+#   docker compose --profile core --profile queue up -d
+#   ./seed/seed-all.sh
+#
+# Profiles: core, queue, ci, k8s, heavy (see README.md for RAM per profile).
+# Everything a service stores lives in a named volume (hs-bench_<name>).
+
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  # ============================================================== core
+  postgres:
+    <<: *defaults
+    image: postgres:16
+    profiles: [core]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5432:5432"]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mysql:
+    <<: *defaults
+    image: mysql:8
+    profiles: [core]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    ports: ["3307:3306"]
+    volumes: [mysql-data:/var/lib/mysql]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  mongo:
+    <<: *defaults
+    image: mongo:7
+    profiles: [core]
+    # No MONGO_INITDB_ROOT_*: auth stays off, as on the Windows bench.
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db, mongo-config:/data/configdb]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    <<: *defaults
+    image: redis:7-alpine
+    profiles: [core]
+    ports: ["6381:6379"]
+    volumes: [redis-data:/data]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  valkey:
+    <<: *defaults
+    image: valkey/valkey:8-alpine
+    profiles: [core]
+    ports: ["6380:6379"]
+    volumes: [valkey-data:/data]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  couch:
+    <<: *defaults
+    image: couchdb:3
+    profiles: [core]
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD}
+    ports: ["5984:5984"]
+    volumes: [couch-data:/opt/couchdb/data, couch-config:/opt/couchdb/etc/local.d]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:5984/_up >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # MinIO with real keys. The upstream minio/minio images are no longer on
+  # Docker Hub; Bitnami's frozen legacy build is the one still published.
+  s3:
+    <<: *defaults
+    image: bitnamilegacy/minio:2025.7.23
+    profiles: [core]
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+      MINIO_DEFAULT_BUCKETS: hyperstack,backups
+      MINIO_SERVER_URL: http://${BENCH_HOST}:9000
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [s3-data:/bitnami/minio/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  qdrant:
+    <<: *defaults
+    image: qdrant/qdrant:v1.20.0
+    profiles: [core]
+    ports: ["6333:6333", "6334:6334"]
+    volumes: [qdrant-data:/qdrant/storage]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333'"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  ssh:
+    <<: *defaults
+    image: lscr.io/linuxserver/openssh-server:latest
+    profiles: [core]
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      USER_NAME: ${SSH_USER}
+      USER_PASSWORD: ${SSH_PASSWORD}
+      PASSWORD_ACCESS: "true"
+      SUDO_ACCESS: "true"
+    ports: ["2222:2222"]
+    volumes: [ssh-config:/config]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 2222"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  webdav:
+    <<: *defaults
+    image: bytemark/webdav:2.4
+    profiles: [core]
+    environment:
+      USERNAME: ${WEBDAV_USER}
+      PASSWORD: ${WEBDAV_PASSWORD}
+      LOCATION: /
+    ports: ["8086:80"]
+    volumes: [webdav-data:/var/lib/dav]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 80"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  httpbin:
+    <<: *defaults
+    image: kennethreitz/httpbin:latest
+    profiles: [core]
+    ports: ["8088:80"]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1/get')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================== queue
+  rabbitmq:
+    <<: *defaults
+    image: rabbitmq:4-management
+    profiles: [queue]
+    hostname: hs-rabbitmq   # RabbitMQ keys its data directory on the host name
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports: ["5672:5672", "15672:15672"]
+    volumes: [rabbitmq-data:/var/lib/rabbitmq]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  kafka:
+    <<: *defaults
+    image: apache/kafka:4.0.0
+    profiles: [queue]
+    environment:
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${BENCH_HOST}:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms256m
+    ports: ["9092:9092"]
+    volumes: [kafka-data:/var/lib/kafka/data]
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9092"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  # SASL only, on 9094: PLAIN (admin + dev) and SCRAM-SHA-256/512 (dev, added
+  # by the seed). The JAAS file is rendered from config/kafka at start.
+  kafka-sasl:
+    <<: *defaults
+    image: apache/kafka:4.0.0
+    profiles: [queue]
+    environment:
+      HS_SASL_ADMIN_USER: ${KAFKA_SASL_ADMIN_USER}
+      HS_SASL_ADMIN_PASSWORD: ${KAFKA_SASL_ADMIN_PASSWORD}
+      HS_SASL_USER: ${KAFKA_SASL_USER}
+      HS_SASL_PASSWORD: ${KAFKA_SASL_PASSWORD}
+      KAFKA_OPTS: -Djava.security.auth.login.config=/tmp/hs_jaas.conf
+      KAFKA_HEAP_OPTS: -Xmx384m -Xms256m
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: SASL_PLAINTEXT://0.0.0.0:9094,CONTROLLER://0.0.0.0:9095
+      KAFKA_ADVERTISED_LISTENERS: SASL_PLAINTEXT://${BENCH_HOST}:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: SASL_PLAINTEXT:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9095
+      KAFKA_INTER_BROKER_LISTENER_NAME: SASL_PLAINTEXT
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN,SCRAM-SHA-256,SCRAM-SHA-512
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        sed -e "s|@ADMIN_USER@|$$HS_SASL_ADMIN_USER|g" -e "s|@ADMIN_PASSWORD@|$$HS_SASL_ADMIN_PASSWORD|g" \
+            -e "s|@DEV_USER@|$$HS_SASL_USER|g" -e "s|@DEV_PASSWORD@|$$HS_SASL_PASSWORD|g" \
+            /opt/hs/hs_jaas.conf.template > /tmp/hs_jaas.conf
+        printf '%s\n' 'security.protocol=SASL_PLAINTEXT' 'sasl.mechanism=PLAIN' \
+          "sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username=\"$$HS_SASL_ADMIN_USER\" password=\"$$HS_SASL_ADMIN_PASSWORD\";" \
+          > /tmp/admin.properties
+        exec /etc/kafka/docker/run
+    ports: ["9094:9094"]
+    volumes:
+      - kafka-sasl-data:/var/lib/kafka/data
+      - ./config/kafka/hs_jaas.conf.template:/opt/hs/hs_jaas.conf.template:ro
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9094"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  # nats:2.11 is a scratch image (no shell), so it has no healthcheck; the
+  # seed waits until a nats-box client gets an answer instead.
+  nats:
+    <<: *defaults
+    image: nats:2.11
+    profiles: [queue]
+    command: ["-js", "-m", "8222", "-sd", "/data"]
+    ports: ["4222:4222", "8222:8222"]
+    volumes: [nats-data:/data]
+    mem_limit: 256m
+
+  # A throwaway NATS client the seed runs with `docker compose run`.
+  nats-box:
+    image: natsio/nats-box:0.17.0
+    profiles: [tools]
+    command: ["true"]
+
+  mqtt:
+    <<: *defaults
+    image: eclipse-mosquitto:2
+    profiles: [queue]
+    command: ["mosquitto", "-c", "/mosquitto-no-auth.conf"]
+    ports: ["1883:1883"]
+    volumes: [mqtt-data:/mosquitto/data]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/broker/version' -C 1 -W 3 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ============================================================== ci
+  forgejo:
+    <<: *defaults
+    image: codeberg.org/forgejo/forgejo:11
+    profiles: [ci]
+    environment:
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__actions__ENABLED: "true"
+      FORGEJO__server__ROOT_URL: http://${BENCH_HOST}:3000/
+    ports: ["3000:3000"]
+    volumes: [forgejo-data:/data]
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:3000/api/healthz >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # Waits until the seed has registered it (seed/seed-forgejo.sh), then runs.
+  forgejo-runner:
+    <<: *defaults
+    image: data.forgejo.org/forgejo/runner:11
+    profiles: [ci]
+    depends_on: [forgejo]
+    working_dir: /data
+    command: ["sh", "-c", "while [ ! -f /data/.runner ]; do echo 'waiting for seed/seed-forgejo.sh to register this runner'; sleep 15; done; exec forgejo-runner daemon"]
+    volumes: [forgejo-runner-data:/data]
+    mem_limit: 512m
+
+  jenkins:
+    <<: *defaults
+    image: jenkins/jenkins:2.528.1-lts-jdk21
+    profiles: [ci]
+    environment:
+      JAVA_OPTS: -Djenkins.install.runSetupWizard=false -Xmx600m
+      HS_JENKINS_USER: ${JENKINS_USER}
+      HS_JENKINS_PASSWORD: ${JENKINS_PASSWORD}
+    ports: ["8091:8080"]
+    volumes:
+      - jenkins-home:/var/jenkins_home
+      - ./config/jenkins/init.groovy.d/hs.groovy:/var/jenkins_home/init.groovy.d/hs.groovy:ro
+      - ./config/jenkins/jobs:/run/hs/jobs:ro
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs -o /dev/null http://127.0.0.1:8080/login"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  teamcity:
+    <<: *defaults
+    image: jetbrains/teamcity-server:2025.07.3
+    profiles: [ci]
+    environment:
+      TEAMCITY_SERVER_MEM_OPTS: -Xmx1024m
+    ports: ["8111:8111"]
+    volumes: [teamcity-data:/data/teamcity_server/datadir, teamcity-logs:/opt/teamcity/logs]
+    mem_limit: 2g
+    healthcheck:
+      # Stays unhealthy until the first-start wizard has been completed by hand.
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8111/healthCheck/ready >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+  teamcity-agent:
+    <<: *defaults
+    image: jetbrains/teamcity-agent:2025.07.3
+    profiles: [ci]
+    depends_on: [teamcity]
+    environment:
+      SERVER_URL: http://teamcity:8111
+      AGENT_NAME: hs-agent
+    volumes: [teamcity-agent-conf:/data/teamcity_agent/conf]
+    mem_limit: 1g
+
+  redmine:
+    <<: *defaults
+    image: redmine:6
+    profiles: [ci]
+    # No database settings: Redmine's image falls back to SQLite (sqlite/redmine.db).
+    ports: ["3010:3000"]
+    volumes:
+      - redmine-sqlite:/usr/src/redmine/sqlite
+      - redmine-files:/usr/src/redmine/files
+      - ./seed/data/redmine:/hs-seed:ro
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
+  # nginx replaying recorded PuppetDB / orchestrator answers. No auth.
+  puppetdb-fake:
+    <<: *defaults
+    image: nginx:alpine
+    profiles: [ci]
+    ports: ["8082:80"]
+    volumes:
+      - ./config/puppetdb/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./config/puppetdb/data:/data:ro
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/pdb/meta/v1/version"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================== heavy
+  # Start these one or two at a time on a 16 GB machine (README.md).
+  mssql:
+    <<: *defaults
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    profiles: [heavy]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    ports: ["1433:1433"]
+    volumes: [mssql-data:/var/opt/mssql, ./seed/data/sql:/hs-seed:ro]
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -b -Q 'select 1' >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  oracle:
+    <<: *defaults
+    image: gvenzl/oracle-free:23-slim
+    profiles: [heavy]
+    environment:
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD}
+      APP_USER: ${ORACLE_APP_USER}
+      APP_USER_PASSWORD: ${ORACLE_APP_PASSWORD}
+    ports: ["1521:1521"]
+    volumes: [oracle-data:/opt/oracle/oradata, ./seed/data/sql:/hs-seed:ro]
+    mem_limit: 2560m
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 300s
+
+  db2:
+    <<: *defaults
+    image: icr.io/db2_community/db2:latest
+    profiles: [heavy]
+    privileged: true   # Db2's setup script needs it
+    environment:
+      LICENSE: accept
+      DB2INSTANCE: db2inst1
+      DB2INST1_PASSWORD: ${DB2INST1_PASSWORD}
+      DBNAME: ${DB2_DBNAME}
+      SAMPLEDB: "false"
+      ARCHIVE_LOGS: "false"
+      AUTOCONFIG: "false"
+    ports: ["50000:50000"]
+    volumes: [db2-data:/database, ./seed/data/sql:/hs-seed:ro]
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "su - db2inst1 -c \"db2 connect to $$DBNAME\" >/dev/null"]
+      interval: 30s
+      timeout: 30s
+      retries: 30
+      start_period: 600s
+
+  clickhouse:
+    <<: *defaults
+    image: clickhouse/clickhouse-server:24.8
+    profiles: [heavy]
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports: ["8123:8123"]
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    volumes: [clickhouse-data:/var/lib/clickhouse, ./seed/data/sql:/hs-seed:ro]
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" -q 'select 1' >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  nexus:
+    <<: *defaults
+    image: sonatype/nexus3:3.70.1
+    profiles: [heavy]
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: -Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Djava.util.prefs.userRoot=/nexus-data/javaprefs
+      NEXUS_SECURITY_RANDOMPASSWORD: "false"   # first login admin/admin123; the seed changes it
+    ports: ["8081:8081"]
+    volumes: [nexus-data:/nexus-data]
+    mem_limit: 2560m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8081/service/rest/v1/status >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 30
+      start_period: 180s
+
+  # ============================================================== k8s
+  # A single-node Kubernetes (k3s, the `stable` channel's release when pinned)
+  # for the Containers activity's Kubernetes views. seed/seed-k8s.sh applies
+  # the demo workloads and writes .state/k3s/kubeconfig.yaml.
+  k3s:
+    <<: *defaults
+    image: rancher/k3s:v1.37.2-k3s1
+    profiles: [k8s]
+    privileged: true   # k3s runs containerd and the kubelet inside
+    command: ["server", "--disable", "traefik", "--disable", "metrics-server", "--tls-san", "127.0.0.1", "--tls-san", "${BENCH_HOST}"]
+    environment:
+      K3S_TOKEN: ${K3S_TOKEN}
+    tmpfs: [/run, /var/run]
+    ulimits:
+      nproc: 65535
+      nofile: { soft: 65535, hard: 65535 }
+    ports: ["6443:6443", "8080:80"]
+    volumes: [k3s-data:/var/lib/rancher/k3s]
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "--raw", "/readyz"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+volumes:
+  postgres-data:
+  mysql-data:
+  mongo-data:
+  mongo-config:
+  redis-data:
+  valkey-data:
+  couch-data:
+  couch-config:
+  s3-data:
+  qdrant-data:
+  ssh-config:
+  webdav-data:
+  rabbitmq-data:
+  kafka-data:
+  kafka-sasl-data:
+  nats-data:
+  mqtt-data:
+  forgejo-data:
+  forgejo-runner-data:
+  jenkins-home:
+  teamcity-data:
+  teamcity-logs:
+  teamcity-agent-conf:
+  redmine-sqlite:
+  redmine-files:
+  mssql-data:
+  oracle-data:
+  db2-data:
+  clickhouse-data:
+  nexus-data:
+  k3s-data:

@@ -1,0 +1,6 @@
+[
+ {"hash":"h-web1-3","certname":"web1.example.com","status":"failed","noop":false,"environment":"production","start_time":"2026-11-06T09:30:00.000Z","end_time":"2026-11-06T09:30:20.000Z","producer":"puppet.example.com"},
+ {"hash":"h-stg-1","certname":"staging1.example.com","status":"changed","noop":true,"environment":"staging","start_time":"2026-11-06T09:15:00.000Z","end_time":"2026-11-06T09:15:12.000Z","producer":"puppet.example.com"},
+ {"hash":"h-db1-2","certname":"db1.example.com","status":"unchanged","noop":false,"environment":"production","start_time":"2026-11-06T09:00:00.000Z","end_time":"2026-11-06T09:00:08.000Z","producer":"puppet.example.com"},
+ {"hash":"h-web1-2","certname":"web1.example.com","status":"changed","noop":false,"environment":"production","start_time":"2026-11-06T08:30:00.000Z","end_time":"2026-11-06T08:30:41.000Z","producer":"puppet.example.com"}
+]

@@ -1,0 +1,5 @@
+# Written by the seed scripts and by k3s; machine-local.
+.state/
+# make-git-fixtures.sh output when run from here.
+fixtures/git-fixtures/
+git-fixtures/

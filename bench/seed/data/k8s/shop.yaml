@@ -1,0 +1,182 @@
+# Namespace `shop`: healthy workloads of every kind the Containers activity's
+# Kubernetes views list - a Deployment, a Service, a ConfigMap, a Secret, a
+# CronJob, a Job that completes, a StatefulSet with a PVC (k3s local-path),
+# and a pod that logs a line every 3 s for log follow. Applied with
+# `kubectl apply`, so a re-run changes nothing.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shop
+  labels: { hs-bench: "true" }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shop-config
+  namespace: shop
+data:
+  SHOP_REGION: eu
+  SHOP_DB_URL: postgres://postgres:5432/shop
+  LOG_LEVEL: info
+---
+# A dummy value, so the masked Secret view and reveal-per-key have something.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: shop-secrets
+  namespace: shop
+type: Opaque
+data:   # both are base64 of "demo-not-secret"
+  API_KEY: ZGVtby1ub3Qtc2VjcmV0
+  DB_PASSWORD: ZGVtby1ub3Qtc2VjcmV0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-web
+  namespace: shop
+  labels: { app: shop-web }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: shop-web }
+  template:
+    metadata:
+      labels: { app: shop-web }
+    spec:
+      containers:
+        - name: web
+          image: nginx:alpine
+          ports: [{ containerPort: 80 }]
+          envFrom: [{ configMapRef: { name: shop-config } }]
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-web
+  namespace: shop
+spec:
+  selector: { app: shop-web }
+  ports: [{ name: http, port: 80, targetPort: 80 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cache
+  namespace: shop
+  labels: { app: cache }
+spec:
+  serviceName: cache
+  replicas: 1
+  selector:
+    matchLabels: { app: cache }
+  template:
+    metadata:
+      labels: { app: cache }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--appendonly", "yes", "--maxmemory", "32mb"]
+          ports: [{ containerPort: 6379 }]
+          volumeMounts: [{ name: data, mountPath: /data }]
+          resources:
+            requests: { cpu: 5m, memory: 16Mi }
+            limits: { memory: 64Mi }
+  volumeClaimTemplates:
+    # kubectl reports this StatefulSet "configured" on every re-apply even
+    # though `kubectl diff` is empty and nothing rolls; that is a client-side
+    # apply quirk with volumeClaimTemplates, not a change.
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests: { storage: 64Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  namespace: shop
+spec:
+  clusterIP: None
+  selector: { app: cache }
+  ports: [{ name: redis, port: 6379 }]
+---
+# Logs a line every 3 seconds, at rotating levels, for log follow.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ticker
+  namespace: shop
+  labels: { app: ticker }
+spec:
+  containers:
+    - name: ticker
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          i=0
+          while true; do
+            i=$((i + 1))
+            case $((i % 4)) in
+              0) lvl=WARN ;; 1) lvl=INFO ;; 2) lvl=DEBUG ;; 3) lvl=INFO ;;
+            esac
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $lvl order-worker processed order $((1000 + i))"
+            sleep 3
+          done
+      resources:
+        requests: { cpu: 1m, memory: 4Mi }
+        limits: { memory: 16Mi }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: shop
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: busybox:1.36
+          command: ["sh", "-c", "echo applying 3 migrations; sleep 3; echo migration 001 ok; echo migration 002 ok; echo migration 003 ok; echo done"]
+          resources:
+            requests: { cpu: 1m, memory: 4Mi }
+            limits: { memory: 16Mi }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+  namespace: shop
+spec:
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: report
+              image: busybox:1.36
+              command: ["sh", "-c", "echo building the nightly report; sleep 5; echo done"]
+              resources:
+                requests: { cpu: 1m, memory: 4Mi }
+                limits: { memory: 16Mi }

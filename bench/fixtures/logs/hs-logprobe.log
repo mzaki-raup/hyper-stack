@@ -1,0 +1,5 @@
+2026-11-02T10:00:00Z INFO  startup complete
+2026-11-02T10:00:01Z ERROR failed to parse config at crates/hs-core/src/lib.rs:12 unexpected token
+2026-11-02T10:00:02Z WARN  retrying in 5s
+2026-11-02T10:00:03Z ERROR panic at D:/WORKSPACES/RUST/hyper-stack/crates/hs-git/src/write.rs:200 remote missing
+2026-11-02T10:00:04Z ERROR boom at nowhere/not-a-real-file.rs:9 missing

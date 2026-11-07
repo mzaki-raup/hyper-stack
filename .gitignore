@@ -25,3 +25,5 @@ Thumbs.db
 .idea/
 /mynotes
 *.stackdump
+
+bench/.env

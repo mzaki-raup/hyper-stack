@@ -11,6 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Added
+
+- Bench kit in `bench/`: a Docker Compose file for every test server (core, queue, ci, k8s and heavy profiles; a seeded k3s cluster with healthy and deliberately broken workloads), idempotent seed scripts for all demo data, the test fixtures and a git-fixture script; passwords live only in the gitignored `bench/.env` (CR-0095)
+
 ### Changed
 
 - README screenshots and GIF animations retaken at 1736x900 from v0.131.0; six new images for the S3 preview, Redis Slow Log, NoSQL JSON column, Queue publish picks, variable tooltips and Open Here cards (CR-0083)

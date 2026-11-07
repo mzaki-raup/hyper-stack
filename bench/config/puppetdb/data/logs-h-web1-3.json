@@ -1,0 +1,7 @@
+[
+ {"time":"2026-11-06T09:30:01.000Z","level":"info","source":"Puppet","message":"Using environment 'production'"},
+ {"time":"2026-11-06T09:30:02.000Z","level":"info","source":"Puppet","message":"Retrieving pluginfacts"},
+ {"time":"2026-11-06T09:30:05.000Z","level":"notice","source":"/Stage[main]/Nginx/File[/etc/nginx/nginx.conf]/content","message":"content changed '{sha256}3f2a' to '{sha256}9c1e'"},
+ {"time":"2026-11-06T09:30:19.000Z","level":"err","source":"/Stage[main]/Nginx/Service[nginx]/ensure","message":"change from 'stopped' to 'running' failed: Systemd start for nginx failed: nginx: [emerg] unknown directive \"worker_procs\""},
+ {"time":"2026-11-06T09:30:20.000Z","level":"notice","source":"Puppet","message":"Applied catalog in 18.42 seconds"}
+]

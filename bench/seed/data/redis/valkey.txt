@@ -1,0 +1,13 @@
+DEL app:env app:name events leaderboard queue:emails session:1001 session:1002 session:1003 tags:release user:ada user:alan
+SET app:env valkey
+SET app:name HyperStack
+XADD events 1792835191058-0 kind login user ada
+XADD events 1792835191062-0 kind logout user ada
+ZADD leaderboard 95 alan 120 ada 150 grace
+RPUSH queue:emails welcome:ada welcome:alan digest:grace
+SET session:1001 ada
+SET session:1002 alan
+SET session:1003 grace
+SADD tags:release v1 v2 v3
+HSET user:ada name "Ada Lovelace" email ada@example.com city London
+HSET user:alan name "Alan Turing" email alan@example.com city Manchester

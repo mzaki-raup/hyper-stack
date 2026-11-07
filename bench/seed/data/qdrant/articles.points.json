@@ -1,0 +1,7 @@
+{"points": [
+  {"id": 1, "payload": {"title": "Rust ownership explained", "author": "ada", "tags": ["rust", "memory"], "views": 1204}, "vector": [0.04082755, 0.4980961, 0.62057877, 0.60424775]},
+  {"id": 2, "payload": {"title": "Async without tears", "author": "alan", "tags": ["rust", "async"], "views": 880}, "vector": [0.16881056, 0.71966606, 0.66635746, 0.097732425]},
+  {"id": 3, "payload": {"title": "Designing a vault", "author": "grace", "tags": ["security"], "views": 2310}, "vector": [0.29041705, 0.44369268, 0.37915558, 0.75831115]},
+  {"id": 4, "payload": {"title": "egui in anger", "author": "linus", "tags": ["ui", "rust"], "views": 540}, "vector": [0.15240015, 0.008466675, 0.7196674, 0.677334]},
+  {"id": 5, "payload": {"title": "Shipping on Fridays", "author": "ada", "tags": ["process"], "views": 77}, "vector": [0.41652608, 0.3123946, 0.38181558, 0.76363117]}
+]}

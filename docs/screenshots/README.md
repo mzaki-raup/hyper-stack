@@ -2,7 +2,8 @@
 
 Images used by the top-level [README](../../README.md). They show the build from this
 repository, not mock-ups; the whole set was last refreshed on Windows 11 on
-2026-10-22 (v0.72.0 plus the `tool-logs` branch), at 1400x960.
+2026-11-07 from the v0.131.0 release build, at 1736x900 (the window's
+minimum is 1720x860). The older set sections below are kept as history.
 
 **The window no longer goes that small.** From 2026-10-23 the minimum is a
 strict 1720 × 860 (`WindowState::MIN_SIZE`, owner's rule). Windows holds a
@@ -35,6 +36,45 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 `scratchpad-ai.png` and `ai-dictation.png`. The per-tool review-only panels
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
+
+## 2026-11-07 set: the whole README retaken at 1736x900 (v0.131.0)
+
+Captured from the release exe with `scripts/gui-smoke.ps1` against a
+scratch `--data-dir`, HyperStack Dark, activity rail labels on; every
+image is 1736x900. The status bar and About read `0.130.0`: the build's
+version string came from the commit before the v0.131.0 release bump
+(`65b14b1`), whose code is the release's.
+
+- **Bench servers:** MySQL, MongoDB, Redis (6381), MinIO, RabbitMQ, Kafka,
+  TeamCity, Redmine, Forgejo, the `hs-ssh` Alpine SSH server, and Docker
+  in WSL.
+- **New fixtures** in `D:\Temp\hs-shots`: the `shop-service` git
+  repository with a merge in progress, `lsp-demo`, `debug-demo`, the two
+  SQLite databases for Compare (`compare\source.db`, `compare\target.db`),
+  a generated banner PNG for Graphics, and generated JSON logs.
+- **AI shots** (editor, API client, Scratchpad, Graphics, Settings → AI
+  Assistant) come from a local mock OpenAI-compatible server; no real
+  provider was called.
+- **GIFs** are rebuilt from 1200x622 frames with
+  `magick <frames> -resize 1200x -colors 256 -layers Optimize -set delay 300 -loop 0 <out>.gif`,
+  3 s a frame: `hyperstack-demo.gif` 109 frames, 8.8 MB;
+  `git-walkthrough.gif` 10 frames, 0.87 MB; `database-walkthrough.gif`
+  7 frames, 0.48 MB.
+- **Kept from the old set:** `editor-debug.png` and
+  `editor-debug-stack.png` - the debug panel opens at nearly the full pane
+  height and covers the editor, so a paused line cannot be shown (filed
+  as BUG-0051); `automation-jenkins-log.png` - the scratch data has no
+  Jenkins profile.
+- **Removed:** `split-scratchpad.png` - split panes left the app on
+  2026-10-23.
+- **New images:** `s3-preview.png` (the S3 preview column, FEAT-0108),
+  `redis-slowlog.png` (the Slow Log table with the clicked entry's detail,
+  CR-0092), `nosql-document-json.png` (a document's JSON in Find's right
+  column, CR-0093), `queue-publish-picks.png` (RabbitMQ Exchange and
+  Routing Key picked from the broker, CR-0090),
+  `api-variable-tooltip.png` (a `{{variable}}` tooltip in the endpoint,
+  FEAT-0107) and `api-open-here.png` (the API Client's Open Here cards,
+  CR-0087, CR-0089).
 
 ## 2026-10-30 set: the Git activity, dashboards, variables, the Devtools toolbar
 

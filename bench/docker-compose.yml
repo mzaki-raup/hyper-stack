@@ -5,7 +5,7 @@
 #   docker compose --profile core --profile queue up -d
 #   ./seed/seed-all.sh
 #
-# Profiles: core, queue, ci, heavy (see README.md for RAM per profile).
+# Profiles: core, queue, ci, k8s, heavy (see README.md for RAM per profile).
 # Everything a service stores lives in a named volume (hs-bench_<name>).
 
 x-defaults: &defaults
@@ -536,19 +536,24 @@ services:
       retries: 30
       start_period: 180s
 
+  # ============================================================== k8s
+  # A single-node Kubernetes (k3s, the `stable` channel's release when pinned)
+  # for the Containers activity's Kubernetes views. seed/seed-k8s.sh applies
+  # the demo workloads and writes .state/k3s/kubeconfig.yaml.
   k3s:
     <<: *defaults
-    image: rancher/k3s:latest
-    profiles: [heavy]
-    privileged: true
+    image: rancher/k3s:v1.37.2-k3s1
+    profiles: [k8s]
+    privileged: true   # k3s runs containerd and the kubelet inside
     command: ["server", "--disable", "traefik", "--disable", "metrics-server", "--tls-san", "127.0.0.1", "--tls-san", "${BENCH_HOST}"]
     environment:
       K3S_TOKEN: ${K3S_TOKEN}
-      K3S_KUBECONFIG_OUTPUT: /output/kubeconfig.yaml
-      K3S_KUBECONFIG_MODE: "666"
     tmpfs: [/run, /var/run]
+    ulimits:
+      nproc: 65535
+      nofile: { soft: 65535, hard: 65535 }
     ports: ["6443:6443", "8080:80"]
-    volumes: [k3s-data:/var/lib/rancher/k3s, ./.state/k3s:/output]
+    volumes: [k3s-data:/var/lib/rancher/k3s]
     mem_limit: 2g
     healthcheck:
       test: ["CMD", "kubectl", "get", "--raw", "/readyz"]

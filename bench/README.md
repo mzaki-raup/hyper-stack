@@ -17,15 +17,15 @@ HyperStack profile works against either by changing only the host.
 
 | Path | What |
 |---|---|
-| `docker-compose.yml` | 30 services in four profiles, named volumes, healthchecks, memory limits |
+| `docker-compose.yml` | 30 services in five profiles, named volumes, healthchecks, memory limits |
 | `.env.example` | Every variable; passwords are `change-me`. Copy to `.env` (gitignored) and fill them in |
 | `config/` | Files mounted into containers: the Kafka SASL JAAS template, Jenkins' init script and job definitions, the PuppetDB fake's nginx config and recorded answers |
 | `seed/seed-all.sh` | Loads all demo data into whatever is running; idempotent |
-| `seed/seed-<service>.sh` | One script per service (`seed-heavy.sh` covers the whole heavy profile) |
-| `seed/data/` | The data the seeds load: SQL dumps, Mongo/Couch/Qdrant JSON, Redis commands, S3 and WebDAV files, RabbitMQ definitions, Kafka messages, the Redmine and k3s seeds |
+| `seed/seed-<service>.sh` | One script per service (`seed-k8s.sh` for k3s, `seed-heavy.sh` for the whole heavy profile) |
+| `seed/data/` | The data the seeds load: SQL dumps, Mongo/Couch/Qdrant JSON, Redis commands, S3 and WebDAV files, RabbitMQ definitions, Kafka messages, the Redmine seed, the Kubernetes manifests |
 | `fixtures/` | Files the app was tested with (below) |
 | `fixtures/make-git-fixtures.sh` | Recreates the git fixture repositories from scratch |
-| `.state/` | Written by the seeds: generated tokens, the k3s kubeconfig (gitignored) |
+| `.state/` | Written by the seeds: generated tokens, the k3s kubeconfigs (gitignored) |
 
 ## Requirements
 
@@ -33,7 +33,7 @@ HyperStack profile works against either by changing only the host.
 - `bash`, `curl` 7.75 or later (the S3 seed signs with `--aws-sigv4`), and
   `git` for the git fixtures. Nothing else on the host: every other tool runs
   inside the containers.
-- 16 GB of RAM for `core` + `queue` + `ci` together; see below for `heavy`.
+- 16 GB of RAM for `core` + `queue` + `ci` (or `core` + `queue` + `k8s`) together; see below for `heavy`.
 
 ## Quick start
 
@@ -45,7 +45,7 @@ docker compose --profile core --profile queue up -d
 ./seed/seed-all.sh
 ```
 
-Add `--profile ci` (and later `--profile heavy`, a service or two at a time)
+Add `--profile ci` or `--profile k8s` (and later `--profile heavy`, a service or two at a time)
 when you need them, then run `./seed/seed-all.sh` again: it skips what is not
 running and re-loads the rest without duplicating anything. Run one service's
 seed alone with `./seed/seed-all.sh redis` or `./seed/seed-kafka.sh`.
@@ -66,10 +66,12 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `core` | postgres, mysql, mongo, redis, valkey, couch, s3 (MinIO), qdrant, ssh, webdav, httpbin | 5.1 GB | 1.5-2 GB |
 | `queue` | rabbitmq, kafka, kafka-sasl, nats, mqtt | 2.9 GB | 1-1.5 GB |
 | `ci` | forgejo, forgejo-runner, jenkins, teamcity, teamcity-agent, redmine, puppetdb-fake | 5.8 GB | 3-4 GB |
-| `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB), k3s (2 GB) | 14.5 GB | each at its limit once warm |
+| `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
+| `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
+`core` + `queue` + `k8s` fit with room to spare (about 4-5 GB in practice), and
 `core` + `queue` + `ci` fit too. Start `heavy` services **one or two at a
 time** (`docker compose --profile heavy up -d mssql`) and stop them when done
 (`docker compose stop mssql`). SQL Server, Oracle and Db2 accept connections
@@ -111,7 +113,7 @@ this kit and on the Windows/WSL bench unless the last column says otherwise.
 | Db2 | `<host>:50000` | `db2inst1` | `$DB2INST1_PASSWORD` | `$DB2_DBNAME` (`TESTDB`) | same (stopped) |
 | ClickHouse | `http://<host>:8123` | `$CLICKHOUSE_USER` (`default`) | `$CLICKHOUSE_PASSWORD` | `shop` | same (stopped) |
 | Nexus | `http://<host>:8081` | `admin` | `$NEXUS_ADMIN_PASSWORD` | repository `hs-raw` | same (stopped) |
-| k3s | `https://<host>:6443` | kubeconfig | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespace `shop` | did not start (needs `--privileged`); the kit runs it privileged |
+| k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
 `seed-all.sh` writes each to `.state/` and prints where.
@@ -141,7 +143,7 @@ The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
 | SQL Server / Oracle / Db2 | the Postgres `shop` tables and rows, in `shop` / schema `APP` / `TESTDB` |
 | ClickHouse | `shop.products` (one negative, one zero stock), `shop.events` (48 hourly rows) |
 | Nexus | raw hosted `hs-raw` with `docs/readme.txt`; the admin password changed from `admin123` |
-| k3s | namespace `shop`: a 2-replica nginx deployment, a service, a configmap, a cron job |
+| k3s | `shop` and `ops` - see [Kubernetes](#kubernetes-profile-k8s) |
 
 ### TeamCity's first start (by hand, once)
 
@@ -151,6 +153,62 @@ database, accept the licence agreement, and create the administrator
 `$TEAMCITY_ADMIN_USER` / `$TEAMCITY_ADMIN_PASSWORD` (your `.env` values). Then run
 `./seed/seed-teamcity.sh`. Until then the `teamcity` container reports
 unhealthy and the seed says what is missing.
+
+## Kubernetes (profile `k8s`)
+
+A single-node k3s (`rancher/k3s:v1.37.2-k3s1`, the k3s `stable` channel's
+release on 2026-11-08) for the Containers activity's Kubernetes views. It
+runs privileged (k3s runs containerd and the kubelet inside the container)
+and needs about 0.8-1 GB once the demo workloads are up.
+
+```bash
+docker compose --profile k8s up -d
+./seed/seed-all.sh k8s          # or just ./seed/seed-all.sh
+```
+
+The seed waits for the node to be Ready, applies `seed/data/k8s/*.yaml` with
+`kubectl apply`, and writes two kubeconfigs with the cluster, user and
+context all named `hs-bench`:
+
+| File | Server | Use it from |
+|---|---|---|
+| `.state/k3s/kubeconfig.yaml` | `https://$BENCH_HOST:6443` | other machines (your Windows box) |
+| `.state/k3s/kubeconfig-local.yaml` | `https://127.0.0.1:6443` | the Linux box itself |
+
+A re-run creates nothing new and restarts nothing. kubectl still prints
+`statefulset.apps/cache configured` each time, a known client-side apply
+quirk with `volumeClaimTemplates`: `kubectl diff` is empty and the pod is
+not replaced.
+
+The API server's certificate carries `BENCH_HOST` as a SAN (`--tls-san`),
+so TLS verifies for that name. If you change `BENCH_HOST`, recreate k3s
+(`docker compose --profile k8s up -d --force-recreate k3s`) and run the seed
+again. The kubeconfig holds a client certificate and key: treat it as a
+credential (it stays in `.state/`, which is gitignored).
+
+**In HyperStack:** copy `kubeconfig.yaml` to the Windows machine (for
+example into the data folder, so the profile stores a relative path). Then,
+in the Containers activity (or Settings → Containers → Container List), use
+**Add** → **Kubernetes**: set **kubeconfig File** to that path, **Context**
+to `hs-bench`, and **Default Namespace** to `shop`. The file is read where
+it is, not copied into the vault (docs/tools/containers.md §10.2); **Paste
+kubeconfig** is the alternative when you want the document in the vault.
+
+What the cluster holds:
+
+| Namespace | Object | State |
+|---|---|---|
+| `shop` | Deployment `shop-web` (nginx:alpine, 2 replicas, readiness probe) + Service | 2/2 Running |
+| `shop` | StatefulSet `cache` (redis:7-alpine, 1 replica) + headless Service, PVC `data-cache-0` (64Mi, `local-path`) | Running, PVC Bound |
+| `shop` | Pod `ticker` (busybox) logging a line every 3 s at INFO/DEBUG/WARN | Running - for log follow and exec |
+| `shop` | Job `db-migrate` | Completed |
+| `shop` | CronJob `nightly-report` (`0 2 * * *`) | scheduled, no runs yet |
+| `shop` | ConfigMap `shop-config`, Secret `shop-secrets` (the dummy value `demo-not-secret`) | - |
+| `ops` | Deployment `crash` (exits 1 after logging an ERROR line) | CrashLoopBackOff, for the Problems inbox (`kubectl get pods` prints the last exit, `Error`, between restarts) |
+| `ops` | Deployment `pull` (image `busybox:0.0.0-does-not-exist`) | ImagePullBackOff / ErrImagePull |
+
+Every container requests at most 5m CPU and 16Mi memory. To start over:
+`docker compose rm -sf k3s && docker volume rm hs-bench_k3s-data`.
 
 ## Fixtures (`fixtures/`)
 
@@ -216,7 +274,7 @@ the bench's MySQL is on `3307`, not the usual `3306`.
 On **your Linux box** only:
 
 ```bash
-docker compose --profile core --profile queue --profile ci --profile heavy down -v
+docker compose --profile core --profile queue --profile ci --profile k8s --profile heavy down -v
 rm -rf .state
 ```
 

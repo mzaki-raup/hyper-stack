@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The heavy profile: the shop tables in SQL Server, Oracle and Db2, the
-# ClickHouse scenario tables, a Nexus raw repository, and a k3s namespace.
+# ClickHouse scenario tables and a Nexus raw repository (k3s is seed-k8s.sh).
 # Each part runs only when its container is up. SQL Server, Oracle and Db2
 # accept logins before they are ready, so each waits on its healthcheck
 # (which probes the database itself), not on the port (docs/GOTCHAS.md).
@@ -52,11 +52,4 @@ if running nexus; then
   fi
   curl "${A[@]}" -f -o /dev/null -T "$DATA_DIR/nexus/readme.txt" "http://$H:8081/repository/hs-raw/docs/readme.txt"
   log "repositories: $(curl "${A[@]}" "$N/v1/repositories" | grep -o '"name" *: *"[^"]*"' | cut -d'"' -f4 | tr '\n' ' ')"
-fi
-
-if running k3s; then
-  SEED_NAME=k3s
-  wait_healthy k3s
-  dc exec -T k3s kubectl apply -f - < "$DATA_DIR/k3s/shop.yaml" >/dev/null
-  log "namespace shop applied; kubeconfig: .state/k3s/kubeconfig.yaml (server https://127.0.0.1:6443 - change it to BENCH_HOST off this box)"
 fi

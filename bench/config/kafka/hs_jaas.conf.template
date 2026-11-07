@@ -1,0 +1,6 @@
+KafkaServer {
+  org.apache.kafka.common.security.plain.PlainLoginModule required
+    username="@ADMIN_USER@" password="@ADMIN_PASSWORD@"
+    user_@ADMIN_USER@="@ADMIN_PASSWORD@" user_@DEV_USER@="@DEV_PASSWORD@";
+  org.apache.kafka.common.security.scram.ScramLoginModule required;
+};

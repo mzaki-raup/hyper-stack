@@ -1,0 +1,600 @@
+{"ts": "2026-11-07T09:00:00.475Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:00.804Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:02.018Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:03.185Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:03.814Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:04.072Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:05.070Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:05.274Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:06.019Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:06.687Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:07.096Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:07.358Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:08.666Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:09.646Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:10.710Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:11.990Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:13.086Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:14.418Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:15.090Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:16.231Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:16.475Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:17.814Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:18.218Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:19.025Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:19.906Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:21.131Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:22.195Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:22.783Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:24.186Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:25.408Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:26.642Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:26.912Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:27.939Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:28.493Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:29.460Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:30.701Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:31.236Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:32.241Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:32.501Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:33.332Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:34.791Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:35.797Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:36.342Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:36.567Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:37.872Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:39.194Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:40.446Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:41.829Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:42.580Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:00:44.027Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:44.238Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:45.487Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:46.749Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:47.369Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:47.683Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:48.629Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:49.238Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:50.284Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:51.214Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:51.417Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:52.893Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:53.771Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:54.028Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:54.590Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:55.160Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:00:56.488Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:57.210Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:57.554Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:57.788Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:58.563Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:58.987Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:00:59.565Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:59.907Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:00.629Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:01.173Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:01.976Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:02.835Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:03.268Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:04.259Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:04.844Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:05.563Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:06.807Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:08.247Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:08.489Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:09.502Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:10.030Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:11.266Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:12.581Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:14.072Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:01:15.329Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:16.601Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:17.609Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:18.466Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:19.539Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:20.350Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:20.984Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:21.811Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:22.167Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:22.977Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:24.029Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:24.496Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:24.773Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:25.418Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:26.785Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:28.260Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:29.234Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:29.636Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:30.722Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:31.930Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:32.928Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:34.151Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:35.604Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:36.380Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:36.991Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:38.344Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:01:39.238Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:39.983Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:01:40.959Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:41.863Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:43.157Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:44.447Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:44.729Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:45.276Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:46.578Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:47.458Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:48.180Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:49.076Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:49.757Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:51.193Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:01:52.394Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:53.722Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:01:54.578Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:54.927Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:55.428Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:01:56.326Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:57.729Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:01:58.703Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:00.029Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:00.396Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:01.343Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:02.698Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:03.132Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:03.899Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:04.192Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:04.417Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:04.646Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:05.081Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:05.362Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:06.763Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:07.199Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:07.893Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:08.303Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:09.277Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:10.588Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:11.390Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:12.566Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:13.191Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:02:13.472Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:14.277Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:02:15.132Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:15.973Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:16.304Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:17.735Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:18.163Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:19.628Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:20.939Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:22.099Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:02:22.829Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:23.454Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:24.158Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:24.933Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:26.050Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:27.426Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:28.091Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:28.919Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:29.501Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:30.886Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:31.706Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:32.112Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:33.497Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:33.885Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:34.126Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:35.148Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:36.476Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:36.829Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:37.049Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:37.984Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:38.499Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:39.370Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:39.924Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:40.430Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:41.284Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:42.537Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:43.969Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:44.592Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:44.857Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:46.333Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:47.665Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:48.285Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:49.371Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:49.670Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:02:50.376Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:50.707Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:02:51.821Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:02:53.145Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:54.244Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:55.372Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:56.265Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:57.459Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:58.512Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:02:58.750Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:59.676Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:01.091Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:01.821Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:02.588Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:03.609Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:03.991Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:04.206Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:05.055Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:06.152Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:06.814Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:08.027Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:08.687Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:09.577Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:10.340Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:10.989Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:11.335Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:03:12.290Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:12.907Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:13.720Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:14.681Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:15.832Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:16.284Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:17.536Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:18.097Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:19.170Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:20.536Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:20.842Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:21.848Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:22.760Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:23.297Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:23.580Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:23.965Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:03:25.452Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:25.823Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:26.307Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:27.770Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:28.137Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:28.830Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:29.813Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:30.899Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:31.765Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:33.239Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:33.873Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:35.303Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:35.744Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:36.512Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:37.857Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:38.445Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:39.830Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:41.315Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:42.011Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:42.634Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:43.137Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:43.896Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:44.609Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:45.723Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:03:46.267Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:47.472Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:47.921Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:03:49.289Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:49.908Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:50.329Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:03:50.578Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:50.805Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:51.284Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:52.249Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:53.086Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:54.016Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:03:54.878Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:55.983Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:03:56.900Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:57.917Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:59.287Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:00.260Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:01.600Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:02.368Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:03.614Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:04.759Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:06.017Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:06.842Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:07.962Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:09.249Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:10.526Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:11.523Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:12.552Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:14.025Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:14.363Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:15.070Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:15.865Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:16.898Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:17.417Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:18.430Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:04:18.994Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:04:20.433Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:21.174Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:04:22.216Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:23.530Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:24.676Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:25.868Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:27.113Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:28.358Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:29.767Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:30.694Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:31.800Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:33.038Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:33.569Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:34.592Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:35.356Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:35.983Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:36.668Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:37.419Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:38.690Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:39.848Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:40.149Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:41.488Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:42.936Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:43.939Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:44.491Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:45.222Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:46.097Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:46.826Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:47.526Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:47.788Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:49.262Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:50.346Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:51.054Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:04:51.642Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:52.181Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:53.567Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:54.070Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:54.806Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:04:55.338Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:55.820Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:04:56.922Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:57.942Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:04:58.564Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:04:59.389Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:00.055Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:01.263Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:01.845Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:03.268Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:03.911Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:05.123Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:06.578Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:07.340Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:07.893Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:08.911Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:10.032Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:10.577Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:11.259Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:12.406Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:13.403Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:14.131Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:15.546Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:16.183Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:16.477Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:16.687Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:17.541Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:18.929Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:19.530Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:20.041Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:05:20.303Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:20.800Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:22.111Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:23.088Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:23.450Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:24.271Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:24.543Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:25.818Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:26.105Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:26.545Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:27.134Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:27.600Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:28.193Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:29.191Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:29.939Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:30.636Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:32.040Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:33.449Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:34.526Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:35.873Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:36.197Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:37.517Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:38.125Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:39.423Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:39.766Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:41.216Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:05:41.564Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:41.961Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:42.577Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:42.868Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:43.254Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:44.504Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:45.462Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:46.302Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:47.590Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:48.052Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:05:49.165Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:50.439Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:51.151Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:05:51.526Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:52.512Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:53.246Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:53.712Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:54.690Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:05:55.512Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:56.214Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:56.834Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:05:57.727Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:05:58.727Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:00.123Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:00.588Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:01.706Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:03.050Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:04.440Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:05.736Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:06.532Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:07.141Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:08.408Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:09.446Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:10.823Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:11.638Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:12.930Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:13.740Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:14.498Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:15.763Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:17.040Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:17.889Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:18.755Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:06:20.128Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:20.900Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:21.845Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:22.824Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:23.184Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:23.498Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:24.770Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:25.485Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:06:26.860Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:27.800Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:28.758Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:29.909Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:30.806Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:31.349Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:32.061Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:33.413Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:33.843Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:34.884Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:36.353Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:36.756Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:37.500Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:38.118Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:39.612Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:39.972Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:40.617Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:41.172Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:42.256Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:43.209Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:44.405Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:45.186Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:45.796Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:46.477Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:47.428Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:48.014Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:06:48.362Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:49.087Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:49.303Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:50.282Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:51.479Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:52.940Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:54.324Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:54.606Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:55.744Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:06:56.557Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:06:56.768Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:57.587Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:06:58.433Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:06:59.745Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:01.074Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:02.116Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:03.376Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:04.866Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:05.992Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:07.228Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:07.715Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:08.248Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:08.467Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:09.825Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:10.886Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:11.123Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:11.507Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:12.492Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:13.248Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:07:14.211Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:15.396Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:07:16.391Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:16.829Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:17.325Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:17.562Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:18.294Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:18.754Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:19.542Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:20.587Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:21.839Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:22.900Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:23.987Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:25.181Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:26.387Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:27.410Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:27.797Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:28.419Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:29.088Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:29.499Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:30.681Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:07:31.083Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:31.666Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:32.048Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:32.352Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:33.646Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:33.942Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:34.353Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:35.412Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:35.854Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:36.624Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:36.921Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:07:37.299Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:37.752Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:38.554Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:07:39.773Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:40.210Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:41.391Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:42.382Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:42.994Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:43.721Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:45.020Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:46.228Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:47.543Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:49.020Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:50.215Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:51.125Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:51.872Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:53.352Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:53.758Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:54.520Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:55.224Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:55.690Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:07:56.725Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:58.150Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:07:58.469Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:07:59.916Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:00.963Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:02.146Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:02.892Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:04.113Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:05.276Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:05.836Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:06.407Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:07.795Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:09.090Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:10.322Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:10.798Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:11.434Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:12.645Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:13.087Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:13.573Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:14.233Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:15.536Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:08:15.838Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:16.275Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:16.883Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:17.713Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:08:17.921Z", "level": "ERROR", "service": "checkout-api", "msg": "upstream timeout", "upstream": "payments"}
+{"ts": "2026-11-07T09:08:18.746Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:08:19.397Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:20.056Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:21.537Z", "level": "DEBUG", "service": "checkout-api", "msg": "cache hit", "key": "user:42"}
+{"ts": "2026-11-07T09:08:22.435Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:23.696Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:24.145Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:24.630Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:25.123Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:25.407Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:25.795Z", "level": "WARN", "service": "checkout-api", "msg": "slow query", "table": "orders", "ms": 812}
+{"ts": "2026-11-07T09:08:26.206Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:26.915Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:27.216Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:27.576Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:28.593Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:29.288Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:08:30.161Z", "level": "INFO", "service": "checkout-api", "msg": "request handled", "path": "/api/orders", "status": 200}

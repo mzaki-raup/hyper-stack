@@ -51,23 +51,32 @@ say so either way, rather than implying a vulnerability shipped.
 
 ## Live and container-backed tests
 
-Each needs its environment variable; without it the test skips itself.
+Each needs its environment variable; without it the test skips itself. The
+servers are the bench (`hs-*` containers here, or the kit in `bench/` - see
+[bench/README.md](../../bench/README.md) for every service's address and the
+`.env` variable that holds its password). Passwords are placeholders here;
+never write a real one into a committed file.
 
 ```bash
-HS_S3_ENDPOINT=http://127.0.0.1:5055 cargo test -p hs-core --test s3_live
+HS_S3_ENDPOINT=http://127.0.0.1:9000 HS_S3_ACCESS_KEY=dev HS_S3_SECRET_KEY=<secret> cargo test -p hs-core --test s3_live
 ```
 
 ```bash
-HS_PG=127.0.0.1:5432:dev:dev:postgres HS_MYSQL=127.0.0.1:3306:dev:dev:shop cargo test -p tool-db --test drivers
+HS_PG=127.0.0.1:5432:dev:<password>:postgres HS_MYSQL=127.0.0.1:3307:dev:<password>:shop cargo test -p tool-db --test drivers
 ```
 
 ```bash
-HS_REDIS=127.0.0.1:6379 cargo test -p tool-redis --test live
+HS_REDIS=127.0.0.1:6381 cargo test -p tool-redis --test live
 ```
 
 ```bash
-HS_MONGO=127.0.0.1:27017 HS_COUCH=http://admin:pw@127.0.0.1:5984 cargo test -p tool-nosql --test live
+HS_MONGO=127.0.0.1:27017 HS_COUCH=http://admin:<password>@127.0.0.1:5984 cargo test -p tool-nosql --test live
 ```
+
+The queue, automation and tracker tests take `HS_RABBITMQ`, `HS_KAFKA`,
+`HS_KAFKA_SASL`, `HS_NATS`, `HS_MQTT`, `HS_REDIS_STREAMS`, `HS_JENKINS`,
+`HS_FORGEJO`, `HS_FORGEJO_ISSUES` and `HS_REDMINE`; their formats are in
+bench/README.md.
 
 Container-backed driver tests run only when `HS_INTEGRATION` is set.
 

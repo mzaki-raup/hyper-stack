@@ -1,0 +1,8 @@
+[package]
+name = "lsp-demo"
+version = "0.1.0"
+edition = "2021"
+
+# Its own workspace, so cargo run here does not trip over the HyperStack
+# workspace this fixture sits inside.
+[workspace]

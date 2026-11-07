@@ -1,0 +1,4 @@
+[
+ {"time":"2026-11-06T09:00:01.000Z","level":"info","source":"Puppet","message":"Using environment 'production'"},
+ {"time":"2026-11-06T09:00:08.000Z","level":"notice","source":"Puppet","message":"Applied catalog in 6.90 seconds"}
+]

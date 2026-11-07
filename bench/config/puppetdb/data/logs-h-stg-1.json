@@ -1,0 +1,6 @@
+[
+ {"time":"2026-11-06T09:15:01.000Z","level":"info","source":"Puppet","message":"Using environment 'staging'"},
+ {"time":"2026-11-06T09:15:06.000Z","level":"notice","source":"/Stage[main]/App/Package[app-server]/ensure","message":"current_value '2.3.1', should be '2.4.0' (noop)"},
+ {"time":"2026-11-06T09:15:07.000Z","level":"notice","source":"/Stage[main]/App/Service[app-server]","message":"Would have triggered 'refresh' from 1 event"},
+ {"time":"2026-11-06T09:15:12.000Z","level":"notice","source":"Puppet","message":"Applied catalog in 10.88 seconds"}
+]

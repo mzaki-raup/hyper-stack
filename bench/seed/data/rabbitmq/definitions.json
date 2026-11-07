@@ -1,0 +1,14 @@
+{
+  "vhosts": [{"name": "/"}],
+  "exchanges": [
+    {"name": "shop", "vhost": "/", "type": "topic", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [
+    {"name": "demo", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "classic"}},
+    {"name": "orders.created", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "classic"}},
+    {"name": "emails.outbound", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "classic"}}
+  ],
+  "bindings": [
+    {"source": "shop", "vhost": "/", "destination": "orders.created", "destination_type": "queue", "routing_key": "order.*", "arguments": {}}
+  ]
+}

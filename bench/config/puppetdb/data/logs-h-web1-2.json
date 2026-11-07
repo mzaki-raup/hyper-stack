@@ -1,0 +1,5 @@
+[
+ {"time":"2026-11-06T08:30:01.000Z","level":"info","source":"Puppet","message":"Using environment 'production'"},
+ {"time":"2026-11-06T08:30:30.000Z","level":"notice","source":"/Stage[main]/Nginx/Package[nginx]/ensure","message":"created"},
+ {"time":"2026-11-06T08:30:41.000Z","level":"notice","source":"Puppet","message":"Applied catalog in 39.77 seconds"}
+]

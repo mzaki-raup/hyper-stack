@@ -1,0 +1,6 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <description>Quick job.</description>
+  <canRoam>true</canRoam>
+  <builders><hudson.tasks.Shell><command>echo "running 42 tests"; echo "42 passed"</command></hudson.tasks.Shell></builders>
+</project>

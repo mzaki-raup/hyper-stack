@@ -1,0 +1,29 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <description>Pretend deployment for the HyperStack test bench.</description>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>ENV</name><description>Where to deploy</description>
+          <choices class="java.util.Arrays$ArrayList"><a class="string-array"><string>staging</string><string>qa</string></a></choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>FAIL</name><description>Make this run fail</description><defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>STEPS</name><description>How many steps to take</description><defaultValue>20</defaultValue><trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <canRoam>true</canRoam>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>echo "Deploying to $ENV"
+for i in $(seq 1 "$STEPS"); do echo "step $i of $STEPS: copying artefacts"; sleep 1; done
+if [ "$FAIL" = "true" ]; then echo "ERROR: health check on $ENV returned 503"; exit 1; fi
+echo "Deployed to $ENV"</command>
+    </hudson.tasks.Shell>
+  </builders>
+</project>

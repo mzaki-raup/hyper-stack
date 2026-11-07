@@ -1,0 +1,36 @@
+DEL alpha app:env app:name cart:1 cart:a cart:items:3 events events:signup leaderboard queue:emails queue:jobs session:1001 session:1002 session:1003 tags:popular tags:release user:1:name user:1:profile user:2 user:2:name user:ada user:alan zeta
+SET alpha 2
+SET app:env redis
+SET app:name HyperStack
+SET cart:1 4
+SET cart:a 6
+SET cart:items:3 5
+XADD events 1792835190773-0 kind login user ada
+XADD events 1792835190776-0 kind logout user ada
+XADD events 1793824061570-0 type click user 1
+XADD events 1793824061650-0 type click user 2
+XADD events 1793824061733-0 type click user 3
+XADD events 1793824061802-0 type click user 4
+XADD events 1793824061872-0 type click user 5
+XADD events:signup 1793429031129-0 user user1@example.com plan pro data "{\"user\":1,\"plan\":\"pro\"}"
+XADD events:signup 1793429031328-0 user user2@example.com plan pro data "{\"user\":2,\"plan\":\"pro\"}"
+XADD events:signup 1793429031517-0 user user3@example.com plan pro data "{\"user\":3,\"plan\":\"pro\"}"
+XADD events:signup 1793429031705-0 user user4@example.com plan pro data "{\"user\":4,\"plan\":\"pro\"}"
+XADD events:signup 1793429031889-0 user user5@example.com plan pro data "{\"user\":5,\"plan\":\"pro\"}"
+XADD events:signup 1793429032076-0 user user6@example.com plan pro data "{\"user\":6,\"plan\":\"pro\"}"
+XADD events:signup 1793433065013-0 user grace@example.com data "{\"user\":7,\"plan\":\"team\"}"
+ZADD leaderboard 10 ada 20 alan 30 grace
+RPUSH queue:emails welcome:ada welcome:alan digest:grace
+RPUSH queue:jobs a b c d e
+SET session:1001 ada
+SET session:1002 alan
+SET session:1003 grace
+SADD tags:popular rust egui redis
+SADD tags:release v1 v2 v3
+SET user:1:name "Ada Lovelace"
+HSET user:1:profile email ada@example.com city London plan pro
+SET user:2 3
+SET user:2:name "Alan Turing"
+HSET user:ada name "Ada Lovelace" email ada@example.com city London
+HSET user:alan name "Alan Turing" email alan@example.com city Manchester
+SET zeta 1

@@ -150,11 +150,28 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.7.7
+Version : v0.7.8
 Features : FEAT-0108
 Bugs : BUG-0050
-Change Request : CR-0094
+Change Request : CR-0095
 ```
+
+---
+
+## v0.7.8 — In-Progress
+
+### CR-0095 · Bench kit: docker-compose, seeds, fixtures and credentials for a Linux test box
+- **State:** In-Progress · kit written and partly exercised 2026-11-08; not yet run on the owner's Linux box
+- **Source:** owner, 2026-11-07/08 ("Dont delete all bench container. Provide me all the updated credential for those container. Some of the component's credential cannot be used such as postgres, s3, etc. Please reset it and provide the update one. And provide me also the file that you use to test; csv, sqlite source, sqlite target, etc. And provide me docker compose for all the container that you created with script to add all those mock and demo data with .env file. I want to deploy it in my linux machine 16GB Ram."); kit in the repo under `bench/`, real `.env` gitignored, `.env.example` committed with no secret values
+- **Branch:** chore/bench-kit
+- **Scope:** `bench/docker-compose.yml` (every bench server, same images and host ports as the Windows/WSL `hs-*` containers; profiles `core`, `queue`, `ci`, `heavy`; volumes, healthchecks, memory limits for 16 GB), `bench/.env.example`, `bench/config/` (Kafka JAAS template, Jenkins init script and jobs, PuppetDB fake), `bench/seed/` (`seed-all.sh` plus one script per service, data dumped from the live bench), `bench/fixtures/` (SQLite source/target, DuckDB, CSV, logs, images, `make-git-fixtures.sh`), `bench/README.md` (profiles, RAM, credentials by variable, `HS_*` test variables, reset). On the live bench: Postgres roles `dev` and `postgres` created, a Mongo root user, a second CouchDB admin. No container removed or recreated.
+- [x] Code: compose file, `.env.example`, config, seeds, fixtures, git-fixture script, README
+- [x] Test: `docker compose config` with all profiles; `bash -n` on every script; `ruby -c` on the Redmine seed; in a throwaway compose project with no host ports, the postgres, mysql, mongo, redis/valkey, mqtt, nats, kafka and kafka-sasl seeds (run twice, idempotent), Jenkins' init script (user, token, jobs, builds, restart), the Redmine seed, Forgejo's admin and runner registration, the PuppetDB fake; `make-git-fixtures.sh` run twice in WSL
+- [ ] Test: the S3 (MinIO), CouchDB, Qdrant, WebDAV, RabbitMQ, Forgejo API, TeamCity, Nexus and heavy-profile seeds on a real `up`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
+- [ ] App: `--data-dir ./tmp-data` — profiles pointed at the Linux box
+- [x] Docs: bench/README.md · CHANGELOG · docs/GOTCHAS.md · .claude/rules/testing.md
+- **Notes:** No Rust changed, and cargo was not run (the CI runner shares this machine), so the Gate box stays open. The unticked Test box: those seeds call the services' HTTP ports from the host, and a full `up` here collides with the live bench's ports; the heavy profile does not fit beside it. `bitnamilegacy/minio:2025.7.23` replaces `minio/minio`, which is no longer published on Docker Hub or quay; the image was not pulled here. TeamCity's first-start wizard is manual (README).
 
 ---
 

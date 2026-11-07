@@ -1,0 +1,1500 @@
+2026-11-05T06:00:00.399 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:00.457 ERROR svc=api job #2 finished in 442ms
+2026-11-05T06:00:00.784 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:01.244 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:01.779 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:02.282 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:02.869 WARN svc=api job #7 finished in 476ms
+2026-11-05T06:00:03.331 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:03.781 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:04.264 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:00:04.634 INFO svc=api job #11 finished in 849ms
+2026-11-05T06:00:04.898 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:05.164 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:05.956 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:06.717 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:07.398 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:07.892 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:08.516 DEBUG svc=api job #18 finished in 642ms
+2026-11-05T06:00:08.638 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:09.303 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:10.124 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:10.962 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:11.041 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:11.680 DEBUG svc=api job #24 finished in 598ms
+2026-11-05T06:00:12.262 WARN svc=api job #25 finished in 421ms
+2026-11-05T06:00:12.553 ERROR svc=api job #26 finished in 751ms
+2026-11-05T06:00:12.649 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:12.830 INFO svc=api job #28 finished in 499ms
+2026-11-05T06:00:13.040 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:13.251 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:14.011 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:14.506 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:14.864 WARN svc=api job #33 finished in 142ms
+2026-11-05T06:00:15.066 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:15.659 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:16.546 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:17.291 ERROR svc=api job #37 finished in 337ms
+2026-11-05T06:00:18.170 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:18.873 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:19.171 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:20.019 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:20.709 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:20.933 WARN svc=api job #43 finished in 604ms
+2026-11-05T06:00:21.725 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:22.263 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:22.535 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:22.943 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:23.733 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:24.392 ERROR svc=api cache miss key=user:42
+2026-11-05T06:00:24.480 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:24.722 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:25.451 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:26.348 WARN svc=api cache miss key=user:42
+2026-11-05T06:00:26.503 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:00:27.365 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:27.513 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:27.766 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:28.508 WARN svc=api job #8 finished in 383ms
+2026-11-05T06:00:28.666 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:29.066 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:29.447 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:29.696 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:30.514 INFO svc=api job #13 finished in 548ms
+2026-11-05T06:00:31.248 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:31.535 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:00:31.783 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:00:32.138 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:32.583 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:33.080 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:33.163 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:33.381 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:33.490 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:34.255 ERROR svc=api cache miss key=user:42
+2026-11-05T06:00:34.943 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:35.072 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:35.939 ERROR svc=api job #26 finished in 295ms
+2026-11-05T06:00:36.161 ERROR svc=api cache miss key=user:42
+2026-11-05T06:00:36.755 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:37.170 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:37.659 ERROR svc=api job #30 finished in 669ms
+2026-11-05T06:00:38.040 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:38.451 DEBUG svc=api job #32 finished in 596ms
+2026-11-05T06:00:38.729 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:39.219 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:39.625 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:40.084 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:00:40.433 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:41.250 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:41.971 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:42.671 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:43.014 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:43.595 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:44.446 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:00:44.973 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:45.589 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:46.464 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:46.563 INFO svc=api job #47 finished in 786ms
+2026-11-05T06:00:46.864 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:47.656 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:48.227 INFO svc=api job #0 finished in 427ms
+2026-11-05T06:00:48.472 DEBUG svc=api job #1 finished in 292ms
+2026-11-05T06:00:48.620 INFO svc=api cache miss key=user:42
+2026-11-05T06:00:49.052 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:49.362 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:49.612 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:50.466 ERROR svc=api cache miss key=user:42
+2026-11-05T06:00:50.885 INFO svc=api disk usage 81% on /data
+2026-11-05T06:00:51.353 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:51.430 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:52.210 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:52.896 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:53.373 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:53.498 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:00:54.379 WARN svc=api disk usage 81% on /data
+2026-11-05T06:00:55.122 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:55.399 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:55.789 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:00:56.344 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:57.172 ERROR svc=api job #19 finished in 143ms
+2026-11-05T06:00:57.944 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:00:58.014 DEBUG svc=api job #21 finished in 860ms
+2026-11-05T06:00:58.864 WARN svc=api job #22 finished in 852ms
+2026-11-05T06:00:59.296 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:00.162 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:00.709 DEBUG svc=api job #25 finished in 575ms
+2026-11-05T06:01:01.225 DEBUG svc=api job #26 finished in 625ms
+2026-11-05T06:01:01.684 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:02.048 DEBUG svc=api job #28 finished in 278ms
+2026-11-05T06:01:02.897 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:03.734 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:03.838 INFO svc=api job #31 finished in 253ms
+2026-11-05T06:01:04.271 WARN svc=api job #32 finished in 108ms
+2026-11-05T06:01:04.360 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:04.481 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:05.018 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:05.582 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:05.941 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:06.652 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:07.502 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:07.705 INFO svc=api job #40 finished in 329ms
+2026-11-05T06:01:08.311 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:09.140 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:09.414 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:10.086 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:10.172 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:10.979 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:11.251 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:11.415 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:11.562 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:11.714 WARN svc=api disk usage 81% on /data
+2026-11-05T06:01:11.800 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:12.286 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:12.906 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:13.508 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:13.796 ERROR svc=api job #5 finished in 337ms
+2026-11-05T06:01:13.934 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:14.067 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:14.943 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:15.205 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:15.269 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:15.543 WARN svc=api job #11 finished in 776ms
+2026-11-05T06:01:16.378 WARN svc=api job #12 finished in 806ms
+2026-11-05T06:01:17.041 INFO svc=api job #13 finished in 421ms
+2026-11-05T06:01:17.106 WARN svc=api disk usage 81% on /data
+2026-11-05T06:01:17.751 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:18.173 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:18.976 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:19.675 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:20.377 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:21.109 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:21.992 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:22.859 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:23.668 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:23.798 WARN svc=api job #24 finished in 475ms
+2026-11-05T06:01:24.629 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:25.087 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:25.170 INFO svc=api job #27 finished in 787ms
+2026-11-05T06:01:25.508 ERROR svc=api cache miss key=user:42
+2026-11-05T06:01:26.257 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:26.826 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:27.112 ERROR svc=api cache miss key=user:42
+2026-11-05T06:01:27.336 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:28.123 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:28.480 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:29.032 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:29.324 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:29.475 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:30.121 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:31.005 DEBUG svc=api job #39 finished in 194ms
+2026-11-05T06:01:31.091 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:01:31.933 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:32.623 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:32.992 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:33.688 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:01:34.449 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:34.571 ERROR svc=api job #46 finished in 277ms
+2026-11-05T06:01:34.699 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:34.974 INFO svc=api job #48 finished in 421ms
+2026-11-05T06:01:35.343 DEBUG svc=api job #49 finished in 613ms
+2026-11-05T06:01:35.482 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:36.348 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:37.195 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:37.517 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:38.308 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:38.597 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:38.824 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:39.680 WARN svc=api job #7 finished in 892ms
+2026-11-05T06:01:40.509 INFO svc=api job #8 finished in 773ms
+2026-11-05T06:01:41.015 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:41.214 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:42.021 DEBUG svc=api job #11 finished in 328ms
+2026-11-05T06:01:42.250 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:42.908 INFO svc=api job #13 finished in 510ms
+2026-11-05T06:01:43.248 ERROR svc=api cache miss key=user:42
+2026-11-05T06:01:43.385 ERROR svc=api cache miss key=user:42
+2026-11-05T06:01:43.940 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:44.704 WARN svc=api job #17 finished in 48ms
+2026-11-05T06:01:45.095 INFO svc=api job #18 finished in 777ms
+2026-11-05T06:01:45.693 INFO svc=api job #19 finished in 894ms
+2026-11-05T06:01:45.939 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:01:46.265 INFO svc=api job #21 finished in 884ms
+2026-11-05T06:01:46.891 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:47.011 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:47.526 ERROR svc=api cache miss key=user:42
+2026-11-05T06:01:48.074 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:48.596 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:48.773 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:49.307 WARN svc=api cache miss key=user:42
+2026-11-05T06:01:49.637 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:50.272 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:51.129 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:51.254 INFO svc=api job #32 finished in 588ms
+2026-11-05T06:01:51.855 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:52.461 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:53.102 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:01:53.858 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:54.308 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:54.679 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:01:54.764 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:55.342 INFO svc=api job #40 finished in 666ms
+2026-11-05T06:01:55.832 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:56.220 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:56.397 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:56.946 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:57.036 ERROR svc=api job #45 finished in 491ms
+2026-11-05T06:01:57.907 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:01:58.184 INFO svc=api disk usage 81% on /data
+2026-11-05T06:01:58.591 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:01:59.112 INFO svc=api cache miss key=user:42
+2026-11-05T06:01:59.263 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:01:59.870 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:00.491 INFO svc=api job #2 finished in 202ms
+2026-11-05T06:02:00.705 INFO svc=api job #3 finished in 453ms
+2026-11-05T06:02:00.873 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:01.109 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:01.901 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:01.994 WARN svc=api disk usage 81% on /data
+2026-11-05T06:02:02.557 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:02:03.090 INFO svc=api job #9 finished in 543ms
+2026-11-05T06:02:03.307 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:03.812 WARN svc=api disk usage 81% on /data
+2026-11-05T06:02:03.862 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:02:04.728 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:05.202 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:05.981 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:06.781 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:07.527 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:08.165 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:08.465 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:08.614 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:08.952 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:09.295 INFO svc=api job #22 finished in 14ms
+2026-11-05T06:02:10.032 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:10.196 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:10.255 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:10.363 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:10.625 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:11.034 DEBUG svc=api job #28 finished in 850ms
+2026-11-05T06:02:11.162 DEBUG svc=api job #29 finished in 513ms
+2026-11-05T06:02:11.763 ERROR svc=api cache miss key=user:42
+2026-11-05T06:02:12.243 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:12.746 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:13.568 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:14.432 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:14.764 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:15.578 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:02:16.000 WARN svc=api disk usage 81% on /data
+2026-11-05T06:02:16.748 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:16.826 WARN svc=api job #39 finished in 756ms
+2026-11-05T06:02:17.028 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:17.653 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:18.012 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:18.640 ERROR svc=api job #43 finished in 506ms
+2026-11-05T06:02:18.859 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:19.375 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:20.073 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:20.515 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:21.120 WARN svc=api disk usage 81% on /data
+2026-11-05T06:02:21.921 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:22.762 INFO svc=api job #0 finished in 90ms
+2026-11-05T06:02:23.023 WARN svc=api job #1 finished in 249ms
+2026-11-05T06:02:23.540 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:23.619 WARN svc=api job #3 finished in 517ms
+2026-11-05T06:02:23.733 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:24.310 WARN svc=api job #5 finished in 453ms
+2026-11-05T06:02:24.576 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:24.721 INFO svc=api job #7 finished in 825ms
+2026-11-05T06:02:24.890 ERROR svc=api cache miss key=user:42
+2026-11-05T06:02:25.596 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:26.093 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:26.813 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:27.150 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:27.572 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:28.204 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:28.652 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:29.375 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:29.946 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:30.737 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:31.482 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:32.056 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:32.930 ERROR svc=api cache miss key=user:42
+2026-11-05T06:02:33.020 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:33.791 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:34.215 WARN svc=api job #24 finished in 465ms
+2026-11-05T06:02:34.946 INFO svc=api job #25 finished in 531ms
+2026-11-05T06:02:35.445 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:36.054 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:36.308 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:36.603 INFO svc=api job #29 finished in 485ms
+2026-11-05T06:02:37.367 DEBUG svc=api job #30 finished in 800ms
+2026-11-05T06:02:37.819 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:38.573 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:38.785 WARN svc=api cache miss key=user:42
+2026-11-05T06:02:39.001 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:39.480 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:40.160 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:41.004 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:41.372 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:42.075 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:42.244 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:43.074 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:43.654 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:44.283 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:44.754 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:44.983 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:45.616 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:45.686 DEBUG svc=api job #47 finished in 80ms
+2026-11-05T06:02:46.272 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:46.790 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:47.139 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:47.623 DEBUG svc=api job #1 finished in 504ms
+2026-11-05T06:02:47.807 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:48.295 INFO svc=api job #3 finished in 213ms
+2026-11-05T06:02:48.720 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:49.419 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:50.290 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:50.483 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:51.046 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:51.238 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:52.108 ERROR svc=api cache miss key=user:42
+2026-11-05T06:02:52.517 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:52.988 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:53.443 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:53.534 INFO svc=api disk usage 81% on /data
+2026-11-05T06:02:53.957 INFO svc=api job #15 finished in 358ms
+2026-11-05T06:02:54.536 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:55.374 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:56.238 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:02:57.120 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:02:57.706 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:02:58.501 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:02:59.278 INFO svc=api cache miss key=user:42
+2026-11-05T06:02:59.944 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:00.767 INFO svc=api job #24 finished in 13ms
+2026-11-05T06:03:01.205 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:01.987 WARN svc=api cache miss key=user:42
+2026-11-05T06:03:02.214 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:02.512 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:03.214 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:03.920 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:04.192 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:04.449 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:05.311 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:06.178 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:03:06.520 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:07.226 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:03:07.384 ERROR svc=api job #37 finished in 455ms
+2026-11-05T06:03:07.443 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:07.588 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:07.736 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:03:08.165 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:08.377 DEBUG svc=api job #42 finished in 292ms
+2026-11-05T06:03:08.793 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:09.014 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:09.724 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:03:10.339 WARN svc=api cache miss key=user:42
+2026-11-05T06:03:11.236 WARN svc=api job #47 finished in 268ms
+2026-11-05T06:03:11.916 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:12.316 INFO svc=api job #49 finished in 254ms
+2026-11-05T06:03:12.628 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:13.158 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:13.673 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:14.360 ERROR svc=api job #3 finished in 578ms
+2026-11-05T06:03:14.556 DEBUG svc=api job #4 finished in 300ms
+2026-11-05T06:03:15.383 INFO svc=api job #5 finished in 437ms
+2026-11-05T06:03:15.713 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:16.298 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:16.884 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:17.361 INFO svc=api job #9 finished in 216ms
+2026-11-05T06:03:18.058 INFO svc=api job #10 finished in 189ms
+2026-11-05T06:03:18.825 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:19.661 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:19.806 WARN svc=api job #13 finished in 374ms
+2026-11-05T06:03:20.399 ERROR svc=api job #14 finished in 362ms
+2026-11-05T06:03:20.628 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:21.418 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:03:22.049 DEBUG svc=api job #17 finished in 395ms
+2026-11-05T06:03:22.643 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:22.844 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:23.481 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:23.740 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:24.183 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:24.731 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:24.905 WARN svc=api job #24 finished in 157ms
+2026-11-05T06:03:25.588 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:26.460 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:27.357 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:27.703 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:03:27.860 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:28.331 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:28.714 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:29.124 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:29.247 ERROR svc=api job #33 finished in 210ms
+2026-11-05T06:03:29.904 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:30.506 ERROR svc=api job #35 finished in 736ms
+2026-11-05T06:03:30.571 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:31.311 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:32.155 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:32.645 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:33.495 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:03:33.962 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:34.353 DEBUG svc=api job #42 finished in 724ms
+2026-11-05T06:03:34.927 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:35.708 WARN svc=api cache miss key=user:42
+2026-11-05T06:03:36.019 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:36.542 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:36.617 INFO svc=api job #47 finished in 371ms
+2026-11-05T06:03:36.774 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:37.469 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:03:38.328 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:38.425 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:03:38.497 WARN svc=api cache miss key=user:42
+2026-11-05T06:03:38.909 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:03:39.188 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:39.557 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:40.411 DEBUG svc=api job #6 finished in 280ms
+2026-11-05T06:03:40.786 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:41.106 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:41.539 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:42.311 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:42.722 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:43.230 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:43.308 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:43.788 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:43.958 INFO svc=api job #15 finished in 31ms
+2026-11-05T06:03:44.776 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:44.906 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:45.383 WARN svc=api job #18 finished in 468ms
+2026-11-05T06:03:45.747 INFO svc=api cache miss key=user:42
+2026-11-05T06:03:46.085 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:46.347 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:46.676 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:47.325 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:47.877 ERROR svc=api cache miss key=user:42
+2026-11-05T06:03:48.357 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:48.497 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:48.658 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:49.380 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:49.740 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:50.537 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:03:51.118 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:51.917 INFO svc=api job #32 finished in 170ms
+2026-11-05T06:03:52.087 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:52.235 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:52.345 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:52.959 DEBUG svc=api job #36 finished in 227ms
+2026-11-05T06:03:53.309 INFO svc=api job #37 finished in 11ms
+2026-11-05T06:03:53.441 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:54.266 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:03:54.937 INFO svc=api job #40 finished in 529ms
+2026-11-05T06:03:55.707 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:56.251 INFO svc=api disk usage 81% on /data
+2026-11-05T06:03:56.398 INFO svc=api job #43 finished in 176ms
+2026-11-05T06:03:56.955 INFO svc=api job #44 finished in 402ms
+2026-11-05T06:03:57.578 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:03:58.314 WARN svc=api disk usage 81% on /data
+2026-11-05T06:03:58.374 ERROR svc=api job #47 finished in 747ms
+2026-11-05T06:03:58.596 INFO svc=api job #48 finished in 300ms
+2026-11-05T06:03:58.706 INFO svc=api job #49 finished in 454ms
+2026-11-05T06:03:58.944 INFO svc=api job #0 finished in 336ms
+2026-11-05T06:03:59.794 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:00.640 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:00.920 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:01.754 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:01.819 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:02.215 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:03.022 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:03.814 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:04.102 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:04.622 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:05.255 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:06.063 WARN svc=api cache miss key=user:42
+2026-11-05T06:04:06.133 ERROR svc=api job #13 finished in 622ms
+2026-11-05T06:04:06.349 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:07.071 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:07.761 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:08.313 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:08.944 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:09.315 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:09.926 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:10.105 WARN svc=api job #21 finished in 395ms
+2026-11-05T06:04:10.180 ERROR svc=api cache miss key=user:42
+2026-11-05T06:04:10.550 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:10.912 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:11.221 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:11.486 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:12.338 WARN svc=api cache miss key=user:42
+2026-11-05T06:04:13.234 INFO svc=api job #28 finished in 589ms
+2026-11-05T06:04:13.779 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:14.486 WARN svc=api cache miss key=user:42
+2026-11-05T06:04:14.698 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:15.053 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:15.914 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:16.740 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:17.188 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:17.557 ERROR svc=api job #36 finished in 441ms
+2026-11-05T06:04:18.150 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:18.940 INFO svc=api job #38 finished in 397ms
+2026-11-05T06:04:19.111 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:19.290 WARN svc=api job #40 finished in 272ms
+2026-11-05T06:04:20.037 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:20.169 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:20.756 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:21.330 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:21.676 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:22.506 DEBUG svc=api job #46 finished in 159ms
+2026-11-05T06:04:22.779 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:23.314 WARN svc=api cache miss key=user:42
+2026-11-05T06:04:23.737 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:24.517 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:24.687 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:25.146 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:25.938 DEBUG svc=api job #3 finished in 264ms
+2026-11-05T06:04:26.657 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:27.072 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:27.751 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:28.085 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:28.872 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:29.254 ERROR svc=api job #9 finished in 284ms
+2026-11-05T06:04:29.440 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:30.121 INFO svc=api job #11 finished in 689ms
+2026-11-05T06:04:30.735 ERROR svc=api cache miss key=user:42
+2026-11-05T06:04:31.069 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:31.732 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:32.412 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:33.184 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:33.796 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:34.259 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:34.562 WARN svc=api cache miss key=user:42
+2026-11-05T06:04:34.711 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:35.223 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:35.744 WARN svc=api job #22 finished in 601ms
+2026-11-05T06:04:36.224 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:37.102 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:37.154 DEBUG svc=api job #25 finished in 793ms
+2026-11-05T06:04:37.307 ERROR svc=api job #26 finished in 284ms
+2026-11-05T06:04:37.712 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:04:38.159 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:38.267 WARN svc=api job #29 finished in 428ms
+2026-11-05T06:04:38.907 INFO svc=api job #30 finished in 217ms
+2026-11-05T06:04:39.604 INFO svc=api cache miss key=user:42
+2026-11-05T06:04:40.312 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:41.134 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:41.407 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:41.464 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:42.195 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:42.769 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:43.394 WARN svc=api job #38 finished in 810ms
+2026-11-05T06:04:44.112 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:44.574 ERROR svc=api cache miss key=user:42
+2026-11-05T06:04:44.871 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:45.561 WARN svc=api job #42 finished in 35ms
+2026-11-05T06:04:46.209 INFO svc=api job #43 finished in 562ms
+2026-11-05T06:04:46.510 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:46.633 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:47.392 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:47.989 ERROR svc=api job #47 finished in 427ms
+2026-11-05T06:04:48.208 WARN svc=api job #48 finished in 82ms
+2026-11-05T06:04:48.535 ERROR svc=api cache miss key=user:42
+2026-11-05T06:04:49.002 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:49.089 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:49.965 INFO svc=api job #2 finished in 90ms
+2026-11-05T06:04:50.771 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:50.854 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:51.390 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:51.752 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:51.874 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:51.972 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:52.716 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:04:53.065 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:53.902 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:54.713 INFO svc=api job #12 finished in 531ms
+2026-11-05T06:04:55.261 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:04:55.634 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:55.788 INFO svc=api disk usage 81% on /data
+2026-11-05T06:04:56.321 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:56.473 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:56.588 WARN svc=api disk usage 81% on /data
+2026-11-05T06:04:57.004 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:57.756 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:04:58.338 INFO svc=api job #21 finished in 365ms
+2026-11-05T06:04:58.777 ERROR svc=api cache miss key=user:42
+2026-11-05T06:04:59.012 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:04:59.807 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:00.105 WARN svc=api disk usage 81% on /data
+2026-11-05T06:05:00.643 WARN svc=api job #26 finished in 378ms
+2026-11-05T06:05:01.521 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:02.172 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:02.862 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:05:03.565 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:03.755 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:03.835 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:04.525 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:04.795 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:05.575 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:06.090 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:06.429 ERROR svc=api job #37 finished in 164ms
+2026-11-05T06:05:06.604 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:07.398 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:07.579 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:07.874 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:08.724 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:08.929 ERROR svc=api job #43 finished in 773ms
+2026-11-05T06:05:09.409 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:09.891 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:10.549 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:10.944 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:11.293 ERROR svc=api cache miss key=user:42
+2026-11-05T06:05:11.731 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:12.392 WARN svc=api job #0 finished in 677ms
+2026-11-05T06:05:12.575 INFO svc=api job #1 finished in 283ms
+2026-11-05T06:05:12.854 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:13.687 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:14.533 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:05:15.243 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:15.329 ERROR svc=api job #6 finished in 436ms
+2026-11-05T06:05:16.171 INFO svc=api job #7 finished in 507ms
+2026-11-05T06:05:17.048 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:17.650 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:18.536 INFO svc=api job #10 finished in 211ms
+2026-11-05T06:05:18.707 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:18.943 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:19.271 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:19.398 INFO svc=api job #14 finished in 869ms
+2026-11-05T06:05:19.940 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:20.622 DEBUG svc=api job #16 finished in 889ms
+2026-11-05T06:05:21.368 DEBUG svc=api job #17 finished in 605ms
+2026-11-05T06:05:21.897 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:22.318 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:22.820 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:23.572 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:23.927 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:24.393 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:24.851 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:25.089 DEBUG svc=api job #25 finished in 12ms
+2026-11-05T06:05:25.802 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:26.062 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:26.475 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:26.886 WARN svc=api disk usage 81% on /data
+2026-11-05T06:05:27.025 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:27.247 WARN svc=api disk usage 81% on /data
+2026-11-05T06:05:28.014 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:28.670 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:28.948 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:29.728 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:30.269 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:30.854 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:30.988 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:31.529 WARN svc=api disk usage 81% on /data
+2026-11-05T06:05:31.821 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:32.485 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:33.189 DEBUG svc=api job #42 finished in 53ms
+2026-11-05T06:05:33.573 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:33.656 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:34.464 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:34.954 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:35.469 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:36.317 ERROR svc=api job #48 finished in 786ms
+2026-11-05T06:05:36.732 WARN svc=api cache miss key=user:42
+2026-11-05T06:05:37.334 WARN svc=api job #0 finished in 598ms
+2026-11-05T06:05:37.940 DEBUG svc=api job #1 finished in 498ms
+2026-11-05T06:05:38.206 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:38.605 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:38.780 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:39.188 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:39.902 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:40.298 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:40.650 WARN svc=api job #8 finished in 152ms
+2026-11-05T06:05:40.729 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:41.613 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:42.373 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:43.149 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:43.452 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:43.776 ERROR svc=api cache miss key=user:42
+2026-11-05T06:05:44.244 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:44.950 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:45.151 INFO svc=api disk usage 81% on /data
+2026-11-05T06:05:46.034 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:05:46.511 ERROR svc=api cache miss key=user:42
+2026-11-05T06:05:46.930 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:05:47.512 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:47.731 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:48.389 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:49.157 WARN svc=api job #24 finished in 163ms
+2026-11-05T06:05:49.451 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:50.183 WARN svc=api disk usage 81% on /data
+2026-11-05T06:05:50.351 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:51.081 DEBUG svc=api job #28 finished in 634ms
+2026-11-05T06:05:51.762 WARN svc=api cache miss key=user:42
+2026-11-05T06:05:52.416 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:53.133 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:05:53.869 INFO svc=api cache miss key=user:42
+2026-11-05T06:05:54.691 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:55.073 INFO svc=api job #34 finished in 298ms
+2026-11-05T06:05:55.657 ERROR svc=api job #35 finished in 533ms
+2026-11-05T06:05:56.384 ERROR svc=api cache miss key=user:42
+2026-11-05T06:05:56.826 INFO svc=api job #37 finished in 742ms
+2026-11-05T06:05:57.403 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:05:57.839 DEBUG svc=api job #39 finished in 379ms
+2026-11-05T06:05:58.115 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:05:58.854 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:05:59.071 ERROR svc=api cache miss key=user:42
+2026-11-05T06:05:59.645 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:00.327 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:00.901 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:01.678 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:02.027 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:06:02.715 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:02.852 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:03.468 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:03.623 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:03.682 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:06:03.881 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:04.707 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:05.148 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:06:05.689 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:06.389 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:07.271 WARN svc=api job #8 finished in 491ms
+2026-11-05T06:06:07.633 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:07.818 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:07.876 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:08.107 DEBUG svc=api job #12 finished in 369ms
+2026-11-05T06:06:08.229 INFO svc=api job #13 finished in 409ms
+2026-11-05T06:06:08.308 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:08.434 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:09.150 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:09.764 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:09.895 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:10.726 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:10.876 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:06:11.744 WARN svc=api cache miss key=user:42
+2026-11-05T06:06:12.406 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:12.574 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:13.008 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:13.331 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:06:14.067 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:14.165 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:14.687 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:15.210 DEBUG svc=api job #29 finished in 122ms
+2026-11-05T06:06:15.761 INFO svc=api job #30 finished in 769ms
+2026-11-05T06:06:15.905 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:06:16.772 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:17.479 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:17.662 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:17.843 DEBUG svc=api job #35 finished in 459ms
+2026-11-05T06:06:18.681 WARN svc=api cache miss key=user:42
+2026-11-05T06:06:18.902 ERROR svc=api job #37 finished in 339ms
+2026-11-05T06:06:19.746 INFO svc=api job #38 finished in 373ms
+2026-11-05T06:06:20.082 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:06:20.697 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:20.805 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:21.587 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:22.027 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:22.699 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:22.928 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:23.352 DEBUG svc=api job #46 finished in 419ms
+2026-11-05T06:06:23.604 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:24.424 INFO svc=api job #48 finished in 885ms
+2026-11-05T06:06:25.172 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:25.377 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:26.054 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:06:26.217 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:06:27.005 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:27.819 INFO svc=api job #4 finished in 754ms
+2026-11-05T06:06:28.417 DEBUG svc=api job #5 finished in 451ms
+2026-11-05T06:06:29.278 DEBUG svc=api job #6 finished in 340ms
+2026-11-05T06:06:29.645 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:30.125 WARN svc=api job #8 finished in 626ms
+2026-11-05T06:06:30.486 WARN svc=api cache miss key=user:42
+2026-11-05T06:06:31.052 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:31.770 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:31.860 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:32.618 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:33.097 INFO svc=api job #14 finished in 491ms
+2026-11-05T06:06:33.686 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:34.307 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:34.477 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:06:35.116 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:35.277 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:35.751 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:06:36.436 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:37.026 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:37.626 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:38.301 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:38.424 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:39.281 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:39.653 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:40.048 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:40.940 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:41.077 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:41.321 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:41.537 INFO svc=api job #32 finished in 741ms
+2026-11-05T06:06:41.732 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:42.251 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:42.354 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:42.587 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:43.284 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:43.692 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:44.436 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:44.776 WARN svc=api cache miss key=user:42
+2026-11-05T06:06:45.089 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:45.773 INFO svc=api job #42 finished in 226ms
+2026-11-05T06:06:46.161 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:06:46.610 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:47.026 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:47.622 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:47.861 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:48.648 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:49.125 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:49.631 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:49.959 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:50.121 INFO svc=api job #2 finished in 589ms
+2026-11-05T06:06:50.174 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:06:50.423 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:50.761 DEBUG svc=api job #5 finished in 358ms
+2026-11-05T06:06:51.319 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:52.066 ERROR svc=api job #7 finished in 321ms
+2026-11-05T06:06:52.897 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:06:53.327 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:54.212 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:54.989 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:55.824 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:56.039 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:06:56.388 ERROR svc=api cache miss key=user:42
+2026-11-05T06:06:56.630 ERROR svc=api job #15 finished in 467ms
+2026-11-05T06:06:57.192 WARN svc=api cache miss key=user:42
+2026-11-05T06:06:57.495 INFO svc=api cache miss key=user:42
+2026-11-05T06:06:58.044 DEBUG svc=api job #18 finished in 285ms
+2026-11-05T06:06:58.626 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:58.736 WARN svc=api disk usage 81% on /data
+2026-11-05T06:06:58.899 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:59.108 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:06:59.471 ERROR svc=api job #23 finished in 582ms
+2026-11-05T06:06:59.749 INFO svc=api disk usage 81% on /data
+2026-11-05T06:06:59.974 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:00.475 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:01.328 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:01.655 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:01.707 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:02.032 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:07:02.866 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:03.295 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:03.664 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:04.171 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:04.474 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:04.617 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:05.499 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:05.792 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:07:06.418 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:06.888 DEBUG svc=api job #40 finished in 395ms
+2026-11-05T06:07:07.032 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:07.682 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:07.805 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:08.125 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:08.928 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:09.442 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:09.844 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:10.156 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:07:10.810 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:07:11.620 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:07:11.695 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:11.906 WARN svc=api disk usage 81% on /data
+2026-11-05T06:07:12.303 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:13.124 WARN svc=api job #4 finished in 654ms
+2026-11-05T06:07:13.483 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:13.786 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:14.448 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:14.827 ERROR svc=api job #8 finished in 872ms
+2026-11-05T06:07:14.914 INFO svc=api job #9 finished in 149ms
+2026-11-05T06:07:15.299 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:16.122 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:16.770 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:17.213 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:17.689 INFO svc=api job #14 finished in 632ms
+2026-11-05T06:07:18.524 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:18.734 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:19.474 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:19.891 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:20.041 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:20.860 INFO svc=api job #20 finished in 877ms
+2026-11-05T06:07:21.127 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:21.300 INFO svc=api job #22 finished in 626ms
+2026-11-05T06:07:21.620 DEBUG svc=api job #23 finished in 436ms
+2026-11-05T06:07:21.930 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:21.997 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:22.772 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:23.301 INFO svc=api job #27 finished in 341ms
+2026-11-05T06:07:23.834 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:23.915 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:24.164 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:24.774 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:07:25.084 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:25.909 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:26.732 DEBUG svc=api job #34 finished in 354ms
+2026-11-05T06:07:27.316 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:07:27.642 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:28.379 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:29.259 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:07:29.876 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:30.453 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:07:30.913 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:31.286 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:31.566 ERROR svc=api job #43 finished in 399ms
+2026-11-05T06:07:32.028 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:32.722 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:32.827 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:07:33.451 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:33.722 INFO svc=api job #48 finished in 709ms
+2026-11-05T06:07:33.892 ERROR svc=api job #49 finished in 743ms
+2026-11-05T06:07:34.218 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:34.434 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:34.656 ERROR svc=api job #2 finished in 227ms
+2026-11-05T06:07:35.549 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:36.261 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:37.055 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:37.452 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:37.671 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:37.831 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:38.542 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:07:39.259 INFO svc=api job #10 finished in 147ms
+2026-11-05T06:07:39.762 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:39.892 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:40.467 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:40.709 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:41.391 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:07:42.162 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:42.569 ERROR svc=api job #17 finished in 101ms
+2026-11-05T06:07:43.091 DEBUG svc=api job #18 finished in 644ms
+2026-11-05T06:07:43.228 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:43.789 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:44.329 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:44.497 INFO svc=api job #22 finished in 318ms
+2026-11-05T06:07:45.144 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:45.644 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:45.977 WARN svc=api job #25 finished in 421ms
+2026-11-05T06:07:46.229 DEBUG svc=api job #26 finished in 523ms
+2026-11-05T06:07:46.364 INFO svc=api disk usage 81% on /data
+2026-11-05T06:07:47.174 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:47.403 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:48.044 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:07:48.434 WARN svc=api cache miss key=user:42
+2026-11-05T06:07:48.741 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:48.939 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:49.716 WARN svc=api job #34 finished in 51ms
+2026-11-05T06:07:50.516 ERROR svc=api job #35 finished in 862ms
+2026-11-05T06:07:51.350 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:51.665 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:52.064 ERROR svc=api cache miss key=user:42
+2026-11-05T06:07:52.775 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:53.368 ERROR svc=api job #40 finished in 272ms
+2026-11-05T06:07:53.766 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:54.125 INFO svc=api job #42 finished in 647ms
+2026-11-05T06:07:54.538 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:55.321 DEBUG svc=api job #44 finished in 413ms
+2026-11-05T06:07:55.434 INFO svc=api cache miss key=user:42
+2026-11-05T06:07:56.334 DEBUG svc=api job #46 finished in 45ms
+2026-11-05T06:07:57.224 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:07:57.286 ERROR svc=api job #48 finished in 192ms
+2026-11-05T06:07:57.584 DEBUG svc=api job #49 finished in 671ms
+2026-11-05T06:07:58.398 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:07:58.708 WARN svc=api disk usage 81% on /data
+2026-11-05T06:07:59.533 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:00.049 INFO svc=api job #3 finished in 855ms
+2026-11-05T06:08:00.648 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:01.173 DEBUG svc=api job #5 finished in 722ms
+2026-11-05T06:08:01.864 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:02.457 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:02.796 WARN svc=api job #8 finished in 441ms
+2026-11-05T06:08:02.904 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:03.642 WARN svc=api job #10 finished in 846ms
+2026-11-05T06:08:04.456 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:04.758 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:05.405 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:06.170 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:06.990 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:08:07.450 WARN svc=api cache miss key=user:42
+2026-11-05T06:08:08.250 INFO svc=api job #17 finished in 179ms
+2026-11-05T06:08:08.675 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:09.324 ERROR svc=api cache miss key=user:42
+2026-11-05T06:08:09.850 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:10.630 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:10.971 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:11.655 ERROR svc=api cache miss key=user:42
+2026-11-05T06:08:12.382 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:12.438 WARN svc=api cache miss key=user:42
+2026-11-05T06:08:12.691 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:13.517 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:14.024 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:14.785 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:15.555 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:15.641 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:16.367 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:08:16.593 INFO svc=api job #33 finished in 113ms
+2026-11-05T06:08:17.158 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:17.520 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:18.409 INFO svc=api job #36 finished in 114ms
+2026-11-05T06:08:18.620 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:19.042 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:19.796 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:20.572 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:21.132 ERROR svc=api cache miss key=user:42
+2026-11-05T06:08:21.762 ERROR svc=api cache miss key=user:42
+2026-11-05T06:08:22.341 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:22.544 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:23.079 DEBUG svc=api job #45 finished in 403ms
+2026-11-05T06:08:23.815 ERROR svc=api job #46 finished in 834ms
+2026-11-05T06:08:24.164 DEBUG svc=api job #47 finished in 627ms
+2026-11-05T06:08:24.230 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:24.644 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:25.190 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:25.995 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:26.807 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:26.966 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:27.768 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:08:28.440 ERROR svc=api job #5 finished in 357ms
+2026-11-05T06:08:29.180 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:29.405 INFO svc=api job #7 finished in 12ms
+2026-11-05T06:08:29.908 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:30.780 INFO svc=api cache miss key=user:42
+2026-11-05T06:08:31.675 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:32.435 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:33.199 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:33.820 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:34.008 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:34.305 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:34.491 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:34.862 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:35.622 INFO svc=api job #18 finished in 409ms
+2026-11-05T06:08:36.113 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:36.864 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:37.750 INFO svc=api job #21 finished in 597ms
+2026-11-05T06:08:38.005 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:38.564 INFO svc=api job #23 finished in 898ms
+2026-11-05T06:08:38.798 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:38.939 WARN svc=api cache miss key=user:42
+2026-11-05T06:08:39.828 WARN svc=api job #26 finished in 542ms
+2026-11-05T06:08:40.564 INFO svc=api disk usage 81% on /data
+2026-11-05T06:08:41.403 INFO svc=api cache miss key=user:42
+2026-11-05T06:08:41.753 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:42.598 WARN svc=api job #30 finished in 237ms
+2026-11-05T06:08:43.049 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:08:43.456 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:44.235 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:44.607 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:45.395 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:08:46.170 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:47.009 WARN svc=api cache miss key=user:42
+2026-11-05T06:08:47.211 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:47.456 ERROR svc=api job #39 finished in 816ms
+2026-11-05T06:08:47.729 WARN svc=api cache miss key=user:42
+2026-11-05T06:08:47.838 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:08:48.566 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:49.352 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:49.858 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:50.228 INFO svc=api job #45 finished in 374ms
+2026-11-05T06:08:50.716 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:51.297 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:51.809 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:52.251 INFO svc=api job #49 finished in 61ms
+2026-11-05T06:08:52.378 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:52.520 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:53.394 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:53.743 WARN svc=api disk usage 81% on /data
+2026-11-05T06:08:54.461 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:55.063 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:55.592 WARN svc=api job #6 finished in 623ms
+2026-11-05T06:08:56.469 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:57.189 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:08:57.723 INFO svc=api cache miss key=user:42
+2026-11-05T06:08:58.379 ERROR svc=api cache miss key=user:42
+2026-11-05T06:08:58.910 ERROR svc=api job #11 finished in 30ms
+2026-11-05T06:08:59.523 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:08:59.713 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:00.488 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:00.681 INFO svc=api job #15 finished in 112ms
+2026-11-05T06:09:01.471 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:02.369 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:02.692 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:03.281 DEBUG svc=api job #19 finished in 383ms
+2026-11-05T06:09:03.439 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:03.579 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:04.294 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:04.517 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:05.277 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:05.951 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:06.554 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:06.916 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:07.636 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:09:07.809 WARN svc=api cache miss key=user:42
+2026-11-05T06:09:08.530 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:09.352 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:09.410 DEBUG svc=api job #32 finished in 471ms
+2026-11-05T06:09:10.277 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:10.488 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:10.817 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:11.557 WARN svc=api job #36 finished in 227ms
+2026-11-05T06:09:12.185 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:13.083 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:09:13.380 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:13.775 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:14.597 WARN svc=api job #41 finished in 450ms
+2026-11-05T06:09:14.758 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:15.629 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:16.047 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:16.527 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:17.218 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:17.388 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:18.019 DEBUG svc=api job #48 finished in 624ms
+2026-11-05T06:09:18.190 DEBUG svc=api job #49 finished in 10ms
+2026-11-05T06:09:18.992 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:19.849 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:20.236 WARN svc=api disk usage 81% on /data
+2026-11-05T06:09:21.136 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:21.915 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:22.414 INFO svc=api job #5 finished in 334ms
+2026-11-05T06:09:22.847 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:22.910 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:23.580 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:23.753 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:23.900 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:24.049 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:24.487 WARN svc=api job #12 finished in 361ms
+2026-11-05T06:09:25.006 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:25.386 INFO svc=api job #14 finished in 534ms
+2026-11-05T06:09:25.740 INFO svc=api job #15 finished in 688ms
+2026-11-05T06:09:26.578 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:26.913 WARN svc=api job #17 finished in 881ms
+2026-11-05T06:09:27.692 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:27.778 INFO svc=api job #19 finished in 588ms
+2026-11-05T06:09:28.389 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:28.816 WARN svc=api cache miss key=user:42
+2026-11-05T06:09:29.488 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:30.169 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:09:31.011 WARN svc=api disk usage 81% on /data
+2026-11-05T06:09:31.659 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:32.140 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:32.556 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:09:33.265 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:33.449 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:33.883 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:34.494 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:35.254 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:35.661 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:35.818 ERROR svc=api job #34 finished in 353ms
+2026-11-05T06:09:36.666 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:37.081 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:37.966 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:38.823 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:38.926 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:39.103 WARN svc=api disk usage 81% on /data
+2026-11-05T06:09:39.730 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:40.052 INFO svc=api job #42 finished in 155ms
+2026-11-05T06:09:40.153 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:40.893 WARN svc=api disk usage 81% on /data
+2026-11-05T06:09:41.781 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:42.411 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:42.996 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:43.821 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:44.649 INFO svc=api job #49 finished in 494ms
+2026-11-05T06:09:44.924 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:09:45.216 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:45.616 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:45.756 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:46.549 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:46.893 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:47.096 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:47.305 INFO svc=api job #7 finished in 894ms
+2026-11-05T06:09:47.524 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:47.794 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:48.402 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:48.964 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:09:49.657 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:50.185 DEBUG svc=api job #13 finished in 870ms
+2026-11-05T06:09:51.039 WARN svc=api cache miss key=user:42
+2026-11-05T06:09:51.662 INFO svc=api disk usage 81% on /data
+2026-11-05T06:09:51.978 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:52.318 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:52.978 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:53.468 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:53.645 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:53.772 INFO svc=api job #21 finished in 157ms
+2026-11-05T06:09:54.557 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:55.107 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:55.389 WARN svc=api disk usage 81% on /data
+2026-11-05T06:09:55.737 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:55.874 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:56.075 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:56.165 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:56.597 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:09:56.801 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:57.503 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:09:57.698 INFO svc=api cache miss key=user:42
+2026-11-05T06:09:58.278 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:09:58.974 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:09:59.398 ERROR svc=api cache miss key=user:42
+2026-11-05T06:09:59.818 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:00.321 ERROR svc=api job #37 finished in 224ms
+2026-11-05T06:10:00.859 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:01.368 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:02.265 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:02.990 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:03.129 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:03.891 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:04.106 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:10:04.445 WARN svc=api disk usage 81% on /data
+2026-11-05T06:10:04.580 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:05.371 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:06.012 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:06.501 INFO svc=api job #49 finished in 676ms
+2026-11-05T06:10:07.178 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:07.342 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:07.601 ERROR svc=api cache miss key=user:42
+2026-11-05T06:10:08.037 INFO svc=api job #3 finished in 48ms
+2026-11-05T06:10:08.402 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:08.708 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:09.009 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:09.896 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:09.960 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:10.587 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:11.255 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:10:11.475 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:12.309 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:12.966 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:13.703 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:10:14.245 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:14.584 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:15.050 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:15.371 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:16.153 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:17.006 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:17.770 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:18.244 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:18.472 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:19.291 ERROR svc=api job #24 finished in 243ms
+2026-11-05T06:10:19.744 ERROR svc=api cache miss key=user:42
+2026-11-05T06:10:20.389 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:21.137 INFO svc=api job #27 finished in 565ms
+2026-11-05T06:10:21.196 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:10:21.736 INFO svc=api job #29 finished in 569ms
+2026-11-05T06:10:22.171 INFO svc=api job #30 finished in 477ms
+2026-11-05T06:10:22.439 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:23.027 ERROR svc=api job #32 finished in 511ms
+2026-11-05T06:10:23.154 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:23.285 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:23.788 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:24.571 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:25.112 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:25.998 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:26.716 ERROR svc=api job #39 finished in 85ms
+2026-11-05T06:10:27.126 WARN svc=api cache miss key=user:42
+2026-11-05T06:10:27.832 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:10:28.538 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:29.398 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:10:29.960 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:30.145 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:30.748 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:31.337 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:31.896 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:32.249 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:32.907 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:33.574 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:34.168 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:34.881 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:35.404 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:36.111 INFO svc=api job #5 finished in 85ms
+2026-11-05T06:10:36.581 DEBUG svc=api job #6 finished in 272ms
+2026-11-05T06:10:37.187 INFO svc=api job #7 finished in 575ms
+2026-11-05T06:10:37.796 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:38.612 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:39.232 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:39.728 DEBUG svc=api job #11 finished in 236ms
+2026-11-05T06:10:40.235 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:40.688 WARN svc=api disk usage 81% on /data
+2026-11-05T06:10:41.587 INFO svc=api job #14 finished in 567ms
+2026-11-05T06:10:42.213 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:43.104 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:43.652 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:44.265 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:44.522 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:44.941 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:45.580 INFO svc=api job #21 finished in 90ms
+2026-11-05T06:10:46.250 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:46.826 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:46.910 WARN svc=api cache miss key=user:42
+2026-11-05T06:10:47.070 ERROR svc=api job #25 finished in 104ms
+2026-11-05T06:10:47.495 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:10:48.063 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:48.810 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:49.460 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:50.028 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:50.703 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:51.208 WARN svc=api job #32 finished in 642ms
+2026-11-05T06:10:51.620 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:51.678 DEBUG svc=api job #34 finished in 257ms
+2026-11-05T06:10:52.169 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:52.222 WARN svc=api cache miss key=user:42
+2026-11-05T06:10:52.959 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:53.741 ERROR svc=api job #38 finished in 820ms
+2026-11-05T06:10:54.454 ERROR svc=api cache miss key=user:42
+2026-11-05T06:10:54.891 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:55.157 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:10:55.732 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:10:56.187 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:56.564 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:56.665 WARN svc=api disk usage 81% on /data
+2026-11-05T06:10:56.768 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:57.548 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:10:58.348 INFO svc=api disk usage 81% on /data
+2026-11-05T06:10:58.679 INFO svc=api cache miss key=user:42
+2026-11-05T06:10:58.857 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:10:59.620 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:11:00.459 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:00.856 INFO svc=api job #3 finished in 176ms
+2026-11-05T06:11:01.494 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:01.658 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:02.165 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:02.265 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:02.732 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:02.926 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:03.619 INFO svc=api job #10 finished in 712ms
+2026-11-05T06:11:04.083 WARN svc=api job #11 finished in 663ms
+2026-11-05T06:11:04.229 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:04.706 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:04.873 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:05.109 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:05.921 ERROR svc=api job #16 finished in 740ms
+2026-11-05T06:11:06.268 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:06.469 WARN svc=api job #18 finished in 779ms
+2026-11-05T06:11:06.541 WARN svc=api cache miss key=user:42
+2026-11-05T06:11:07.125 WARN svc=api job #20 finished in 646ms
+2026-11-05T06:11:07.788 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:08.065 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:08.509 INFO svc=api job #23 finished in 87ms
+2026-11-05T06:11:09.151 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:09.803 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:10.457 INFO svc=api job #26 finished in 749ms
+2026-11-05T06:11:10.605 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:11.341 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:11.691 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:11.818 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:12.403 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:12.986 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:13.153 WARN svc=api cache miss key=user:42
+2026-11-05T06:11:13.506 WARN svc=api cache miss key=user:42
+2026-11-05T06:11:14.199 ERROR svc=api job #35 finished in 659ms
+2026-11-05T06:11:14.733 INFO svc=api job #36 finished in 525ms
+2026-11-05T06:11:15.198 INFO svc=api job #37 finished in 824ms
+2026-11-05T06:11:15.881 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:16.720 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:17.051 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:17.846 ERROR svc=api job #41 finished in 297ms
+2026-11-05T06:11:18.013 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:18.433 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:19.045 DEBUG svc=api job #44 finished in 362ms
+2026-11-05T06:11:19.802 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:20.470 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:20.551 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:20.682 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:21.163 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:21.867 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:22.701 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:23.506 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:23.827 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:24.150 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:24.750 INFO svc=api job #5 finished in 426ms
+2026-11-05T06:11:25.047 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:25.694 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:26.154 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:26.489 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:27.156 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:27.464 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:28.016 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:28.702 WARN svc=api cache miss key=user:42
+2026-11-05T06:11:28.854 ERROR svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:28.924 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:29.011 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:29.486 DEBUG svc=api job #17 finished in 223ms
+2026-11-05T06:11:29.861 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:30.637 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:31.506 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:31.581 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:31.943 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:32.080 DEBUG svc=api disk usage 81% on /data
+2026-11-05T06:11:32.408 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:32.744 ERROR svc=api cache miss key=user:42
+2026-11-05T06:11:33.035 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:33.199 INFO svc=api job #27 finished in 185ms
+2026-11-05T06:11:33.745 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:34.466 ERROR svc=api cache miss key=user:42
+2026-11-05T06:11:35.093 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:35.942 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:36.506 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:37.099 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:37.959 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:38.149 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:38.543 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:38.726 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:39.300 INFO svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:39.810 WARN svc=api job #39 finished in 528ms
+2026-11-05T06:11:40.369 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:11:40.520 ERROR svc=api job #41 finished in 362ms
+2026-11-05T06:11:41.072 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:41.188 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:41.756 INFO svc=api job #44 finished in 474ms
+2026-11-05T06:11:42.026 INFO svc=api job #45 finished in 623ms
+2026-11-05T06:11:42.862 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:43.086 WARN svc=api cache miss key=user:42
+2026-11-05T06:11:43.726 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:43.867 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:44.006 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:44.322 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:45.102 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:45.841 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:46.739 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:47.549 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:48.128 ERROR svc=api job #6 finished in 872ms
+2026-11-05T06:11:48.911 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:49.494 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:49.971 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:50.430 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:51.024 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:51.302 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:52.074 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:52.764 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:53.574 INFO svc=api cache miss key=user:42
+2026-11-05T06:11:54.313 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:55.173 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:55.700 DEBUG svc=api cache miss key=user:42
+2026-11-05T06:11:56.060 WARN svc=api disk usage 81% on /data
+2026-11-05T06:11:56.671 INFO svc=api disk usage 81% on /data
+2026-11-05T06:11:57.240 ERROR svc=api cache miss key=user:42
+2026-11-05T06:11:57.520 ERROR svc=api cache miss key=user:42
+2026-11-05T06:11:57.767 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:58.199 WARN svc=api job #24 finished in 621ms
+2026-11-05T06:11:59.041 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:11:59.193 DEBUG svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:11:59.663 ERROR svc=api job #27 finished in 37ms
+2026-11-05T06:11:59.875 ERROR svc=api job #28 finished in 100ms
+2026-11-05T06:12:00.022 INFO svc=api job #29 finished in 92ms
+2026-11-05T06:12:00.234 INFO svc=api job #30 finished in 573ms
+2026-11-05T06:12:00.591 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:01.418 WARN svc=api request handled path=/api/orders status=200
+2026-11-05T06:12:01.854 WARN svc=api cache miss key=user:42
+2026-11-05T06:12:02.509 ERROR svc=api job #34 finished in 899ms
+2026-11-05T06:12:02.953 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:12:03.476 WARN svc=api cache miss key=user:42
+2026-11-05T06:12:04.240 INFO svc=api disk usage 81% on /data
+2026-11-05T06:12:04.560 INFO svc=api disk usage 81% on /data
+2026-11-05T06:12:05.117 DEBUG svc=api request handled path=/api/orders status=200
+2026-11-05T06:12:05.509 ERROR svc=api cache miss key=user:42
+2026-11-05T06:12:06.252 WARN svc=api job #41 finished in 339ms
+2026-11-05T06:12:06.650 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:06.752 WARN svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:07.338 DEBUG svc=api job #44 finished in 337ms
+2026-11-05T06:12:07.720 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:08.392 ERROR svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:08.851 ERROR svc=api disk usage 81% on /data
+2026-11-05T06:12:09.673 INFO svc=api disk usage 81% on /data
+2026-11-05T06:12:10.041 INFO svc=api connection reset by peer src=10.0.0.8
+2026-11-05T06:12:10.782 INFO svc=api request handled path=/api/orders status=200

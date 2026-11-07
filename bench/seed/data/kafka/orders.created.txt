@@ -1,0 +1,12 @@
+order-1001|{"id":1001,"customer":"ada","total":129.00,"status":"created"}
+order-1002|{"id":1002,"customer":"alan","total":349.50,"status":"created"}
+order-1003|{"id":1003,"customer":"grace","total":12.99,"status":"created"}
+order-1004|{"id":1004,"customer":"katherine","total":615.00,"status":"created"}
+order-1005|{"id":1005,"customer":"linus","total":199.00,"status":"created"}
+order-1006|{"id":1006,"customer":"ada","total":25.98,"status":"created"}
+order-1007|{"id":1007,"customer":"alan","total":129.00,"status":"created"}
+order-1008|{"id":1008,"customer":"grace","total":698.99,"status":"created"}
+order-1009|{"id":1009,"customer":"linus","total":12.99,"status":"created"}
+order-1010|{"id":1010,"customer":"katherine","total":349.50,"status":"created"}
+order-1011|{"id":1011,"customer":"ada","total":199.00,"status":"created"}
+order-1012|{"id":1012,"customer":"alan","total":615.00,"status":"created"}

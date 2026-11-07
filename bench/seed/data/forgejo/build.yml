@@ -1,0 +1,21 @@
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to build for
+        type: choice
+        options: [linux, windows]
+        default: linux
+      verbose:
+        description: Print every step
+        type: boolean
+        default: false
+jobs:
+  build:
+    runs-on: docker
+    steps:
+      - run: |
+          echo "building for ${{ inputs.target }}"
+          for i in 1 2 3 4 5; do echo "compile unit $i"; sleep 2; done
+          echo done

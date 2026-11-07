@@ -1,0 +1,529 @@
+{"ts": "2026-11-07T09:00:00.411Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "a6a3a4506513270e", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:00.540Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1818e811892f902b", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:00.994Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "81e74ef5e8e25d94", "key": "user:42"}
+{"ts": "2026-11-07T09:00:01.293Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6b0d549b6f03675a", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:01.444Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6cad4a268d116ece", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:01.584Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "f28c105d1fb17c23", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:01.892Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "f29d0da9953f48f1", "key": "user:42"}
+{"ts": "2026-11-07T09:00:02.035Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "0cb1e29c658cda14", "key": "user:42"}
+{"ts": "2026-11-07T09:00:02.341Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2217beaddbc496cb", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:02.717Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1e27a1c08a6a63ec", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:03.381Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ae97ba94d0eda82f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:03.646Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a38fd547923a7369", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:03.918Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b64ce4228c38fb29", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:04.062Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "34b9b5df9e7769b1", "key": "user:42"}
+{"ts": "2026-11-07T09:00:04.650Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c6f877186d76b07e", "key": "user:42"}
+{"ts": "2026-11-07T09:00:05.051Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7403e430ec66a787", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:05.501Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2e05319acb5c7427", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:06.296Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "930d6eaf14f4733f", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:06.683Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "57ee05cde00902c7", "key": "user:42"}
+{"ts": "2026-11-07T09:00:07.509Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "faecbd389be4bcfc", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:07.663Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2a3af4d46b0a18e8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:08.518Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7d2caf82eeeacbe2", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:09.029Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "13deef86ab1031d0", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:09.891Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "e01f5057ca02135e", "key": "user:42"}
+{"ts": "2026-11-07T09:00:10.292Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "98289fcd59a54a7b", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:10.880Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "119a72d174c9df6a", "key": "user:42"}
+{"ts": "2026-11-07T09:00:11.055Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "b2715945795e8229", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:11.815Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b394fb36bb2d420f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:12.212Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "ae658f33fe3b890b", "key": "user:42"}
+{"ts": "2026-11-07T09:00:12.748Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e315128862c33a4f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:13.512Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7631a992f0ce5835", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:13.955Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7e62aa0a1df9fd78", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:14.095Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "211c70cf49952399", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:14.931Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "eab477d26415479c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:15.519Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "66d2287672fdf202", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:16.161Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d1bc52d9230d977e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:16.681Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "b4d66a3a47469a4d", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:00:17.186Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "e25a7605aec6f024", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:17.655Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "153e7c2a26a2c0bd", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:17.915Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3bbbe9eaa8948c89", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:18.007Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2eae05cf96d0cc5f", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:18.356Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6b4013ef254b0c4e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:18.983Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "519088f590fbbd11", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:19.191Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "f341e07a83f73f16", "key": "user:42"}
+{"ts": "2026-11-07T09:00:19.903Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "0dd27a65bd628881", "key": "user:42"}
+{"ts": "2026-11-07T09:00:20.450Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "f3aed0b6c7ac1491", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:21.226Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "65e7e4236472f1a3", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:21.714Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a260cd0b7b45145c", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:22.204Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fc132d0d113db17d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:22.497Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "570dc1951c2442f9", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:23.192Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9118bb16000f49c8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:23.426Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "5d158a2ff2ee4e45", "key": "user:42"}
+{"ts": "2026-11-07T09:00:24.134Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "353c631cdfd43f37", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:24.842Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4093f6dea268aa87", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:25.277Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "1f7296ab7961fd92", "key": "user:42"}
+{"ts": "2026-11-07T09:00:25.475Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "fa529ba3fe3bfada", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:00:26.032Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "15fc899e4fd58dbe", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:26.259Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "bd87a86557b6fb7e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:26.610Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "29540a6eb12aa1f6", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:27.218Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f3b7a50df373ca53", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:27.838Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8b0d590bb0a844e5", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:27.945Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "fa7f0eab4c4f9b06", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:28.683Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "d86f40f6b239f3c7", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:00:29.030Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2ac34446e883a1d4", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:29.474Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "8aa4248c8857f9a4", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:30.351Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "39194242a2eddbbd", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:31.058Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "c2216b02fc241d0b", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:31.337Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "66934036d17e4497", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:32.174Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "8483f8b8332dd331", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:32.758Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fd56a926076b3e36", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:32.866Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "4259405278e4b98d", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:33.144Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "5822cb77f4de2c08", "key": "user:42"}
+{"ts": "2026-11-07T09:00:33.681Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "fcf00fecb91ee9e5", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:34.118Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "149e259b5d58c705", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:34.423Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "325b55dd78572976", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:34.848Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fc3947249fc2d0a1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:35.552Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "e8c147437abec539", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:00:36.300Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "15b40aeba4a45eff", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:37.056Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c845007063771407", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:37.864Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "e39639be7a605a91", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:38.126Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "551fd8f9a2c68e45", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:38.294Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "b8c9817af8be8831", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:38.779Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f26149edbe4c5ce6", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:38.945Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "fe3c9c8f2b855c1f", "key": "user:42"}
+{"ts": "2026-11-07T09:00:39.155Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e7a46309973f7986", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:39.711Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "9c9011ef256badf9", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:40.401Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "effddeeaa842bc19", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:40.839Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2188287e8c5c715f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:40.940Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b9f3635cf88c422b", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:41.685Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ef02090bbfdefc15", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:41.907Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "31dec4f4df2a8b79", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:42.203Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4affdcd13678bc8d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:42.796Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "537409029620bf0d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:43.141Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "218e0b7bd58dcdb4", "key": "user:42"}
+{"ts": "2026-11-07T09:00:43.283Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "e5cfedfa5a9196f0", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:43.832Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "e77ffe48d0a6ec17", "key": "user:42"}
+{"ts": "2026-11-07T09:00:44.441Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e0cfab4ceaefc4d2", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:45.034Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8604871926debfdb", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:45.636Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c6c91b9270ac06ac", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:45.903Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "cc966f46c6aa7d55", "key": "user:42"}
+{"ts": "2026-11-07T09:00:46.136Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9e7d6b377936d536", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:46.958Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "537390e50fcf31ca", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:47.736Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7b8444d18e317041", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:48.619Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "8f6f915fe21b37ca", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:48.757Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0acd8be146e40990", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:49.627Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8fcd7f4073c1cd2c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:49.735Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "1038f0b5e998d0ee", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:50.268Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "816bee06f92e2339", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:50.968Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "46f5a1b4b156d1ad", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:51.511Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7a609683ceaf4915", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:52.110Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "85f1115bb2fff17b", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:52.455Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "f179f2d2e48b9662", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:52.742Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "6aa8b9e0231b3e14", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:00:52.946Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1292618550e40d54", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:53.713Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3672d6ae12b80aed", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:54.478Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e5a3863e1f525265", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:55.353Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a4b9a9c4b753a1ee", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:56.109Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e201552240cbacd0", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:56.329Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "bf268ea03836e865", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:56.505Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "29acf1a57cbd1f5a", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:57.268Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "b4d19ec12955d6f0", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:00:57.789Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "56d050cd67601367", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:00:58.300Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "179a071e518ae452", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:00:59.119Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8dd63cb95685d624", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:00:59.668Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "626467ba04a10547", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:00.087Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "83239ef54ba2e161", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:00.232Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c9d22950eb25f8a1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:00.546Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "15850a031ad2d5f1", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:00.897Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c76c603fe7e8f9f6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:01.162Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d1dcec53212a8d9b", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:01.674Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "d1a89b37ad0c9bb6", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:02.018Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "eb4ed2e3895e8b6b", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:02.625Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "53b97377b34e8ece", "key": "user:42"}
+{"ts": "2026-11-07T09:01:02.796Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b02e3d8dccb1c51d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:03.063Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "44d82a531289bafa", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:03.160Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "42b38755cd37880e", "key": "user:42"}
+{"ts": "2026-11-07T09:01:03.325Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "110e2cb638efbaeb", "key": "user:42"}
+{"ts": "2026-11-07T09:01:03.675Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "02f4b342742a8063", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:04.102Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "ed3a32a86af25748", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:04.456Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "86e3e7260b0f873b", "key": "user:42"}
+{"ts": "2026-11-07T09:01:05.262Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f81e54dd1c0502c6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:05.507Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "33a715682e5f950c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:05.906Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c26e7a4287f53ddd", "key": "user:42"}
+{"ts": "2026-11-07T09:01:06.196Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ac127e938005ce74", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:06.458Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "04a65651cdbde747", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:06.794Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "bbab27f604b8157d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:07.391Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "83a4e62930803889", "key": "user:42"}
+{"ts": "2026-11-07T09:01:07.957Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1b35411b72723b9c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:08.711Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "a81100a16ea330a1", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:09.297Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "64a149f5e3838b9e", "key": "user:42"}
+{"ts": "2026-11-07T09:01:09.895Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fb81392137161c16", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:10.210Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e1c60aa3d510bb04", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:11.013Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "679a44dd23c49cae", "key": "user:42"}
+{"ts": "2026-11-07T09:01:11.448Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "213bca7fd644de2f", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:11.542Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e13e213ebdaaea00", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:11.883Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "15a0cce60e2ec40a", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:12.644Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "8185797cdedb9109", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:01:13.410Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "3e01aaa699498ac4", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:14.199Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2f733b05759eb559", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:14.440Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4363e5d900ed6b02", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:14.892Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "fc2325a9f8fdd208", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:15.532Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f735efe608d18011", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:15.928Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "00460d692ed65411", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:16.351Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4767e1fa79823eb2", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:16.945Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "81365acc3f88af59", "key": "user:42"}
+{"ts": "2026-11-07T09:01:17.819Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d129d06743a08f06", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:17.990Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0aaaaf81963892a7", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:18.473Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a1320b9d4de2f8ad", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:18.791Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8778f742f527b5c2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:19.639Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b74b589be48e9e02", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:20.521Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "c3a9e88963b759f5", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:20.934Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "264337987e834904", "key": "user:42"}
+{"ts": "2026-11-07T09:01:21.304Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "250e7b34a4aa07b4", "key": "user:42"}
+{"ts": "2026-11-07T09:01:21.428Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "e456559cb70af5f2", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:22.033Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "b3783a7cbbddbb9b", "key": "user:42"}
+{"ts": "2026-11-07T09:01:22.630Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c0bbe6ed8614f504", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:23.226Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "cdff5a1cd01a914c", "key": "user:42"}
+{"ts": "2026-11-07T09:01:23.322Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "cc4793d795850e21", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:24.130Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "a4946d15b17dd255", "key": "user:42"}
+{"ts": "2026-11-07T09:01:24.445Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "221265400ab77988", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:25.177Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "606a0deb1adbce5d", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:25.719Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "04d2be09a0b55864", "key": "user:42"}
+{"ts": "2026-11-07T09:01:26.440Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "7d42646f3e9b768f", "key": "user:42"}
+{"ts": "2026-11-07T09:01:26.790Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "11f2d44dcc35e834", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:27.636Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "8902dafce5d9fe81", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:27.810Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "bee8062610e8ad01", "key": "user:42"}
+{"ts": "2026-11-07T09:01:28.644Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "130f27b2cf28f65e", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:28.995Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "348922d7c1a624dc", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:29.311Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "75d8d8a4f9c9c679", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:29.896Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "7aa068f113a5397f", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:01:30.676Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9df2025f0bf7a4bd", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:31.403Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "998648e013d5316f", "key": "user:42"}
+{"ts": "2026-11-07T09:01:31.633Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "be437c7ba6caf4a3", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:32.422Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "222930ae9158d4a8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:32.514Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "44ce4ab37c5d42dc", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:33.282Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "acfb2d5e37bac233", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:33.863Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "491961a1843baee9", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:34.418Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1e563408c4653cde", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:35.060Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "15fa8b65fa6672cd", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:35.624Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "13932904757f1cba", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:36.222Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "fe749e67730f37f1", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:36.577Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f21201e4eaa3556c", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:36.872Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "24491df6171e1a8c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:37.717Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "5c0bb40ff3e6ca73", "key": "user:42"}
+{"ts": "2026-11-07T09:01:37.932Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "823d11eda1b501d6", "key": "user:42"}
+{"ts": "2026-11-07T09:01:38.298Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "5d7cfed1b40de56d", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:38.614Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7c73b6c9e04b0dce", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:39.097Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f3308ce500eb4e11", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:39.680Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "4d4ca9c767c98fb9", "key": "user:42"}
+{"ts": "2026-11-07T09:01:40.504Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "60487e15580dc5ab", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:40.907Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "00721f8454d1ac6b", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:41.319Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "65f456aad6cff718", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:41.521Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "b688b661321c1744", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:41.613Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "40d284064a327e2d", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:42.074Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ffb0dd9e63e19869", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:42.757Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6d94dd6dece80799", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:43.610Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "47d7df790c5b4c59", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:43.794Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "491e99f5a97766fb", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:44.524Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "f895fc553fd3be98", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:44.876Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3099f27150cb407a", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:45.747Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6d80de7cf4c73f2b", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:45.856Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "66692158a1826327", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:46.503Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "14a0b00bb835e8a5", "key": "user:42"}
+{"ts": "2026-11-07T09:01:46.633Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "736b96a0692fd360", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:47.342Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "de962a6da4fd57c5", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:47.715Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ed4142bae9729f3f", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:48.358Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6a34b37178e10e70", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:48.789Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "bd313bee41785bc6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:49.625Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "67fd5499429a7079", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:50.376Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8eaca2887bb1d124", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:51.140Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a4a915d02ad64ce9", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:51.385Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e7ecfd0c8027a2a2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:51.974Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "e8009d9073f6e53d", "key": "user:42"}
+{"ts": "2026-11-07T09:01:52.394Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "6d6b987a73309b95", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:01:52.616Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "173910e33e7c6567", "key": "user:42"}
+{"ts": "2026-11-07T09:01:52.874Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "51bcd77a1751f579", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:53.198Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "91d277f2cf321d63", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:53.484Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "dee0a843bfe98f8c", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:01:53.986Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "862fe231beef67fb", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:54.281Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c08a58d756947a7a", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:54.424Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f7ba38b69304106e", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:54.872Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "877b55cb80de8b3e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:55.596Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "37495c5ed93ff716", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:55.770Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "627292f83f9aa884", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:56.259Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "f435a5736e8cd94e", "key": "user:42"}
+{"ts": "2026-11-07T09:01:56.658Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "f7d17ebddf75c883", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:56.760Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b5a290616cd9e62a", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:01:57.622Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "f7e147fd79281c19", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:01:58.303Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "643ab9e212b92a01", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:01:58.923Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "72ee6a2ef8e4cb5c", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:01:59.257Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "27855798394afbe9", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:01:59.492Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "1be03df0ae9c78bd", "key": "user:42"}
+{"ts": "2026-11-07T09:02:00.311Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c3c9f7e3d8b4c831", "key": "user:42"}
+{"ts": "2026-11-07T09:02:00.859Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0a1fb43bc6e0673a", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:00.940Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "91c3098c3b8a27ba", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:01.058Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "f662222e4dc4ac8c", "key": "user:42"}
+{"ts": "2026-11-07T09:02:01.269Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "a2e3f93a873b9903", "key": "user:42"}
+{"ts": "2026-11-07T09:02:01.796Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "197536b11cb4ba55", "key": "user:42"}
+{"ts": "2026-11-07T09:02:01.948Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "953857d7f18bde0e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:02.224Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ca5d5e7d393cbcdd", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:02.919Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4d307fe489980c50", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:03.470Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a502e8a850fcc626", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:03.798Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8c0856a43c19c315", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:04.130Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b4642ea4696c63d6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:04.875Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "31b1891a0593dba2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:05.465Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "6b86290ba5acd341", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:05.628Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6ca06496aad7c7c0", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:06.087Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b221713908ba9bd9", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:06.513Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "aebcb0aa5cc0ff06", "key": "user:42"}
+{"ts": "2026-11-07T09:02:06.998Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4ac7ccc3cc0c6682", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:07.834Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "34893498114340ff", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:02:08.421Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "c40f36094fcc9a5c", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:08.699Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "43d87a9738b079e1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:09.557Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "f3b17af01be7f3cf", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:02:10.275Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e57f76912ff3c23c", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:10.583Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "aa50b96fe90fb651", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:10.720Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "ec032e6b25795c18", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:11.202Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f95fe8a0060c8804", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:11.892Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b5b94af30d456be0", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:12.033Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e5ee4c91731bbc41", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:12.842Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "1cfb0a06bb93c8eb", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:13.003Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "30d0a2b8544940e1", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:13.272Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "bf0e11e086592243", "key": "user:42"}
+{"ts": "2026-11-07T09:02:13.830Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b9b253e3aa181345", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:14.297Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "54ea2061fc27d683", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:14.830Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1407ab3300bc22cb", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:15.196Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f49c9eba6b911f97", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:15.402Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "35185376c2410ad1", "key": "user:42"}
+{"ts": "2026-11-07T09:02:15.871Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4f06e95ad252a617", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:16.393Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7934f0b8b48bb075", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:16.673Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7243d47ceb64c5c4", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:16.950Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e5a15b79bcc0fd98", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:17.515Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3f7dc86b692a4f0e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:18.235Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "602533dc0a68013d", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:18.350Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "eb8a25fccda79077", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:18.493Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "10170d2bbf4e302c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:19.193Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "55c0a74d45b669f7", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:19.904Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b77570a4bf168da7", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:20.690Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4c22cab7468fb596", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:20.773Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "ea9d18b298772790", "key": "user:42"}
+{"ts": "2026-11-07T09:02:21.502Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "0635afef10b99ac9", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:21.821Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f4ef6142b72fac4a", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:22.377Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "ca30421862f2a21b", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:22.714Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "7e544d56d096bfd6", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:22.929Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "023a80a22ed51b12", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:23.765Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c5d6d5e9b12e1de2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:23.999Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "dc7a615d53eab031", "key": "user:42"}
+{"ts": "2026-11-07T09:02:24.406Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c841721ec8a94814", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:25.096Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "64457ea432830689", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:25.946Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "109257f76862bf79", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:26.691Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8b6bfeae8d76d7a1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:27.104Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e22b64a66d32a901", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:27.291Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "9fe5e39943cfeadf", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:27.457Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7f9c13216bca9b3f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:28.263Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "3bf449fd2c564d56", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:28.479Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e429c87c9ecc7b5f", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:29.249Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d8d4250d89df5e79", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:30.121Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c79dbc121f04a6ff", "key": "user:42"}
+{"ts": "2026-11-07T09:02:30.501Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4485c04f911f52dc", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:30.962Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "32fe1f3642a55162", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:31.491Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3c49fdbd3ece9f2c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:31.728Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "940a3537e8566431", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:32.000Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "406c61326564d134", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:32.331Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a64ed9963b3bc813", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:32.513Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "097a5942fdaf4513", "key": "user:42"}
+{"ts": "2026-11-07T09:02:32.697Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d1b0b70be200d218", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:33.013Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "5fb65b55ea14843a", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:33.134Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "1e84fb363b9edacb", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:02:33.265Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d3f2e52df9143ef5", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:33.942Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "5f4aebeb133ad73d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:34.546Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "9a60f91972f92026", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:02:34.892Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "f2198825aa2d6c38", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:34.978Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b5af4c8a989d181c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:35.692Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "5e63af1609969e7c", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:36.120Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fff7ba0d3437ccaa", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:36.461Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a6d21040bb7352c1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:36.749Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "53c69b0ad19f0be9", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:37.247Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "9efac2922f65ab4e", "key": "user:42"}
+{"ts": "2026-11-07T09:02:37.646Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "cb978be3080e31b0", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:38.233Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "687dd5121032888d", "key": "user:42"}
+{"ts": "2026-11-07T09:02:38.416Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "8cd5d187a9fda2ef", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:38.654Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "a72ed5081755c6de", "key": "user:42"}
+{"ts": "2026-11-07T09:02:38.901Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "68e7ed23456b312c", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:39.271Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "f4042f1e6af7ea31", "key": "user:42"}
+{"ts": "2026-11-07T09:02:39.403Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e239d3d79107756f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:39.848Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "dd3f400604a99e63", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:40.713Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "a4fc86215d20c6a6", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:40.994Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3423880b67ac56f8", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:41.080Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6c7b31e22814c437", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:41.276Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "93ea6a9467fde1c3", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:41.729Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "21460c5a299c858d", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:41.824Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a402bb72247aabb5", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:42.310Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ed5ec9049f48250d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:42.769Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "2558d6c02bf39775", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:43.205Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2bfa1f10856aab1d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:43.353Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "c0e908a87d920a56", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:44.244Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "4d36a8ed3284fc6f", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:44.453Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "f9bd6bbb0b22a431", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:02:45.027Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ed19557a9b8e9a82", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:45.758Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b659f768e77b0475", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:46.473Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "2907db86e4219307", "key": "user:42"}
+{"ts": "2026-11-07T09:02:47.208Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "9efd55d238d9e9ab", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:47.702Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "d445a53e3234752b", "key": "user:42"}
+{"ts": "2026-11-07T09:02:48.266Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0aadacf037d7d190", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:48.755Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "62320fa3280f005d", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:02:49.202Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f87f4a4d3f3f4072", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:50.024Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "0a857746314df386", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:50.679Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "09c2cd73ac18cd4e", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:51.442Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "63cc537b1e239eb4", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:52.135Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a085da1fd958b1e6", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:53.011Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4ee6f4ff6b89d463", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:53.687Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a8a9ea6263a366aa", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:54.143Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "2dc378f27037e034", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:54.246Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "7d4ffa0ffc7383bf", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:54.802Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9e5af2a4c379023e", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:55.680Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "2df83c66d627d2b8", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:02:56.244Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "20e27c17112ed1df", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:56.691Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "cd625a7f177a8334", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:57.223Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0a6fb154a8376dcd", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:57.344Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "ec1072ee150dbf6a", "key": "user:42"}
+{"ts": "2026-11-07T09:02:58.175Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "82f0779db86bb4d6", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:02:58.336Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e516093181012ad6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:02:58.802Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "22dd113cc8c42276", "key": "user:42"}
+{"ts": "2026-11-07T09:02:58.908Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "9d373731ff01fe80", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:02:59.737Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "3196cd441c0df645", "key": "user:42"}
+{"ts": "2026-11-07T09:02:59.951Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "49b29bbe7deb30ad", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:00.845Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b898a70cc9d35f16", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:01.151Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9c46199259d4697f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:02.005Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e58376fb52e71cf8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:02.713Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "74d6d11fd0cce893", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:02.940Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "eb7f1414f6de2fbe", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:03.511Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9da968f2434b4b94", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:04.109Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "096de4215f4ce302", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:04.392Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a2f65e3629465388", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:04.756Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "6078a406e539cb16", "key": "user:42"}
+{"ts": "2026-11-07T09:03:05.008Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "1d75cc2343abd7ad", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:05.874Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "dbb8d36ba2e5c7d7", "key": "user:42"}
+{"ts": "2026-11-07T09:03:06.322Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "8e2048dc73fa5648", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:06.935Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "e566e133e1edcf3e", "key": "user:42"}
+{"ts": "2026-11-07T09:03:07.122Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a13903858923b7f6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:07.605Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "43c6ed1e5f186904", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:08.069Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "256d108293cde609", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:08.517Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "71395e7114d5aea4", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:08.832Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f53e2c38be5c3931", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:08.961Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "40ef5ec2841f92ca", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:09.358Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "decbc10bfbeb0a98", "key": "user:42"}
+{"ts": "2026-11-07T09:03:10.037Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "5009c0a9e54e19e5", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:10.867Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "38bd3c6908a6ab0f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:11.099Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6ea6d05ea0288056", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:11.606Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0c3b1266e542453d", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:11.821Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a7321d319cce12d5", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:11.947Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "912eda4100ab68b8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:12.390Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "5b6e48b085e9251c", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:13.016Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4d187e3e956636e6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:13.699Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9fb9d8f65dc18bce", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:14.265Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "efc46c08039cd862", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:15.165Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "736b1be2263961d1", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:15.343Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "df0c92b9250a82a2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:16.104Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "cfc3160166e6626d", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:16.454Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "a51b453f0e5e928c", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:17.109Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "a5464f6d983fd973", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:03:17.781Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "84804942efe98772", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:18.612Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e74c00f42a43f047", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:18.692Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0675295f88122e14", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:19.187Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "0ef1f01228c26bb2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:20.064Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8d0949799cd5f2bb", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:20.816Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "69c60d1b246b9480", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:21.100Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "81c75baba48792c5", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:21.843Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "9cf99a99d039b963", "key": "user:42"}
+{"ts": "2026-11-07T09:03:22.101Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4cde3e5a10530be2", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:22.821Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b96c1f73e3ac99b2", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:23.702Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "01a01d4289d4ff98", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:24.166Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "e989da51bec49ab4", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:03:24.722Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "73d63426a7d0e597", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:24.981Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "42ecdcf91af3bda5", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:25.298Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "55e4615b1f8e6521", "key": "user:42"}
+{"ts": "2026-11-07T09:03:26.145Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "d867c466f15ea89d", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:26.494Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "a2c81c324417c530", "key": "user:42"}
+{"ts": "2026-11-07T09:03:27.141Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c9d7dc2aaf8c3e74", "key": "user:42"}
+{"ts": "2026-11-07T09:03:27.756Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "a45a52094bad8e0e", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:28.058Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "03e5f68481e6d6c8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:28.311Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "d77b26d33c71a896", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:29.152Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "bf03c64428c06f25", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:29.566Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "541c18d563825046", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:30.261Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "da17f2fbe85666f3", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:30.986Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "aa4cebf2fb4e1d36", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:31.615Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "87d69991d6f75151", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:32.409Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6fed41d706c9cd95", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:33.231Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "4ec8c223e27f8be8", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:34.119Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "95d856759f6428ef", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:34.278Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "25042c3d2bea714d", "key": "user:42"}
+{"ts": "2026-11-07T09:03:34.391Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "9f395ef11b4f463f", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:34.636Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b363af43244fbafc", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:34.745Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "b14fe2d6236e536d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:35.483Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "115d27cfb26f1928", "key": "user:42"}
+{"ts": "2026-11-07T09:03:36.317Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "972939b0db437386", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:37.177Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f45eaf1cd14bb7f5", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:37.803Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "e134f9f810e1fec9", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:03:38.656Z", "level": "INFO", "service": "shop-api", "msg": "job finished", "trace_id": "62438362f1bf55ed", "job": "invoice-batch", "ms": 431}
+{"ts": "2026-11-07T09:03:38.845Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "1caa0c48340252a6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:38.959Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e93e9707d903ff4d", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:39.810Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c05d7b62d337264b", "key": "user:42"}
+{"ts": "2026-11-07T09:03:40.536Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "19918b8a7a243b32", "key": "user:42"}
+{"ts": "2026-11-07T09:03:40.751Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "a5753d8bc1e299a3", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:41.040Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "6c7be37e5625e671", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:41.387Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "ee1addc841b73d54", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:41.756Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "5e36d760c285a8c6", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:42.164Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "80f4edd89a1d3876", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:42.731Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "bee33d4a9e475394", "upstream": "payments", "timeout_ms": 3000}
+java.net.SocketTimeoutException: Read timed out
+	at shop.payments.Client.charge(Client.java:88)
+	at shop.api.OrderService.place(OrderService.java:142)
+{"ts": "2026-11-07T09:03:42.842Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "6fbb28f307ffe38e", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:43.453Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "780c8fb058c6aeea", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:44.254Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "3771690c90ebc2c3", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:45.065Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "93151cf917448971", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:03:45.439Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "8607bfbf00552293", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:45.725Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fa556835c021fa1b", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:45.860Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "187f132d7da69370", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:46.443Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "2f3ca661d34979b3", "key": "user:42"}
+{"ts": "2026-11-07T09:03:47.029Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "d4f3318ef50b7e1d", "key": "user:42"}
+{"ts": "2026-11-07T09:03:47.636Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "28ad5dc9f1a17500", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:48.006Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "b31110c8f033b915", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:48.323Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "f04f62941c23edee", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:49.054Z", "level": "WARN", "service": "shop-api", "msg": "slow query", "trace_id": "c9b4bc967d83c1df", "ms": 812, "table": "orders"}
+{"ts": "2026-11-07T09:03:49.847Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "a0c02a351ac44e92", "key": "user:42"}
+{"ts": "2026-11-07T09:03:50.261Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "edb27a0f66b9aaf9", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:50.745Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "160f6d6ebec6b7ec", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:03:51.257Z", "level": "ERROR", "service": "shop-api", "msg": "upstream timeout", "trace_id": "5f381d790671ce23", "upstream": "payments", "timeout_ms": 3000}
+{"ts": "2026-11-07T09:03:51.548Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "e6b6122f6d956563", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:52.186Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "fb7f36ee611a245e", "path": "/api/cart", "status": 200}
+{"ts": "2026-11-07T09:03:52.911Z", "level": "INFO", "service": "shop-api", "msg": "request handled", "trace_id": "207b3de075fe1142", "path": "/api/orders", "status": 200}
+{"ts": "2026-11-07T09:03:53.535Z", "level": "DEBUG", "service": "shop-api", "msg": "cache hit", "trace_id": "c0c3ea0cb071b0da", "key": "user:42"}

@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Bench kit in `bench/`: a Docker Compose file for every test server (core, queue, ci and heavy profiles), idempotent seed scripts for all demo data, the test fixtures and a git-fixture script; passwords live only in the gitignored `bench/.env` (CR-0095)
 
 ## 0.131.0 — 2026-11-07
 

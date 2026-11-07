@@ -138,9 +138,9 @@ the fixtures behind them.
 | ![Home tab](docs/screenshots/home.png) | ![Launcher](docs/screenshots/launcher.png) |
 | **Home** — the pinned first tab of every workspace: a toolbar of activity icons across the top, Get Started cards, the workspace switcher and the What do you want to do? tool grid; recent and pinned items live in the sidebar | **Launcher** (Ctrl+T) — tools by category plus pinned connections, filtered as you type |
 | ![Command palette](docs/screenshots/command-palette.png) | ![Multi-row tab strip](docs/screenshots/tabs-multi-row.png) |
-| **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling |
-| ![Split view](docs/screenshots/split-scratchpad.png) | ![Bottom dock](docs/screenshots/dock.png) |
-| **Split panes** (Ctrl+\) — two Scratchpad notes side by side, each with source and preview | **Bottom dock** (Ctrl+J) — Output, Jobs and Problems |
+| **Command palette** (Ctrl+Shift+P) — every action, fuzzy-matched, with its shortcut | **Multi-row tab strip** — tabs wrap onto more rows instead of scrolling; here eighteen Devtools tabs on three rows |
+| ![Bottom dock](docs/screenshots/dock.png) | |
+| **Bottom dock** (Ctrl+J) — Output, Jobs and Problems | |
 | ![Workspace menu](docs/screenshots/workspace-menu.png) | ![New workspace](docs/screenshots/workspace-new.png) |
 | **Workspace switcher** in the title bar, with the selected workspace logo | **New workspace** — name, logo, and copy environments/connections from another |
 | ![Environment switcher](docs/screenshots/environment-switcher.png) | ![Production environment](docs/screenshots/environment-production.png) |
@@ -275,8 +275,8 @@ refs.
 |---|---|
 | ![Terminal](docs/screenshots/terminal.png) | ![Terminal search](docs/screenshots/terminal-search.png) |
 | **Terminal** — shell profiles in the sidebar, colours, restart/clear, opened here from the editor with "Open Terminal Here" | **Search** (Ctrl+Shift+F) — plain or regex, match case, every hit highlighted, "n of m" |
-| ![Shell list with Nushell](docs/screenshots/terminal-shells.png) | ![Ctrl+click a file location](docs/screenshots/terminal-links.png) |
-| **Shell list** - PowerShell 7, Command Prompt, Nushell and Git Bash, ordered by preference | **Links** - hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
+| ![Shell list](docs/screenshots/terminal-shells.png) | ![Ctrl+click a file location](docs/screenshots/terminal-links.png) |
+| **Shell list** - the shells found on the machine, ordered by preference: here PowerShell 7, Windows PowerShell, Command Prompt, Nushell, Git Bash and a WSL distro (Ubuntu 24.04) | **Links** - hold Ctrl to underline a URL or `path:line:col`; Ctrl+click opens it in the browser or the editor |
 | ![CLI tools](docs/screenshots/terminal-cli.png) | |
 | **CLI tools** (Settings → Terminal) - a profile such as `cmd /k echo Hello from CLI`, `mysql`, `psql`, `claude` or `opencode` opens a terminal tab and types its command line once the shell is ready | |
 
@@ -294,7 +294,7 @@ shell's tab and the keyboard goes straight to the shell.
 | ![File pane follows the shell](docs/screenshots/ssh-follow-shell-folder.png) | ![Remote file in the editor](docs/screenshots/ssh-remote-edit.png) |
 | **Follow Shell Folder** — `cd` in the shell moves the file pane | **Edit remote files** — double-click downloads into the editor; saving uploads |
 | ![SSH tunnels](docs/screenshots/ssh-tunnels.png) | ![Monitor strip and broadcast](docs/screenshots/ssh-monitor.png) |
-| **Tunnels** — local port forwards (`ssh -L`) with live traffic; New Tunnel form in the sidebar; a Tunnels pane above the shell with forwards **kept on the host** that start on connect | **Monitor and Broadcast** — CPU, load, memory, disk, uptime and top processes read every five seconds over the exec channel; Broadcast sends what is typed to every other open shell of the host |
+| **Tunnels** — local port forwards (`ssh -L`); New Tunnel form in the sidebar; a Tunnels pane above the shell with forwards **kept on the host** that start on connect | **Monitor and Broadcast** — CPU, load, memory, disk, uptime and top processes read every five seconds over the exec channel; Broadcast sends what is typed to every other open shell of the host |
 | | |
 | **Clipboard** — Copy puts a remote entry (a folder with everything in it) on the system clipboard; paste uploads what the clipboard holds (Windows) | |
 
@@ -311,11 +311,13 @@ scrolls. Bringing a host's tab to the front puts the caret in its shell.
 | ![S3 browser](docs/screenshots/s3-browser.png) | ![S3 profile](docs/screenshots/connection-s3-form.png) |
 | **Browser** — profiles in the sidebar; buckets and the open bucket's folders in the pane's left column, breadcrumb, size / modified / class / ETag, Load More | **Profile** — provider presets (AWS, MinIO, R2, B2, Spaces, Wasabi), keys stored in the vault |
 | ![Object details](docs/screenshots/s3-details.png) | ![Sync dry run](docs/screenshots/s3-sync.png) |
-| **Details** - the selected object's metadata and `x-amz-meta-*` headers, its tags (editable) and, on a versioned bucket, every version with Restore and Delete | **Sync** - compare a local folder with the prefix by size either way, see what would move, then apply it as a Job; **Bucket Policy…** shows the policy and CORS rules read-only |
+| **Details** - the selected object's metadata and `x-amz-meta-*` headers; its tags (editable) and, on a versioned bucket, its versions with Restore and Delete sit below them | **Sync** - compare a local folder with the prefix by size either way, see what would move, then apply it as a Job; **Bucket Policy…** shows the policy and CORS rules read-only |
 | ![Import AWS profiles](docs/screenshots/s3-import-aws.png) | ![Presigned URL](docs/screenshots/s3-presign.png) |
 | **Import** profiles from `~/.aws/credentials` and `~/.aws/config` | **Presigned URLs** — GET or PUT, 15 minutes to 7 days |
 | ![Guarded delete](docs/screenshots/s3-delete-guard.png) | ![Edit an object](docs/screenshots/s3-edit.png) |
 | **Guarded delete** — prefixes and protected environments need the bucket name typed; shows versioning | **Edit objects** — double-click opens it in the editor; saving puts it back |
+| ![S3 preview column](docs/screenshots/s3-preview.png) | |
+| **Preview** - the clicked object in a column of its own: a Preview heading, the file with its kind's icon, and its content | |
 
 Stores wear their provider's logo (AWS, MinIO…) in the sidebar, the tab
 and the dashboard. Click an object and a **preview** column beside its
@@ -370,8 +372,8 @@ finds. Db2 is not yet verified against a server.
 
 | | |
 |---|---|
-| ![Redis key tree and hash viewer](docs/screenshots/redis-browser.png) | |
-| **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | |
+| ![Redis key tree and hash viewer](docs/screenshots/redis-browser.png) | ![Slow Log](docs/screenshots/redis-slowlog.png) |
+| **Keys** — SCAN-backed tree grouped by prefix with each key's type, a filter, and a type-aware viewer: hashes, strings, lists, sets, sorted sets and streams, with TTL and inline editing behind a confirmation. **Console** runs guarded commands; **Info** shows the server. Protected environments default to read-only | **Slow Log** - the server's slow commands as a table, each duration in its log-level colour, and the clicked entry's detail below |
 | ![Console](docs/screenshots/redis-console.png) | ![Info dashboard](docs/screenshots/redis-info.png) |
 | **Console** - raw commands with history and completion, numbered replies and guards on a protected environment | **Info** - memory, clients, ops/s, hit rate, keys and uptime as cards with five-minute sparklines, role and persistence, and every raw INFO section folded under them |
 | ![Tools: big keys](docs/screenshots/redis-tools.png) | ![Streams](docs/screenshots/redis-streams.png) |
@@ -434,7 +436,9 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 | ![Queue dashboard](docs/screenshots/queue.png) | ![RabbitMQ peek](docs/screenshots/queue-rabbitmq.png) |
 | **Dashboard** - saved brokers, and totals of queues, topics and ready messages from the brokers open in tabs | **Peek** - a RabbitMQ queue read without losing its messages: the requeue is stated first, then headers, properties and the body |
 | ![Kafka consumer lag](docs/screenshots/queue-kafka-lag.png) | ![Settings → Queue](docs/screenshots/queue-settings.png) |
-| **Consumer lag** - a Kafka group's lag per partition; the profile is read-only, so Purge is disabled | **Settings → Queue** - one button per broker kind, the brokers list, and a credential of whichever kind the broker takes, kept in the vault |
+| **Consumer lag** - a Kafka group's committed offset, latest offset and lag per partition, beside the topic list | **Settings → Queue** - one button per broker kind, the brokers list, and a credential of whichever kind the broker takes, kept in the vault |
+| ![Publish with broker picks](docs/screenshots/queue-publish-picks.png) | |
+| **Publish** - a RabbitMQ message's Exchange and Routing Key filled from what the broker lists, the exchange list open | |
 
 - **Destinations** - queues, topics or streams with the figures their kind has (RabbitMQ ready / unacked / consumers / rates per vhost, Kafka partitions and offsets, a stream's length and groups, NATS messages and consumers, and for MQTT the topics seen during a bounded look at `#`), refreshed while the tab is on screen.
 - **Peek** reads up to 50 messages (1 MB) without consuming them, JSON pretty-printed and binary shown as hex with its headers; RabbitMQ can only read by requeueing, and the pane says so before the first peek.
@@ -447,8 +451,8 @@ One tab per message broker: **RabbitMQ** (through its management API), **Kafka**
 
 | | |
 |---|---|
-| ![MongoDB find view](docs/screenshots/nosql-browser.png) | |
-| **Containers** — databases and collections (MongoDB) or databases and document counts (CouchDB); a collection opens in **Find** with filter, projection and sort, the documents as a table and a JSON editor with delete/update guards; **Aggregate** and **Indexes** are beside it | |
+| ![MongoDB find view](docs/screenshots/nosql-browser.png) | ![Document JSON column](docs/screenshots/nosql-document-json.png) |
+| **Containers** — databases and collections (MongoDB) or databases and document counts (CouchDB); a collection opens in **Find** with filter, projection and sort, the documents as a table and a JSON editor with delete/update guards; **Aggregate** and **Indexes** are beside it | **Document** - the clicked document's JSON in the right column, with Save, Delete and Cancel |
 | ![Aggregate](docs/screenshots/nosql-aggregate.png) | |
 | **Aggregate** - a JSON pipeline with a page limit, previewed as a table or JSON; **Indexes** lists each collection's indexes | |
 
@@ -465,7 +469,9 @@ from the toolbar and resized.
 | ![API client AI assistant](docs/screenshots/api-client-ai.png) | ![Manage Collection: Variables](docs/screenshots/api-manage-variables.png) |
 | **Assistant that fills the client** — ask for a collection, a request, headers, a body, auth, scripts or docs; the answer's `hs-api` block gets **Apply**, which edits the open request and the collections exactly as the sidebar would. Nothing is sent until you press Send | **Manage Collection** — one tab per concern: General, Variables (edit key and value in place), Globals, Authentication, Script, Package Library and Documentation; changes save as you type |
 | ![Manage Collection: Authentication](docs/screenshots/api-manage-auth.png) | ![Manage Collection: Documentation](docs/screenshots/api-manage-docs.png) |
-| **Authentication** — inherit, none, Basic, Bearer, API key, **OAuth 2.0** (client credentials, password and refresh-token grants, token cached until it expires) or **AWS Signature V4** at the collection, folder or request level | **Documentation** — Markdown for the collection, rendered beside the editor |
+| **Authentication** — inherit, none, Basic, Bearer, API key, **OAuth 2.0** (client credentials, password and refresh-token grants, token cached until it expires) or **AWS Signature V4** at the collection, folder or request level | **Documentation** — the collection's Markdown source in the Documentation tab, saved with the collection |
+| ![Variable tooltip](docs/screenshots/api-variable-tooltip.png) | ![Open Here cards](docs/screenshots/api-open-here.png) |
+| **Variable tooltips** - hover a `{{variable}}` in the endpoint to see its value, or that it is not set | **Open Here** - the dashboard's cards for the open tabs, each with the tab's icon and the request's method in its colour |
 
 Collections are JSON files in the workspace; variables resolve through the
 collection, the active environment (vault secrets only when sending) and
@@ -477,7 +483,7 @@ any other activity's field - to see its value; a secret stays masked. A non-GET 
 | | |
 |---|---|
 | ![JWT](docs/screenshots/devtools-jwt.png) | ![Hashes](docs/screenshots/devtools-hashes.png) |
-| **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) and the `{{reference}}` peeked | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
+| **JWT** — decode with claim explanations and expiry, verify with a secret or public key, sign for testing (HS256/384/512, RS256/384/512, ES256); the secret can be saved to the environment (vault) | **Hashes** — MD5, SHA-1/2/3, BLAKE3, CRC32 of text or a file, HMAC, hex or Base64, compare field |
 | ![Jasypt](docs/screenshots/devtools-jasypt.png) | ![PKI messages](docs/screenshots/devtools-pki.png) |
 | **Jasypt** — `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256` property encryption with jasypt's salt/IV layout and `ENC(…)`, plus the legacy DES/AES/MD5 DataEncryptor | **PKI messages** — sign with RSA and encrypt with AES-256-GCM under a shared key derived from a device id, then decrypt and verify, for both request and response flows |
 | ![Network Check](docs/screenshots/devtools-net.png) | ![Listening ports](docs/screenshots/devtools-ports.png) |
@@ -491,7 +497,7 @@ any other activity's field - to see its value; a secret stays masked. A non-GET 
 | ![Cron](docs/screenshots/devtools-cron.png) | ![Unit conversion](docs/screenshots/devtools-units.png) |
 | **Cron** - build a schedule and read it in Unix, Spring and Quartz dialects, with an expression checker | **Units** - time, epochs, number bases, data sizes, durations and bandwidth, with every unit listed |
 | ![Utility toolbar](docs/screenshots/devtools-toolbar.png) | |
-| **Utility tabs** (2026-10-29) - every utility opens in its own tab under a toolbar row that names it and keeps the hard-right corner for an AI Assistant control; the activity's dashboard lists all fifteen | |
+| **Utility tabs** (2026-10-29) - every utility opens in its own tab under a toolbar row that names it and keeps the hard-right corner for an AI Assistant control; the activity's dashboard lists all nineteen | |
 
 Also **TOML** and **XML** (check, format, convert) and **Firebase tokens**;
 keys typed into a utility are never saved. Each utility wears its own
@@ -516,7 +522,7 @@ empty, and Listening Ports' Kill asking before it acts.
 | ![AI column and title frame](docs/screenshots/graphics-ai-column.png) | ![Source and preview](docs/screenshots/graphics-source-preview.png) |
 | **AI Assistant column** — a fixed right pane, with the title frame around the diagram and a frame resize grip | **Source and Preview** — Split puts the live JSON to the right of the canvas |
 | ![Node shapes](docs/screenshots/graphics-node-shapes.png) | ![Save to Project](docs/screenshots/graphics-save-project.png) |
-| **Proper node shapes** — the database is a cylinder, decisions are diamonds and the Outline carries a shape icon for every node | **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file and confirm an overwrite |
+| **Proper node shapes** — the database is a cylinder, decisions are diamonds and the Outline carries a shape icon for every node | **Save to Project** — pick an open Editor project, keep `docs/diagrams`, name the file |
 | ![Edge properties](docs/screenshots/graphics-edge-properties.png) | ![Sequence](docs/screenshots/graphics-sequence.png) |
 | **Edge editing** — select an edge from the Outline to edit its label, arrow, route, dashed or dotted line, waypoints and deletion | **Sequence template** — Client, API and Database with labelled request and insert messages |
 
@@ -583,13 +589,13 @@ Properties toggle that hides the settings column.
 | ![Terminal settings](docs/screenshots/settings-terminal.png) | ![Editor settings](docs/screenshots/settings-editor.png) |
 | **Terminal** — default shell, font, right-click copy/paste, link detection; the Terminal List with its CLI editor beside it | **Editor** — the Project List with its form beside it (list left, form right, as every list on a Settings page is laid out since 2026-10-30), then font, right-click, trim and final newline on save, auto reload, language servers and debug adapters |
 | ![Terminal List](docs/screenshots/settings-terminal-list.png) | ![Git settings](docs/screenshots/settings-git.png) |
-| **Terminal List** - shells and CLI profiles in order, with Add CLI, Edit, Remove and PATH suggestions (sqlite3, claude and opencode here); a disabled CLI stays in the list and leaves the sidebar | **Git** (2026-10-29) - Repositories (master/detail, Fetch Project, Clone and Save, uploaded icons), Git Credentials (tokens in the vault, Test) and General (protected patterns, pull / sign-off / stash options, clone folder, terminal profile, Git Flow names) |
+| **Terminal List** - shells and CLI profiles in order, with Add CLI, Edit, Remove and suggestions for the CLI tools found on PATH; a disabled CLI stays in the list and leaves the sidebar | **Git** (2026-10-29) - Repositories (master/detail, Fetch Project, Clone and Save, uploaded icons), Git Credentials (tokens in the vault, Test) and General (protected patterns, pull / sign-off / stash options, clone folder, terminal profile, Git Flow names) |
 | ![Variables cards](docs/screenshots/settings-variables.png) | ![Globals](docs/screenshots/settings-globals.png) |
 | **Collection Variables and Global Variables** (2026-10-29) - beside the environments, every API collection's variables and the one application-wide global set, edited in place; a collection's **Compare With…** shows New / Same / Differs against another collection in this or any other workspace, with Copy Selected and **Sync All** | **Globals** - one set for the whole application, read wherever a `{{name}}` is accepted (API client, Scratchpad, Browser, connection forms); an environment variable of the same name wins |
 | ![Browser settings](docs/screenshots/settings-browser.png) | ![Shortcuts](docs/screenshots/settings-shortcuts.png) |
 | **Browser** — home page, blocking and script defaults, extra blocked hosts | **Shortcuts** — every action rebindable; conflicts listed |
 | ![AI settings](docs/screenshots/settings-ai.png) | ![About](docs/screenshots/settings-about.png) |
-| **AI providers** — chat: Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, 1min.AI or any OpenAI-compatible server; images: fal.ai (one model chosen per purpose from its catalogue, Describe included), 1min.AI or a self-hosted AUTOMATIC1111 / SD.Next / Forge, ComfyUI, SwarmUI, InvokeAI or Fooocus server, with cards for the shared workflow, for Upscale (model, and a ratio or a target size) and for Enhance (refiner and face restorer, never a resize); add one from a gallery grouped by capability, keys in the vault | **About** — installed version, update channel, Check Now, release notes, data folder |
+| **AI providers** — the provider list and the gallery to add one from, grouped by capability (chat and image services, hosted or self-hosted); keys in the vault | **About** — installed version, update channel, Check Now, release notes, data folder |
 
 Every tab can be **snipped** to a PNG (Ctrl+Alt+S, camera menu) or
 **printed** (Ctrl+Alt+P) as an HTML page with a Light/Dark switch that

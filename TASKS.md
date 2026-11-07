@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.7
 Features : FEAT-0108
-Bugs : BUG-0050
+Bugs : BUG-0051
 Change Request : CR-0094
 ```
 
@@ -816,15 +816,16 @@ Change Request : CR-0094
 
 
 ### CR-0083 · README features, screenshots and GIF animations refreshed for v0.7.7
-- **State:** In-Progress · agreed 2026-11-07
+- **State:** Completed · agreed 2026-11-07, screens retaken 2026-11-07
 - **Source:** owner, 2026-11-07 ("DOn't forget to update README.md with latest screenshot and GIF animations. Please write this in rules too")
 - **Scope:** retake every README screenshot whose screen changed in v0.7.7 (layout standard, tables, Settings forms, colour icons and logos, environment tiers, colour schemes, workspace tiles, SSH, Devtools, Database designer …) at the current 1720×860 minimum window, add screenshots for new screens, and rebuild the walkthrough GIF (`hyperstack-demo.gif`) and the per-activity GIFs whose flow changed, per `docs/screenshots/README.md`; update that file's "last refreshed" line.
 - **Parent:** CR-0025
 - [x] README feature text describes every feature v0.7.7 added (colour schemes, environment tiers, lettered workspace tiles, product logos, coloured dropdown marks, Settings forms, SSH marks and monitor, …)
-- [ ] Changed screens retaken; new screens added to the README
-- [ ] Walkthrough and per-activity GIFs rebuilt
-- [ ] `docs/screenshots/README.md` refresh date and recipes updated
-- [ ] Docs: README, CHANGELOG
+- [x] Changed screens retaken; new screens added to the README - all 172 README images retaken at 1736x900 from the v0.131.0 release build; six new images (`s3-preview`, `redis-slowlog`, `nosql-document-json`, `queue-publish-picks`, `api-variable-tooltip`, `api-open-here`); `split-scratchpad.png` and its row removed (split panes left the app on 2026-10-23); captions that no longer matched the screens reworded
+- [x] Walkthrough and per-activity GIFs rebuilt - `hyperstack-demo.gif` (109 frames, 8.8 MB), `git-walkthrough.gif` (10 frames, 0.87 MB), `database-walkthrough.gif` (7 frames, 0.48 MB), 1200x622 frames
+- [x] `docs/screenshots/README.md` refresh date and recipes updated - top paragraph and the 2026-11-07 set section
+- [x] Docs: README, CHANGELOG
+- **Notes:** three images were kept from the old set: `editor-debug.png` and `editor-debug-stack.png` (the debug panel covers the editor, so the paused line cannot be shown - BUG-0051), and `automation-jenkins-log.png` (no Jenkins profile in the scratch data).
 
 
 ### CR-0084 · List and tree rows on one middle line; air above status lines
@@ -1047,6 +1048,18 @@ Change Request : CR-0094
 - [x] App: `--data-dir ./tmp-data` — two shells and an SSH host open; click between their tabs and type at once — clicking the cmd tab and typing ran `echo focus-ok` without clicking in the shell (screenshot 138)
 - [x] Docs: CHANGELOG · README · docs/04 · docs/tools/terminal.md · docs/tools/ssh-sftp.md
 - **Notes:** workspace tests passed (1428 passed, 0 failed). Gate: deny + release self-test pending. App: screen check pending.
+
+
+### BUG-0051 · Editor: the debug panel covers the editor
+- **State:** Pending
+- **Source:** found while retaking README screenshots 2026-11-07
+- **Scope:** Editor: the debug panel opens at nearly the full pane height and covers the editor, so a paused line can't be seen; it can't be dragged smaller (80..600 range).
+- [ ] Test: reproduces the panel opening over the editor
+- [ ] Code: the debug panel leaves the editor visible
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [ ] App: `--data-dir ./tmp-data` — start a debug session in `debug-demo`, stop at a breakpoint; the paused line shows above the panel and the panel drags smaller
+- [ ] Docs: CHANGELOG · GOTCHAS
+
 
 ---
 

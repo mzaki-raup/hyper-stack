@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Changed
+
+- README screenshots and GIF animations retaken at 1736x900 from v0.131.0; six new images for the S3 preview, Redis Slow Log, NoSQL JSON column, Queue publish picks, variable tooltips and Open Here cards (CR-0083)
 
 ## 0.131.0 — 2026-11-07
 

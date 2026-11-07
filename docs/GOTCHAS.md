@@ -267,6 +267,23 @@ Known mistakes and their fixes. Read the section for your area before starting w
   `default_size` from stored state does **not** help, because
   `outer_size()` prefers the persisted `PanelState` over the default
   (BUG-0037).
+  **Fill it to a whole pixel, and lay a footer out bottom-up.** Two
+  follow-ups (BUG-0051): `set_min_height(available_height())` let the
+  stored size come back 1/32 px taller every frame (egui's layout grid
+  rounds up), so the panel crept over the editor at about 2 px a second
+  while open - floor the height and set it as both the min and the max.
+  And a scroll area above an input row must not reserve a guessed height
+  for the row (the console took 26 px for a 32 px field, and the panel
+  grew to its 600 px ceiling): put the row in a `bottom_up` layout first
+  and let the scroll area fill what is left. A bottom panel's ceiling is
+  relative to the window (`bottom_panel_max`), never a fixed 600 px.
+- **A Phosphor glyph inside `RichText::monospace()` draws as an empty
+  box.** The monospace family has no icon glyphs, so the debug panel's
+  Variables tree showed a tofu square where its expand caret should be
+  (found on the BUG-0051 screen check). Put the glyph and the monospace
+  text in separate runs of a `LayoutJob` (glyph in the body font), or in
+  separate widgets; never `format!("{icon} {name}")` into a monospace
+  label.
 - **The resize handle is a row below the line you can see.** Measuring
   the separator in a screenshot and dragging from that row selects the
   text underneath instead; the grab area centre was one pixel lower

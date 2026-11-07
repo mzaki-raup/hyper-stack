@@ -60,11 +60,12 @@ version string came from the commit before the v0.131.0 release bump
   3 s a frame: `hyperstack-demo.gif` 109 frames, 8.8 MB;
   `git-walkthrough.gif` 10 frames, 0.87 MB; `database-walkthrough.gif`
   7 frames, 0.48 MB.
-- **Kept from the old set:** `editor-debug.png` and
-  `editor-debug-stack.png` - the debug panel opens at nearly the full pane
-  height and covers the editor, so a paused line cannot be shown (filed
-  as BUG-0051); `automation-jenkins-log.png` - the scratch data has no
-  Jenkins profile.
+- **Kept from the old set:** `automation-jenkins-log.png` - the scratch
+  data has no Jenkins profile. `editor-debug.png` and
+  `editor-debug-stack.png` were held back while the debug panel covered
+  the editor (BUG-0051) and retaken on 2026-11-08 once it was fixed:
+  `D:\Temp\hs-shots\debug-demo` (`app.py`, debugpy) paused on line 16 with
+  breakpoints on 14 and 16, the panel at its default 200 px.
 - **Removed:** `split-scratchpad.png` - split panes left the app on
   2026-10-23.
 - **New images:** `s3-preview.png` (the S3 preview column, FEAT-0108),

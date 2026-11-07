@@ -212,3 +212,64 @@ fn one_tab_per_project_with_its_files_inside() {
     drop(boot);
     let _ = std::fs::remove_dir_all(&tmp);
 }
+
+/// The debug panel keeps the height it was given: its Console tab must not
+/// creep up the window frame after frame. The console reserved 26 px for
+/// its input row, which is a field (about 32 px) tall, so the content came
+/// out taller than the panel and `egui::Panel` - which remembers the size
+/// its content produced - grew it to its 600 px ceiling, covering the
+/// editor (BUG-0051).
+#[test]
+fn the_debug_panel_keeps_its_height_frame_after_frame() {
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
+
+    let tmp = std::env::temp_dir().join(format!("hs-editor-debug-{}", hs_core::new_id()));
+    std::fs::create_dir_all(tmp.join("proj")).unwrap();
+    std::fs::write(tmp.join("proj/main.py"), "print('hi')\n").unwrap();
+    let paths = DataDir::resolve(Some(&tmp.join("data"))).unwrap();
+    let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+    let s = boot.services.clone();
+    let root = tmp.join("proj");
+    let mut t = tool_editor::EditorFactory.create(&s, Some(json!({ "root": root })));
+    let mut actions = Vec::new();
+    {
+        let mut cx = ToolContext {
+            services: &s,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: false,
+        };
+        assert!(t.run_command("debug.panel", &mut cx), "the panel opens");
+    }
+    let mut fonts_ready = false;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(1400.0, 640.0))
+        .build_ui(|ui| {
+            if !fonts_ready {
+                // The editor draws with the named families the app installs
+                // at startup; a fresh context has none.
+                hs_ui::icons::install_fonts(ui.ctx());
+                fonts_ready = true;
+                return;
+            }
+            let mut actions = Vec::new();
+            let mut cx = ToolContext {
+                services: &s,
+                tab_id: 1,
+                env_id: None,
+                actions: &mut actions,
+                is_home: false,
+            };
+            t.ui(ui, &mut cx);
+        });
+    harness.run_steps(3);
+    let first = harness.get_by_label_contains("Console").rect().top();
+    harness.run_steps(60);
+    let later = harness.get_by_label_contains("Console").rect().top();
+    assert!(
+        (first - later).abs() < 1.0,
+        "the panel grew: its Console tab moved from y={first} to y={later}"
+    );
+}

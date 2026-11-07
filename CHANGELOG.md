@@ -15,6 +15,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - README screenshots and GIF animations retaken at 1736x900 from v0.131.0; six new images for the S3 preview, Redis Slow Log, NoSQL JSON column, Queue publish picks, variable tooltips and Open Here cards (CR-0083)
 
+### Fixed
+
+- Editor: the debug panel no longer grows over the editor - it keeps the height it was given (the console reserved too little for its input row, and the stored size crept 1/32 px a frame), and no bottom panel can be taller than the window less 200 px; the Variables tree's expand carets draw again instead of an empty box (BUG-0051)
+
+
 ## 0.131.0 — 2026-11-07
 
 ### Added

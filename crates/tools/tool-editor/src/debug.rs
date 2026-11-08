@@ -125,9 +125,17 @@ const CONSOLE_CAP: usize = 5000;
 
 impl Debugger {
     pub fn new(s: &Services, id: egui::Id) -> Self {
-        let (reply_tx, replies) = mpsc::channel();
         let waker = s.runtime.waker();
-        let mut me = Self {
+        let mut me = Self::blank(Arc::new(move || waker.request_repaint()), id);
+        me.read_settings(s);
+        me
+    }
+
+    /// A debugger with no session and no settings read: what `new` starts
+    /// from, and what a test builds without the app's services.
+    fn blank(wake: Arc<dyn Fn() + Send + Sync>, id: egui::Id) -> Self {
+        let (reply_tx, replies) = mpsc::channel();
+        Self {
             breakpoints: BTreeMap::new(),
             verified: HashMap::new(),
             overrides: Vec::new(),
@@ -151,11 +159,9 @@ impl Debugger {
             actions: Vec::new(),
             replies,
             reply_tx,
-            wake: Arc::new(move || waker.request_repaint()),
+            wake,
             id: id.with("debug"),
-        };
-        me.read_settings(s);
-        me
+        }
     }
 
     pub fn read_settings(&mut self, s: &Services) {
@@ -400,6 +406,21 @@ impl Debugger {
         if let Some(sess) = self.session.as_mut() {
             sess.state = State::Ended;
         }
+        self.clear_paused();
+    }
+
+    /// Forget the last pause - threads, frames, scopes, variables, the
+    /// stopped line - so the Call Stack and Variables tabs show their empty
+    /// state once a session has ended. The console keeps the run's output
+    /// (BUG-0052).
+    fn clear_paused(&mut self) {
+        self.threads.clear();
+        self.current_thread = None;
+        self.frames.clear();
+        self.selected_frame = None;
+        self.scopes.clear();
+        self.vars.clear();
+        self.expanded.clear();
         self.stopped_at = None;
     }
 
@@ -632,7 +653,7 @@ impl Debugger {
                 if let Some(sess) = self.session.as_mut() {
                     sess.state = State::Ended;
                 }
-                self.stopped_at = None;
+                self.clear_paused();
                 if let Some(c) = self.client() {
                     c.disconnect(false);
                 }
@@ -646,7 +667,7 @@ impl Debugger {
                 if let Some(sess) = self.session.as_mut() {
                     sess.state = State::Ended;
                 }
-                self.stopped_at = None;
+                self.clear_paused();
                 if let Some(e) = error.filter(|_| was_live) {
                     self.push(Line::Err(e.clone()));
                     self.actions
@@ -1540,4 +1561,54 @@ fn run_build(
         })
         .expect("spawn build thread");
     rx
+}
+
+#[cfg(test)]
+mod bug52_tests {
+    use super::*;
+
+    fn frame(line: u32) -> StackFrame {
+        serde_json::from_value(serde_json::json!({
+            "id": 1, "name": "main", "line": line, "column": 1,
+            "source": { "path": "app.py" }
+        }))
+        .expect("a stack frame")
+    }
+
+    /// Once a session ends, nothing of its last pause is shown: the Call
+    /// Stack and Variables tabs fall back to their empty state; the
+    /// console keeps the run's output (BUG-0052).
+    #[test]
+    fn stopping_a_session_clears_its_last_pause() {
+        let mut d = Debugger::blank(Arc::new(|| {}), egui::Id::new("t"));
+        d.threads = vec![
+            serde_json::from_value(serde_json::json!({ "id": 1, "name": "MainThread" }))
+                .expect("a thread"),
+        ];
+        d.current_thread = Some(1);
+        d.frames = vec![frame(16), frame(20)];
+        d.selected_frame = Some(0);
+        d.scopes = vec![
+            serde_json::from_value(serde_json::json!({
+                "name": "Locals", "variablesReference": 7, "expensive": false
+            }))
+            .expect("a scope"),
+        ];
+        d.vars.insert(7, Vec::new());
+        d.expanded.insert(7);
+        d.stopped_at = Some((PathBuf::from("app.py"), 16));
+        d.console.push((Line::Out("hello".into()), None));
+
+        d.stop();
+
+        assert!(d.threads.is_empty(), "threads");
+        assert!(d.current_thread.is_none(), "current thread");
+        assert!(d.frames.is_empty(), "frames");
+        assert!(d.selected_frame.is_none(), "selected frame");
+        assert!(d.scopes.is_empty(), "scopes");
+        assert!(d.vars.is_empty(), "variables");
+        assert!(d.expanded.is_empty(), "expanded rows");
+        assert!(d.stopped_at.is_none(), "stopped line");
+        assert_eq!(d.console.len(), 1, "the console keeps the run's output");
+    }
 }

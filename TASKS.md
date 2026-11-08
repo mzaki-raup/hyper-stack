@@ -1081,14 +1081,14 @@ Change Request : CR-0095
 
 
 ### BUG-0052 · Editor: the debug panel keeps the old call stack after Stop
-- **State:** Pending
+- **State:** Completed · fixed, gated and seen on screen 2026-11-08
 - **Source:** found on the BUG-0051 screen check, 2026-11-08
 - **Scope:** after a debug session ends (Stop, or the program exits), the Call Stack and Variables tabs still list the last paused frames and variables; they should clear and show their empty state. Related: at the minimum window size the editor toolbar wraps to two rows while paused, which leaves the stopped line at the editor's bottom edge.
-- [ ] Test: ending a session clears frames, scopes and variables
-- [ ] Code: the panel shows its empty state once the session ends
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
-- [ ] App: `--data-dir ./tmp-data` — pause in `debug-demo`, Stop; the tabs are empty
-- [ ] Docs: CHANGELOG
+- [x] Test: ending a session clears frames, scopes and variables — `tool-editor` `stopping_a_session_clears_its_last_pause` (failed before the fix)
+- [x] Code: the panel shows its empty state once the session ends — `Debugger::clear_paused`, called on Stop, Terminated and Closed; `Debugger::blank` builds one without services for the test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-08 (1431 tests)
+- [x] App: `--data-dir ./tmp-data` — pause in `debug-demo`, Stop; the tabs are empty — after Stop and after the program exited by itself, Call Stack and Variables showed their empty sentences and the Console kept the run's output
+- [x] Docs: CHANGELOG
 
 ---
 
@@ -1107,6 +1107,7 @@ Change Request : CR-0095
 - **Notes:** `Theme::apply` zeroes `widgets.hovered/active/open.expansion` (tested).
 - **Notes:** `tool_git::files::FilesView`; listings and reads on the blocking pool through slots; `EditorView.read_only` until Edit; a write returns `files::Event::Changed` and the pane re-reads its status. `tool-git` now depends on `hs-editor` (Cargo.lock updated). First cut of the branch came off a stale `origin/main` - the remote has no fetch refspec - and was rebuilt from the forge's head (GOTCHAS). Phase 3 pending.
 - **Notes:** Enter in the name prompts did nothing at first - `request_focus()` ran before the `lost_focus()` read (GOTCHAS, Shell and UI Layout); fixed in the same item. The Settings → Git → Repositories clone stays full on purpose.
+- **Notes:** seen on the check, not fixed here: the console's evaluate field still looks usable once the session has ended; after Stop the console says the program exited with code 0 (debugpy ends it cleanly) rather than that it was stopped.
 
 ### BUG-0037 · Miscellaneous Bug
 - **State:** Completed ·

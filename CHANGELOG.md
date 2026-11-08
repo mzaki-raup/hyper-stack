@@ -13,6 +13,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+### Fixed
+
+- Editor: once a debug session ends (Stop, the program exiting, or the adapter closing), the Call Stack and Variables tabs show their empty state instead of the last pause (BUG-0052)
+
+
 ## 0.131.1 — 2026-11-07
 
 ### Fixed

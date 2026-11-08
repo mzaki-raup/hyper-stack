@@ -22,7 +22,7 @@ offsets() {
 
 if running kafka; then
   wait_healthy kafka
-  BS=127.0.0.1:9092
+  BS=127.0.0.1:${KAFKA_PORT:-9092}
   for spec in orders.created:3 payments:1 billing:1; do
     dc exec -T kafka $BIN/kafka-topics.sh --bootstrap-server $BS --create --if-not-exists \
       --topic "${spec%%:*}" --partitions "${spec##*:}" --replication-factor 1 >/dev/null
@@ -44,7 +44,7 @@ fi
 
 if running kafka-sasl; then
   wait_healthy kafka-sasl
-  BS=127.0.0.1:9094
+  BS=127.0.0.1:${KAFKA_SASL_PORT:-9094}
   CFG=(--command-config /tmp/admin.properties)
   # One mechanism per call: two in one request fail (docs/GOTCHAS.md).
   for mech in SCRAM-SHA-256 SCRAM-SHA-512; do

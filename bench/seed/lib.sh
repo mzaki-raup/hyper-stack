@@ -58,11 +58,13 @@ wait_healthy() {
   return 1
 }
 
-# Wait for an HTTP endpoint to answer with any of the given codes (default 2xx).
+# Wait for an HTTP endpoint to answer 2xx. Any further arguments go to curl
+# (credentials, for an endpoint that answers 401 to anonymous callers).
 wait_http() {
   local url=$1 tries=${2:-60} code i
+  shift $(($# < 2 ? $# : 2))
   for ((i = 0; i < tries; i++)); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' "$url" || true)
+    code=$(curl -s -o /dev/null -w '%{http_code}' "$@" "$url" || true)
     case "$code" in 2??) return 0 ;; esac
     sleep 5
   done

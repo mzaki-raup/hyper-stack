@@ -17,8 +17,8 @@ HyperStack profile works against either by changing only the host.
 
 | Path | What |
 |---|---|
-| `docker-compose.yml` | 30 services in five profiles, named volumes, healthchecks, memory limits |
-| `.env.example` | Every variable; passwords are `change-me`. Copy to `.env` (gitignored) and fill them in |
+| `docker-compose.yml` | 31 services in six profiles, named volumes, healthchecks, memory limits |
+| `.env.example` | Every variable, host ports included; passwords are `change-me`. Copy to `.env` (gitignored) and fill them in |
 | `config/` | Files mounted into containers: the Kafka SASL JAAS template, Jenkins' init script and job definitions, the PuppetDB fake's nginx config and recorded answers |
 | `seed/seed-all.sh` | Loads all demo data into whatever is running; idempotent |
 | `seed/seed-<service>.sh` | One script per service (`seed-k8s.sh` for k3s, `seed-heavy.sh` for the whole heavy profile) |
@@ -45,7 +45,7 @@ docker compose --profile core --profile queue up -d
 ./seed/seed-all.sh
 ```
 
-Add `--profile ci` or `--profile k8s` (and later `--profile heavy`, a service or two at a time)
+Add `--profile ci`, `--profile k8s` or `--profile idm` (and later `--profile heavy`, a service or two at a time)
 when you need them, then run `./seed/seed-all.sh` again: it skips what is not
 running and re-loads the rest without duplicating anything. Run one service's
 seed alone with `./seed/seed-all.sh redis` or `./seed/seed-kafka.sh`.
@@ -56,6 +56,24 @@ clients the address in `KAFKA_ADVERTISED_LISTENERS`; with the default
 and then fails. Set `BENCH_HOST` to the Linux box's IP (or DNS name) before
 the first `up`, or `docker compose up -d kafka kafka-sasl forgejo` again after
 changing it. It also sets Forgejo's links and the k3s certificate's SAN.
+
+### Host ports
+
+Every port the kit publishes is a variable in `.env` (`PG_PORT`, `MYSQL_PORT`,
+`S3_PORT`, `KAFKA_PORT`, ... - the "host ports" block of `.env.example`), read
+by both the compose file and the seeds. The defaults are the Windows/WSL
+bench's ports, so keep them unless one is already taken on your box; then
+change it in `.env` alone and point the HyperStack profile at the new port.
+
+- Kafka (`KAFKA_PORT`, `KAFKA_SASL_PORT`) and MinIO (`S3_PORT`) listen on the
+  host port **inside** their containers too, so the address they hand to
+  clients (Kafka's advertised listener, MinIO's `MINIO_SERVER_URL`) is right
+  from the host, from another machine and from the seed inside the
+  container. Don't set a Kafka port to 9093 or 9095: the controllers use those.
+- A second copy of the kit can run beside the first (or beside the
+  Windows/WSL bench): give it its own `COMPOSE_PROJECT_NAME` and a free port
+  range in its `.env`. That is how the kit itself was tested on the owner's
+  machine (project `hsbenchtest`, every port shifted by 20000).
 
 ## Profiles and memory
 
@@ -68,6 +86,7 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `ci` | forgejo, forgejo-runner, jenkins, teamcity, teamcity-agent, redmine, puppetdb-fake | 5.8 GB | 3-4 GB |
 | `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
+| `idm` | keycloak (dev mode, embedded H2) | 1 GB | about 0.6 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -78,12 +97,18 @@ time** (`docker compose --profile heavy up -d mssql`) and stop them when done
 minutes before they are ready (Oracle 3-5 min on first start, Db2 up to 10);
 their healthchecks probe the database itself, and the seed waits on them.
 
+Measured on 2026-11-08 (`docker stats`, a few minutes after seeding):
+`core` 1.1 GB, `queue` 0.9 GB, `ci` without TeamCity 0.7 GB, TeamCity server
+and agent 1.9 GB, k3s with the demo workloads 0.5 GB, SQL Server 0.9 GB,
+ClickHouse 0.35 GB.
+
 ## Credentials
 
 The values are in your `.env` (see `.env.example`); the table names the
 variable that holds each one. User names, ports and databases are the same on
 this kit and on the Windows/WSL bench unless the last column says otherwise.
-`<host>` is `BENCH_HOST` (or `127.0.0.1` on the box).
+`<host>` is `BENCH_HOST` (or `127.0.0.1` on the box). The ports are the
+defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 
 | Service | Address | User | Password / token | Database / scope | Windows/WSL bench |
 |---|---|---|---|---|---|
@@ -93,7 +118,7 @@ this kit and on the Windows/WSL bench unless the last column says otherwise.
 | Redis | `<host>:6381` | - | none | db 0 | same |
 | Valkey | `<host>:6380` | - | none | db 0 | same |
 | CouchDB | `http://<host>:5984` | `$COUCHDB_USER` (`admin`), also `dev` | `$COUCHDB_PASSWORD`; `dev`: `$COUCH_DEV_PASSWORD` | `notes`, `orders` | same |
-| S3 | `http://<host>:9000` (console `:9001`) | access key `$S3_ACCESS_KEY` (`dev`) | `$S3_SECRET_KEY`, region `us-east-1`, path-style | buckets `hyperstack`, `backups` | **adobe/s3mock: it checks no credentials at all; any key and secret work** |
+| S3 | `http://<host>:9000` (no web console: the Bitnami legacy MinIO build has none) | access key `$S3_ACCESS_KEY` (`dev`) | `$S3_SECRET_KEY`, region `us-east-1`, path-style | buckets `hyperstack`, `backups` | **adobe/s3mock: it checks no credentials at all; any key and secret work** |
 | Qdrant | `http://<host>:6333` (gRPC `:6334`) | - | no API key | `articles`, `faces` | same |
 | SSH / SFTP | `<host>:2222` | `$SSH_USER` (`dev`) | `$SSH_PASSWORD` (sudo allowed) | - | same |
 | WebDAV | `http://<host>:8086/` | `$WEBDAV_USER` (`dev`) | `$WEBDAV_PASSWORD` | served at `/` (not `/dav`) | same; a profile pointing at `/dav` gets 404 |
@@ -113,6 +138,7 @@ this kit and on the Windows/WSL bench unless the last column says otherwise.
 | Db2 | `<host>:50000` | `db2inst1` | `$DB2INST1_PASSWORD` | `$DB2_DBNAME` (`TESTDB`) | same (stopped) |
 | ClickHouse | `http://<host>:8123` | `$CLICKHOUSE_USER` (`default`) | `$CLICKHOUSE_PASSWORD` | `shop` | same (stopped) |
 | Nexus | `http://<host>:8081` | `admin` | `$NEXUS_ADMIN_PASSWORD` | repository `hs-raw` | same (stopped) |
+| Keycloak (profile `idm`) | `http://<host>:8180` (`KEYCLOAK_PORT`) | admin `$KEYCLOAK_ADMIN_USER` (`admin`, realm `master`); service account client `hs-admin`; demo users | `$KEYCLOAK_ADMIN_PASSWORD`; `$KEYCLOAK_HS_ADMIN_SECRET`; `$KEYCLOAK_DEMO_PASSWORD` | realms `hs-demo`, `hs-other` - see [Keycloak](#keycloak-profile-idm) | `hs-keycloak`, same image, port and values |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -144,15 +170,26 @@ The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
 | ClickHouse | `shop.products` (one negative, one zero stock), `shop.events` (48 hourly rows) |
 | Nexus | raw hosted `hs-raw` with `docs/readme.txt`; the admin password changed from `admin123` |
 | k3s | `shop` and `ops` - see [Kubernetes](#kubernetes-profile-k8s) |
+| Keycloak | realms `hs-demo` (25 users, roles, groups, 3 clients, events) and `hs-other` (3 users) - see [Keycloak](#keycloak-profile-idm) |
 
 ### TeamCity's first start (by hand, once)
 
-TeamCity's first-start wizard has no API. After `up`, open
+TeamCity's first-start wizard has no REST API, and it includes accepting
+JetBrains' licence agreement, so the kit leaves it to you. After `up`, open
 `http://<host>:8111`, choose **Proceed**, keep the **internal (HSQLDB)**
 database, accept the licence agreement, and create the administrator
 `$TEAMCITY_ADMIN_USER` / `$TEAMCITY_ADMIN_PASSWORD` (your `.env` values). Then run
 `./seed/seed-teamcity.sh`. Until then the `teamcity` container reports
 unhealthy and the seed says what is missing.
+
+The kit's own test did the same steps over HTTP instead: the server started
+with `TEAMCITY_SERVER_OPTS=-Dteamcity.startup.maintenance=false` (no
+database screen; HSQLDB is created), the licence form posted to
+`/showAgreement.html` as the super user (empty user name, the "Super user
+authentication token" from `teamcity-server.log` as the password), and the
+admin created with `POST /app/rest/users` and the `SYSTEM_ADMIN` role.
+Until the licence is accepted, every REST call answers with a redirect to
+`/showAgreement.html`.
 
 ## Kubernetes (profile `k8s`)
 
@@ -172,8 +209,8 @@ context all named `hs-bench`:
 
 | File | Server | Use it from |
 |---|---|---|
-| `.state/k3s/kubeconfig.yaml` | `https://$BENCH_HOST:6443` | other machines (your Windows box) |
-| `.state/k3s/kubeconfig-local.yaml` | `https://127.0.0.1:6443` | the Linux box itself |
+| `.state/k3s/kubeconfig.yaml` | `https://$BENCH_HOST:$K3S_PORT` (default 6443) | other machines (your Windows box) |
+| `.state/k3s/kubeconfig-local.yaml` | `https://127.0.0.1:$K3S_PORT` | the Linux box itself |
 
 A re-run creates nothing new and restarts nothing. kubectl still prints
 `statefulset.apps/cache configured` each time, a known client-side apply
@@ -209,6 +246,62 @@ What the cluster holds:
 
 Every container requests at most 5m CPU and 16Mi memory. To start over:
 `docker compose rm -sf k3s && docker volume rm hs-bench_k3s-data`.
+
+## Keycloak (profile `idm`)
+
+Keycloak `26.8.2` (`quay.io/keycloak/keycloak`) for the IDM activity, in
+`start-dev` mode: plain HTTP and an embedded H2 database in the
+`keycloak-data` volume. That is fine for a bench and wrong for anything
+else. It needs about 0.6 GB (limit 1 GB). Only the HTTP port is published;
+the management port 9000 (health, used by the healthcheck) stays inside,
+because 9000 on the host is S3's.
+
+```bash
+docker compose --profile idm up -d
+./seed/seed-all.sh keycloak     # or just ./seed/seed-all.sh
+```
+
+- **Admin console:** `http://<host>:8180/admin/` as `$KEYCLOAK_ADMIN_USER`
+  (`admin`) / `$KEYCLOAK_ADMIN_PASSWORD` in realm `master`. That bootstrap
+  admin is created on the first start only: changing the password in `.env`
+  later does not change it (change it in the console, or `down -v`).
+- **How HyperStack connects** (the service account, no user password):
+  base URL `http://<host>:8180`, auth realm `hs-demo`, grant
+  `client_credentials`, client id `hs-admin`, client secret
+  `$KEYCLOAK_HS_ADMIN_SECRET`. The token comes from
+  `/realms/hs-demo/protocol/openid-connect/token`; the Admin REST API is
+  `/admin/realms/hs-demo/...`. The client has these `realm-management`
+  roles: `view-realm`, `view-users`, `query-users`, `manage-users`,
+  `query-groups`, `view-clients`, `query-clients`, `manage-clients`,
+  `view-events`, `manage-events`. It manages `hs-demo` only; for
+  `hs-other` (or every realm) log in as the master admin with `admin-cli`.
+- **Keycloak 26.8 checks the admin API token's audience:** a service
+  account also needs the realm's `kc-admin-api` client scope, or every
+  admin call answers 401 even with the right roles. The seed adds it to
+  `hs-admin` as a default scope.
+- **Live test variable:** `HS_KEYCLOAK=http://<host>:8180` (with the
+  values above for the realm, client and secret).
+
+What the seed loads (all through `kcadm.sh` inside the container; the data
+is `seed/data/keycloak/*.json`, with the password and secret filled in from
+`.env`):
+
+| Realm | Object | Contents |
+|---|---|---|
+| `hs-demo` | Realm roles | `viewer`, `editor`, `admin`; composite `power-user` (viewer, editor, `orders-api` `orders:read` and `orders:write`) |
+| `hs-demo` | Groups | `engineering` (viewer, `orders:read`) > `backend` (`orders:write`), `frontend`; `support` (`orders:read`); `contractors`; each with a `costCentre` attribute |
+| `hs-demo` | Users | 25, `<first>.<last>@hs-demo.test`, attributes `department` and `employeeId` (`E1001`...), password `$KEYCLOAK_DEMO_PASSWORD`; disabled: `erin.lopez`, `mallory.brown`, `peggy.moore`; required actions: `heidi.patel`, `yara.hughes` (UPDATE_PASSWORD), `olivia.taylor` (VERIFY_EMAIL), `quentin.clark` (both); in groups and with realm roles, `trent.walker` with `orders-api` client roles directly |
+| `hs-demo` | Clients | `web-app` (public, standard flow and direct access grants, redirect URIs `http://localhost:3000/*`, `http://127.0.0.1:5173/*`); `orders-api` (confidential, client roles `orders:read`, `orders:write`); `hs-admin` (confidential, service account) |
+| `hs-demo` | Events | login and admin events on (admin events with representation), kept 30 days; SSO sessions idle a week |
+| `hs-demo` | Sessions and events | on the first run, password grants through `web-app` for 7 users (7 sessions, 7 `LOGIN`) and three failures: a wrong password (`dave.kim`), a disabled user (`mallory.brown`), a required action (`heidi.patel`) |
+| `hs-other` | Users | `oscar.diaz`, `paula.ross`, `sam.ortiz` (role `member`, group `staff`), same password |
+
+Unmanaged user attributes are allowed in both realms (the declarative user
+profile would drop `department` and `employeeId` otherwise). A re-run
+imports with `ifResourceExists=SKIP`, so nothing is duplicated and nothing
+already there is changed, except that the realm settings, `hs-admin`'s
+roles, scope and secret are applied again. The logins run only while
+`web-app` has no sessions, so a re-run adds neither sessions nor events.
 
 ## Fixtures (`fixtures/`)
 
@@ -248,33 +341,34 @@ shell (`set -a; . bench/.env; set +a` works when no value contains spaces):
 
 ```bash
 H=192.168.1.50   # BENCH_HOST
-export HS_PG=$H:5432:$POSTGRES_USER:$POSTGRES_PASSWORD:postgres
-export HS_MYSQL=$H:3307:$MYSQL_USER:$MYSQL_PASSWORD:shop
-export HS_REDIS=$H:6381
-export HS_MONGO=$H:27017
-export HS_COUCH=http://$COUCHDB_USER:$COUCHDB_PASSWORD@$H:5984
-export HS_S3_ENDPOINT=http://$H:9000 HS_S3_ACCESS_KEY=$S3_ACCESS_KEY HS_S3_SECRET_KEY=$S3_SECRET_KEY
-export HS_RABBITMQ=$H:15672:$RABBITMQ_USER:$RABBITMQ_PASSWORD
-export HS_KAFKA=$H:9092
-export HS_KAFKA_SASL=$H:9094:$KAFKA_SASL_USER:$KAFKA_SASL_PASSWORD
-export HS_NATS=$H:4222
-export HS_MQTT=$H:1883
-export HS_REDIS_STREAMS=$H:6381
-export HS_JENKINS=$H:8091:$JENKINS_USER:$(cat .state/jenkins-token)
-export HS_FORGEJO=$H:3000:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
-export HS_FORGEJO_ISSUES=$H:3000:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
-export HS_REDMINE=$H:3010:$(cat .state/redmine-api-key)
+export HS_PG=$H:$PG_PORT:$POSTGRES_USER:$POSTGRES_PASSWORD:postgres
+export HS_MYSQL=$H:$MYSQL_PORT:$MYSQL_USER:$MYSQL_PASSWORD:shop
+export HS_REDIS=$H:$REDIS_PORT
+export HS_MONGO=$H:$MONGO_PORT
+export HS_COUCH=http://$COUCHDB_USER:$COUCHDB_PASSWORD@$H:$COUCH_PORT
+export HS_S3_ENDPOINT=http://$H:$S3_PORT HS_S3_ACCESS_KEY=$S3_ACCESS_KEY HS_S3_SECRET_KEY=$S3_SECRET_KEY
+export HS_RABBITMQ=$H:$RABBITMQ_MGMT_PORT:$RABBITMQ_USER:$RABBITMQ_PASSWORD
+export HS_KAFKA=$H:$KAFKA_PORT
+export HS_KAFKA_SASL=$H:$KAFKA_SASL_PORT:$KAFKA_SASL_USER:$KAFKA_SASL_PASSWORD
+export HS_NATS=$H:$NATS_PORT
+export HS_MQTT=$H:$MQTT_PORT
+export HS_REDIS_STREAMS=$H:$REDIS_PORT
+export HS_JENKINS=$H:$JENKINS_PORT:$JENKINS_USER:$(cat .state/jenkins-token)
+export HS_FORGEJO=$H:$FORGEJO_PORT:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
+export HS_FORGEJO_ISSUES=$H:$FORGEJO_PORT:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
+export HS_REDMINE=$H:$REDMINE_PORT:$(cat .state/redmine-api-key)
+export HS_KEYCLOAK=http://$H:$KEYCLOAK_PORT   # realm hs-demo, client hs-admin, secret $KEYCLOAK_HS_ADMIN_SECRET
 ```
 
 (The `.state/` files live on the Linux box; copy the values across.) Note
-the bench's MySQL is on `3307`, not the usual `3306`.
+the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
 
 ## Resetting
 
 On **your Linux box** only:
 
 ```bash
-docker compose --profile core --profile queue --profile ci --profile k8s --profile heavy down -v
+docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy down -v
 rm -rf .state
 ```
 

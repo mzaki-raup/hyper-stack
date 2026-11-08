@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib.sh"
 running webdav || { log "not running - skipped"; exit 0; }
 wait_healthy webdav
 
-W="http://$H:8086"
+W="http://$H:${WEBDAV_PORT:-8086}"
 A=(-s -u "$WEBDAV_USER:$WEBDAV_PASSWORD")
 root="$DATA_DIR/webdav"
 while IFS= read -r d; do

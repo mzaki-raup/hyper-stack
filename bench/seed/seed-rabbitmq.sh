@@ -7,9 +7,9 @@ source "$(dirname "$0")/lib.sh"
 running rabbitmq || { log "not running - skipped"; exit 0; }
 wait_healthy rabbitmq
 
-M="http://$H:15672/api"
+M="http://$H:${RABBITMQ_MGMT_PORT:-15672}/api"
 A=(-s -u "$RABBITMQ_USER:$RABBITMQ_PASSWORD")
-wait_http "$M/overview" 30 || true
+wait_http "$M/overview" 30 "${A[@]}" || true   # 401 without the login
 curl "${A[@]}" -f -o /dev/null -X POST "$M/definitions" -H 'Content-Type: application/json' \
   --data-binary @"$DATA_DIR/rabbitmq/definitions.json"
 curl "${A[@]}" -o /dev/null -X DELETE "$M/queues/%2F/demo/contents"

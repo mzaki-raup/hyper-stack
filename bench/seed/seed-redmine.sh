@@ -15,4 +15,4 @@ if [ -z "$key" ]; then
   exit 1
 fi
 save_state redmine-api-key "$key"
-log "project demo: $(curl -s -H "X-Redmine-API-Key: $key" "http://$H:3010/issues.json?project_id=demo&status_id=*" | grep -o '"total_count":[0-9]*') issues; API key in .state/redmine-api-key"
+log "project demo: $(curl -s -H "X-Redmine-API-Key: $key" "http://$H:${REDMINE_PORT:-3010}/issues.json?project_id=demo&status_id=*" | grep -o '"total_count":[0-9]*') issues; API key in .state/redmine-api-key"

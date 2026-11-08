@@ -7,7 +7,7 @@ SEED_NAME=teamcity
 source "$(dirname "$0")/lib.sh"
 running teamcity || { log "not running - skipped"; exit 0; }
 
-T="http://$H:8111"
+T="http://$H:${TEAMCITY_PORT:-8111}"
 A=(-s -u "$TEAMCITY_ADMIN_USER:$TEAMCITY_ADMIN_PASSWORD")
 if [ "$(curl "${A[@]}" -o /dev/null -w '%{http_code}' "$T/app/rest/server")" != 200 ]; then
   warn "cannot log in as $TEAMCITY_ADMIN_USER yet. Finish the first-start wizard at $T"

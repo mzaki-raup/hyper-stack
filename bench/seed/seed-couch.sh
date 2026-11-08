@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib.sh"
 running couch || { log "not running - skipped"; exit 0; }
 wait_healthy couch
 
-C="http://$H:5984"
+C="http://$H:${COUCH_PORT:-5984}"
 A=(-s -u "$COUCHDB_USER:$COUCHDB_PASSWORD")
 
 for db in _users _replicator notes orders; do

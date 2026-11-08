@@ -1,0 +1,918 @@
+{
+  "roles": {
+    "realm": [
+      {
+        "name": "viewer",
+        "description": "Read-only access to the demo apps"
+      },
+      {
+        "name": "editor",
+        "description": "Can change content in the demo apps"
+      },
+      {
+        "name": "admin",
+        "description": "Administers the demo apps"
+      },
+      {
+        "name": "power-user",
+        "description": "Viewer and editor, with read and write on orders",
+        "composite": true,
+        "composites": {
+          "realm": [
+            "viewer",
+            "editor"
+          ],
+          "client": {
+            "orders-api": [
+              "orders:read",
+              "orders:write"
+            ]
+          }
+        }
+      }
+    ],
+    "client": {
+      "orders-api": [
+        {
+          "name": "orders:read",
+          "description": "Read orders"
+        },
+        {
+          "name": "orders:write",
+          "description": "Create and change orders"
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "engineering",
+      "attributes": {
+        "costCentre": [
+          "CC-100"
+        ]
+      },
+      "realmRoles": [
+        "viewer"
+      ],
+      "clientRoles": {
+        "orders-api": [
+          "orders:read"
+        ]
+      },
+      "subGroups": [
+        {
+          "name": "backend",
+          "attributes": {
+            "costCentre": [
+              "CC-110"
+            ]
+          },
+          "clientRoles": {
+            "orders-api": [
+              "orders:write"
+            ]
+          },
+          "path": "/engineering/backend"
+        },
+        {
+          "name": "frontend",
+          "attributes": {
+            "costCentre": [
+              "CC-120"
+            ]
+          },
+          "path": "/engineering/frontend"
+        }
+      ],
+      "path": "/engineering"
+    },
+    {
+      "name": "support",
+      "attributes": {
+        "costCentre": [
+          "CC-200"
+        ]
+      },
+      "clientRoles": {
+        "orders-api": [
+          "orders:read"
+        ]
+      },
+      "path": "/support"
+    },
+    {
+      "name": "contractors",
+      "attributes": {
+        "costCentre": [
+          "CC-900"
+        ]
+      },
+      "path": "/contractors"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "web-app",
+      "name": "Web App",
+      "description": "Public SPA client (standard flow and, for the bench, direct access grants)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "rootUrl": "http://localhost:3000",
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://127.0.0.1:5173/*"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*",
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "orders-api",
+      "name": "Orders API",
+      "description": "Confidential resource server with client roles",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "hs-admin",
+      "name": "HyperStack Admin",
+      "description": "Service account HyperStack's IDM activity connects with",
+      "enabled": true,
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "@HS_ADMIN_SECRET@",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "alice.nguyen",
+      "firstName": "Alice",
+      "lastName": "Nguyen",
+      "email": "alice.nguyen@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1001"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "groups": [
+        "/engineering/backend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "bob.smith",
+      "firstName": "Bob",
+      "lastName": "Smith",
+      "email": "bob.smith@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1002"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/engineering/backend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "carol.jones",
+      "firstName": "Carol",
+      "lastName": "Jones",
+      "email": "carol.jones@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1003"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/engineering/backend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "dave.kim",
+      "firstName": "Dave",
+      "lastName": "Kim",
+      "email": "dave.kim@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1004"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/engineering/backend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "erin.lopez",
+      "firstName": "Erin",
+      "lastName": "Lopez",
+      "email": "erin.lopez@hs-demo.test",
+      "emailVerified": true,
+      "enabled": false,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1005"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/engineering/backend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "frank.miller",
+      "firstName": "Frank",
+      "lastName": "Miller",
+      "email": "frank.miller@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1006"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/engineering/frontend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "grace.lee",
+      "firstName": "Grace",
+      "lastName": "Lee",
+      "email": "grace.lee@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1007"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/engineering/frontend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "heidi.patel",
+      "firstName": "Heidi",
+      "lastName": "Patel",
+      "email": "heidi.patel@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1008"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/engineering/frontend"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "ivan.petrov",
+      "firstName": "Ivan",
+      "lastName": "Petrov",
+      "email": "ivan.petrov@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1009"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/engineering/frontend"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "judy.chen",
+      "firstName": "Judy",
+      "lastName": "Chen",
+      "email": "judy.chen@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Engineering"
+        ],
+        "employeeId": [
+          "E1010"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "power-user"
+      ],
+      "groups": [
+        "/engineering"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "ken.adams",
+      "firstName": "Ken",
+      "lastName": "Adams",
+      "email": "ken.adams@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Support"
+        ],
+        "employeeId": [
+          "E1011"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/support"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "laura.garcia",
+      "firstName": "Laura",
+      "lastName": "Garcia",
+      "email": "laura.garcia@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Support"
+        ],
+        "employeeId": [
+          "E1012"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/support"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "mallory.brown",
+      "firstName": "Mallory",
+      "lastName": "Brown",
+      "email": "mallory.brown@hs-demo.test",
+      "emailVerified": true,
+      "enabled": false,
+      "attributes": {
+        "department": [
+          "Support"
+        ],
+        "employeeId": [
+          "E1013"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/support"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "niaj.wilson",
+      "firstName": "Niaj",
+      "lastName": "Wilson",
+      "email": "niaj.wilson@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Support"
+        ],
+        "employeeId": [
+          "E1014"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [
+        "/support"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "olivia.taylor",
+      "firstName": "Olivia",
+      "lastName": "Taylor",
+      "email": "olivia.taylor@hs-demo.test",
+      "emailVerified": false,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Support"
+        ],
+        "employeeId": [
+          "E1015"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/support"
+      ],
+      "requiredActions": [
+        "VERIFY_EMAIL"
+      ]
+    },
+    {
+      "username": "peggy.moore",
+      "firstName": "Peggy",
+      "lastName": "Moore",
+      "email": "peggy.moore@hs-demo.test",
+      "emailVerified": true,
+      "enabled": false,
+      "attributes": {
+        "department": [
+          "Contractors"
+        ],
+        "employeeId": [
+          "E1016"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/contractors"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "quentin.clark",
+      "firstName": "Quentin",
+      "lastName": "Clark",
+      "email": "quentin.clark@hs-demo.test",
+      "emailVerified": false,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Contractors"
+        ],
+        "employeeId": [
+          "E1017"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/contractors"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD",
+        "VERIFY_EMAIL"
+      ]
+    },
+    {
+      "username": "rupert.hall",
+      "firstName": "Rupert",
+      "lastName": "Hall",
+      "email": "rupert.hall@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Contractors"
+        ],
+        "employeeId": [
+          "E1018"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/contractors"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "sybil.young",
+      "firstName": "Sybil",
+      "lastName": "Young",
+      "email": "sybil.young@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Contractors"
+        ],
+        "employeeId": [
+          "E1019"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [
+        "/contractors"
+      ],
+      "requiredActions": []
+    },
+    {
+      "username": "trent.walker",
+      "firstName": "Trent",
+      "lastName": "Walker",
+      "email": "trent.walker@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Operations"
+        ],
+        "employeeId": [
+          "E1020"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "groups": [],
+      "requiredActions": [],
+      "clientRoles": {
+        "orders-api": [
+          "orders:read",
+          "orders:write"
+        ]
+      }
+    },
+    {
+      "username": "uma.singh",
+      "firstName": "Uma",
+      "lastName": "Singh",
+      "email": "uma.singh@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Operations"
+        ],
+        "employeeId": [
+          "E1021"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "power-user"
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "username": "victor.reed",
+      "firstName": "Victor",
+      "lastName": "Reed",
+      "email": "victor.reed@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Finance"
+        ],
+        "employeeId": [
+          "E1022"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "username": "wendy.scott",
+      "firstName": "Wendy",
+      "lastName": "Scott",
+      "email": "wendy.scott@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Finance"
+        ],
+        "employeeId": [
+          "E1023"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "editor"
+      ],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "username": "xavier.green",
+      "firstName": "Xavier",
+      "lastName": "Green",
+      "email": "xavier.green@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Finance"
+        ],
+        "employeeId": [
+          "E1024"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [],
+      "groups": [],
+      "requiredActions": []
+    },
+    {
+      "username": "yara.hughes",
+      "firstName": "Yara",
+      "lastName": "Hughes",
+      "email": "yara.hughes@hs-demo.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Operations"
+        ],
+        "employeeId": [
+          "E1025"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ],
+      "groups": [],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ]
+    },
+    {
+      "username": "service-account-hs-admin",
+      "enabled": true,
+      "serviceAccountClientId": "hs-admin"
+    }
+  ]
+}

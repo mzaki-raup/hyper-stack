@@ -11,7 +11,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+- Bench kit: every host port is a variable in `bench/.env` (`PG_PORT`, `S3_PORT`, `KAFKA_PORT`, ...) that the compose file and the seeds both read, so a port clash is fixed in `.env` alone; the defaults are unchanged (CR-0095)
+- Bench kit: both Kafka brokers and MinIO listen on their host port inside the container, so the address they advertise stays right when the port changes; the k3s kubeconfigs follow `K3S_PORT` (CR-0095)
+- Bench kit: drop MinIO's console port 9001, which nothing served - the Bitnami legacy MinIO build has no web console (CR-0095)
+- Bench kit: fix the RabbitMQ seed waiting 150 s on every run (it polled the management API without logging in), and the heavy seed printing nothing for SQL Server, Oracle and ClickHouse (CR-0095)
+- Bench kit: add Keycloak 26.8 (profile `idm`, port 8180) and `seed-keycloak.sh`, which loads realms `hs-demo` (roles, a group tree, 25 users, clients `web-app`, `orders-api` and the `hs-admin` service account, events and sessions) and `hs-other`, for the IDM activity (CR-0095)
 
 ## 0.131.2 — 2026-11-08
 

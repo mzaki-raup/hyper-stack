@@ -1,0 +1,105 @@
+{
+  "roles": {
+    "realm": [
+      {
+        "name": "member",
+        "description": "A member of the other realm"
+      }
+    ]
+  },
+  "groups": [
+    {
+      "name": "staff",
+      "path": "/staff"
+    }
+  ],
+  "users": [
+    {
+      "username": "oscar.diaz",
+      "firstName": "Oscar",
+      "lastName": "Diaz",
+      "email": "oscar.diaz@hs-other.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Partners"
+        ],
+        "employeeId": [
+          "P2001"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ],
+      "groups": [
+        "/staff"
+      ]
+    },
+    {
+      "username": "paula.ross",
+      "firstName": "Paula",
+      "lastName": "Ross",
+      "email": "paula.ross@hs-other.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Partners"
+        ],
+        "employeeId": [
+          "P2002"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ],
+      "groups": [
+        "/staff"
+      ]
+    },
+    {
+      "username": "sam.ortiz",
+      "firstName": "Sam",
+      "lastName": "Ortiz",
+      "email": "sam.ortiz@hs-other.test",
+      "emailVerified": true,
+      "enabled": true,
+      "attributes": {
+        "department": [
+          "Partners"
+        ],
+        "employeeId": [
+          "P2003"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "@DEMO_PASSWORD@",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "member"
+      ],
+      "groups": [
+        "/staff"
+      ]
+    }
+  ]
+}

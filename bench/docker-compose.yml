@@ -7,7 +7,7 @@
 #   docker compose --profile core --profile queue up -d
 #   ./seed/seed-all.sh
 #
-# Profiles: core, queue, ci, k8s, heavy (see README.md for RAM per profile).
+# Profiles: core, queue, ci, k8s, idm, heavy (see README.md for RAM per profile).
 # Everything a service stores lives in a named volume (hs-bench_<name>).
 
 x-defaults: &defaults
@@ -569,6 +569,33 @@ services:
       retries: 20
       start_period: 60s
 
+  # ============================================================== idm
+  # Keycloak for the IDM activity. `start-dev` keeps its realms in an embedded
+  # H2 database in the volume: fine for a bench, never for production.
+  # seed/seed-keycloak.sh loads realms hs-demo and hs-other.
+  keycloak:
+    <<: *defaults
+    image: quay.io/keycloak/keycloak:26.8.2
+    profiles: [idm]
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_PORT: "8080"
+      KC_HEALTH_ENABLED: "true"
+    # Only the HTTP port: the management port 9000 (health) stays inside,
+    # since 9000 on the host is S3's.
+    ports: ["${KEYCLOAK_PORT:-8180}:8080"]
+    volumes: [keycloak-data:/opt/keycloak/data]
+    mem_limit: 1g
+    healthcheck:
+      # The image has no curl or wget: bash's /dev/tcp asks the management port.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'HTTP/1.1 200' <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+
 volumes:
   postgres-data:
   mysql-data:
@@ -601,3 +628,4 @@ volumes:
   clickhouse-data:
   nexus-data:
   k3s-data:
+  keycloak-data:

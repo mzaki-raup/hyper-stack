@@ -17,7 +17,7 @@ else
     --email "$FORGEJO_ADMIN_EMAIL" --must-change-password=false >/dev/null
 fi
 
-API="http://$H:3000/api/v1"
+API="http://$H:${FORGEJO_PORT:-3000}/api/v1"
 A=(-s -u "$U:$FORGEJO_ADMIN_PASSWORD" -H 'Content-Type: application/json')
 
 if [ ! -s "$STATE_DIR/forgejo-token" ]; then

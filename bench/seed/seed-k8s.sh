@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # k3s (profile k8s): apply namespaces `shop` and `ops` (seed/data/k8s/*.yaml)
 # and write two kubeconfigs, with the cluster, user and context named hs-bench:
-#   .state/k3s/kubeconfig.yaml        server https://$BENCH_HOST:6443 (other machines)
-#   .state/k3s/kubeconfig-local.yaml  server https://127.0.0.1:6443 (this box)
+#   .state/k3s/kubeconfig.yaml        server https://$BENCH_HOST:$K3S_PORT (other machines)
+#   .state/k3s/kubeconfig-local.yaml  server https://127.0.0.1:$K3S_PORT (this box)
 # `kubectl apply` makes a re-run a no-op.
 SEED_NAME=k8s
 source "$(dirname "$0")/lib.sh"
@@ -10,6 +10,7 @@ running k3s || { log "not running - skipped"; exit 0; }
 wait_healthy k3s 60
 
 k() { dc exec -T k3s kubectl "$@"; }
+P=${K3S_PORT:-6443}   # the host port; inside the container k3s always serves 6443
 
 # /readyz answers before the node registers; wait for the node itself.
 for _ in $(seq 1 30); do
@@ -39,9 +40,10 @@ if printf '%s\n' "$raw" | grep -qE ': default$'; then
   warn "k3s.yaml has a 'default' name this seed did not rename"
   exit 1
 fi
-printf '%s\n' "$raw" | sed "s#server: https://127.0.0.1:6443#server: https://$BENCH_HOST:6443#" \
+printf '%s\n' "$raw" | sed "s#server: https://127.0.0.1:6443#server: https://$BENCH_HOST:$P#" \
   > "$STATE_DIR/k3s/kubeconfig.yaml"
-printf '%s\n' "$raw" > "$STATE_DIR/k3s/kubeconfig-local.yaml"
+printf '%s\n' "$raw" | sed "s#server: https://127.0.0.1:6443#server: https://127.0.0.1:$P#" \
+  > "$STATE_DIR/k3s/kubeconfig-local.yaml"
 chmod 600 "$STATE_DIR/k3s/kubeconfig.yaml" "$STATE_DIR/k3s/kubeconfig-local.yaml"
 
 # Give the healthy workloads a moment, then show the picture.
@@ -50,4 +52,4 @@ k -n shop rollout status statefulset/cache --timeout=180s >/dev/null || warn "ca
 k -n shop wait --for=condition=complete job/db-migrate --timeout=180s >/dev/null || warn "db-migrate has not completed yet"
 log "pods:"
 k get pods -A --no-headers 2>/dev/null | grep -E '^(shop|ops) ' | awk '{ printf "  %-5s %-28s %-6s %s\n", $1, $2, $3, $4 }'
-log "kubeconfig: .state/k3s/kubeconfig.yaml (https://$BENCH_HOST:6443), .state/k3s/kubeconfig-local.yaml (https://127.0.0.1:6443), context hs-bench"
+log "kubeconfig: .state/k3s/kubeconfig.yaml (https://$BENCH_HOST:$P), .state/k3s/kubeconfig-local.yaml (https://127.0.0.1:$P), context hs-bench"

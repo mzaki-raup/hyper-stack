@@ -15,11 +15,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Title bar: the Workspace and Environment pickers are both a field's height, so the workspace's mark has room around it and the two match (CR-0098)
 
+## 0.132.1 — 2026-11-09
+
 ### Fixed
 
-- Security: the bundled SQLite moves to 3.54.1 (`rusqlite` 0.41) for RUSTSEC-2026-0459, where opening a crafted database together with a mismatched `-wal` file could return stale memory (BUG-0059)
-- A picture opened from the command line, or sent to the Editor by another tool, opens in Graphics instead of as bytes in a text buffer (BUG-0057)
-- Graphics image editor: each settings row's label and Apply button sit on the middle line of its fields, and Apply is a field's height (BUG-0058)
+- Settings rows put label and Apply on the fields' middle line (66a15767)
+- A picture from the command line opens in Graphics, not as bytes (05fe8129)
+
+### Security
+
+- Move the bundled SQLite to 3.54.1 (rusqlite 0.41) (d5a180b3)
 
 ## 0.132.0 — 2026-11-09
 

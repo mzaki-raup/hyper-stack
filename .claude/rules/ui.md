@@ -397,7 +397,10 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
     beside Apply). `centred_row` does it in the right order. A bare
     `ui.horizontal` holding a label and a `line_edit` is the same bug.
   - Exceptions, kept compact on purpose: the command palette's search, the
-    title bar and the bottom dock.
+    title bar and the bottom dock. The title bar's Workspace and
+    Environment pickers are not exempt: both are a field's height, so the
+    workspace's mark has room around it and the two match (owner,
+    2026-11-10) (CR-0098).
 - **Width shows the value:** a field is wide enough for the values it
   holds. In a form a field is `FIELD_MIN_WIDTH` (260) to `FIELD_MAX_WIDTH`
   (560) wide. In a table, a column's width is its floor and spare width is

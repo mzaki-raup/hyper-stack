@@ -2966,6 +2966,14 @@ impl HyperStackApp {
                                 .strong()
                                 .color(theme.text)
                         };
+                        // Both pickers are a field's height: the
+                        // workspace's mark filled the old, shorter button
+                        // edge to edge, and the environment box was
+                        // shorter still. Buttons and combo boxes take
+                        // their height from `interact_size` (owner,
+                        // 2026-11-10).
+                        let compact = ui.spacing().interact_size.y;
+                        ui.spacing_mut().interact_size.y = hs_ui::form::field_height(ui);
                         self.environment_switcher(ui);
                         ui.label(name(s.t("env-label")));
                         // The two pickers are separate questions - which
@@ -2977,6 +2985,7 @@ impl HyperStackApp {
                         ui.add_space(SWITCHER_GAP);
                         self.workspace_switcher(ui);
                         ui.label(name(s.t("workspace-label")));
+                        ui.spacing_mut().interact_size.y = compact;
                         ui.add_space(SWITCHER_GAP);
                         ui.separator();
                         ui.add_space(SWITCHER_GAP);

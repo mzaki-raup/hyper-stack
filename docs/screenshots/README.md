@@ -37,6 +37,39 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-09: the new application icon (CR-0097)
+
+The icon changed to the owner's tool-ring design. Every screenshot shows
+it in two places - the window's title-bar icon and the top bar's logo -
+and `home.png` and the demo GIF's Home frame in Home's header too.
+Nothing else on any screen changed, so the set was not retaken: the
+logos were replaced in place, from a real capture of the new build.
+
+- **Source:** Home captured from the v0.131.2 release build with the new
+  icon (`gui-smoke.ps1`, 1736x900, HyperStack Dark), the same window
+  size and layout as the 2026-11-07 set.
+- **Full-window PNGs (173 at 1736x900):** at each logo spot, the old
+  logo (from the previous `home.png`) was fitted to what the image shows
+  as a per-channel `a * old + b` - a dialog's dimming is such a map - and
+  the new logo went in through the same map, so the 18 shots with a
+  dialog open show it dimmed like the rest of the window. A spot whose
+  fit was not close was left alone.
+- **Older captures (8, at 1760x900, 1400x960 and 1400x900):** they drew
+  an earlier version of the old icon, so they were anchored on the text
+  beside each logo (the window title and the top bar's "HyperStack")
+  instead.
+- **GIFs:** every frame of `hyperstack-demo.gif` (109),
+  `git-walkthrough.gif` (10) and `database-walkthrough.gif` (7) patched
+  the same way at the frames' 1200x622 scale, blended over each frame's
+  own background, and rebuilt with `-colors 256 -layers Optimize -set
+  delay 300 -loop 0`.
+- Each PNG was quantised again with `magick <in> -colors 256 -depth 8
+  <out>`; outside the logos no pixel moved by more than a few levels.
+- Not changed: `graphics-diagram-architecture.png` and
+  `graphics-diagram-flow.png`, diagram exports with no window. `graphics.png`
+  and `graphics-ops.png` still show the old icon as the picture open in the
+  image editor; only their window logos were replaced.
+
 ## 2026-11-07 set: the whole README retaken at 1736x900 (v0.131.0)
 
 Captured from the release exe with `scripts/gui-smoke.ps1` against a

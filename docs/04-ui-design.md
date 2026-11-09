@@ -674,8 +674,9 @@ hands egui both palettes and follows the OS switch live (ADR-022).
   `status.2xx/3xx/4xx/5xx`.
 - Terminal and editor can use a different font from the UI; a bundled Nerd
   Font ensures prompt glyphs render.
-- **Brand palette** comes from the app icon (`assets/icon/hyperstack.png`, three
-  stacked layers): purple `#7200CA`, blue `#0075D3`, gold `#A78700`, with the
+- **Brand palette** came from the first app icon (three stacked layers; the
+  icon was replaced by the owner's tool-ring design on 2026-11-08, CR-0097,
+  and the theme colours were kept): purple `#7200CA`, blue `#0075D3`, gold `#A78700`, with the
   darker edge tones `#0055D4` and `#AB6C00`. The default dark and light themes
   use purple as the accent and blue as the secondary; gold is reserved for
   warnings and the beta-channel badge so it never competes with the

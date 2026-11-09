@@ -3718,16 +3718,13 @@ impl Tool for EditorTool {
         let min = (hs_ui::tabs::segmented_min_width(ui, &[&files_label, &git_label], &arts, &[])
             + egui::Frame::side_top_panel(ui.style()).inner_margin.sum().x)
             .max(180.0);
-        let mut column = egui::Panel::left(self.id.with("workspace-column"))
+        let column = egui::Panel::left(self.id.with("workspace-column"))
             .default_size(260.0_f32.max(min))
             .size_range(min..=(ui.available_width() * 0.5).max(min))
             .resizable(true);
-        if !self.show_column {
-            column = column.exact_size(0.0).resizable(false);
-        }
         let mut column_actions = Vec::new();
-        column.show(ui, |ui| {
-            if self.show_column {
+        if self.show_column {
+            column.show(ui, |ui| {
                 let mut inner = ToolContext {
                     services: cx.services,
                     tab_id: cx.tab_id,
@@ -3736,8 +3733,8 @@ impl Tool for EditorTool {
                     is_home: cx.is_home,
                 };
                 self.workspace_column(ui, &mut inner);
-            }
-        });
+            });
+        }
         cx.actions.append(&mut column_actions);
         self.file_tabs(ui, s, &theme);
         if self.git.has_main() {

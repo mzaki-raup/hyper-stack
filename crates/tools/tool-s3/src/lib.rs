@@ -2043,18 +2043,19 @@ impl S3Tool {
         // them is as wide as the user drags it (owner, 2026-11-07); egui
         // keeps each panel's width. The bucket column hides from the
         // toolbar's first item, as the Database schema column does.
-        let mut buckets = egui::Panel::left(ui.id().with("s3-buckets"))
-            .resizable(true)
-            .default_size(220.0)
-            .size_range(170.0..=420.0);
-        if !self.show_buckets {
-            buckets = buckets.exact_size(0.0).resizable(false);
+        // A hidden column is not shown at all, so egui keeps the width the
+        // user gave it; an `exact_size(0.0)` panel stored 0 and the column
+        // came back at its minimum.
+        if self.show_buckets {
+            egui::Panel::left(ui.id().with("s3-buckets"))
+                .resizable(true)
+                .default_size(220.0)
+                .size_range(170.0..=420.0)
+                .show(ui, |ui| {
+                    fill_column(ui);
+                    self.container_column(ui, cx, theme);
+                });
         }
-        buckets.show(ui, |ui| {
-            if self.show_buckets {
-                self.container_column(ui, cx, theme);
-            }
-        });
         // The details pane takes its column before the browser lays
         // out, so the table shrinks rather than being drawn over
         // (docs/tools/s3.md §7).

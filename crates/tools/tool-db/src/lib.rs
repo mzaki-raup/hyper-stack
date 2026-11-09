@@ -5758,19 +5758,16 @@ impl DbTool {
         // sidebar: hiding the connections list is about choosing a server,
         // and should not take the schema of the one you are in with it.
         if self.cmd.is_some() {
-            let mut column = egui::Panel::left(self.id.with("db-schema"))
+            let column = egui::Panel::left(self.id.with("db-schema"))
                 .resizable(true)
                 .default_size(260.0)
                 .size_range(160.0..=460.0);
             // Hidden from the toolbar, as the Editor's column (CR-0069).
-            if !self.show_schema {
-                column = column.exact_size(0.0).resizable(false);
-            }
-            column.show(ui, |ui| {
-                if self.show_schema {
+            if self.show_schema {
+                column.show(ui, |ui| {
                     self.schema_column(ui, &theme, cx);
-                }
-            });
+                });
+            }
         }
         self.query_tabs(ui, cx, &theme);
         if self.active_designer.is_some() {

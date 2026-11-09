@@ -230,6 +230,73 @@ fn s3_profile(endpoint: &str) -> ConnectionProfile {
     profile("s3", "s3", s3)
 }
 
+/// The Database schema column, against a SQLite file: its edge drags and
+/// the width holds, frame after frame and across a hide and show from
+/// `db.schema_column` (BUG-0054). The query tab's title, right of the
+/// column, is what moves.
+#[test]
+fn the_database_schema_column_resizes_and_keeps_its_width() {
+    let tmp = tempfile::tempdir().unwrap();
+    let boot = boot(tmp.path());
+    let s = &boot.services;
+    let mut db = toml::Table::new();
+    db.insert("engine".into(), "sqlite".into());
+    db.insert(
+        "path".into(),
+        tmp.path()
+            .join("cols.db")
+            .to_string_lossy()
+            .to_string()
+            .into(),
+    );
+    let p = profile("db", "db", db);
+    let id = p.id.clone();
+    s.connections.write().upsert(p).unwrap();
+    let mut h = harness(s, &tool_db::DbFactory, json!({}));
+    {
+        let st = h.state_mut();
+        let mut actions = Vec::new();
+        let mut cx = ToolContext {
+            services: st.services,
+            tab_id: 1,
+            env_id: None,
+            actions: &mut actions,
+            is_home: false,
+        };
+        assert!(
+            st.tool
+                .open(hs_core::tool::OpenRequest::Connection { id }, &mut cx)
+        );
+    }
+    let tab = "Untitled";
+    pump(&mut h, "the schema column", |h| {
+        h.state().tool.current_connection().is_some()
+            && h.query_all_by_label_contains(tab).next().is_some()
+    });
+    h.run_steps(10);
+    let start = rect_of(&h, tab).left();
+    h.run_steps(30);
+    assert!(
+        (rect_of(&h, tab).left() - start).abs() < 1.0,
+        "the column keeps its width with nothing touched: x={start} became x={}",
+        rect_of(&h, tab).left()
+    );
+    drag_edge_and_watch(&mut h, tab, tab, 120.0, "the schema column");
+    let dragged = rect_of(&h, tab).left();
+    command(&mut h, "db.schema_column");
+    assert!(
+        rect_of(&h, tab).left() < dragged - 150.0,
+        "the toggle hides the column"
+    );
+    command(&mut h, "db.schema_column");
+    h.run_steps(10);
+    let back = rect_of(&h, tab).left();
+    assert!(
+        (back - dragged).abs() < 1.0,
+        "the column comes back at the width it was given: x={back}, was x={dragged}"
+    );
+}
+
 /// The bucket column hides from `s3.buckets` and comes back. No server:
 /// against an endpoint nothing listens on, the column still draws its
 /// heading (and the listing's loading or failed state) beside the pane's

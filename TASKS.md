@@ -1137,10 +1137,13 @@ Change Request : CR-0098
 - **Source:** owner, 2026-11-10: "In the Main toolbar, Workspace selection dropdown size is too low to accommodate the workspace icon. Please resize it height. and make the Environment selection dropdown same height with the workspace dropdown new height"
 - **Scope:** the Workspace button's 22 px mark filled it edge to edge and the Environment box was shorter still. Both pickers are now `form::field_height` tall (egui's Button and ComboBox take their minimum height from `interact_size`), set around the pair in `app::top_bar` and restored after it. ui.md's compact title-bar exception and docs/04 §7 say so.
 - [x] Code: `app::top_bar`
+- [x] Code: the bar's margin below its row matches the one above (8 px), and its height is the row plus both (`TOP_BAR_HEIGHT`, 54 px; it was 46, which clipped the row) - owner, 2026-11-10: "Why its near the bottom border. Please add margin/padding between dropdown and bottom border"
 - [x] Test: the top bar is only drawn by `HyperStackApp`, which needs eframe's creation context, so no kittest reaches it; measured in the app instead (see App)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
 - [x] App: `--data-dir ./tmp-data` — both pickers the same height, the workspace mark with room above and below, labels on their middle line — 2026-11-10, release build at 1736x900 with the lettered tile: Workspace 29 → 32 px, Environment 26 → 32 px, the 22 px tile inside with room above and below, both labels on the middle line; a workspace logo uses the same 22 px box (`WS_MARK_TITLE`), so it was not checked separately
 - [x] Docs: ui.md, docs/04, CHANGELOG
+- [x] Gate (bar height): fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
+- [x] App (bar height): the pickers and buttons have the same air above and below inside the bar — 2026-11-10, release build: the bar's rule moved from y=76 to y=84; the pickers (y=45-74) now have 9 px clear below them, where they had about 1 px; about 14 px above, the row sitting ~1.5 px below its centre
 
 ### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
 - **State:** Completed · fixed 2026-11-09

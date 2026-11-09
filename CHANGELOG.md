@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Changed
 
 - Title bar: the Workspace and Environment pickers are both a field's height, so the workspace's mark has room around it and the two match (CR-0098)
+- Title bar: the same margin below the row as above it, so the pickers and buttons no longer sit on the bar's bottom border (CR-0098)
 
 ## 0.132.1 — 2026-11-09
 

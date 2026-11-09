@@ -183,7 +183,6 @@ impl DbSession for SqliteSession {
                 }
                 let cols = st
                     .columns()
-                    .iter()
                     .map(|col| Column {
                         name: col.name().to_string(),
                         type_name: col.decl_type().unwrap_or("").to_string(),

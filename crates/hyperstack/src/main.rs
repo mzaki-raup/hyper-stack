@@ -7,6 +7,8 @@ mod api_tests;
 mod app;
 mod bootstrap;
 mod browser_host;
+#[cfg(test)]
+mod columns_tests;
 mod conn_test;
 mod credentials;
 #[cfg(test)]

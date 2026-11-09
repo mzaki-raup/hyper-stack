@@ -2856,12 +2856,16 @@ impl HyperStackApp {
 
     fn top_bar(&mut self, ui: &mut egui::Ui) {
         let s = self.services.clone();
+        // The same air above and below the row, so the pickers and buttons
+        // never sit on the bar's bottom rule (owner, 2026-11-10); the
+        // panel's height is these margins and the 38 px buttons
+        // (`TOP_BAR_HEIGHT`).
         egui::Frame::new()
             .inner_margin(egui::Margin {
                 left: 10,
                 right: 10,
-                top: 8,
-                bottom: 4,
+                top: TOP_BAR_MARGIN_Y,
+                bottom: TOP_BAR_MARGIN_Y,
             })
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
@@ -4505,7 +4509,7 @@ impl eframe::App for HyperStackApp {
         }
 
         egui::Panel::top("hs-top")
-            .exact_size(46.0)
+            .exact_size(TOP_BAR_HEIGHT)
             .resizable(false)
             .show(root, |ui| self.top_bar(ui));
         egui::Panel::top("hs-tabs")
@@ -5319,6 +5323,15 @@ fn layout_fingerprint(layout: &hs_core::workspace::Layout) -> u64 {
 /// closing up the glyph's own detail at 18 px (owner's requirement,
 /// 2026-10-26).
 pub(crate) const ICON_OUTLINE_WIDTH: f32 = 1.5;
+
+/// The top bar's margin above and below its row.
+const TOP_BAR_MARGIN_Y: i8 = 8;
+
+/// The top bar's height: its row is the 38 px icon buttons (size 20 and
+/// `icon_button`'s padding), with [`TOP_BAR_MARGIN_Y`] above and below.
+/// It was 46 with 8 above and 4 below, which left the row's bottom on the
+/// bar's rule once the pickers were a field's height (owner, 2026-11-10).
+const TOP_BAR_HEIGHT: f32 = 38.0 + 2.0 * TOP_BAR_MARGIN_Y as f32;
 
 /// Breathing room on each side of the separators fencing the Workspace
 /// and Environment pickers, and between the two pairs.

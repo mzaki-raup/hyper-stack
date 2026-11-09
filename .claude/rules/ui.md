@@ -400,7 +400,10 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
     title bar and the bottom dock. The title bar's Workspace and
     Environment pickers are not exempt: both are a field's height, so the
     workspace's mark has room around it and the two match (owner,
-    2026-11-10) (CR-0098).
+    2026-11-10) (CR-0098). The bar has the same margin above and below
+    its row, so no control sits on its bottom rule; its height is that
+    row plus both margins, never a number that clips it (owner,
+    2026-11-10).
 - **Width shows the value:** a field is wide enough for the values it
   holds. In a form a field is `FIELD_MIN_WIDTH` (260) to `FIELD_MAX_WIDTH`
   (560) wide. In a table, a column's width is its floor and spare width is

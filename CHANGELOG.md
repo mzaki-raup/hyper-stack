@@ -11,33 +11,26 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- Bench kit: every host port is a variable in `bench/.env` (`PG_PORT`, `S3_PORT`, `KAFKA_PORT`, ...) that the compose file and the seeds both read, so a port clash is fixed in `.env` alone; the defaults are unchanged (CR-0095)
-- Bench kit: both Kafka brokers and MinIO listen on their host port inside the container, so the address they advertise stays right when the port changes; the k3s kubeconfigs follow `K3S_PORT` (CR-0095)
-- Bench kit: drop MinIO's console port 9001, which nothing served - the Bitnami legacy MinIO build has no web console (CR-0095)
-- Bench kit: fix the RabbitMQ seed waiting 150 s on every run (it polled the management API without logging in), and the heavy seed printing nothing for SQL Server, Oracle and ClickHouse (CR-0095)
-- Bench kit: add Keycloak 26.8 (profile `idm`, port 8180) and `seed-keycloak.sh`, which loads realms `hs-demo` (roles, a group tree, 25 users, clients `web-app`, `orders-api` and the `hs-admin` service account, events and sessions) and `hs-other`, for the IDM activity (CR-0095)
-
-### Changed
-
-- A new application icon - a code stack ringed by coloured tool tiles - in the executable, the window, the top bar, Home and the README (CR-0097)
-- Debug console: evaluating an expression is only offered while the program is paused, and pressing Stop says the run was stopped by the user (CR-0096)
-- Code editor: the find and replace bars use the standard text field, on one middle line (CR-0061)
-
 ### Fixed
 
 - Security: the bundled SQLite moves to 3.54.1 (`rusqlite` 0.41) for RUSTSEC-2026-0459, where opening a crafted database together with a mismatched `-wal` file could return stale memory (BUG-0059)
 - A picture opened from the command line, or sent to the Editor by another tool, opens in Graphics instead of as bytes in a text buffer (BUG-0057)
 - Graphics image editor: each settings row's label and Apply button sit on the middle line of its fields, and Apply is a field's height (BUG-0058)
-- Git: the sidebar and dashboard no longer read every saved repository's picture from disk each frame; pictures are cached until an icon changes (BUG-0053)
-- Dependencies: `async-executor` 1.14.0 was yanked; moved to 1.14.1 (Linux builds only, through egui's accessibility support) (BUG-0056)
-- Debug console: in a short panel the last output line is no longer drawn under the evaluate field (BUG-0055)
-- Hiding a browse column (S3 buckets, Database schema, the Editor's project column, the Git tree, NoSQL databases, Graphics' side panels) and showing it again keeps the width you gave it instead of returning at its minimum (BUG-0054)
-- S3: the bucket, preview and details columns fill their width, so the bucket column can be dragged wider while it loads and Details no longer jumps when its metadata arrives (CR-0091)
+
+## 0.132.0 — 2026-11-09
 
 ### Added
 
-- UI tests for the S3, Redis and NoSQL column toggles and resizing and the NoSQL document column; the live ones run when HS_S3_ENDPOINT, HS_REDIS and HS_MONGO are set (CR-0091, CR-0093)
+- A new application icon - the code stack ringed by tool tiles (757a85f6)
+- Evaluate only while paused, and say when the user stopped a run (bd88fca1)
 
+### Fixed
+
+- A hidden browse column comes back at the width the user gave it (d4bb7992)
+- The S3 columns fill their width; UI tests for the browse columns (7298b887)
+- Find and replace bars use the standard text field (3d1371fd)
+- Keep the debug console's output above its evaluate field (61c17b85)
+- Stop reading every repository's picture from disk each frame (022e9780)
 
 ## 0.131.2 — 2026-11-08
 

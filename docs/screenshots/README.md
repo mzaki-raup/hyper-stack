@@ -66,9 +66,12 @@ logos were replaced in place, from a real capture of the new build.
 - Each PNG was quantised again with `magick <in> -colors 256 -depth 8
   <out>`; outside the logos no pixel moved by more than a few levels.
 - Not changed: `graphics-diagram-architecture.png` and
-  `graphics-diagram-flow.png`, diagram exports with no window. `graphics.png`
-  and `graphics-ops.png` still show the old icon as the picture open in the
-  image editor; only their window logos were replaced.
+  `graphics-diagram-flow.png`, diagram exports with no window.
+- **Retaken:** `graphics.png` and `graphics-ops.png` showed the old icon
+  as the picture open in the image editor, so they were captured again
+  from the release build at 1736x900 with the new icon open - Image
+  Settings at Transform, and Adjust with the Operations list after Flip
+  Horizontally.
 
 ## 2026-11-07 set: the whole README retaken at 1736x900 (v0.131.0)
 

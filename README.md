@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/icon/hyperstack-128.png" width="128" height="128" alt="HyperStack icon: three stacked layers in purple, blue and gold"></p>
+<p align="center"><img src="assets/icon/hyperstack-128.png" width="128" height="128" alt="HyperStack icon: a stack of code layers ringed by coloured tool tiles"></p>
 
 # HyperStack
 

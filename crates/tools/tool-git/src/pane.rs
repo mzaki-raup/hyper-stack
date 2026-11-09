@@ -664,19 +664,16 @@ impl RepoPane {
         let full = ui.available_width();
         // The tree, narrow and resizable.
         let mut tree_pick: Option<tree::Pick> = None;
-        let mut column = egui::Panel::left(ui.id().with("git-tree-col"))
+        let column = egui::Panel::left(ui.id().with("git-tree-col"))
             .resizable(true)
             .default_size(220.0)
             .size_range(160.0..=360.0);
         // Hidden from the toolbar, as the Editor's column (CR-0069).
-        if self.hide_tree {
-            column = column.exact_size(0.0).resizable(false);
-        }
-        column.show(ui, |ui| {
-            if !self.hide_tree {
+        if !self.hide_tree {
+            column.show(ui, |ui| {
                 tree_pick = self.tree.ui(ui, theme, cx);
-            }
-        });
+            });
+        }
         if let Some(p) = tree_pick {
             self.tree_pick(cx.services, p);
         }

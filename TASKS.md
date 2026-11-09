@@ -152,8 +152,8 @@ Refs: BUG-0003
 ```
 Version : v0.7.8
 Features : FEAT-0108
-Bugs : BUG-0052
-Change Request : CR-0095
+Bugs : BUG-0056
+Change Request : CR-0097
 ```
 
 ---
@@ -506,7 +506,7 @@ Change Request : CR-0095
 - **Depends on:** CR-0026, CR-0028, CR-0046, FEAT-0103
 - [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
 - [x] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned — shipped in 0.128.0
-- [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare
+- [x] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare — the last two, the code editor's find and replace bars, are `form::line_edit` (2026-11-08)
 - [ ] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top`
 - [x] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
 - [x] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06) — 2026-11-07: the Automation queue and the Queue consumer-lag tables are now `DataTable`s; the sweep found the rest compliant
@@ -1014,13 +1014,13 @@ Change Request : CR-0095
 
 
 ### CR-0091 · Browse columns can be hidden and resized: S3, Redis, NoSQL
-- **State:** In-Progress · built 2026-11-07
+- **State:** Completed · every box checked 2026-11-08
 - **Source:** owner, 2026-11-07 - three requests: the S3 bucket column hideable and its key, details and preview columns resizable; the Redis key list hideable and resizable; the NoSQL database column hideable and resizable
 - **Spec:** docs/04-ui-design.md · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
 - **Scope:** each browse column is a resizable panel with a show/hide toggle as the first toolbar item (CR-0073) and a palette command: `s3.buckets` (S3: Toggle Bucket Column), `s3.preview` (S3: Toggle Preview Column), `redis.key_column` (Redis: Toggle Key Column), `nosql.db_column` (NoSQL: Toggle Database Column).
 - **Parent:** CR-0069
 - [x] Code: resizable panels and toggles in tool-s3, tool-redis and tool-nosql; palette commands
-- [ ] Test: no unit test reaches the panel layout (egui's resizable panels); the workspace tests run against the change
+- [x] Test: `hyperstack` `columns_tests::the_s3_bucket_column_hides_and_shows` (no server), `the_s3_columns_hide_and_resize` (HS_S3_ENDPOINT), `the_redis_key_list_hides_shows_and_resizes` (HS_REDIS), `the_nosql_columns_hide_resize_and_hold_the_open_document` (HS_MONGO): toggles hide/show, real drags resize and hold; they also found the S3 columns sized to their content (fixed: `fill_column`)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
 - [x] App: `--data-dir ./tmp-data` — hide and show each column, drag each edge, at the default and a narrow window — S3 Buckets toggle hides the column, Redis key list resizes by drag (screenshots 117, 119)
 - [x] Docs: CHANGELOG · docs/04 · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
@@ -1042,13 +1042,13 @@ Change Request : CR-0095
 
 
 ### CR-0093 · NoSQL Find and Aggregate: the clicked document's JSON in a right column
-- **State:** In-Progress · built 2026-11-07
+- **State:** Completed · every box checked 2026-11-08
 - **Source:** owner, 2026-11-07 ("When click the item, the data json should show on the right column…")
 - **Spec:** docs/tools/nosql.md
 - **Scope:** `tool-nosql` Find and Aggregate: a click on a result row opens its JSON in a resizable column right of the results, instead of below them.
 - **Parent:** CR-0091
 - [x] Code: the open document in a resizable right column
-- [ ] Test: no unit test reaches the column layout; the workspace tests run against the change
+- [x] Test: `hyperstack` `columns_tests::the_nosql_columns_hide_resize_and_hold_the_open_document` (HS_MONGO): in Find and Aggregate the clicked document's JSON heads a column right of the results, Save/Delete to its right, its edge drags
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
 - [x] App: `--data-dir ./tmp-data` — MongoDB bench: Find and Aggregate, click a row, drag the column's edge — a clicked Mongo document's JSON opens in the right column (screenshot 125)
 - [x] Docs: CHANGELOG · README · docs/04 · docs/tools/nosql.md
@@ -1090,6 +1090,68 @@ Change Request : CR-0095
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-08 (1431 tests)
 - [x] App: `--data-dir ./tmp-data` — pause in `debug-demo`, Stop; the tabs are empty — after Stop and after the program exited by itself, Call Stack and Variables showed their empty sentences and the Console kept the run's output
 - [x] Docs: CHANGELOG
+
+
+### CR-0096 · Debug console: evaluation only while paused, and Stop says so
+- **State:** Completed · built 2026-11-08, checked in the app 2026-11-09
+- **Source:** BUG-0052 screen check, 2026-11-08 (the evaluate field looked usable after the session ended; after Stop the console only said the program exited with code 0); owner: "proceed to do all the remaining"
+- **Scope:** the console's evaluate field is disabled unless a session is paused, with a hint saying why; pressing Stop adds "Stopped by the user." once, after the adapter's own exit line.
+- [x] Code: `Debugger::can_evaluate`, `stop_requested` / `take_stop_line`, new strings `debug-console-hint-disabled`, `debug-stopped-by-user`
+- [x] Test: `tool-editor` `evaluate_needs_a_paused_program`, `stop_says_the_user_stopped_the_run`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — pause, the field is enabled; Stop, it is disabled and the console says the run was stopped — 2026-11-09, release build, debugpy on `debug-demo/app.py`: paused at line 15 the field was enabled and `order["customer"]` gave `'Ada'`; after Stop the console read "Stopped by the user." and the field "Evaluation needs a paused program." (the overlap seen there is BUG-0055)
+- [x] Docs: CHANGELOG
+
+### BUG-0053 · Git: the sidebar and dashboard read every repository's picture from disk every frame
+- **State:** Completed · fixed 2026-11-08
+- **Source:** code review of v0.7.7, 2026-11-08; owner: "proceed to do all the remaining"
+- **Scope:** `entry_image` probed up to eight files and a stat per saved repository per frame on the UI thread; a `PictureCache` keyed on `icon_generation()` looks each one up once until an icon changes.
+- [x] Test: `tool-git` `the_picture_cache_probes_only_when_the_icon_generation_moves`
+- [x] Code: `PictureCache` in tool-git; `entry_image` takes the already-locked repo list (no nested read lock)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — the Git sidebar and dashboard show the repositories' pictures as before — 2026-11-09, release build: six saved repositories, each with its picture in the sidebar and in Saved Repositories
+- [x] Docs: CHANGELOG
+
+### BUG-0054 · A hidden browse column comes back at its minimum width, not the width the user gave it
+- **State:** Completed · fixed 2026-11-08
+- **Source:** the CR-0091 test `the_s3_bucket_column_hides_and_shows`, once the S3 columns filled their width (2026-11-08)
+- **Scope:** every hideable column was drawn as an `exact_size(0.0)` panel while hidden, which stored a width of 0, so showing it again clamped to the minimum. A hidden column is now not drawn at all and egui keeps its width: S3 buckets, Database schema, Editor project column, Git tree, NoSQL databases, Graphics settings, diagram properties and generator prompt.
+- [x] Test: `hyperstack` `columns_tests::the_s3_bucket_column_hides_and_shows` (failed before the fix: the hint came back at a different x)
+- [x] Code: the eight columns skip `Panel::show` while hidden
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — drag the Editor and Database columns wider, hide and show them, the width holds — 2026-11-09, release build: the Editor project column, the Git tree and the Database schema column (666 → 788 px, 789 after hide and show, steady 3 s later) each kept the dragged width; plus `columns_tests::the_database_schema_column_resizes_and_keeps_its_width`
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0055 · Debug console: in a short panel the last output line is drawn under the evaluate field
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the CR-0096 screen check, 2026-11-09: paused at a breakpoint, `order["customer"]` evaluated to `'Ada'` drawn under the field; after Stop, "Session ended." the same
+- **Scope:** an `egui::ScrollArea` never shrinks below `min_scrolled_height` (64 px by default). The console's output area above the input row was shorter than that in a short panel, took 64 px anyway and spilled over the row. The console's scroll area now sets the minimum to 0.
+- [x] Test: `hs-ui` `console_layout::a_short_console_keeps_its_output_above_the_field` (the console's own layout in a 120 px panel), with `the_default_minimum_spills_over_the_field` showing the defect; `console_ui` itself needs a live debug adapter, so it is checked in the app
+- [x] Code: `min_scrolled_height(0.0)` on the console's scroll area
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1441 passed (run at -j 2), self-test ok, deny ok after BUG-0056
+- [x] App: `--data-dir ./tmp-data` — a short debug panel, paused, evaluate an expression and Stop: every line above the field — 2026-11-09, release build with the fix: a short panel beside the terminal, `order["customer"]` and `grand` evaluated, the oldest line scrolled off the top and the newest above the field; after Stop every line above the disabled field
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0056 · cargo deny fails: async-executor 1.14.0 was yanked
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the v0.7.8 gate, 2026-11-09: `cargo deny check` reported `error[yanked]` for `async-executor` 1.14.0, which only `accesskit_unix` (egui's Linux accessibility) and `zbus` pull in - not compiled on Windows; a result that does not depend on the branch (testing.md)
+- **Scope:** `cargo update -p async-executor` to 1.14.1 in `Cargo.lock`; no code change
+- [x] Test: `cargo deny check` passes; `cargo check --workspace --all-targets --locked`
+- [x] Code: Cargo.lock only
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09
+- [x] App: not applicable - a Linux-only dependency, no visible change
+- [x] Docs: CHANGELOG
+
+### CR-0097 · A new application icon: the code stack ringed by tool tiles
+- **State:** In-Progress
+- **Source:** owner, 2026-11-08: "Change apps icon with this. Replace to all icon usage; Readme, executable, documentation, in apps logo, etc"
+- **Scope:** the owner's 512×512 image becomes the master `assets/icon/hyperstack.png`; `scripts/make-icons.ps1` regenerates the `.ico` and every PNG size, so the exe (`build.rs`), the window icon, the top bar, Home's header and the README header all take it. README alt text and docs/03 §13 describe the new design; docs/04's brand palette keeps its colours (the theme is unchanged).
+- [x] Code: master replaced, every size regenerated by the script (transparent corners checked)
+- [x] Gate: release build · --self-test — 2026-11-08: built, self-test ok; the icon extracted from `HyperStack.exe` is the new picture
+- [x] App: the exe's icon in Explorer, the window and taskbar icon, the top bar and Home's header show the new picture — 2026-11-09, release build: the icon extracted from `HyperStack.exe` (what Explorer shows), the window's title-bar icon, the top bar and Home's header, each the new picture
+- [x] Docs: README, docs/03, docs/04, CHANGELOG
+- [x] README screenshots: the logo replaced in place in 181 PNGs and every frame of the three GIFs, from a real capture of the new build (docs/screenshots/README.md, 2026-11-09 section); nothing else on those screens changed
+- [ ] `graphics.png` and `graphics-ops.png` retaken with the new icon as the picture open in the image editor (they show the old one as the edited picture; the retake's Open dialog went wrong on 2026-11-09 and was left for a later screen session)
 
 ---
 

@@ -415,8 +415,9 @@ write it again anyway.
 
 ## 13. Application icon
 
-The icon is three stacked rounded layers (purple, blue, gold) on a transparent
-background; the 512×512 master is `assets/icon/hyperstack.png`. Every derived
+The icon is a dark `</>` tile on blue and orange stacked layers, ringed by six
+coloured tool tiles (settings, Git, search, wrench, database, terminal) on a
+transparent background (owner's design, 2026-11-08, CR-0097); the 512×512 master is `assets/icon/hyperstack.png`. Every derived
 file is committed and regenerated only by `scripts/make-icons.ps1`, so a build
 never needs ImageMagick.
 

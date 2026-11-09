@@ -3611,18 +3611,15 @@ impl Tool for GraphicsTool {
         }
         // The picture keeps the tab, but its controls move into this panel so
         // the activity sidebar can list the four tools (owner's request).
-        let mut column = egui::Panel::left("gfx-settings")
+        let column = egui::Panel::left("gfx-settings")
             .default_size(300.0)
             .size_range(220.0..=460.0)
             .resizable(true);
-        if !self.show_settings {
-            column = column.exact_size(0.0).resizable(false);
-        }
-        column.show(ui, |ui| {
-            if self.show_settings {
+        if self.show_settings {
+            column.show(ui, |ui| {
                 self.settings_panel(ui, cx, &theme);
-            }
-        });
+            });
+        }
         // The shared split: the assistant column shrinks to keep room for
         // the picture and steps aside in a narrow window, like every other
         // tool, instead of a fixed cut that read as a floating card.

@@ -1176,19 +1176,16 @@ impl DiagramState {
         self.undo_limit = cx.services.settings.read().general.undo_limit as usize;
         self.save_window(ui.ctx(), cx);
         self.drawio_window(ui.ctx(), cx);
-        let mut props = egui::Panel::left("gfx-diagram-props")
+        let props = egui::Panel::left("gfx-diagram-props")
             .default_size(290.0)
             .size_range(240.0..=(ui.available_width() * 0.4).max(240.0))
             .resizable(true);
         // Hidden from the toolbar, as the Editor's column (CR-0069).
-        if !self.show_props {
-            props = props.exact_size(0.0).resizable(false);
-        }
-        props.show(ui, |ui| {
-            if self.show_props {
+        if self.show_props {
+            props.show(ui, |ui| {
                 self.properties(ui, cx, theme);
-            }
-        });
+            });
+        }
         if self.view == DiagramView::Split {
             egui::Panel::right("gfx-diagram-source")
                 .default_size(420.0)

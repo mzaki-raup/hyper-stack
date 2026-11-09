@@ -1259,6 +1259,10 @@ impl Debugger {
                     .id_salt(self.id.with("console"))
                     .auto_shrink([false, false])
                     .stick_to_bottom(true)
+                    // A scroll area never shrinks below 64 px by default; in
+                    // a short panel it spilled over the input row, its last
+                    // line drawn under the field (BUG-0055).
+                    .min_scrolled_height(0.0)
                     .show(ui, |ui| {
                         let font = egui::FontId::new(
                             s.settings.read().editor.font_size,

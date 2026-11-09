@@ -16,6 +16,8 @@ mod db_tests;
 mod dock;
 #[cfg(test)]
 mod editor_tests;
+#[cfg(test)]
+mod graphics_tests;
 mod launcher;
 mod self_test;
 mod settings_ai;

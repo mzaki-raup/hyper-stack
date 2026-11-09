@@ -4327,6 +4327,14 @@ impl Tool for EditorTool {
         match item {
             OpenRequest::File { uri, line } => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
+                // A picture asked of the editor from outside (the command
+                // line, another tool) goes to the graphics tool, as one
+                // opened from the tree does (`open_path`); it was shown as
+                // bytes in a buffer (BUG-0057).
+                if path.is_file() && hs_core::sniff::is_image_path(&path) {
+                    cx.open("graphics", Some(OpenRequest::File { uri, line: None }));
+                    return true;
+                }
                 self.take_path(path, line, cx);
                 true
             }

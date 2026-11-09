@@ -1994,8 +1994,8 @@ fn slider_block(
 
 /// Width of the label column in the sidebar rows.
 const LABEL_W: f32 = 76.0;
-/// Room kept for the Apply button column.
-const APPLY_W: f32 = 56.0;
+/// Room kept for the Apply button column (a field-height `form::button`).
+const APPLY_W: f32 = 80.0;
 
 /// Aligned rows inside a section: a label column, a controls column and
 /// a button column, laid out on one `egui::Grid` so every row lines up.
@@ -2063,22 +2063,26 @@ impl Rows<'_> {
         controls: impl FnOnce(&mut egui::Ui),
     ) -> bool {
         let theme = self.theme;
-        self.ui.scope(|ui| {
-            ui.set_min_width(LABEL_W);
-            ui.set_max_width(LABEL_W);
-            ui.add(egui::Label::new(egui::RichText::new(label).color(theme.text_muted)).truncate())
+        // The label and the button each get a field-height cell with a
+        // centred layout: a grid cell starts at the row's top, so at their
+        // own height they sat above the fields' middle line (BUG-0058).
+        let h = hs_ui::form::field_height(self.ui);
+        let centred = egui::Layout::left_to_right(egui::Align::Center);
+        self.ui
+            .allocate_ui_with_layout(egui::vec2(LABEL_W, h), centred, |ui| {
+                ui.set_min_size(egui::vec2(LABEL_W, h));
+                ui.add(
+                    egui::Label::new(egui::RichText::new(label).color(theme.text_muted)).truncate(),
+                )
                 .tip(label);
-        });
+            });
         let controls_w = self.controls_width();
         self.ui.scope(|ui| {
             ui.set_max_width(controls_w);
             hs_ui::form::centred_row_wrapped(ui, |ui| controls(ui));
         });
         let clicked = match apply {
-            Some(text) => self
-                .ui
-                .small_button(format!("{} {text}", ph::CHECK))
-                .clicked(),
+            Some(text) => hs_ui::form::button(self.ui, theme, ph::CHECK, text).clicked(),
             None => {
                 self.ui.label("");
                 false

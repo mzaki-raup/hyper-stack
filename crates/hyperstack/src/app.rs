@@ -454,10 +454,17 @@ impl HyperStackApp {
         };
         app.password.reset();
         app.maybe_auto_check_updates();
-        // Files and folders from the command line open in the editor.
+        // Files and folders from the command line open in the editor;
+        // pictures in the graphics tool, as the editor itself sends them
+        // (BUG-0057).
         for p in open {
+            let tool = if hs_core::sniff::is_image_path(&p) {
+                "graphics"
+            } else {
+                "editor"
+            };
             let uri = p.to_string_lossy().to_string();
-            app.open_tool("editor", Some(OpenRequest::File { uri, line: None }));
+            app.open_tool(tool, Some(OpenRequest::File { uri, line: None }));
         }
         app
     }

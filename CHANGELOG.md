@@ -11,6 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+### Changed
+
+- Title bar: the Workspace and Environment pickers are both a field's height, so the workspace's mark has room around it and the two match (CR-0098)
+
 ### Fixed
 
 - Security: the bundled SQLite moves to 3.54.1 (`rusqlite` 0.41) for RUSTSEC-2026-0459, where opening a crafted database together with a mismatched `-wal` file could return stale memory (BUG-0059)

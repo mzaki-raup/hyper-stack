@@ -153,7 +153,7 @@ Refs: BUG-0003
 Version : v0.7.8
 Features : FEAT-0108
 Bugs : BUG-0059
-Change Request : CR-0097
+Change Request : CR-0098
 ```
 
 ---
@@ -1131,6 +1131,16 @@ Change Request : CR-0097
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1441 passed (run at -j 2), self-test ok, deny ok after BUG-0056
 - [x] App: `--data-dir ./tmp-data` — a short debug panel, paused, evaluate an expression and Stop: every line above the field — 2026-11-09, release build with the fix: a short panel beside the terminal, `order["customer"]` and `grand` evaluated, the oldest line scrolled off the top and the newest above the field; after Stop every line above the disabled field
 - [x] Docs: CHANGELOG, GOTCHAS
+
+### CR-0098 · Title bar: the Workspace and Environment pickers are a field's height
+- **State:** In-Progress
+- **Source:** owner, 2026-11-10: "In the Main toolbar, Workspace selection dropdown size is too low to accommodate the workspace icon. Please resize it height. and make the Environment selection dropdown same height with the workspace dropdown new height"
+- **Scope:** the Workspace button's 22 px mark filled it edge to edge and the Environment box was shorter still. Both pickers are now `form::field_height` tall (egui's Button and ComboBox take their minimum height from `interact_size`), set around the pair in `app::top_bar` and restored after it. ui.md's compact title-bar exception and docs/04 §7 say so.
+- [x] Code: `app::top_bar`
+- [ ] Test: the top bar is only drawn by `HyperStackApp`, which needs eframe's creation context, so no kittest reaches it; measured in the app instead (see App)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny
+- [ ] App: `--data-dir ./tmp-data` — both pickers the same height, the workspace mark with room above and below, labels on their middle line, at the default size and with a logo and with a lettered tile
+- [x] Docs: ui.md, docs/04, CHANGELOG
 
 ### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
 - **State:** Completed · fixed 2026-11-09

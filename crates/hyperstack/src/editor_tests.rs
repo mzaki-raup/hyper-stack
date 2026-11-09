@@ -213,6 +213,73 @@ fn one_tab_per_project_with_its_files_inside() {
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+/// A picture asked of the editor from outside - the command line, another
+/// tool - goes to the graphics tool, as one clicked in the tree does; it
+/// was opened as a buffer of bytes (BUG-0057). A text file still opens
+/// here.
+#[test]
+fn a_picture_sent_to_the_editor_opens_in_graphics() {
+    let tmp = std::env::temp_dir().join(format!("hs-editor-picture-{}", hs_core::new_id()));
+    std::fs::create_dir_all(tmp.join("proj")).unwrap();
+    let pic = tmp.join("proj/logo.png");
+    std::fs::write(&pic, b"\x89PNG\r\n\x1a\n").unwrap();
+    std::fs::write(tmp.join("proj/notes.txt"), "notes\n").unwrap();
+    let paths = DataDir::resolve(Some(&tmp.join("data"))).unwrap();
+    let boot = crate::bootstrap::services(paths, Arc::new(NoopWaker), KdfParams::FAST).unwrap();
+    let s = &boot.services;
+    let mut t = tool_editor::EditorFactory.create(s, Some(json!({ "root": tmp.join("proj") })));
+    let mut actions = Vec::new();
+    let mut cx = ToolContext {
+        services: s,
+        tab_id: 1,
+        env_id: None,
+        actions: &mut actions,
+        is_home: false,
+    };
+    let uri = pic.to_string_lossy().to_string();
+    assert!(t.open(
+        OpenRequest::File {
+            uri: uri.clone(),
+            line: None
+        },
+        &mut cx
+    ));
+    assert!(
+        files(&t.save_state(), 0).is_empty(),
+        "the picture is not opened as a buffer"
+    );
+    let to_graphics = actions.iter().any(|a| {
+        matches!(a, hs_core::tool::Action::OpenTool {
+            factory_id,
+            request: Some(OpenRequest::File { uri: u, .. }),
+        } if factory_id == "graphics" && *u == uri)
+    });
+    assert!(
+        to_graphics,
+        "the picture goes to the graphics tool: {actions:?}"
+    );
+
+    let mut actions = Vec::new();
+    let mut cx = ToolContext {
+        services: s,
+        tab_id: 1,
+        env_id: None,
+        actions: &mut actions,
+        is_home: false,
+    };
+    let text = tmp.join("proj/notes.txt").to_string_lossy().to_string();
+    assert!(t.open(
+        OpenRequest::File {
+            uri: text,
+            line: None
+        },
+        &mut cx
+    ));
+    assert_eq!(files(&t.save_state(), 0), ["notes.txt"]);
+    drop(boot);
+    let _ = std::fs::remove_dir_all(&tmp);
+}
+
 /// The debug panel keeps the height it was given: its Console tab must not
 /// creep up the window frame after frame. The console reserved 26 px for
 /// its input row, which is a field (about 32 px) tall, so the content came

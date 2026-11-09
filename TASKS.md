@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.8
 Features : FEAT-0108
-Bugs : BUG-0056
+Bugs : BUG-0059
 Change Request : CR-0097
 ```
 
@@ -1130,6 +1130,36 @@ Change Request : CR-0097
 - [x] Code: `min_scrolled_height(0.0)` on the console's scroll area
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1441 passed (run at -j 2), self-test ok, deny ok after BUG-0056
 - [x] App: `--data-dir ./tmp-data` — a short debug panel, paused, evaluate an expression and Stop: every line above the field — 2026-11-09, release build with the fix: a short panel beside the terminal, `order["customer"]` and `grand` evaluated, the oldest line scrolled off the top and the newest above the field; after Stop every line above the disabled field
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
+- **State:** In-Progress · fixed 2026-11-09
+- **Source:** the gate for BUG-0057/0058, 2026-11-09: `cargo deny check` reported RUSTSEC-2026-0459 (CVE-2026-119375) on `libsqlite3-sys` 0.35, whose bundled SQLite (before 3.54.0) can return uninitialised page-cache memory when a database is opened with a sibling `-wal` file of a different page size; a result that does not depend on the branch (testing.md)
+- **Scope:** reachable here - the Database activity opens SQLite files the user picks (the history database is our own). The fix is only in `libsqlite3-sys` 0.39 (SQLite 3.54.1), which `rusqlite` 0.41 brings: the workspace's `rusqlite` moves from 0.37 to 0.41 (hs-core, tool-db). One call site changed: `Statement::columns()` now returns an iterator. The upgrade adds `rsqlite-vfs` and `sqlite-wasm-rs`, used only on wasm targets.
+- [x] Test: `cargo deny check` passes; the workspace tests, including tool-db's SQLite driver tests and hs-core's history tests
+- [x] Code: `Cargo.toml` (`rusqlite` 0.41), `Cargo.lock`, `tool-db` `driver/sqlite.rs`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [ ] App: `--data-dir ./tmp-data` — the Database activity opens and queries a SQLite file; history is written
+- [x] Docs: CHANGELOG
+
+### BUG-0057 · A picture opened from the command line shows as bytes in the Editor
+- **State:** In-Progress · fixed 2026-11-09
+- **Source:** the CR-0097 screenshot retake, 2026-11-09: `HyperStack.exe --data-dir … pic.png` opened the PNG in the text Editor as raw bytes
+- **Scope:** the command line sent every path to the Editor, and the Editor's `open()` (any outside `OpenRequest::File`) went straight to `take_path`, skipping the picture rule `open_path` applies to a tree click. Pictures (`hs_core::sniff::is_image_path`) from the command line now open in Graphics, and the Editor's `open()` hands a picture to Graphics as `open_path` does.
+- [x] Test: `hyperstack` `editor_tests::a_picture_sent_to_the_editor_opens_in_graphics`
+- [x] Code: `app.rs` startup routing; `tool-editor` `open()`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [ ] App: `--data-dir ./tmp-data` — start with a PNG on the command line: it opens in Graphics; a text file still opens in the Editor
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0058 · Graphics image editor: a settings row's label and Apply sit above its fields' middle line
+- **State:** In-Progress · fixed 2026-11-09
+- **Source:** the CR-0097 screenshot retake, 2026-11-09: in Image Settings → Transform the Size and Scale labels and the Apply buttons sit higher than the W / H fields beside them
+- **Scope:** `Rows::row` in tool-graphics drew the label at its own height and Apply as a small button inside a row the fields make a field's height tall, so both sat at the top of the row. The label now fills a field-height cell centred on the row's middle line (keeping the panel's label column, truncation and tooltip), and Apply is the standard field-height `form::button`.
+- [x] Test: `hyperstack` `graphics_tests::transform_rows_sit_on_one_middle_line` (Size, Scale, Margins, Area)
+- [x] Code: `Rows::row` and the Apply column width in tool-graphics
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [ ] App: `--data-dir ./tmp-data` — Image Settings → Transform and Adjust: labels, fields and Apply on one middle line, at the default size and narrow
 - [x] Docs: CHANGELOG, GOTCHAS
 
 ### BUG-0056 · cargo deny fails: async-executor 1.14.0 was yanked

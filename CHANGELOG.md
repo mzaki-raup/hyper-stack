@@ -25,6 +25,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Fixed
 
+- Security: the bundled SQLite moves to 3.54.1 (`rusqlite` 0.41) for RUSTSEC-2026-0459, where opening a crafted database together with a mismatched `-wal` file could return stale memory (BUG-0059)
+- A picture opened from the command line, or sent to the Editor by another tool, opens in Graphics instead of as bytes in a text buffer (BUG-0057)
+- Graphics image editor: each settings row's label and Apply button sit on the middle line of its fields, and Apply is a field's height (BUG-0058)
 - Git: the sidebar and dashboard no longer read every saved repository's picture from disk each frame; pictures are cached until an icon changes (BUG-0053)
 - Dependencies: `async-executor` 1.14.0 was yanked; moved to 1.14.1 (Linux builds only, through egui's accessibility support) (BUG-0056)
 - Debug console: in a short panel the last output line is no longer drawn under the evaluate field (BUG-0055)

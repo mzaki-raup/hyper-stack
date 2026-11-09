@@ -115,6 +115,9 @@ pub struct Debugger {
     expanded: HashSet<i64>,
     stopped_at: Option<(PathBuf, u32)>,
     actions: Vec<DebugAction>,
+    /// Stop was pressed on a live session; the end event that follows
+    /// says the user stopped it, then clears this.
+    stop_requested: bool,
     replies: mpsc::Receiver<Reply>,
     reply_tx: mpsc::Sender<Reply>,
     wake: Arc<dyn Fn() + Send + Sync>,
@@ -157,6 +160,7 @@ impl Debugger {
             expanded: HashSet::new(),
             stopped_at: None,
             actions: Vec::new(),
+            stop_requested: false,
             replies,
             reply_tx,
             wake,
@@ -332,6 +336,7 @@ impl Debugger {
         self.stopped_at = None;
         self.selected_frame = None;
         self.verified.clear();
+        self.stop_requested = false;
         self.panel_open = true;
         self.tab = PanelTab::Console;
         self.last_config = Some(config.clone());
@@ -400,6 +405,9 @@ impl Debugger {
     }
 
     pub fn stop(&mut self) {
+        if self.active() {
+            self.stop_requested = true;
+        }
         if let Some(c) = self.client() {
             c.disconnect(true);
         }
@@ -407,6 +415,18 @@ impl Debugger {
             sess.state = State::Ended;
         }
         self.clear_paused();
+    }
+
+    /// The line an end event (Exited, Terminated, Closed) adds after the
+    /// adapter's own: "Stopped by the user." once when Stop ended the
+    /// session, nothing when the program ended by itself.
+    fn take_stop_line(&mut self) -> Option<&'static str> {
+        std::mem::take(&mut self.stop_requested).then_some("debug-stopped-by-user")
+    }
+
+    /// The console evaluates only in a paused program's selected frame.
+    fn can_evaluate(&self) -> bool {
+        self.state() == Some(State::Stopped)
     }
 
     /// Forget the last pause - threads, frames, scopes, variables, the
@@ -647,9 +667,11 @@ impl Debugger {
                     "debug-exited",
                     &[("code", &code.map(|c| c.to_string()).unwrap_or_default())],
                 )));
+                self.push_stop_line(s);
             }
             Event::Terminated => {
                 self.push(Line::Info(s.t("debug-terminated")));
+                self.push_stop_line(s);
                 if let Some(sess) = self.session.as_mut() {
                     sess.state = State::Ended;
                 }
@@ -673,7 +695,14 @@ impl Debugger {
                     self.actions
                         .push(DebugAction::Toast(ToastLevel::Warning, e));
                 }
+                self.push_stop_line(s);
             }
+        }
+    }
+
+    fn push_stop_line(&mut self, s: &Services) {
+        if let Some(key) = self.take_stop_line() {
+            self.push(Line::Info(s.t(key)));
         }
     }
 
@@ -1200,11 +1229,20 @@ impl Debugger {
         // and `egui::Panel` (which keeps the size its content produced) grew
         // it frame after frame to its ceiling, over the editor (BUG-0051).
         ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+            let can_evaluate = self.can_evaluate();
             hs_ui::form::centred_row(ui, |ui| {
                 ui.label(egui::RichText::new(">").color(theme.accent));
-                let r = ui.add(
+                // Drawn disabled, with a hint that says why, while there is no
+                // paused frame to evaluate in.
+                let hint = if can_evaluate {
+                    s.t("debug-console-hint")
+                } else {
+                    s.t("debug-console-hint-disabled")
+                };
+                let r = ui.add_enabled(
+                    can_evaluate,
                     hs_ui::form::line_edit(&mut self.console_input)
-                        .hint_text(s.t("debug-console-hint"))
+                        .hint_text(hint)
                         .desired_width(f32::INFINITY),
                 );
                 if r.lost_focus()
@@ -1610,5 +1648,62 @@ mod bug52_tests {
         assert!(d.expanded.is_empty(), "expanded rows");
         assert!(d.stopped_at.is_none(), "stopped line");
         assert_eq!(d.console.len(), 1, "the console keeps the run's output");
+    }
+
+    /// A debugger with a session in `state` and no adapter process.
+    fn with_session(state: State) -> Debugger {
+        let mut d = Debugger::blank(Arc::new(|| {}), egui::Id::new("t"));
+        let (events_tx, events) = mpsc::channel();
+        d.session = Some(Session {
+            config: LaunchConfig {
+                label: "app".into(),
+                adapter: "debugpy".into(),
+                request: "launch".into(),
+                arguments: Default::default(),
+                build: None,
+                cwd: PathBuf::from("."),
+                origin: adapters::Origin::Generated,
+            },
+            adapter_id: "debugpy".into(),
+            state,
+            client: None,
+            pending_client: None,
+            events,
+            events_tx,
+            build: None,
+            resolved: adapters::resolve("debugpy", &[]).expect("debugpy is known"),
+        });
+        d
+    }
+
+    /// The console's evaluate field works only while the program is
+    /// paused: not before a session, not while running, not once ended.
+    #[test]
+    fn evaluate_needs_a_paused_program() {
+        let d = Debugger::blank(Arc::new(|| {}), egui::Id::new("t"));
+        assert!(!d.can_evaluate(), "no session");
+        assert!(!with_session(State::Running).can_evaluate(), "running");
+        let mut d = with_session(State::Stopped);
+        assert!(d.can_evaluate(), "paused");
+        d.stop();
+        assert!(!d.can_evaluate(), "after Stop");
+    }
+
+    /// After Stop, the first end event adds "Stopped by the user." once;
+    /// a program that ends by itself keeps only the adapter's own line.
+    #[test]
+    fn stop_says_the_user_stopped_the_run() {
+        let mut d = with_session(State::Running);
+        d.stop();
+        assert_eq!(d.take_stop_line(), Some("debug-stopped-by-user"));
+        assert_eq!(d.take_stop_line(), None, "said once");
+
+        let mut d = with_session(State::Running);
+        assert_eq!(d.take_stop_line(), None, "ended by itself");
+
+        // Stop on a session that has already ended stops nothing.
+        let mut d = with_session(State::Ended);
+        d.stop();
+        assert_eq!(d.take_stop_line(), None, "nothing was running");
     }
 }

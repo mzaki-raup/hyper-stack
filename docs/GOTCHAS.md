@@ -140,6 +140,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 - **A focus request made in the frame of a click loses to the click.** egui hands the clicked widget the keyboard focus when the frame ends, after any `request_focus` the same frame made. The SSH sidebar's row click set a flag the shell read in that very frame, the row kept the focus and typing went nowhere - though the same flag set by an open request (a frame later) worked. Keep such a request alive for two frames (`focus_term: u8`), or make it from the next frame (CR-0048, 2026-11-05).
 - **`ConnIcon.image` is a `&'static str`**: it names a vendored logo, never a picture loaded at run time. A repository's uploaded icon (a `bytes://` URI made per session) cannot ride on a `ConnIcon`; keep it beside the icon and choose the row helper by it - `list_row_image` with the picture, `conn_list_row` with the `ConnIcon` - and in `tab_icon_uri` prefer the picture over `ConnIcon::uri()` (CR-0047, 2026-11-05).
+- **A `ScrollArea` is never shorter than 64 px unless told.** `min_scrolled_height` defaults to 64, so in a short panel a scroll area given less takes 64 anyway and spills over whatever is laid out below it - the debug console's output ran under its evaluate field. Set `.min_scrolled_height(0.0)` on a scroll area that shares a short space with a row under it (BUG-0055, 2026-11-09).
+- **A hidden `egui::Panel` drawn at `exact_size(0.0)` forgets its width.** Hiding a column by showing it at size 0 stores 0 as the panel's size, so when it is shown again it clamps to its minimum and the user's drag is lost. Skip `Panel::show` while the column is hidden; egui keeps the stored width for the id until it is shown again (BUG-0054, 2026-11-08).
 - **`ui.put` inside a painted button moves the row's cursor.** Home's toolbar buttons are painted on an `allocate_exact_size` rect; placing the name under the glyph with `ui.put(text_rect, Label)` allocated that rect in the parent too, so each next button started after it and the row stair-stepped down the page. Paint text inside a painted control (`painter().layout_job` with `TextWrapping { max_rows: 1, overflow_character: Some('…') }` for a truncated line), never place a widget there (CR-0038, 2026-11-05).
 - **`split_for_assistant` hands back a child `Ui` whose clip rectangle
   *excludes* the assistant's column.** Drawing the column through that
@@ -592,6 +594,16 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Plain `ui.label` text is matched through the node's `value`,** not its label, which kittest handles; a heading or label is therefore queryable, but prefer waiting on a button that only appears in the state you want. `pump` in `db_tests.rs` waits on "Generate Migration" for that reason: it is drawn only once a compare has actually returned differences.
 - **A whole tool can be driven headlessly.** `crate::bootstrap::services` on a temp `DataDir` with `NoopWaker` and `KdfParams::FAST` gives real services; `ToolContext` is a plain struct, so frames can be run with `Harness::new_ui_state` while the tool's own tokio session does real I/O. Run a palette command by setting a field the closure takes on the next frame, and poll for the result instead of assuming one frame is enough.
 
+- **kittest's `drop_at` snaps a dragged panel back.** It sends
+  `PointerGone` in the same frame as the release, and `egui::Panel` reads
+  that as a cancelled resize. Send the release yourself
+  (`Event::PointerButton { pressed: false, .. }`), run a few frames, then
+  remove the pointer. Find a panel's edge by moving the pointer until the
+  cursor turns into the resize arrow (CR-0091 column tests).
+- **A content-sized panel can't be dragged wider.** `egui::Panel` keeps
+  the width its content produced; a column holding only a heading and
+  "Loading…" stays at its minimum and ignores a drag. Make the content
+  fill the column (`ui.set_min_width(ui.available_width().floor())`).
 ## Security and Vault
 
 - **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.

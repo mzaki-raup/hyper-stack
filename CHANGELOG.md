@@ -13,6 +13,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+### Changed
+
+- A new application icon - a code stack ringed by coloured tool tiles - in the executable, the window, the top bar, Home and the README (CR-0097)
+- Debug console: evaluating an expression is only offered while the program is paused, and pressing Stop says the run was stopped by the user (CR-0096)
+- Code editor: the find and replace bars use the standard text field, on one middle line (CR-0061)
+
+### Fixed
+
+- Git: the sidebar and dashboard no longer read every saved repository's picture from disk each frame; pictures are cached until an icon changes (BUG-0053)
+- Dependencies: `async-executor` 1.14.0 was yanked; moved to 1.14.1 (Linux builds only, through egui's accessibility support) (BUG-0056)
+- Debug console: in a short panel the last output line is no longer drawn under the evaluate field (BUG-0055)
+- Hiding a browse column (S3 buckets, Database schema, the Editor's project column, the Git tree, NoSQL databases, Graphics' side panels) and showing it again keeps the width you gave it instead of returning at its minimum (BUG-0054)
+- S3: the bucket, preview and details columns fill their width, so the bucket column can be dragged wider while it loads and Details no longer jumps when its metadata arrives (CR-0091)
+
+### Added
+
+- UI tests for the S3, Redis and NoSQL column toggles and resizing and the NoSQL document column; the live ones run when HS_S3_ENDPOINT, HS_REDIS and HS_MONGO are set (CR-0091, CR-0093)
+
+
 ## 0.131.2 — 2026-11-08
 
 ### Fixed

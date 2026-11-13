@@ -37,6 +37,115 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-10 set: the README brought to the taller top bar (CR-0098)
+
+The top bar grew from 46 to 54 px (its rule moved from y=76 to y=84) and
+the Workspace and Environment pickers became a field's height, which moves
+everything under the bar down 8 px in every screenshot.
+
+**48 were retaken** from the v0.132.1 release build with CR-0098 applied,
+on the scratch data folder at 1736 × 900: the shell (`home`, `launcher`,
+`command-palette`, `dock`, `workspace-menu`, `workspace-new`,
+`environment-switcher`, `environment-production`, `vault-unlock`,
+`vault-create`), S3 (`s3-browser`, `s3-details`, `s3-preview`,
+`s3-presign`, `s3-delete-guard`, `s3-sync`, `s3-edit`, `s3-import-aws`),
+the connection forms (`connection-ssh-form`, `connection-s3-form`,
+`connection-saved`), Settings (`settings-general`, `-appearance`,
+`-accessibility`, `-workspace`, `-environments`, `-variables`, `-globals`,
+`-security`, `-credential-edit`, `-terminal`, `-terminal-list`,
+`-connections`, `-editor`, `-git`), the API Client (`api-open-here`,
+`api-variable-tooltip`, `api-manage-variables`, `api-manage-auth`,
+`api-manage-docs`, `api-client`, `api-client-scripts`, `api-client-ai`
+with the local mock model) and the Editor (`editor`,
+`editor-find-replace`, `editor-markdown-preview`,
+`editor-mermaid-flowchart`, `editor-mermaid-sequence`). Their content
+differs a little from the old images (Home's Recent list, the palette
+over the Editor, a response time); `settings-editor.png` shows the
+shop-service fixture at `D:\Temp\hs-r10\shop-service`, a copy of the
+usual one.
+
+**The other 133 were edited in place, not retaken** (owner's choice,
+2026-11-13, after the retake kept running into usage limits). Each old
+image was rebuilt as:
+
+- rows 0-30, the OS title bar: kept;
+- rows 31-84, the top bar: copied from a retaken screenshot whose old bar
+  was identical there, piece by piece (logo, the gap, Workspace,
+  Environment, the icons), dimmed by the same factor when a modal dims
+  the window;
+- rows 85 and down: the old picture moved down 8 px;
+- what hangs from the bottom stays where it was: the status strip (from
+  y=861), the rail's Sidebar and Settings buttons (from y=797) and the
+  window border. The 8 rows just above them are dropped, as a shorter
+  scroll area drops them.
+
+Checked against the 48 real retakes, this explains 90-99 % of the rows
+of a plain screen. What it cannot know:
+
+- a tool's own bottom line (the Editor's status line, a result grid's
+  footer) and a centred modal do not move in the app; here they sit 8 px
+  lower than a real capture would show;
+- the rail's last icon above Sidebar is cut 8 px shorter;
+- seven images had no retake with the same bar, so their bar is the old
+  one centred in the taller band, with the old, shorter pickers:
+  `automation-jenkins-log.png` (v0.110 look), `devtools-env.png`,
+  `devtools-snippets.png` and `s3-policy.png` (1760 px wide),
+  `graphics-assistant.png`, `graphics-diagram-edge.png` and
+  `graphics-erd.png` (1400 px wide). `s3-policy.png` and
+  `automation-jenkins-log.png` could not be retaken at all: the bench
+  MinIO returns no bucket policy, and the scratch data has no Jenkins
+  profile.
+
+`graphics-diagram-architecture.png` and `graphics-diagram-flow.png` are
+diagram exports, not window captures, and are unchanged. Every PNG was
+quantised again with `magick <in> -colors 256 -depth 8 <out>`.
+
+The three GIFs were rebuilt from these images in their old frame order
+(`hyperstack-demo.gif` 109 frames, `git-walkthrough.gif` 10,
+`database-walkthrough.gif` 7) with
+`magick <frames> -resize 1200x -colors 256 -layers Optimize -set delay 300 -loop 0 <out>.gif`.
+One frame of `database-walkthrough.gif` (the Allow Writes dialog) is not a
+README screenshot; it was shifted the same way at the GIF's size.
+
+A later batch that changes a screen retakes that screen for real, which
+replaces its edited image.
+
+## 2026-11-09: the new application icon (CR-0097)
+
+The icon changed to the owner's tool-ring design. Every screenshot shows
+it in two places - the window's title-bar icon and the top bar's logo -
+and `home.png` and the demo GIF's Home frame in Home's header too.
+Nothing else on any screen changed, so the set was not retaken: the
+logos were replaced in place, from a real capture of the new build.
+
+- **Source:** Home captured from the v0.131.2 release build with the new
+  icon (`gui-smoke.ps1`, 1736x900, HyperStack Dark), the same window
+  size and layout as the 2026-11-07 set.
+- **Full-window PNGs (173 at 1736x900):** at each logo spot, the old
+  logo (from the previous `home.png`) was fitted to what the image shows
+  as a per-channel `a * old + b` - a dialog's dimming is such a map - and
+  the new logo went in through the same map, so the 18 shots with a
+  dialog open show it dimmed like the rest of the window. A spot whose
+  fit was not close was left alone.
+- **Older captures (8, at 1760x900, 1400x960 and 1400x900):** they drew
+  an earlier version of the old icon, so they were anchored on the text
+  beside each logo (the window title and the top bar's "HyperStack")
+  instead.
+- **GIFs:** every frame of `hyperstack-demo.gif` (109),
+  `git-walkthrough.gif` (10) and `database-walkthrough.gif` (7) patched
+  the same way at the frames' 1200x622 scale, blended over each frame's
+  own background, and rebuilt with `-colors 256 -layers Optimize -set
+  delay 300 -loop 0`.
+- Each PNG was quantised again with `magick <in> -colors 256 -depth 8
+  <out>`; outside the logos no pixel moved by more than a few levels.
+- Not changed: `graphics-diagram-architecture.png` and
+  `graphics-diagram-flow.png`, diagram exports with no window.
+- **Retaken:** `graphics.png` and `graphics-ops.png` showed the old icon
+  as the picture open in the image editor, so they were captured again
+  from the release build at 1736x900 with the new icon open - Image
+  Settings at Transform, and Adjust with the Operations list after Flip
+  Horizontally.
+
 ## 2026-11-07 set: the whole README retaken at 1736x900 (v0.131.0)
 
 Captured from the release exe with `scripts/gui-smoke.ps1` against a

@@ -7,7 +7,7 @@ source "$(dirname "$0")/lib.sh"
 running s3 || { log "not running - skipped"; exit 0; }
 wait_healthy s3
 
-S="http://$H:9000"
+S="http://$H:${S3_PORT:-9000}"
 s3() {
   curl -s --aws-sigv4 "aws:amz:$S3_REGION:s3" --user "$S3_ACCESS_KEY:$S3_SECRET_KEY" \
     -H 'x-amz-content-sha256: UNSIGNED-PAYLOAD' "$@"

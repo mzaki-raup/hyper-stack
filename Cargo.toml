@@ -35,7 +35,7 @@ members = [
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
 # never edit it by hand (docs/09-ci-cd-and-updates.md §3).
 [workspace.package]
-version = "0.131.2"
+version = "0.132.2"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -99,7 +99,7 @@ parking_lot = "0.12"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 # SQL Server, DuckDB, and Oracle / Db2 through ODBC (ADR-030).
 tiberius = { version = "0.13", default-features = false, features = ["tds80", "rustls", "chrono"] }
 duckdb = { version = "1.20000", features = ["bundled"] }
@@ -135,7 +135,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 portable-pty = "0.9"
-russh = { version = "0.64", default-features = false, features = ["ring", "rsa"] }
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa"] }
 russh-sftp = "3"
 alacritty_terminal = "0.26"
 ropey = "1.6"

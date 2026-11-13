@@ -607,6 +607,14 @@ plus the logo, the padding each end and that Delete column
 be and no wider; egui's own sizing grew it from a row whose Delete button
 claimed every pixel going and left most of the menu empty.
 
+The Workspace and Environment pickers are both a field's height
+(`hs_ui::form::field_height`), so the workspace's 22 px mark sits in the
+button with room above and below, and the Environment box matches it
+(owner, 2026-11-10, CR-0098). The bar itself is 54 px: its 38 px row
+with 8 px above and below, so nothing in it sits on the rule under it
+(it was 46 px with 4 px below, which clipped the row once the pickers
+grew).
+
 Every control on the right of the title bar is the same 38 px square
 (`hs_ui::form::icon_button`; the two menus use `icon_menu`, which opens an
 `egui::Popup::menu` on that same square), so the row keeps one rhythm
@@ -674,8 +682,9 @@ hands egui both palettes and follows the OS switch live (ADR-022).
   `status.2xx/3xx/4xx/5xx`.
 - Terminal and editor can use a different font from the UI; a bundled Nerd
   Font ensures prompt glyphs render.
-- **Brand palette** comes from the app icon (`assets/icon/hyperstack.png`, three
-  stacked layers): purple `#7200CA`, blue `#0075D3`, gold `#A78700`, with the
+- **Brand palette** came from the first app icon (three stacked layers; the
+  icon was replaced by the owner's tool-ring design on 2026-11-08, CR-0097,
+  and the theme colours were kept): purple `#7200CA`, blue `#0075D3`, gold `#A78700`, with the
   darker edge tones `#0055D4` and `#AB6C00`. The default dark and light themes
   use purple as the accent and blue as the secondary; gold is reserved for
   warnings and the beta-channel badge so it never competes with the

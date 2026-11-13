@@ -1629,9 +1629,8 @@ impl EditorView {
             .show(ui, |ui| {
                 hs_ui::form::centred_row(ui, |ui| {
                     let r = ui.add(
-                        egui::TextEdit::singleline(&mut self.find.query)
+                        hs_ui::form::line_edit(&mut self.find.query)
                             .desired_width(220.0)
-                            .margin(hs_ui::form::FIELD_MARGIN)
                             .hint_text(self.labels.find.clone()),
                     );
                     if self.find.focus_query {
@@ -1683,11 +1682,10 @@ impl EditorView {
                     }
                 });
                 if self.find.replace_open && !self.read_only {
-                    ui.horizontal(|ui| {
+                    hs_ui::form::centred_row(ui, |ui| {
                         ui.add(
-                            egui::TextEdit::singleline(&mut self.find.replacement)
+                            hs_ui::form::line_edit(&mut self.find.replacement)
                                 .desired_width(220.0)
-                                .margin(hs_ui::form::FIELD_MARGIN)
                                 .hint_text(self.labels.replace.clone()),
                         );
                         if ui.button(self.labels.replace.clone()).clicked() {

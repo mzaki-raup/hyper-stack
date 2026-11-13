@@ -9,7 +9,7 @@ wait_healthy jenkins
 
 token=$(dc exec -T jenkins cat /var/jenkins_home/hs-token | tr -d '\r\n')
 save_state jenkins-token "$token"
-J="http://$H:8091"
+J="http://$H:${JENKINS_PORT:-8091}"
 A=(-s -u "$JENKINS_USER:$token")
 
 never_built() { [ "$(curl "${A[@]}" -o /dev/null -w '%{http_code}' "$J/job/$1/lastBuild/api/json")" = 404 ]; }

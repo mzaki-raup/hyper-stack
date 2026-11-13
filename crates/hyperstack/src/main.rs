@@ -7,6 +7,8 @@ mod api_tests;
 mod app;
 mod bootstrap;
 mod browser_host;
+#[cfg(test)]
+mod columns_tests;
 mod conn_test;
 mod credentials;
 #[cfg(test)]
@@ -14,6 +16,8 @@ mod db_tests;
 mod dock;
 #[cfg(test)]
 mod editor_tests;
+#[cfg(test)]
+mod graphics_tests;
 mod launcher;
 mod self_test;
 mod settings_ai;

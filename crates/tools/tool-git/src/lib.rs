@@ -144,6 +144,8 @@ pub struct GitTool {
     pane: pane::RepoPane,
     /// The host this tab shows, when it is a host tab (FEAT-0100).
     host: Option<host::HostView>,
+    /// The saved repositories' pictures, by entry id and icon generation.
+    pictures: PictureCache,
 }
 
 impl GitTool {
@@ -157,6 +159,7 @@ impl GitTool {
             home_title: None,
             pane: pane::RepoPane::default(),
             host: None,
+            pictures: PictureCache::default(),
         };
         if let Some(p) = t.state.path.clone() {
             t.pane.set_root(services, p);
@@ -396,16 +399,18 @@ impl GitTool {
             .figures
             .values()
             .fold((0u32, 0u32), |(a, b), (_, f)| (a + f.ahead, b + f.behind));
-        let repos: Vec<hs_ui::dashboard::Entry> = s
-            .git_repos
-            .read()
+        let generation = hs_core::git_repos::icon_generation();
+        let store = s.git_repos.read();
+        let repos: Vec<hs_ui::dashboard::Entry> = store
             .all()
             .iter()
             .map(|r| {
                 // The picture, else the language's logo in its colour, as
                 // the sidebar row and the tab (CR-0047).
                 let mark = repo_conn_icon(&r.icon, &r.language);
-                let image = entry_image(ui.ctx(), s, &r.id);
+                let image = self
+                    .pictures
+                    .get(generation, &r.id, || entry_image(ui.ctx(), &store, &r.id));
                 hs_ui::dashboard::Entry {
                     id: r.id.clone(),
                     name: r.label(),
@@ -416,6 +421,7 @@ impl GitTool {
                 }
             })
             .collect();
+        drop(store);
         // The hosts, as the sidebar's Hosts section draws them (CR-0056).
         let hosts: Vec<hs_ui::dashboard::Entry> = s
             .git_credentials
@@ -558,12 +564,47 @@ fn repo_picture(state: &State) -> Option<String> {
     })
 }
 
-fn entry_image(ctx: &egui::Context, s: &Services, id: &str) -> Option<String> {
+fn entry_image(
+    ctx: &egui::Context,
+    repos: &hs_core::git_repos::GitRepos,
+    id: &str,
+) -> Option<String> {
     if id.is_empty() {
         return None;
     }
-    let file = s.git_repos.read().icon_file(id)?;
+    let file = repos.icon_file(id)?;
     hs_ui::icons::image_uri(ctx, &file)
+}
+
+/// Every saved repository's picture URI, for the sidebar rows and the
+/// dashboard cards: looked up (files probed, image registered) once per
+/// entry and icon generation, so a frame only reads the map.
+#[derive(Default)]
+struct PictureCache {
+    generation: Option<u64>,
+    uris: std::collections::HashMap<String, Option<String>>,
+}
+
+impl PictureCache {
+    /// Entry `id`'s picture at icon `generation`; `lookup` runs only for an
+    /// entry not seen since the generation last moved.
+    fn get(
+        &mut self,
+        generation: u64,
+        id: &str,
+        lookup: impl FnOnce() -> Option<String>,
+    ) -> Option<String> {
+        if self.generation != Some(generation) {
+            self.uris.clear();
+            self.generation = Some(generation);
+        }
+        if let Some(uri) = self.uris.get(id) {
+            return uri.clone();
+        }
+        let uri = lookup();
+        self.uris.insert(id.to_string(), uri.clone());
+        uri
+    }
 }
 
 /// The forge's mark for a host: its logo where one is vendored, the
@@ -885,9 +926,9 @@ impl Tool for GitTool {
             });
         }
         let mine = self.root().map(hs_core::projects::normalise);
-        let rows: Vec<SidebarRow> = s
-            .git_repos
-            .read()
+        let generation = hs_core::git_repos::icon_generation();
+        let store = s.git_repos.read();
+        let rows: Vec<SidebarRow> = store
             .all()
             .iter()
             .map(|r| SidebarRow {
@@ -896,9 +937,12 @@ impl Tool for GitTool {
                 path: r.path.display().to_string(),
                 icon: (r.icon.clone(), r.language.clone()),
                 here: mine.as_deref() == Some(hs_core::projects::normalise(&r.path).as_str()),
-                image: entry_image(ui.ctx(), s, &r.id),
+                image: self
+                    .pictures
+                    .get(generation, &r.id, || entry_image(ui.ctx(), &store, &r.id)),
             })
             .collect();
+        drop(store);
         // The hosts (FEAT-0100): the Git credentials themselves, so a
         // credential saved in Settings → Git is a host row at once.
         let hosts: Vec<hs_core::git_hosts::GitCredential> = s.git_credentials.read().all().to_vec();
@@ -1096,6 +1140,35 @@ mod tests {
         state.image = Some("bytes://drawn".into());
         assert_eq!(repo_picture(&state).as_deref(), Some("bytes://drawn"));
         assert_eq!(repo_picture(&State::default()), None);
+    }
+
+    /// The sidebar and dashboard read each repository's picture from the
+    /// cache: the disk is probed once per entry, and again only after an
+    /// icon changed (the generation moved), never per frame.
+    #[test]
+    fn the_picture_cache_probes_only_when_the_icon_generation_moves() {
+        let mut cache = PictureCache::default();
+        let mut probes = 0;
+        for _ in 0..3 {
+            for id in ["a", "b"] {
+                let got = cache.get(7, id, || {
+                    probes += 1;
+                    (id == "a").then(|| "bytes://a".to_string())
+                });
+                assert_eq!(got.is_some(), id == "a");
+            }
+        }
+        assert_eq!(probes, 2, "one probe per entry while nothing changed");
+        let got = cache.get(8, "a", || {
+            probes += 1;
+            None
+        });
+        assert_eq!(got, None, "a removed icon is seen after the bump");
+        cache.get(8, "b", || {
+            probes += 1;
+            None
+        });
+        assert_eq!(probes, 4, "every entry is probed again after a bump");
     }
 
     /// Every button carries a glyph before its label, and every text field

@@ -891,18 +891,15 @@ impl NoSqlTool {
         self.dialogs(ui, cx);
         // The database column is a resizable panel that hides from the
         // toolbar's first item (owner, 2026-11-07).
-        let mut tree = egui::Panel::left(ui.id().with("nosql-db-column"))
+        let tree = egui::Panel::left(ui.id().with("nosql-db-column"))
             .resizable(true)
             .default_size(TREE_WIDTH)
             .size_range(170.0..=480.0);
-        if !self.show_tree {
-            tree = tree.exact_size(0.0).resizable(false);
-        }
-        tree.show(ui, |ui| {
-            if self.show_tree {
+        if self.show_tree {
+            tree.show(ui, |ui| {
                 self.container_tree(ui, &theme, s);
-            }
-        });
+            });
+        }
         ui.vertical(|ui| {
             // Which container the right column is showing, over the
             // column rather than in the toolbar: the toolbar belongs

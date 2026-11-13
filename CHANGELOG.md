@@ -21,6 +21,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - New workspaces' `.gitignore` lists `idm/audit.jsonl` (FEAT-0116)
 
+## 0.132.2 — 2026-11-13
+
+### Fixed
+
+- Iterate instead of indexing in two reorder lists (clippy on Rust 1.100) (4d875e01)
+
+### Security
+
+- Move russh to 0.65 for RUSTSEC-2026-0495 (044f9e73)
+
+## 0.132.1 — 2026-11-09
+
+### Fixed
+
+- Settings rows put label and Apply on the fields' middle line (66a15767)
+- A picture from the command line opens in Graphics, not as bytes (05fe8129)
+
+### Security
+
+- Move the bundled SQLite to 3.54.1 (rusqlite 0.41) (d5a180b3)
+
+## 0.132.0 — 2026-11-09
+
+### Added
+
+- A new application icon - the code stack ringed by tool tiles (757a85f6)
+- Evaluate only while paused, and say when the user stopped a run (bd88fca1)
+
+### Fixed
+
+- A hidden browse column comes back at the width the user gave it (d4bb7992)
+- The S3 columns fill their width; UI tests for the browse columns (7298b887)
+- Find and replace bars use the standard text field (3d1371fd)
+- Keep the debug console's output above its evaluate field (61c17b85)
+- Stop reading every repository's picture from disk each frame (022e9780)
+
 ## 0.131.2 — 2026-11-08
 
 ### Fixed

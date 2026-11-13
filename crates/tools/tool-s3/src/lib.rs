@@ -2043,18 +2043,19 @@ impl S3Tool {
         // them is as wide as the user drags it (owner, 2026-11-07); egui
         // keeps each panel's width. The bucket column hides from the
         // toolbar's first item, as the Database schema column does.
-        let mut buckets = egui::Panel::left(ui.id().with("s3-buckets"))
-            .resizable(true)
-            .default_size(220.0)
-            .size_range(170.0..=420.0);
-        if !self.show_buckets {
-            buckets = buckets.exact_size(0.0).resizable(false);
+        // A hidden column is not shown at all, so egui keeps the width the
+        // user gave it; an `exact_size(0.0)` panel stored 0 and the column
+        // came back at its minimum.
+        if self.show_buckets {
+            egui::Panel::left(ui.id().with("s3-buckets"))
+                .resizable(true)
+                .default_size(220.0)
+                .size_range(170.0..=420.0)
+                .show(ui, |ui| {
+                    fill_column(ui);
+                    self.container_column(ui, cx, theme);
+                });
         }
-        buckets.show(ui, |ui| {
-            if self.show_buckets {
-                self.container_column(ui, cx, theme);
-            }
-        });
         // The details pane takes its column before the browser lays
         // out, so the table shrinks rather than being drawn over
         // (docs/tools/s3.md §7).
@@ -2063,7 +2064,10 @@ impl S3Tool {
                 .resizable(true)
                 .default_size(300.0)
                 .size_range(240.0..=520.0)
-                .show(ui, |ui| self.details_pane(ui, cx, theme));
+                .show(ui, |ui| {
+                    fill_column(ui);
+                    self.details_pane(ui, cx, theme)
+                });
         }
         let previewed = match self.selected_row() {
             Some(Row::Object(o)) if self.preview_open && self.state.bucket.is_some() => Some(o),
@@ -2074,7 +2078,10 @@ impl S3Tool {
                 .resizable(true)
                 .default_size(360.0)
                 .size_range(240.0..=900.0)
-                .show(ui, |ui| self.preview_pane(ui, cx, theme, &obj));
+                .show(ui, |ui| {
+                    fill_column(ui);
+                    self.preview_pane(ui, cx, theme, &obj)
+                });
         } else {
             self.drop_preview();
         }
@@ -3292,6 +3299,15 @@ fn host_of(url: &str) -> String {
     let rest = rest.split(['/', '?', '#']).next().unwrap_or(rest);
     // Credentials in a URL belong to the vault, not to a header.
     rest.rsplit('@').next().unwrap_or(rest).to_string()
+}
+
+/// Make a column's content as wide as the column, to a whole pixel.
+/// `egui::Panel` remembers the size its content produced, so a column
+/// holding only a heading and "Loading…" sat at its minimum and could not
+/// be dragged wider, and Details jumped when its metadata arrived (found by
+/// the CR-0091 column tests; the height version is BUG-0051).
+fn fill_column(ui: &mut egui::Ui) {
+    ui.set_min_width(ui.available_width().floor());
 }
 
 #[cfg(test)]

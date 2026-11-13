@@ -152,8 +152,8 @@ Refs: BUG-0003
 ```
 Version : v0.8.0
 Features : FEAT-0118
-Bugs : BUG-0052
-Change Request : CR-0095
+Bugs : BUG-0061
+Change Request : CR-0098
 ```
 
 ---
@@ -315,18 +315,19 @@ Change Request : CR-0095
 ## v0.7.8 — In-Progress
 
 ### CR-0095 · Bench kit: docker-compose, seeds, fixtures and credentials for a Linux test box
-- **State:** In-Progress · kit written and partly exercised 2026-11-08; not yet run on the owner's Linux box
+- **State:** In-Progress · kit written and exercised end to end beside the live bench 2026-11-08 (all but Nexus, Oracle and Db2); not yet run on the owner's Linux box
 - **Source:** owner, 2026-11-07/08 ("Dont delete all bench container. Provide me all the updated credential for those container. Some of the component's credential cannot be used such as postgres, s3, etc. Please reset it and provide the update one. And provide me also the file that you use to test; csv, sqlite source, sqlite target, etc. And provide me docker compose for all the container that you created with script to add all those mock and demo data with .env file. I want to deploy it in my linux machine 16GB Ram."); kit in the repo under `bench/`, real `.env` gitignored, `.env.example` committed with no secret values
-- **Branch:** chore/bench-kit
+- **Branch:** chore/bench-kit · chore/bench-kit-full-test
 - **Scope:** `bench/docker-compose.yml` (every bench server, same images and host ports as the Windows/WSL `hs-*` containers; profiles `core`, `queue`, `ci`, `k8s`, `heavy`; volumes, healthchecks, memory limits for 16 GB), `bench/.env.example`, `bench/config/` (Kafka JAAS template, Jenkins init script and jobs, PuppetDB fake), `bench/seed/` (`seed-all.sh` plus one script per service, data dumped from the live bench), `bench/fixtures/` (SQLite source/target, DuckDB, CSV, logs, images, `make-git-fixtures.sh`), `bench/README.md` (profiles, RAM, credentials by variable, `HS_*` test variables, reset). On the live bench: Postgres roles `dev` and `postgres` created, a Mongo root user, a second CouchDB admin. No container removed or recreated.
-- [x] Code: compose file, `.env.example`, config, seeds, fixtures, git-fixture script, README
+- [x] Code: compose file, `.env.example`, config, seeds, fixtures, git-fixture script, README; host ports as `.env` variables (2026-11-08)
 - [x] Test: `docker compose config` with all profiles; `bash -n` on every script; `ruby -c` on the Redmine seed; in a throwaway compose project with no host ports, the postgres, mysql, mongo, redis/valkey, mqtt, nats, kafka and kafka-sasl seeds (run twice, idempotent), Jenkins' init script (user, token, jobs, builds, restart), the Redmine seed, Forgejo's admin and runner registration, the PuppetDB fake; `make-git-fixtures.sh` run twice in WSL
-- [ ] Test: the S3 (MinIO), CouchDB, Qdrant, WebDAV, RabbitMQ, Forgejo API, TeamCity, Nexus and heavy-profile seeds, and the Containers activity against the k3s kubeconfig, on a real `up`
+- [x] Test: a real `up` with host ports (2026-11-08, branch chore/bench-kit-full-test) - an isolated compose project `hsbenchtest` beside the live bench, every host port shifted through the new `.env` port variables (+20000; Mongo 47017, RabbitMQ management 35672), run in batches because WSL has 8 GB: `core`, then `queue`, then `ci` without TeamCity, then TeamCity + agent, then `mssql` + `clickhouse`, then `k3s`. `seed-all.sh` twice per batch, both runs exit 0 with the same counts. Checked from the host with each service's own client or API: Postgres (5/5/5/7 rows, view, `app` and `postgres` superusers, wrong password refused), MySQL (4 agents, 6 tickets, FK; wrong password denied), Mongo (counts, unique `sku`, root user login), Redis 23 / Valkey 11 keys, CouchDB (`notes` 3, `orders` 2, `dev` admin 200, wrong password and anonymous 401), MinIO (both buckets, 8 objects, a GET byte-identical to the seed file, wrong secret 403 SignatureDoesNotMatch, unknown key 403 InvalidAccessKeyId, anonymous 403), Qdrant (articles 5 / dim 4 / Cosine, faces 1 / dim 3 / Euclid, a search, gRPC port), WebDAV (every file and folder, content matches, 401 without or with a wrong password), SFTP login (wrong password refused), httpbin, RabbitMQ (vhost, topic exchange `shop`, binding `order.*`, `demo` 3 ready, AMQP login accepted and a wrong one closed, management 401), Kafka plain (3 partitions, 12/1/1 messages, group `billing` committed 4 lag 8, through the advertised host port), Kafka SASL (PLAIN, SCRAM-SHA-256 and -512 accept the password and reject a wrong one; `orders` 6, group lag 4), NATS (`ORDERS` 9 messages, `shipper` 9 pending, `/jsz`), MQTT (6 retained), Forgejo (token user `dev` admin, wrong password/token 401, `dev/demo` with workflow, branch `dev`, issue, clone URL on the shifted port; the runner took and passed three runs, one a `workflow_dispatch`), Jenkins (`unit-tests` SUCCESS, `deploy-staging` FAILURE with ENV/FAIL/STEPS, token and password 200, wrong 401, anonymous 403), Redmine (API key and admin password, wrong 401, project `demo` 3 issues), PuppetDB fake (3 nodes, 4 reports, deploy 202), TeamCity (first start done over HTTP for the test, see Notes; `Bench` / `Hello Build` once after two runs, `GREETING`, agent connected and authorised, a queued build ran and logged its steps, wrong password 401), SQL Server over its host port (shop 5/5/5/7, wrong `sa` password refused), ClickHouse (events 48, products 5 with one negative and one zero stock, wrong password 403), k3s (workloads as before, both kubeconfigs on `K3S_PORT`, `kubectl get pods` through it). `down -v` on `hsbenchtest` only; the 22 running `hs-*`/`portainer` containers untouched
+- [ ] Test: the Nexus, Oracle and Db2 seeds, and the Containers activity against the k3s kubeconfig
 - [x] Test: k8s (owner-approved follow-up, 2026-11-08) - k3s `v1.37.2-k3s1` in a throwaway compose project with no host ports and `BENCH_HOST=bench-k8s.test`, seeded through `seed-all.sh`: shop-web 2/2 Running, ticker Running (log lines every 3 s), db-migrate Completed, cache-0 Running with PVC `data-cache-0` Bound (local-path), CronJob present, ops/crash `waiting.reason` CrashLoopBackOff (BackOff events), ops/pull ImagePullBackOff; two re-runs created nothing and replaced no pod (only the StatefulSet reports `configured`, `kubectl diff` empty); the rewritten kubeconfig parses (`config view`: server https://bench-k8s.test:6443, context hs-bench) and TLS verifies for `bench-k8s.test` while a name outside the SAN is refused; `kubeconfig-local.yaml` lists the node; project removed with `down -v`, live `hs-k3s` untouched
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — profiles pointed at the Linux box
 - [x] Docs: bench/README.md · CHANGELOG · docs/GOTCHAS.md · .claude/rules/testing.md
-- **Notes:** No Rust changed, and cargo was not run (the CI runner shares this machine), so the Gate box stays open. The unticked Test box: those seeds call the services' HTTP ports from the host, and a full `up` here collides with the live bench's ports; the heavy profile does not fit beside it. `bitnamilegacy/minio:2025.7.23` replaces `minio/minio`, which is no longer published on Docker Hub or quay; the image was not pulled here. TeamCity's first-start wizard is manual (README).
+- **Notes:** No Rust changed, and cargo was not run (the CI runner shares this machine), so the Gate box stays open. `bitnamilegacy/minio:2025.7.23` replaces `minio/minio`, which is no longer published on Docker Hub or quay. TeamCity's first-start wizard stays manual in the kit (README), because it accepts JetBrains' licence; for the 2026-11-08 test it was done over HTTP (`-Dteamcity.startup.maintenance=false` in the test copy only, the licence form posted as the super user, the admin made through REST). The full test (2026-11-08) changed the kit: every host port is an `.env` variable used by the compose file and the seeds (defaults unchanged); Kafka, Kafka SASL and MinIO listen on their host port inside the container so the advertised address follows it; the k3s kubeconfigs use `K3S_PORT`; MinIO's port 9001 is gone (that build has no console); `wait_http` takes curl arguments, so the RabbitMQ seed no longer waits 150 s on an anonymous 401; the heavy seed's log loops no longer swallow their only line. Still untested, the open Test box: Nexus (2.5 GB), Oracle and Db2 - optional, and WSL here is capped at 8 GB with the live bench using about 4.5 GB of it; the Containers activity against the kubeconfig is an app check. Keycloak added 2026-11-08 for the IDM activity: service `keycloak` (`quay.io/keycloak/keycloak:26.8.2`, `start-dev` with embedded H2, host port `KEYCLOAK_PORT` 8180, management port 9000 not published, 1 GB limit) in a new `idm` profile, and `seed-keycloak.sh` (kcadm inside the container, partialImport SKIP) loading realm `hs-demo` (4 realm roles incl. composite `power-user`, groups `engineering` > `backend`/`frontend`, `support`, `contractors`, 25 users with `department`/`employeeId`, 3 disabled, 4 with required actions, clients `web-app`, `orders-api`, `hs-admin` with a `realm-management` service account, login and admin events on, 7 sessions and 3 failed logins) and `hs-other` (3 users). Live on this machine as `hs-keycloak` (compose project `hs-live-idm`, restart unless-stopped), seeded twice with the same result; checked over HTTP: `hs-admin` client-credentials token, users/count 25, roles, groups, clients, events 11 (7 LOGIN, 3 LOGIN_ERROR), admin events 46, 7 web-app sessions, wrong secret 401, anonymous 401, `hs-other` refused (403) for the `hs-demo` service account. Keycloak 26.8 needs the `kc-admin-api` client scope on a service account for the admin API (401 otherwise); the seed adds it.
 
 ---
 
@@ -659,7 +660,7 @@ Change Request : CR-0095
 - **Depends on:** CR-0026, CR-0028, CR-0046, FEAT-0103
 - [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
 - [x] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned — shipped in 0.128.0
-- [ ] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare
+- [x] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare — the last two, the code editor's find and replace bars, are `form::line_edit` (2026-11-08)
 - [ ] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top`
 - [x] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
 - [x] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06) — 2026-11-07: the Automation queue and the Queue consumer-lag tables are now `DataTable`s; the sweep found the rest compliant
@@ -1167,13 +1168,13 @@ Change Request : CR-0095
 
 
 ### CR-0091 · Browse columns can be hidden and resized: S3, Redis, NoSQL
-- **State:** In-Progress · built 2026-11-07
+- **State:** Completed · every box checked 2026-11-08
 - **Source:** owner, 2026-11-07 - three requests: the S3 bucket column hideable and its key, details and preview columns resizable; the Redis key list hideable and resizable; the NoSQL database column hideable and resizable
 - **Spec:** docs/04-ui-design.md · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
 - **Scope:** each browse column is a resizable panel with a show/hide toggle as the first toolbar item (CR-0073) and a palette command: `s3.buckets` (S3: Toggle Bucket Column), `s3.preview` (S3: Toggle Preview Column), `redis.key_column` (Redis: Toggle Key Column), `nosql.db_column` (NoSQL: Toggle Database Column).
 - **Parent:** CR-0069
 - [x] Code: resizable panels and toggles in tool-s3, tool-redis and tool-nosql; palette commands
-- [ ] Test: no unit test reaches the panel layout (egui's resizable panels); the workspace tests run against the change
+- [x] Test: `hyperstack` `columns_tests::the_s3_bucket_column_hides_and_shows` (no server), `the_s3_columns_hide_and_resize` (HS_S3_ENDPOINT), `the_redis_key_list_hides_shows_and_resizes` (HS_REDIS), `the_nosql_columns_hide_resize_and_hold_the_open_document` (HS_MONGO): toggles hide/show, real drags resize and hold; they also found the S3 columns sized to their content (fixed: `fill_column`)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
 - [x] App: `--data-dir ./tmp-data` — hide and show each column, drag each edge, at the default and a narrow window — S3 Buckets toggle hides the column, Redis key list resizes by drag (screenshots 117, 119)
 - [x] Docs: CHANGELOG · docs/04 · docs/tools/s3.md · docs/tools/redis.md · docs/tools/nosql.md
@@ -1195,13 +1196,13 @@ Change Request : CR-0095
 
 
 ### CR-0093 · NoSQL Find and Aggregate: the clicked document's JSON in a right column
-- **State:** In-Progress · built 2026-11-07
+- **State:** Completed · every box checked 2026-11-08
 - **Source:** owner, 2026-11-07 ("When click the item, the data json should show on the right column…")
 - **Spec:** docs/tools/nosql.md
 - **Scope:** `tool-nosql` Find and Aggregate: a click on a result row opens its JSON in a resizable column right of the results, instead of below them.
 - **Parent:** CR-0091
 - [x] Code: the open document in a resizable right column
-- [ ] Test: no unit test reaches the column layout; the workspace tests run against the change
+- [x] Test: `hyperstack` `columns_tests::the_nosql_columns_hide_resize_and_hold_the_open_document` (HS_MONGO): in Find and Aggregate the clicked document's JSON heads a column right of the results, Save/Delete to its right, its edge drags
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-07: fmt, clippy, 1429 tests, cargo deny, self-test
 - [x] App: `--data-dir ./tmp-data` — MongoDB bench: Find and Aggregate, click a row, drag the column's edge — a clicked Mongo document's JSON opens in the right column (screenshot 125)
 - [x] Docs: CHANGELOG · README · docs/04 · docs/tools/nosql.md
@@ -1243,6 +1244,133 @@ Change Request : CR-0095
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — passed 2026-11-08 (1431 tests)
 - [x] App: `--data-dir ./tmp-data` — pause in `debug-demo`, Stop; the tabs are empty — after Stop and after the program exited by itself, Call Stack and Variables showed their empty sentences and the Console kept the run's output
 - [x] Docs: CHANGELOG
+
+
+### CR-0096 · Debug console: evaluation only while paused, and Stop says so
+- **State:** Completed · built 2026-11-08, checked in the app 2026-11-09
+- **Source:** BUG-0052 screen check, 2026-11-08 (the evaluate field looked usable after the session ended; after Stop the console only said the program exited with code 0); owner: "proceed to do all the remaining"
+- **Scope:** the console's evaluate field is disabled unless a session is paused, with a hint saying why; pressing Stop adds "Stopped by the user." once, after the adapter's own exit line.
+- [x] Code: `Debugger::can_evaluate`, `stop_requested` / `take_stop_line`, new strings `debug-console-hint-disabled`, `debug-stopped-by-user`
+- [x] Test: `tool-editor` `evaluate_needs_a_paused_program`, `stop_says_the_user_stopped_the_run`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — pause, the field is enabled; Stop, it is disabled and the console says the run was stopped — 2026-11-09, release build, debugpy on `debug-demo/app.py`: paused at line 15 the field was enabled and `order["customer"]` gave `'Ada'`; after Stop the console read "Stopped by the user." and the field "Evaluation needs a paused program." (the overlap seen there is BUG-0055)
+- [x] Docs: CHANGELOG
+
+### BUG-0053 · Git: the sidebar and dashboard read every repository's picture from disk every frame
+- **State:** Completed · fixed 2026-11-08
+- **Source:** code review of v0.7.7, 2026-11-08; owner: "proceed to do all the remaining"
+- **Scope:** `entry_image` probed up to eight files and a stat per saved repository per frame on the UI thread; a `PictureCache` keyed on `icon_generation()` looks each one up once until an icon changes.
+- [x] Test: `tool-git` `the_picture_cache_probes_only_when_the_icon_generation_moves`
+- [x] Code: `PictureCache` in tool-git; `entry_image` takes the already-locked repo list (no nested read lock)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — the Git sidebar and dashboard show the repositories' pictures as before — 2026-11-09, release build: six saved repositories, each with its picture in the sidebar and in Saved Repositories
+- [x] Docs: CHANGELOG
+
+### BUG-0054 · A hidden browse column comes back at its minimum width, not the width the user gave it
+- **State:** Completed · fixed 2026-11-08
+- **Source:** the CR-0091 test `the_s3_bucket_column_hides_and_shows`, once the S3 columns filled their width (2026-11-08)
+- **Scope:** every hideable column was drawn as an `exact_size(0.0)` panel while hidden, which stored a width of 0, so showing it again clamped to the minimum. A hidden column is now not drawn at all and egui keeps its width: S3 buckets, Database schema, Editor project column, Git tree, NoSQL databases, Graphics settings, diagram properties and generator prompt.
+- [x] Test: `hyperstack` `columns_tests::the_s3_bucket_column_hides_and_shows` (failed before the fix: the hint came back at a different x)
+- [x] Code: the eight columns skip `Panel::show` while hidden
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-08: 1438 passed, self-test ok (run at -j 2)
+- [x] App: `--data-dir ./tmp-data` — drag the Editor and Database columns wider, hide and show them, the width holds — 2026-11-09, release build: the Editor project column, the Git tree and the Database schema column (666 → 788 px, 789 after hide and show, steady 3 s later) each kept the dragged width; plus `columns_tests::the_database_schema_column_resizes_and_keeps_its_width`
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0055 · Debug console: in a short panel the last output line is drawn under the evaluate field
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the CR-0096 screen check, 2026-11-09: paused at a breakpoint, `order["customer"]` evaluated to `'Ada'` drawn under the field; after Stop, "Session ended." the same
+- **Scope:** an `egui::ScrollArea` never shrinks below `min_scrolled_height` (64 px by default). The console's output area above the input row was shorter than that in a short panel, took 64 px anyway and spilled over the row. The console's scroll area now sets the minimum to 0.
+- [x] Test: `hs-ui` `console_layout::a_short_console_keeps_its_output_above_the_field` (the console's own layout in a 120 px panel), with `the_default_minimum_spills_over_the_field` showing the defect; `console_ui` itself needs a live debug adapter, so it is checked in the app
+- [x] Code: `min_scrolled_height(0.0)` on the console's scroll area
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1441 passed (run at -j 2), self-test ok, deny ok after BUG-0056
+- [x] App: `--data-dir ./tmp-data` — a short debug panel, paused, evaluate an expression and Stop: every line above the field — 2026-11-09, release build with the fix: a short panel beside the terminal, `order["customer"]` and `grand` evaluated, the oldest line scrolled off the top and the newest above the field; after Stop every line above the disabled field
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### CR-0098 · Title bar: the Workspace and Environment pickers are a field's height
+- **State:** Completed · 2026-11-10
+- **Source:** owner, 2026-11-10: "In the Main toolbar, Workspace selection dropdown size is too low to accommodate the workspace icon. Please resize it height. and make the Environment selection dropdown same height with the workspace dropdown new height"
+- **Scope:** the Workspace button's 22 px mark filled it edge to edge and the Environment box was shorter still. Both pickers are now `form::field_height` tall (egui's Button and ComboBox take their minimum height from `interact_size`), set around the pair in `app::top_bar` and restored after it. ui.md's compact title-bar exception and docs/04 §7 say so.
+- [x] Code: `app::top_bar`
+- [x] Code: the bar's margin below its row matches the one above (8 px), and its height is the row plus both (`TOP_BAR_HEIGHT`, 54 px; it was 46, which clipped the row) - owner, 2026-11-10: "Why its near the bottom border. Please add margin/padding between dropdown and bottom border"
+- [x] Test: the top bar is only drawn by `HyperStackApp`, which needs eframe's creation context, so no kittest reaches it; measured in the app instead (see App)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
+- [x] App: `--data-dir ./tmp-data` — both pickers the same height, the workspace mark with room above and below, labels on their middle line — 2026-11-10, release build at 1736x900 with the lettered tile: Workspace 29 → 32 px, Environment 26 → 32 px, the 22 px tile inside with room above and below, both labels on the middle line; a workspace logo uses the same 22 px box (`WS_MARK_TITLE`), so it was not checked separately
+- [x] Docs: ui.md, docs/04, CHANGELOG
+- [x] Gate (bar height): fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
+- [x] App (bar height): the pickers and buttons have the same air above and below inside the bar — 2026-11-10, release build: the bar's rule moved from y=76 to y=84; the pickers (y=45-74) now have 9 px clear below them, where they had about 1 px; about 14 px above, the row sitting ~1.5 px below its centre
+- [x] Docs (screenshots): the README's 181 window screenshots and 3 GIFs show the taller bar — 2026-11-13: 48 retaken from the release build; the other 133 edited in place (the new bar pasted from a matching retake, the old picture moved down 8 px, bottom-anchored parts kept), owner's choice after the retake kept hitting usage limits; seven of those keep the old, shorter pickers. Details and limits in `docs/screenshots/README.md`
+- **Notes:** the 133 edited screenshots are not captures; each is replaced when a later batch retakes its screen.
+
+### BUG-0060 · clippy fails on Rust 1.100: two index loops
+- **State:** Completed · fixed 2026-11-13
+- **Source:** CI run 562 on `fix/top-bar-pickers`, 2026-11-13, a docs-only commit: the runner's toolchain moved to Rust 1.100, whose `clippy::needless_range_loop` now fires on a loop that indexes one collection by its counter; a result that does not depend on the branch
+- **Scope:** two loops, each drawing rows with Move Up / Move Down: the interactive-rebase list in tool-git (`verbs.rs`) and Settings → Terminal's CLI list (`settings_ui.rs`). Both now iterate with `iter_mut().enumerate()`; nothing they draw changes.
+- [x] Code: `tool-git` `verbs.rs`; `hyperstack` `settings_ui.rs`
+- [x] Test: no new test - behaviour is unchanged; clippy with `-D warnings` on Rust 1.100 is the check, and the workspace tests still pass
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — Settings → Terminal's CLI rows and the interactive rebase list draw and reorder as before — 2026-11-13, release build: the CLI row's checkbox saved `enabled = false` then `true`; Interactive Rebase onto `fix` listed 3 commits, Up disabled on the first and Down on the last, Move Down reordered them and the action dropdown set squash; closed without applying
+- [x] Docs: CHANGELOG
+
+### BUG-0061 · cargo deny fails: russh 0.64 has RUSTSEC-2026-0495
+- **State:** Completed · fixed 2026-11-13
+- **Source:** the gate for BUG-0060, 2026-11-13: `cargo deny check` reported RUSTSEC-2026-0495 on `russh` 0.64.1 - its SSH agent *server* signs with confirm-constrained keys without asking `Agent::confirm`; a result that does not depend on the branch (testing.md)
+- **Scope:** not reachable here - `hs-ssh` uses only the agent *client* (`russh::keys::agent::client`) to ask the user's own agent for signatures and never runs an agent server. The fix is in `russh` 0.65: the workspace's `russh` moves from 0.64 to 0.65 (0.65.1 in the lock file); no call site changed.
+- [x] Code: `Cargo.toml` (`russh` 0.65), `Cargo.lock`
+- [x] Test: `cargo deny check` passes; the workspace tests, including hs-ssh's
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — an SSH session to the bench host connects and runs a command — 2026-11-13, release build: Bench SSH (`hs-ssh`, started again after the machine's restart) connected, the SFTP pane listed `/config`, `uname -a` answered in the shell
+- [x] Docs: CHANGELOG
+
+### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the gate for BUG-0057/0058, 2026-11-09: `cargo deny check` reported RUSTSEC-2026-0459 (CVE-2026-119375) on `libsqlite3-sys` 0.35, whose bundled SQLite (before 3.54.0) can return uninitialised page-cache memory when a database is opened with a sibling `-wal` file of a different page size; a result that does not depend on the branch (testing.md)
+- **Scope:** reachable here - the Database activity opens SQLite files the user picks (the history database is our own). The fix is only in `libsqlite3-sys` 0.39 (SQLite 3.54.1), which `rusqlite` 0.41 brings: the workspace's `rusqlite` moves from 0.37 to 0.41 (hs-core, tool-db). One call site changed: `Statement::columns()` now returns an iterator. The upgrade adds `rsqlite-vfs` and `sqlite-wasm-rs`, used only on wasm targets.
+- [x] Test: `cargo deny check` passes; the workspace tests, including tool-db's SQLite driver tests and hs-core's history tests
+- [x] Code: `Cargo.toml` (`rusqlite` 0.41), `Cargo.lock`, `tool-db` `driver/sqlite.rs`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [x] App: `--data-dir ./tmp-data` — the Database activity opens and queries a SQLite file; history is written — 2026-11-10, release build: Bench SQLite's header reads SQLite 3.54.1, `SELECT * FROM bank` returned 27 rows, and the run was added to History
+- [x] Docs: CHANGELOG
+
+### BUG-0057 · A picture opened from the command line shows as bytes in the Editor
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the CR-0097 screenshot retake, 2026-11-09: `HyperStack.exe --data-dir … pic.png` opened the PNG in the text Editor as raw bytes
+- **Scope:** the command line sent every path to the Editor, and the Editor's `open()` (any outside `OpenRequest::File`) went straight to `take_path`, skipping the picture rule `open_path` applies to a tree click. Pictures (`hs_core::sniff::is_image_path`) from the command line now open in Graphics, and the Editor's `open()` hands a picture to Graphics as `open_path` does.
+- [x] Test: `hyperstack` `editor_tests::a_picture_sent_to_the_editor_opens_in_graphics`
+- [x] Code: `app.rs` startup routing; `tool-editor` `open()`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [x] App: `--data-dir ./tmp-data` — start with a PNG on the command line: it opens in Graphics; a text file still opens in the Editor — 2026-11-10, release build: `HyperStack.exe --data-dir … hyperstack.png` opened the picture in Graphics with its Properties; text files opening in the Editor is covered by the test
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0058 · Graphics image editor: a settings row's label and Apply sit above its fields' middle line
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the CR-0097 screenshot retake, 2026-11-09: in Image Settings → Transform the Size and Scale labels and the Apply buttons sit higher than the W / H fields beside them
+- **Scope:** `Rows::row` in tool-graphics drew the label at its own height and Apply as a small button inside a row the fields make a field's height tall, so both sat at the top of the row. The label now fills a field-height cell centred on the row's middle line (keeping the panel's label column, truncation and tooltip), and Apply is the standard field-height `form::button`.
+- [x] Test: `hyperstack` `graphics_tests::transform_rows_sit_on_one_middle_line` (Size, Scale, Margins, Area)
+- [x] Code: `Rows::row` and the Apply column width in tool-graphics
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1443 passed (run at -j 2), deny ok after BUG-0059, self-test ok
+- [x] App: `--data-dir ./tmp-data` — Image Settings → Transform and Adjust: labels, fields and Apply on one middle line, at the default size and narrow — 2026-11-10, release build at the window's minimum width (1736x900; the window cannot go narrower than 1720): Size, Scale, Margins, Fill, Placeholder, Area, Rotate and Flip each on one middle line, Apply a field's height in one column; Adjust's slider rows unchanged
+- [x] Docs: CHANGELOG, GOTCHAS
+
+### BUG-0056 · cargo deny fails: async-executor 1.14.0 was yanked
+- **State:** Completed · fixed 2026-11-09
+- **Source:** the v0.7.8 gate, 2026-11-09: `cargo deny check` reported `error[yanked]` for `async-executor` 1.14.0, which only `accesskit_unix` (egui's Linux accessibility) and `zbus` pull in - not compiled on Windows; a result that does not depend on the branch (testing.md)
+- **Scope:** `cargo update -p async-executor` to 1.14.1 in `Cargo.lock`; no code change
+- [x] Test: `cargo deny check` passes; `cargo check --workspace --all-targets --locked`
+- [x] Code: Cargo.lock only
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09
+- [x] App: not applicable - a Linux-only dependency, no visible change
+- [x] Docs: CHANGELOG
+
+### CR-0097 · A new application icon: the code stack ringed by tool tiles
+- **State:** Completed · 2026-11-09
+- **Source:** owner, 2026-11-08: "Change apps icon with this. Replace to all icon usage; Readme, executable, documentation, in apps logo, etc"
+- **Scope:** the owner's 512×512 image becomes the master `assets/icon/hyperstack.png`; `scripts/make-icons.ps1` regenerates the `.ico` and every PNG size, so the exe (`build.rs`), the window icon, the top bar, Home's header and the README header all take it. README alt text and docs/03 §13 describe the new design; docs/04's brand palette keeps its colours (the theme is unchanged).
+- [x] Code: master replaced, every size regenerated by the script (transparent corners checked)
+- [x] Gate: release build · --self-test — 2026-11-08: built, self-test ok; the icon extracted from `HyperStack.exe` is the new picture
+- [x] App: the exe's icon in Explorer, the window and taskbar icon, the top bar and Home's header show the new picture — 2026-11-09, release build: the icon extracted from `HyperStack.exe` (what Explorer shows), the window's title-bar icon, the top bar and Home's header, each the new picture
+- [x] Docs: README, docs/03, docs/04, CHANGELOG
+- [x] README screenshots: the logo replaced in place in 181 PNGs and every frame of the three GIFs, from a real capture of the new build (docs/screenshots/README.md, 2026-11-09 section); nothing else on those screens changed
+- [x] `graphics.png` and `graphics-ops.png` retaken with the new icon as the picture open in the image editor — 2026-11-09, release build, 1736x900: Image Settings at Transform, and Adjust with the Operations list after Flip Horizontally (undone afterwards, nothing saved); neither image is referenced from the README or docs
 
 ---
 

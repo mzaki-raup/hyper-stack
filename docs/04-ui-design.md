@@ -607,6 +607,14 @@ plus the logo, the padding each end and that Delete column
 be and no wider; egui's own sizing grew it from a row whose Delete button
 claimed every pixel going and left most of the menu empty.
 
+The Workspace and Environment pickers are both a field's height
+(`hs_ui::form::field_height`), so the workspace's 22 px mark sits in the
+button with room above and below, and the Environment box matches it
+(owner, 2026-11-10, CR-0098). The bar itself is 54 px: its 38 px row
+with 8 px above and below, so nothing in it sits on the rule under it
+(it was 46 px with 4 px below, which clipped the row once the pickers
+grew).
+
 Every control on the right of the title bar is the same 38 px square
 (`hs_ui::form::icon_button`; the two menus use `icon_menu`, which opens an
 `egui::Popup::menu` on that same square), so the row keeps one rhythm

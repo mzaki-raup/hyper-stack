@@ -133,7 +133,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 tracing-appender = "0.2"
 portable-pty = "0.9"
-russh = { version = "0.64", default-features = false, features = ["ring", "rsa"] }
+russh = { version = "0.65", default-features = false, features = ["ring", "rsa"] }
 russh-sftp = "3"
 alacritty_terminal = "0.26"
 ropey = "1.6"

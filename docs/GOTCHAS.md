@@ -87,6 +87,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Release build fails with "Access is denied".** A running `HyperStack.exe` keeps its own file locked. Run `Stop-Process -Name HyperStack -Force` before `cargo build --release`. During development, always use `--data-dir ./tmp-data` so the real `HyperStackData/` is never touched.
 - **Two GnuPG installations share one `~/.gnupg` here.** `gpg` on the Git Bash PATH is MSYS GnuPG 2.4.5 and cannot read the keyboxd `pubring.db` that `common.conf`'s `use-keyboxd` selects: it reports `skipped "<key>": No secret key` and lists no keys at all, which looks like a lost key and is not. Only `C:\Program Files\GnuPG\bin\gpg.exe` (2.5.16) sees them, and it is what `gpg.program` points git at. Probe signing with that full path, never the bare `gpg`. The harmless-looking `sending fd … to keyboxd: Input/output error` it prints is not the failure; read the `[GNUPG:]` status lines for `SIG_CREATED` or `Timeout`.
 - **Several cargo builds at once exhausted the page file (2026-11-07).** Agents building in parallel on one target folder failed with `LNK1102: out of memory` and `os error 1455` ("the paging file is too small"), though RAM was free: each build's rustc and link.exe jobs count against the commit limit together, and `-j 4` per build is not `-j 4` overall. When more than one build shares the target directory, run each with `-j 2` (or let one build finish first); if `.rmeta`/`.rlib` errors follow, delete `target/debug` as above.
+- **Loopback connections reset at random: a network filter, not the code (2026-11-13).** `tool-automation`'s `tests/mock.rs` failed 3-6 of 6 with `os error 10054` ("forcibly closed by the remote host") on `127.0.0.1`, and so did test binaries built days earlier that had passed. A bare Python socket server and client on loopback reproduced it (20-40 % of connections reset, HTTP or not), so no HyperStack code was involved. It started after the Windows updates of 2026-11-11 with AdGuard, ExpressVPN and Tailscale running; with those paused, 800 of 800 loopback connections and every mock test passed. Before debugging a reset in a mock-server test, run a plain loopback check (`python -I` a socket server and client) to rule the machine out. The CI runner is this machine, so CI fails the same way until the filters are paused.
 
 ## Build and Dependency Gotchas (Rust)
 
@@ -117,6 +118,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 
 - **Don't let lints pile up.** Fix them, or use a scoped `#[allow(...)]` with a reason. Never a crate-wide allow.
 - **Clippy must pass with `-D warnings`** on every crate, including Linux.
+- **A new toolchain brings new lints (BUG-0060).** The runner moved to Rust 1.100 on its own, and its `needless_range_loop` failed a docs-only commit on two `for i in 0..n` loops that index one collection by the counter. Iterate with `iter_mut().enumerate()` and keep `i` for the Move Up / Move Down bounds; when clippy fails with no Rust change on the branch, check `rustc --version` first.
 
 ## Shell and UI Layout (egui)
 

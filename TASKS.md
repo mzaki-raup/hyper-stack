@@ -152,8 +152,8 @@ Refs: BUG-0003
 ```
 Version : v0.7.8
 Features : FEAT-0108
-Bugs : BUG-0059
-Change Request : CR-0097
+Bugs : BUG-0061
+Change Request : CR-0098
 ```
 
 ---
@@ -1131,6 +1131,41 @@ Change Request : CR-0097
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-09: 1441 passed (run at -j 2), self-test ok, deny ok after BUG-0056
 - [x] App: `--data-dir ./tmp-data` — a short debug panel, paused, evaluate an expression and Stop: every line above the field — 2026-11-09, release build with the fix: a short panel beside the terminal, `order["customer"]` and `grand` evaluated, the oldest line scrolled off the top and the newest above the field; after Stop every line above the disabled field
 - [x] Docs: CHANGELOG, GOTCHAS
+
+### CR-0098 · Title bar: the Workspace and Environment pickers are a field's height
+- **State:** Completed · 2026-11-10
+- **Source:** owner, 2026-11-10: "In the Main toolbar, Workspace selection dropdown size is too low to accommodate the workspace icon. Please resize it height. and make the Environment selection dropdown same height with the workspace dropdown new height"
+- **Scope:** the Workspace button's 22 px mark filled it edge to edge and the Environment box was shorter still. Both pickers are now `form::field_height` tall (egui's Button and ComboBox take their minimum height from `interact_size`), set around the pair in `app::top_bar` and restored after it. ui.md's compact title-bar exception and docs/04 §7 say so.
+- [x] Code: `app::top_bar`
+- [x] Code: the bar's margin below its row matches the one above (8 px), and its height is the row plus both (`TOP_BAR_HEIGHT`, 54 px; it was 46, which clipped the row) - owner, 2026-11-10: "Why its near the bottom border. Please add margin/padding between dropdown and bottom border"
+- [x] Test: the top bar is only drawn by `HyperStackApp`, which needs eframe's creation context, so no kittest reaches it; measured in the app instead (see App)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
+- [x] App: `--data-dir ./tmp-data` — both pickers the same height, the workspace mark with room above and below, labels on their middle line — 2026-11-10, release build at 1736x900 with the lettered tile: Workspace 29 → 32 px, Environment 26 → 32 px, the 22 px tile inside with room above and below, both labels on the middle line; a workspace logo uses the same 22 px box (`WS_MARK_TITLE`), so it was not checked separately
+- [x] Docs: ui.md, docs/04, CHANGELOG
+- [x] Gate (bar height): fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
+- [x] App (bar height): the pickers and buttons have the same air above and below inside the bar — 2026-11-10, release build: the bar's rule moved from y=76 to y=84; the pickers (y=45-74) now have 9 px clear below them, where they had about 1 px; about 14 px above, the row sitting ~1.5 px below its centre
+- [x] Docs (screenshots): the README's 181 window screenshots and 3 GIFs show the taller bar — 2026-11-13: 48 retaken from the release build; the other 133 edited in place (the new bar pasted from a matching retake, the old picture moved down 8 px, bottom-anchored parts kept), owner's choice after the retake kept hitting usage limits; seven of those keep the old, shorter pickers. Details and limits in `docs/screenshots/README.md`
+- **Notes:** the 133 edited screenshots are not captures; each is replaced when a later batch retakes its screen.
+
+### BUG-0060 · clippy fails on Rust 1.100: two index loops
+- **State:** Completed · fixed 2026-11-13
+- **Source:** CI run 562 on `fix/top-bar-pickers`, 2026-11-13, a docs-only commit: the runner's toolchain moved to Rust 1.100, whose `clippy::needless_range_loop` now fires on a loop that indexes one collection by its counter; a result that does not depend on the branch
+- **Scope:** two loops, each drawing rows with Move Up / Move Down: the interactive-rebase list in tool-git (`verbs.rs`) and Settings → Terminal's CLI list (`settings_ui.rs`). Both now iterate with `iter_mut().enumerate()`; nothing they draw changes.
+- [x] Code: `tool-git` `verbs.rs`; `hyperstack` `settings_ui.rs`
+- [x] Test: no new test - behaviour is unchanged; clippy with `-D warnings` on Rust 1.100 is the check, and the workspace tests still pass
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — Settings → Terminal's CLI rows and the interactive rebase list draw and reorder as before — 2026-11-13, release build: the CLI row's checkbox saved `enabled = false` then `true`; Interactive Rebase onto `fix` listed 3 commits, Up disabled on the first and Down on the last, Move Down reordered them and the action dropdown set squash; closed without applying
+- [x] Docs: CHANGELOG
+
+### BUG-0061 · cargo deny fails: russh 0.64 has RUSTSEC-2026-0495
+- **State:** Completed · fixed 2026-11-13
+- **Source:** the gate for BUG-0060, 2026-11-13: `cargo deny check` reported RUSTSEC-2026-0495 on `russh` 0.64.1 - its SSH agent *server* signs with confirm-constrained keys without asking `Agent::confirm`; a result that does not depend on the branch (testing.md)
+- **Scope:** not reachable here - `hs-ssh` uses only the agent *client* (`russh::keys::agent::client`) to ask the user's own agent for signatures and never runs an agent server. The fix is in `russh` 0.65: the workspace's `russh` moves from 0.64 to 0.65 (0.65.1 in the lock file); no call site changed.
+- [x] Code: `Cargo.toml` (`russh` 0.65), `Cargo.lock`
+- [x] Test: `cargo deny check` passes; the workspace tests, including hs-ssh's
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — an SSH session to the bench host connects and runs a command — 2026-11-13, release build: Bench SSH (`hs-ssh`, started again after the machine's restart) connected, the SFTP pane listed `/config`, `uname -a` answered in the shell
+- [x] Docs: CHANGELOG
 
 ### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
 - **State:** Completed · fixed 2026-11-09

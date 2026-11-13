@@ -509,9 +509,8 @@ impl Verbs {
             .id_salt("git-interactive-list")
             .max_height(220.0)
             .show(ui, |ui| {
-                for i in 0..n {
+                for (i, (c, action)) in self.inter_todo.iter_mut().enumerate() {
                     hs_ui::form::centred_row(ui, |ui| {
-                        let (c, action) = &mut self.inter_todo[i];
                         egui::ComboBox::from_id_salt(("git-rebase-action", i))
                             .selected_text(action.as_str())
                             .width(90.0)

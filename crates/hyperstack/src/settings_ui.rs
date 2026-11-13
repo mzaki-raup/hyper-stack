@@ -6097,7 +6097,7 @@ fn terminal(
                 let mut move_cli: Option<(usize, usize)> = None;
                 let mut edit_cli: Option<String> = None;
                 let mut remove_cli: Option<String> = None;
-                for i in 0..count {
+                for (i, cli) in settings.terminal.cli.iter_mut().enumerate() {
                     form::centred_row(ui, |ui| {
                         if ui
                             .add_enabled_ui(i > 0, |ui| {
@@ -6117,21 +6117,16 @@ fn terminal(
                         {
                             move_cli = Some((i, i + 1));
                         }
-                        changed |= ui
-                            .checkbox(&mut settings.terminal.cli[i].enabled, "")
-                            .changed();
+                        changed |= ui.checkbox(&mut cli.enabled, "").changed();
                         conn_mark(
                             ui,
                             theme,
-                            hs_ui::icons::cli_conn_icon(
-                                &settings.terminal.cli[i].command,
-                                cli_icon(&settings.terminal.cli[i].icon),
-                            ),
+                            hs_ui::icons::cli_conn_icon(&cli.command, cli_icon(&cli.icon)),
                         );
-                        ui.label(&settings.terminal.cli[i].name);
+                        ui.label(&cli.name);
                         ui.add(
                             egui::Label::new(
-                                egui::RichText::new(settings.terminal.cli[i].command_line())
+                                egui::RichText::new(cli.command_line())
                                     .small()
                                     .monospace()
                                     .color(theme.text_muted),
@@ -6139,7 +6134,7 @@ fn terminal(
                             .truncate()
                             .selectable(false),
                         );
-                        let id = settings.terminal.cli[i].id.clone();
+                        let id = cli.id.clone();
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             if form::button(ui, theme, hs_ui::icons::ph::TRASH, "")
                                 .tip(s.t("remove"))

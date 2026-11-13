@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.7.8
 Features : FEAT-0108
-Bugs : BUG-0059
+Bugs : BUG-0061
 Change Request : CR-0098
 ```
 
@@ -1146,6 +1146,26 @@ Change Request : CR-0098
 - [x] App (bar height): the pickers and buttons have the same air above and below inside the bar — 2026-11-10, release build: the bar's rule moved from y=76 to y=84; the pickers (y=45-74) now have 9 px clear below them, where they had about 1 px; about 14 px above, the row sitting ~1.5 px below its centre
 - [x] Docs (screenshots): the README's 181 window screenshots and 3 GIFs show the taller bar — 2026-11-13: 48 retaken from the release build; the other 133 edited in place (the new bar pasted from a matching retake, the old picture moved down 8 px, bottom-anchored parts kept), owner's choice after the retake kept hitting usage limits; seven of those keep the old, shorter pickers. Details and limits in `docs/screenshots/README.md`
 - **Notes:** the 133 edited screenshots are not captures; each is replaced when a later batch retakes its screen.
+
+### BUG-0060 · clippy fails on Rust 1.100: two index loops
+- **State:** Completed · fixed 2026-11-13
+- **Source:** CI run 562 on `fix/top-bar-pickers`, 2026-11-13, a docs-only commit: the runner's toolchain moved to Rust 1.100, whose `clippy::needless_range_loop` now fires on a loop that indexes one collection by its counter; a result that does not depend on the branch
+- **Scope:** two loops, each drawing rows with Move Up / Move Down: the interactive-rebase list in tool-git (`verbs.rs`) and Settings → Terminal's CLI list (`settings_ui.rs`). Both now iterate with `iter_mut().enumerate()`; nothing they draw changes.
+- [x] Code: `tool-git` `verbs.rs`; `hyperstack` `settings_ui.rs`
+- [x] Test: no new test - behaviour is unchanged; clippy with `-D warnings` on Rust 1.100 is the check, and the workspace tests still pass
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — Settings → Terminal's CLI rows and the interactive rebase list draw and reorder as before — 2026-11-13, release build: the CLI row's checkbox saved `enabled = false` then `true`; Interactive Rebase onto `fix` listed 3 commits, Up disabled on the first and Down on the last, Move Down reordered them and the action dropdown set squash; closed without applying
+- [x] Docs: CHANGELOG
+
+### BUG-0061 · cargo deny fails: russh 0.64 has RUSTSEC-2026-0495
+- **State:** Completed · fixed 2026-11-13
+- **Source:** the gate for BUG-0060, 2026-11-13: `cargo deny check` reported RUSTSEC-2026-0495 on `russh` 0.64.1 - its SSH agent *server* signs with confirm-constrained keys without asking `Agent::confirm`; a result that does not depend on the branch (testing.md)
+- **Scope:** not reachable here - `hs-ssh` uses only the agent *client* (`russh::keys::agent::client`) to ask the user's own agent for signatures and never runs an agent server. The fix is in `russh` 0.65: the workspace's `russh` moves from 0.64 to 0.65 (0.65.1 in the lock file); no call site changed.
+- [x] Code: `Cargo.toml` (`russh` 0.65), `Cargo.lock`
+- [x] Test: `cargo deny check` passes; the workspace tests, including hs-ssh's
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-13: 1443 passed (run at -j 2, with AdGuard, ExpressVPN and Tailscale paused - see GOTCHAS), self-test ok, deny ok
+- [x] App: `--data-dir ./tmp-data` — an SSH session to the bench host connects and runs a command — 2026-11-13, release build: Bench SSH (`hs-ssh`, started again after the machine's restart) connected, the SFTP pane listed `/config`, `uname -a` answered in the shell
+- [x] Docs: CHANGELOG
 
 ### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
 - **State:** Completed · fixed 2026-11-09

@@ -11,19 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Changed
+- (nothing yet)
 
-- Title bar: the Workspace and Environment pickers are both a field's height, so the workspace's mark has room around it and the two match (CR-0098)
-- Title bar: the same margin below the row as above it, so the pickers and buttons no longer sit on the bar's bottom border (CR-0098)
-- README screenshots and GIFs show the taller title bar: 48 retaken, 133 edited in place (CR-0098)
+## 0.132.2 — 2026-11-13
 
 ### Fixed
 
-- Two index loops rewritten so clippy passes on Rust 1.100 (BUG-0060)
+- Iterate instead of indexing in two reorder lists (clippy on Rust 1.100) (4d875e01)
 
 ### Security
 
-- russh moves to 0.65 for RUSTSEC-2026-0495 (its agent server, which HyperStack does not use) (BUG-0061)
+- Move russh to 0.65 for RUSTSEC-2026-0495 (044f9e73)
 
 ## 0.132.1 — 2026-11-09
 

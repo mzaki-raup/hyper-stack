@@ -52,7 +52,11 @@ Marks Devicon does not carry come from **Simple Icons**
 2026-11-06), each filled with the brand colour the same data file names,
 because the originals are single black paths: `puppet` (#FFAE1A), `mqtt`
 (#660066), `amazons3` (#569A31), `qdrant` (#DC244C) and `redmine` (#B32024;
-Redmine's mark is CC BY-SA 2.5, credited to the Redmine project). Valkey,
+Redmine's mark is CC BY-SA 2.5, credited to the Redmine project).
+**`keycloak.svg` is ours, derived from Simple Icons' `keycloak`** (CC0,
+2026-11-08; Devicon has no Keycloak icon): the same path split in two,
+the outer shape in Keycloak's blue #008AAA and the brackets in white,
+because the original single #4D4D4D path is a hole on the dark theme. Valkey,
 WebDAV and Sonatype Nexus have no usable mark there (Valkey is absent, the
 Sonatype mark is near-black) and keep their glyphs. The marks remain the
 trademarks of their owners.

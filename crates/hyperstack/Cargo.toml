@@ -31,6 +31,7 @@ tool-redis = { workspace = true }
 tool-queue = { workspace = true }
 tool-automation = { workspace = true }
 tool-tracker = { workspace = true }
+tool-idm = { workspace = true }
 tool-nosql = { workspace = true }
 tool-logs = { workspace = true }
 tool-devtools = { workspace = true }

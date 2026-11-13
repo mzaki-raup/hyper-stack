@@ -351,6 +351,8 @@ pub fn new_kind_draft(kind: &str) -> ConnectionProfile {
     } else if c::is_tracker_kind(kind) {
         tool_tracker::profile::TrackerFields::from_table(kind, &draft.fields)
             .write_into(&mut draft.fields);
+    } else if c::is_idm_kind(kind) {
+        tool_idm::profile::IdmFields::from_table(kind, &draft.fields).write_into(&mut draft.fields);
     }
     draft
 }

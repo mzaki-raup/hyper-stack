@@ -1045,3 +1045,83 @@ is hosted and does not chat, so the three predicates are explicit.
 Graphics generations are Jobs with a Stop button for every provider,
 which fal.ai honours on the server. The mocks prove the protocol; the
 first live run with a real key is the owner's.
+
+## ADR-032 · IDM activity: one provider trait, Keycloak's Admin REST first
+
+**Date** 2026-11-08 · **Status** proposed (see `docs/tools/idm.md`) ·
+**Owner's request** (2026-11-08): *"add IDM as new Activity… For
+starter, Keycloak. If provide keycloak admin credentials, can the work
+pane resemble keycloak web interface (using APIs, etc)?"*, then
+*"continue to plan, document and implement"*.
+
+**Context.** A new activity for identity servers, Keycloak first, with
+the others a team is likely to run (Authentik, Zitadel, Okta, Microsoft
+Entra ID, plain LDAP) to follow. The owner wants the work pane to feel
+like Keycloak's admin console, driven by the server's APIs with admin
+credentials. The data is sensitive: client secrets, passwords, sessions
+of real people, and changes that lock users out. Realms can hold
+hundreds of thousands of users, so nothing may load a whole collection.
+The workspace already has the REST plumbing (`hs_core::service_http`,
+ADR-029) and the credential kinds (`hs_core::service_auth`, ADR-028).
+
+**Options.**
+
+| Question | Option | For | Against |
+|---|---|---|---|
+| Shape | **one `tool-idm` activity with an `IdmProvider` trait**; shared screens (realm, users, groups, roles, clients, sessions, events), provider-specific parts behind `Caps` | one rail entry, one Settings page, one UI to learn; a new provider is a module, not an activity | the trait must stay general; products whose model differs (Entra's directory roles, LDAP's lack of sessions) show fewer sections |
+| Shape | an activity per product (`tool-keycloak`, `tool-okta` …) | each can mirror its product exactly | five rail entries for one job; the screens, guards and audit written five times |
+| Shape | the Browser activity on the admin console, nothing native | everything Keycloak offers, at once | not the app's UI language; no protected-environment guard, no typed confirmations, no audit, no assistant; credentials typed into a web page |
+| Keycloak client | **its Admin REST API (`/admin/realms/…`) through `reqwest` and our own calls** | documented and stable across 22-26; no new dependency; the console itself uses it | we model the types (serde, unknown fields ignored) |
+| Keycloak client | a Keycloak admin client crate | typed | thin maintenance, generated against one version, its own HTTP stack |
+| Keycloak client | the console's internal `ui-ext` endpoints | fewer calls for some pages | undocumented, change between releases |
+| Auth | **a confidential client with a service account (client credentials) preferred; the admin's password through `admin-cli` (password grant) as the "admin credentials" the owner named**; an offline token as a third kind | least privilege and no human password for the first; the second is what the owner asked for | the password grant cannot pass OTP and is discouraged by OAuth 2.1 - the form says to prefer a service account |
+
+**Decision.**
+
+- One `tool-idm` crate (rail after Tracker, category Infra) with an
+  `IdmProvider` trait (connect and token refresh, server info and
+  capabilities, realms, users, groups, roles, clients, sessions, events,
+  export) and a `Guarded` wrapper that refuses every write on a
+  read-only tab. Keycloak is the first provider, in
+  `provider/keycloak/`.
+- Keycloak through its **Admin REST API** with `reqwest` via
+  `hs_core::service_http` and serde types of our own. Supported: 22-26,
+  gated from `GET /admin/serverinfo` (version and features): the
+  declarative user profile from 24, sub-group paging from 23,
+  organizations from 25 (preview) / 26, fine-grained admin permissions
+  v2 from 26.2. Outside the range the tab connects with a warning.
+- Tokens from the realm's OpenID Connect token endpoint, held in memory
+  only, renewed before expiry (Keycloak's default access token lives
+  60 s), one refresh at a time, a 401 retried once after a refresh. The
+  secret (client secret, password or offline token) lives in the vault
+  as `secret:<ulid>`.
+- Server-side paging (`first` / `max`, `briefRepresentation`) and the
+  count endpoints everywhere.
+- Safety: protected environments open read-only; typed confirmations for
+  deleting a user, group, client or role, regenerating a secret and
+  logging out a realm; a field-by-field review before a multi-field
+  save; HyperStack's own audit log (`idm/audit.jsonl` in the workspace,
+  no secret values); secrets masked by default, never logged or given to
+  the assistant.
+- Anything the activity does not cover (themes, the account console,
+  impersonation) opens in the admin console through the Browser activity
+  (`OpenRequest::Url`).
+
+**Consequences.**
+- No new crate. `reqwest`'s `form` feature is turned on for the token
+  request (`serde_urlencoded`, already in `Cargo.lock`); `cargo deny`
+  checks it. `hs_core::service_http::Http` gains a per-request bearer
+  token and a Verify TLS switch.
+- The typed-confirmation modal `tool-queue` draws moves to
+  `hs_ui::dialog`, since IDM is its second user.
+- Keycloak's API shape is ours to follow across releases: model types
+  ignore unknown fields, and the live test (`HS_KEYCLOAK`, the bench's
+  `hs-demo` realm and `hs-admin` client) is re-run on each Keycloak the
+  bench moves to.
+- A vendored Keycloak logo is needed (CR-0079); until then a tinted
+  glyph.
+- Later providers each need their own ADR only when they bring a new
+  protocol or dependency (LDAP will: an LDAP client crate).
+- Interacts with ADR-019 (the assistant, told only masked data),
+  ADR-026 (the rail order), ADR-028 (credential kinds) and ADR-029 (the
+  shared HTTP plumbing).

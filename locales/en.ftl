@@ -4699,6 +4699,26 @@ ai-qa-tracker-reply-prompt = Draft a short, polite reply to the latest comment o
 ai-qa-tracker-status = Suggest a Status
 ai-qa-tracker-status-prompt = From this item's description and comments, say which status it should most likely be in now and why, in two or three sentences.
 
+## Identity, the IDM activity (docs/tools/idm.md)
+tool-idm = Identity
+idm-dashboard-sub = Identity servers in this workspace, Keycloak first; each server opens in its own tab.
+idm-saved = Saved Identity Servers
+idm-none = No identity servers yet. Add a Keycloak connection to get started.
+idm-add = Add Identity Server
+idm-servers = Identity Servers
+idm-stat-servers = Servers
+idm-stat-realms = Realms
+idm-stat-users = Users
+idm-open = Open this identity server in a tab
+idm-pick-hint = Pick an identity server in the sidebar to open it here.
+idm-no-profile = This connection no longer exists.
+idm-vault-locked = Unlock the vault to connect to this server.
+idm-missing-vars = Undefined variables: { $names }
+idm-connecting = Connecting to { $server }…
+idm-connected = Connected to { $product } { $version } as { $who }, { $realms } realms.
+idm-version-unknown = version not shown to this account
+idm-retry = Retry
+
 ## Settings → Tracker
 settings-tracker = Tracker
 settings-tracker-sub = Issue trackers and wikis, and how they are read.

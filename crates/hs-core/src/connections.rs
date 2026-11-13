@@ -49,6 +49,7 @@ pub const KINDS: &[&str] = &[
     "gitlab-issues",
     "forgejo-issues",
     "confluence",
+    "keycloak",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -121,6 +122,15 @@ pub const TRACKER_KINDS: &[&str] = &[
     "confluence",
 ];
 
+/// The kinds the **Identity** activity opens (`docs/tools/idm.md` §5.1):
+/// Keycloak first; Authentik, Zitadel, Okta, Entra ID and LDAP later.
+pub const IDM_KINDS: &[&str] = &["keycloak"];
+
+/// Whether a kind is opened by the Identity (IDM) activity.
+pub fn is_idm_kind(kind: &str) -> bool {
+    IDM_KINDS.contains(&kind)
+}
+
 /// Whether a kind is opened by the Tracker activity.
 pub fn is_tracker_kind(kind: &str) -> bool {
     TRACKER_KINDS.contains(&kind)
@@ -188,6 +198,7 @@ pub fn kind_label(kind: &str) -> &str {
         "gitlab-issues" => "GitLab Issues",
         "forgejo-issues" => "Forgejo Issues",
         "confluence" => "Confluence",
+        "keycloak" => "Keycloak",
         other => other,
     }
 }
@@ -312,6 +323,11 @@ impl Connections {
     /// Every tracker the Tracker activity opens, in order.
     pub fn of_tracker_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
         self.profiles.iter().filter(|c| is_tracker_kind(&c.kind))
+    }
+
+    /// Every identity server the Identity activity opens, in order.
+    pub fn of_idm_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_idm_kind(&c.kind))
     }
 
     /// Every broker the Queue activity opens, in order.
@@ -514,6 +530,7 @@ mod tests {
             .chain(QUEUE_KINDS)
             .chain(AUTOMATION_KINDS)
             .chain(TRACKER_KINDS)
+            .chain(IDM_KINDS)
         {
             assert!(KINDS.contains(k), "{k} is claimed but not offered");
             assert_ne!(kind_label(k), *k, "{k} has no label of its own");

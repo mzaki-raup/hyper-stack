@@ -1,0 +1,32 @@
+[package]
+name = "tool-idm"
+description = "HyperStack Identity (IDM) tool: identity servers through one provider trait, Keycloak first"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+hs-core = { workspace = true }
+hs-ui = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+parking_lot = { workspace = true }
+secrecy = { workspace = true }
+zeroize = { workspace = true }
+toml = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+# The token request is form-encoded (ADR-032), as Automation's are.
+reqwest = { workspace = true, features = ["form"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -4153,6 +4153,7 @@ dependencies = [
  "tool-editor",
  "tool-git",
  "tool-graphics",
+ "tool-idm",
  "tool-logs",
  "tool-nosql",
  "tool-queue",
@@ -9544,6 +9545,29 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "tool-idm"
+version = "0.131.2"
+dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "egui",
+ "hs-core",
+ "hs-ui",
+ "parking_lot",
+ "reqwest",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "toml 0.8.23",
+ "tracing",
+ "zeroize",
 ]
 
 [[package]]

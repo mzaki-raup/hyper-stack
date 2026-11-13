@@ -118,7 +118,8 @@ hyper-stack/
 │       ├── tool-git/
 │       ├── tool-terminal/
 │       ├── tool-devtools/          # Base64, hashes, JWT, Firebase tokens, Jasypt, PKI messages (crypto.rs primitives)
-│       └── tool-containers/
+│       ├── tool-containers/
+│       └── tool-idm/               # identity servers behind an IdmProvider trait: provider/keycloak/ (Admin REST), guarded.rs, audit.rs, mask.rs (ADR-032)
 ├── assets/
 │   ├── icon/                       # app icon: hyperstack.png (512 master), hyperstack.ico, hyperstack-<size>.png
 │   │                               # (regenerate with scripts/make-icons.ps1; see §13)

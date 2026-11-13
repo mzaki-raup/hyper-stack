@@ -76,14 +76,63 @@ pub fn transport_error(e: &reqwest::Error) -> String {
     }
 }
 
+/// How a connection checks the server's certificate (ADR-032): verify it
+/// against the system's roots plus an optional CA file, or not at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Tls {
+    /// Off accepts any certificate; the tab says so in red (docs/06 §5).
+    pub verify: bool,
+    /// A PEM file of extra roots (a company CA), added to the system's.
+    pub ca_file: Option<std::path::PathBuf>,
+}
+
+impl Default for Tls {
+    fn default() -> Self {
+        Tls {
+            verify: true,
+            ca_file: None,
+        }
+    }
+}
+
 impl Http {
     pub fn new(base: &str, auth: Auth, token_as: TokenAs, timeout: Duration) -> Result<Http> {
-        let client = reqwest::Client::builder()
+        Http::with_tls(base, auth, token_as, timeout, &Tls::default())
+    }
+
+    /// [`Http::new`] with the certificate checks a profile asked for.
+    pub fn with_tls(
+        base: &str,
+        auth: Auth,
+        token_as: TokenAs,
+        timeout: Duration,
+        tls: &Tls,
+    ) -> Result<Http> {
+        let mut builder = reqwest::Client::builder()
             .timeout(timeout)
             // GitHub refuses a request without one.
-            .user_agent(concat!("HyperStack/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .map_err(|e| e.to_string())?;
+            .user_agent(concat!("HyperStack/", env!("CARGO_PKG_VERSION")));
+        if !tls.verify {
+            builder = builder.tls_danger_accept_invalid_certs(true);
+        }
+        if let Some(path) = tls.ca_file.as_ref().filter(|p| !p.as_os_str().is_empty()) {
+            let pem = std::fs::read(path)
+                .map_err(|e| format!("the CA file {} could not be read: {e}", path.display()))?;
+            let certs = reqwest::Certificate::from_pem_bundle(&pem).map_err(|e| {
+                format!(
+                    "the CA file {} is not a PEM certificate: {e}",
+                    path.display()
+                )
+            })?;
+            if certs.is_empty() {
+                return Err(format!(
+                    "the CA file {} holds no certificate",
+                    path.display()
+                ));
+            }
+            builder = builder.tls_certs_merge(certs);
+        }
+        let client = builder.build().map_err(|e| e.to_string())?;
         Ok(Http {
             client,
             base: base.trim_end_matches('/').to_string(),
@@ -100,6 +149,13 @@ impl Http {
 
     /// A request to `path` (joined to the base) or to a full URL.
     pub fn request(&self, method: Method, path: &str) -> RequestBuilder {
+        self.request_as(method, path, &self.auth)
+    }
+
+    /// A request carrying `auth` instead of the client's own credential:
+    /// a session whose bearer token changes as it is renewed (IDM,
+    /// ADR-032) builds one client and hands each request its token.
+    pub fn request_as(&self, method: Method, path: &str, auth: &Auth) -> RequestBuilder {
         let url = if path.starts_with("http://") || path.starts_with("https://") {
             path.to_string()
         } else {
@@ -109,7 +165,7 @@ impl Http {
         for (k, v) in &self.headers {
             rb = rb.header(*k, *v);
         }
-        self.auth.apply(rb, self.token_as)
+        auth.apply(rb, self.token_as)
     }
 
     /// Send, and turn a refusal into words.
@@ -207,6 +263,84 @@ mod tests {
         assert_eq!(
             transport_error(&e),
             "nothing answered at 127.0.0.1:9: is the server running, and is the URL right?"
+        );
+    }
+
+    #[test]
+    fn a_request_can_carry_its_own_credential() {
+        let http = Http::new(
+            "http://h/",
+            Auth::Token {
+                user: String::new(),
+                token: "old".into(),
+            },
+            TokenAs::Bearer,
+            Duration::from_secs(5),
+        )
+        .expect("client");
+        let fresh = Auth::Token {
+            user: String::new(),
+            token: "fresh".into(),
+        };
+        let req = http
+            .request_as(Method::GET, "/admin/realms", &fresh)
+            .build()
+            .expect("request");
+        assert_eq!(req.url().as_str(), "http://h/admin/realms");
+        assert_eq!(
+            req.headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer fresh")
+        );
+        // The client's own credential is still what `request` sends.
+        let own = http.request(Method::GET, "/x").build().expect("request");
+        assert_eq!(
+            own.headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer old")
+        );
+    }
+
+    #[test]
+    fn tls_options_build_a_client_and_a_bad_ca_file_is_named() {
+        let t = |tls: Tls| {
+            Http::with_tls(
+                "https://h",
+                Auth::None,
+                TokenAs::Bearer,
+                Duration::from_secs(5),
+                &tls,
+            )
+            .map(|_| ())
+        };
+        assert!(t(Tls::default()).is_ok());
+        assert!(
+            t(Tls {
+                verify: false,
+                ca_file: None
+            })
+            .is_ok()
+        );
+        let dir = tempfile::tempdir().expect("dir");
+        let missing = dir.path().join("none.pem");
+        let e = t(Tls {
+            verify: true,
+            ca_file: Some(missing),
+        })
+        .unwrap_err();
+        assert!(e.contains("could not be read"), "{e}");
+        let junk = dir.path().join("junk.pem");
+        std::fs::write(&junk, "not a certificate").expect("write");
+        let e = t(Tls {
+            verify: true,
+            ca_file: Some(junk),
+        })
+        .unwrap_err();
+        assert!(
+            e.contains("holds no certificate") || e.contains("not a PEM"),
+            "{e}"
         );
     }
 

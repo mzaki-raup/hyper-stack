@@ -11,7 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Identity (IDM) activity, foundation: the `tool-idm` crate on the rail after Tracker, the `IdmProvider` trait and the Keycloak provider over its Admin REST API (client credentials, admin password and offline token; tokens in memory only, renewed before expiry, one retry on 401; version gating 22-26; every phase-1 read and write including create; errors in words, among them Keycloak 26.8's `kc-admin-api` audience 401), the `Guarded` write gate (read-only on a protected environment unless the tab allows writes), the workspace audit log `idm/audit.jsonl` (field names, never values) and one masking function for server JSON; screens follow (FEAT-0109, FEAT-0110, FEAT-0116)
+- Connection kind `keycloak` with the Keycloak mark, vendored from Simple Icons and recoloured (FEAT-0109)
+- `hs_core::service_http`: a Verify TLS switch and a CA file per client (`Tls`, `Http::with_tls`), and `Http::request_as` for a credential per request (FEAT-0110)
+
+### Changed
+
+- New workspaces' `.gitignore` lists `idm/audit.jsonl` (FEAT-0116)
 
 ## 0.131.2 — 2026-11-08
 

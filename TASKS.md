@@ -1144,6 +1144,8 @@ Change Request : CR-0098
 - [x] Docs: ui.md, docs/04, CHANGELOG
 - [x] Gate (bar height): fmt · clippy -D warnings · test --workspace -j 4 · --self-test · cargo deny — 2026-11-10: 1443 passed (run at -j 2), self-test ok
 - [x] App (bar height): the pickers and buttons have the same air above and below inside the bar — 2026-11-10, release build: the bar's rule moved from y=76 to y=84; the pickers (y=45-74) now have 9 px clear below them, where they had about 1 px; about 14 px above, the row sitting ~1.5 px below its centre
+- [x] Docs (screenshots): the README's 181 window screenshots and 3 GIFs show the taller bar — 2026-11-13: 48 retaken from the release build; the other 133 edited in place (the new bar pasted from a matching retake, the old picture moved down 8 px, bottom-anchored parts kept), owner's choice after the retake kept hitting usage limits; seven of those keep the old, shorter pickers. Details and limits in `docs/screenshots/README.md`
+- **Notes:** the 133 edited screenshots are not captures; each is replaced when a later batch retakes its screen.
 
 ### BUG-0059 · cargo deny fails: the bundled SQLite has RUSTSEC-2026-0459
 - **State:** Completed · fixed 2026-11-09

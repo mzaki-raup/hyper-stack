@@ -234,9 +234,87 @@ pub fn password(
     out
 }
 
+/// What a [`typed_confirm`] modal says: the title, the sentence of what
+/// goes, the name to type back, and the two buttons.
+pub struct TypedConfirm<'a> {
+    pub title: &'a str,
+    pub body: &'a str,
+    /// What must be typed, exactly, before OK is enabled.
+    pub name: &'a str,
+    /// The danger verb, with its glyph ("🗑 Delete").
+    pub ok_label: &'a str,
+    pub cancel_label: &'a str,
+}
+
+/// Whether the text typed into a [`typed_confirm`] allows its OK.
+pub fn typed_matches(typed: &str, name: &str) -> bool {
+    !name.is_empty() && typed == name
+}
+
+/// A typed confirmation for a delete-style verb (ui.md: "a typed
+/// confirmation for purge- and delete-style verbs"): the name of what goes
+/// must be typed back before the danger button is enabled. `typed` is the
+/// caller's, kept between frames. Escape or the close button is Cancel.
+pub fn typed_confirm(
+    ctx: &egui::Context,
+    theme: &Theme,
+    id: &str,
+    text: &TypedConfirm<'_>,
+    typed: &mut String,
+) -> DialogResult {
+    let mut result = DialogResult::Open;
+    let modal = egui::Modal::new(egui::Id::new(("hs-typed-confirm", id))).show(ctx, |ui| {
+        ui.set_width(440.0);
+        ui.heading(text.title);
+        ui.add_space(6.0);
+        ui.label(text.body);
+        ui.add_space(8.0);
+        let r = ui.add(
+            crate::form::line_edit(typed)
+                .hint_text(text.name)
+                .desired_width(f32::INFINITY),
+        );
+        r.request_focus();
+        ui.add_space(12.0);
+        let matches = typed_matches(typed, text.name);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let labels = ConfirmLabels::new(text.ok_label, text.cancel_label, true);
+            let ok = egui::Button::new(
+                egui::RichText::new(format!("{} {}", labels.ok_glyph, labels.ok))
+                    .color(egui::Color32::WHITE),
+            )
+            .fill(theme.error)
+            .corner_radius(CornerRadius::same(4));
+            let ok = ui.add_enabled_ui(matches, |ui| crate::form::sized_button(ui, ok, labels.ok));
+            if ok.inner.clicked()
+                || (matches && r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+            {
+                result = DialogResult::Ok;
+            }
+            ui.add_space(crate::form::BUTTON_GAP - ui.spacing().item_spacing.x);
+            if crate::form::button(ui, theme, crate::icons::ph::X, labels.cancel).clicked() {
+                result = DialogResult::Cancel;
+            }
+        });
+    });
+    if modal.should_close() && result == DialogResult::Open {
+        result = DialogResult::Cancel;
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
-    use super::ConfirmLabels;
+    use super::{ConfirmLabels, typed_matches};
+
+    #[test]
+    fn a_typed_confirmation_needs_the_exact_name() {
+        assert!(typed_matches("alice", "alice"));
+        assert!(!typed_matches("Alice", "alice"));
+        assert!(!typed_matches("alic", "alice"));
+        assert!(!typed_matches("alice ", "alice"));
+        assert!(!typed_matches("", ""), "an empty name never allows OK");
+    }
     use crate::icons::ph;
 
     #[test]

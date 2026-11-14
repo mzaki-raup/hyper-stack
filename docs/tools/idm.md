@@ -1065,7 +1065,50 @@ FEAT-0116); no screen of §4 yet.
   join / leave, assign / unassign, secret read and regenerate, the
   audience 401 on a client without `kc-admin-api`, the password and
   offline-token kinds; then the data folder searched for the secrets).
-- **Not yet**: Settings → Identity, the tab's three columns and every
-  §4 screen, the typed confirmation moved to `hs_ui::dialog`, the
-  palette commands and shortcuts of §9, Recent Changes on the
-  dashboard, the env banner and the Allow Writes control.
+
+## What is implemented (2026-11-14): the screens
+
+- **Settings → Identity** (§3.4): the list and the form, only the chosen
+  authentication's fields, Verify TLS and the CA file with a file
+  chooser; Test Connection runs the token and `serverinfo` and fills the
+  Auth Realm and Default Realm pickers from the realm list; the
+  activity's Rows per Page (20-200) and Request Timeout, which every
+  tab's requests use.
+- **Dashboard** (§3.1): Servers, Realms and Users from the open tabs
+  only, Start Here, Saved Identity Servers with the Keycloak mark,
+  Recent Changes from `idm/audit.jsonl` (local time, the outcome in the
+  success or error colour) with Clear History on the heading's and a
+  row's right-click and Remove on a row's, and Open Here. The workspace
+  has one shared `AuditLog` (`AuditLog::shared`), so a tab's write shows
+  at once; the file is read and written off the UI thread.
+- **The tab** (§3.3): the header band (URL, version or "not shown to
+  this account", signed in as, the support and TLS facts); the toolbar
+  (Browse, Refresh, Open in Admin Console, Export Realm, Allow Writes on
+  a protected environment); the resizable browse column (the realm
+  `pick_field`, the item-kind section column with each section's colour
+  and Caps-disabled rows with the reason); the section's list; the item
+  column, never narrower than its tab strip.
+- **Users, Groups, Realm and Client Roles, Clients, Sessions, Login and
+  Admin Events, Realm Settings, Export** as §4.2-§4.9 and §4.10's
+  creates, with these simplifications in phase 1: the realm export and
+  an admin event's representation are shown as read-only monospaced
+  text in a well, not the editor engine; a group's Members lists direct
+  members only (Include Sub-Group Users is not built); Show Effective
+  adds inherited **realm** roles only; Reset Password does not show the
+  realm's password policy (a refusal is still reported).
+- **Guards** (§6): writes go through the session's `Guarded` provider on
+  their own tasks (a newer write never aborts an older one); each ends
+  in a toast and a re-read; a 404 drops the item from its list. Disable,
+  Log Out and End Session ask by name; Delete, Regenerate Secret and
+  Log Out All Sessions are `hs_ui::dialog::typed_confirm` (Queue's Delete
+  uses the same one); a save reads the item again and shows each changed
+  field before → after, saying so when the server's copy changed since.
+  A protected environment's tab offers Allow Writes behind a
+  confirmation naming it.
+- **Palette** (§9): the commands of the table; Search… (Ctrl+Alt+U) and
+  Switch Realm… (Ctrl+Alt+Shift+R) bound, the rest rebindable.
+- **Not yet**: the AI assistant control (§9's last paragraph), the
+  per-verb palette commands that act on the selected object (Enable
+  User, Reset Password…, Delete…, Show / Copy Client Secret,
+  Regenerate…, Assign Role…, Join Group…), and the kittest boxes of
+  §10's UI line beyond the typed confirmation's match rule.

@@ -283,6 +283,14 @@ look for it in `crates/hs-ui/src/` first.
   consumer group, partition - each field the broker can list is a
   `form::pick_field` filled from it, plain text when the list is empty
   (owner, 2026-11-07).
+- **Columns never draw over each other:** in a pane split into
+  columns (a list beside its item page, a browse column beside a list),
+  each column's content stays inside its own column. A row of buttons
+  in a column wraps to the next row when it does not fit, each label
+  whole (`TextWrapMode::Extend` inside `horizontal_wrapped`), and a
+  column whose content is wider than the column - a table's columns, a
+  long form - scrolls sideways inside it (owner, 2026-11-14: the
+  Identity list ran under the user's page).
 - **Scope of these rules:** every rule here applies to every pane,
   component, row, table and activity, not only the one it was found in.
   When the owner states a UI rule for one place that applies broadly, it

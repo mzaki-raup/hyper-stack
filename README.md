@@ -124,6 +124,7 @@ the fixtures behind them.
 | [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
 | [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet: jobs and runs, run with parameters, follow the log, guarded cancel |
 | [Tracker](#tracker) | Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages: queries, read, change status, edit with a review, comment, file new items |
+| [Identity](#identity) | Keycloak: users, groups, realm and client roles, clients, sessions, login and admin events, realm settings, realm export; every write guarded and audited |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -426,6 +427,22 @@ One tab per issue tracker or wiki: **Jira** (Cloud and Data Center), **Redmine**
 - **Text** - Jira's Atlassian Document Format and wiki markup, Confluence's storage format and Redmine's Textile are shown and edited as Markdown; content Markdown cannot keep is named, and a Confluence page holding it is read-only.
 - **Assistant** - Summarise This Ticket, Draft a Reply (Insert puts it in the comment box; nothing is sent by it), Suggest a Status.
 - **Credentials** - username and password, token or API key, whichever the tracker takes, in the vault.
+
+### Identity
+
+One tab per identity server, **Keycloak** first (22 to 26), through its Admin REST API. The home tab is a dashboard of the saved servers, the realms and users of the open ones and this workspace's Recent Changes; Settings → Identity holds the servers, the page size and the request timeout.
+
+| | |
+|---|---|
+| ![Identity dashboard](docs/screenshots/identity.png) | ![A user in a Keycloak realm](docs/screenshots/identity-users.png) |
+| **Dashboard** - saved servers with the Keycloak mark, figures from the open tabs, and every change this workspace sent, with its outcome | **Users** - search with Exact and a status filter, paged with the server's count; the user's Details, Attributes, Credentials, Groups, Role Mapping and Sessions beside the list |
+| ![Delete with a typed confirmation](docs/screenshots/identity-delete.png) | ![Settings → Identity](docs/screenshots/identity-settings.png) |
+| **Guards** - deleting, regenerating a secret or logging out a realm asks for the name to be typed; a save shows each changed field before → after | **Settings → Identity** - Client Credentials, Admin Password or an Offline Token, the secret in the vault, Verify TLS or a CA file, and Test Connection filling the realm lists |
+
+- **Sections** - Users, Groups (a tree loaded a level at a time), Realm Roles, Client Roles, Clients (settings, secret shown for 30 s and copied with the clipboard cleared after 60 s, regenerate, service-account roles), Sessions, Login Events and Admin Events (filters, the level word in the log colours), Realm Settings, and Export Realm as a cancellable job.
+- **Writes** - add users, groups, sub-groups, roles and clients; edit through read-merge-write so fields not on the form are kept; enable, disable, reset a password (temporary by default), log out, join groups, assign roles.
+- **Safety** - a production-tier connection opens read-only until Allow Writes; the realm's own clients and built-in roles are never offered for deletion; every write is logged to the workspace's `idm/audit.jsonl` by field name, never value; secrets are masked wherever server JSON is shown.
+- **Credentials** - a confidential client's secret (preferred), an admin password through `admin-cli`, or an offline token, in the vault; tokens live only in memory.
 
 ### Queue
 

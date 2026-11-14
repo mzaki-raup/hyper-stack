@@ -2008,54 +2008,32 @@ impl QueueTool {
                 }
             }
             Popup::Delete { dest, mut typed } => {
-                let mut answer = None;
-                let modal = egui::Modal::new(egui::Id::new("queue-delete")).show(ui.ctx(), |ui| {
-                    ui.set_width(440.0);
-                    ui.heading(s.t("queue-delete-title"));
-                    ui.add_space(6.0);
-                    let count = dest
-                        .depth
-                        .map(|d| d.to_string())
-                        .unwrap_or_else(|| s.t("queue-unknown-count"));
-                    ui.label(s.i18n.t_args(
-                        "queue-delete-confirm",
-                        &[("name", &dest.name), ("count", &count)],
-                    ));
-                    ui.add_space(8.0);
-                    let r = ui.add(
-                        hs_ui::form::line_edit(&mut typed)
-                            .hint_text(&dest.name)
-                            .desired_width(f32::INFINITY),
-                    );
-                    r.request_focus();
-                    ui.add_space(12.0);
-                    let matches = typed == dest.name;
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(
-                                matches,
-                                egui::Button::new(
-                                    egui::RichText::new(format!(
-                                        "{} {}",
-                                        ph::TRASH,
-                                        s.t("queue-delete")
-                                    ))
-                                    .color(egui::Color32::WHITE),
-                                )
-                                .fill(theme.error),
-                            )
-                            .clicked()
-                        {
-                            answer = Some(true);
-                        }
-                        if ui.button(format!("{} {}", ph::X, s.t("cancel"))).clicked() {
-                            answer = Some(false);
-                        }
-                    });
-                });
-                if modal.should_close() && answer.is_none() {
-                    answer = Some(false);
-                }
+                let count = dest
+                    .depth
+                    .map(|d| d.to_string())
+                    .unwrap_or_else(|| s.t("queue-unknown-count"));
+                let body = s.i18n.t_args(
+                    "queue-delete-confirm",
+                    &[("name", &dest.name), ("count", &count)],
+                );
+                let ok = format!("{} {}", ph::TRASH, s.t("queue-delete"));
+                let answer = match hs_ui::dialog::typed_confirm(
+                    ui.ctx(),
+                    &theme,
+                    "queue-delete",
+                    &hs_ui::dialog::TypedConfirm {
+                        title: &s.t("queue-delete-title"),
+                        body: &body,
+                        name: &dest.name,
+                        ok_label: &ok,
+                        cancel_label: &s.t("cancel"),
+                    },
+                    &mut typed,
+                ) {
+                    hs_ui::dialog::DialogResult::Ok => Some(true),
+                    hs_ui::dialog::DialogResult::Cancel => Some(false),
+                    hs_ui::dialog::DialogResult::Open => None,
+                };
                 match answer {
                     Some(true) => {
                         if self.guard(cx) {

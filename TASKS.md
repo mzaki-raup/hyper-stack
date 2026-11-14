@@ -164,7 +164,9 @@ Change Request : CR-0098
 > `docs/tools/idm.md`, decision ADR-032, depth-programme phase P.
 > Specified 2026-11-08; the foundation (crate, provider trait, Keycloak
 > provider, safety layer) built 2026-11-08 on `feat/idm`; the screens
-> are next.
+> built and walked on screen 2026-11-14. Open across the items: the AI
+> assistant control, per-object palette verbs, the screen kittests, and
+> the writes not yet pressed on screen (each item's Notes).
 
 ### FEAT-0109 · IDM activity: crate, provider trait, connections, Settings page, dashboard
 - **State:** In-Progress · **Spec:** docs/tools/idm.md §3, §4.1, §5.1, §8 · **Phase:** P
@@ -174,14 +176,15 @@ Change Request : CR-0098
 - **Depends on:** —
 - [x] Crate, factory, rail entry, connection kind and profile table
 - [x] Provider trait, `Caps`, paging types, session runner (bounded channels, generations)
-- [ ] Dashboard, sidebar, tab shell with the three columns and their empty / loading / error states
-- [ ] Settings → IDM with the per-kind form and Test Connection
-- [ ] Keycloak mark everywhere the server is drawn (CR-0079)
+- [x] Dashboard, sidebar, tab shell with the three columns and their empty / loading / error states
+- [x] Settings → IDM with the per-kind form and Test Connection
+- [x] Keycloak mark everywhere the server is drawn (CR-0079)
 - [ ] Test: profile round-trip, `Caps`-driven section enabling, kittest of the empty dashboard and the per-kind Settings form
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — add a Keycloak server in Settings → IDM, Test Connection, open its tab from the dashboard and the sidebar, hide and resize the browse column, narrow window; the *Checking a screen* list
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · docs/03 crate list
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
+- [x] App: `--data-dir ./tmp-data` — add a Keycloak server in Settings → IDM, Test Connection, open its tab from the dashboard and the sidebar, hide and resize the browse column, narrow window; the *Checking a screen* list — 2026-11-14, release build against the bench Keycloak 26.8.2 (`hs-demo`, `hs-admin`): added in Settings → Identity (secret into the vault, only a `secret:` reference in the profile), Test Connection connected and filled both realm pickers, opened from the dashboard card and the sidebar, the Keycloak mark on the row, tab, header and card; every section walked; the window cannot go narrower than 1720, so the narrow check is the list column squeezed by the item column (it scrolls sideways, owner's report fixed the same day)
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · docs/03 crate list
 - **Notes:** 2026-11-08, foundation only. Built: `crates/tools/tool-idm` (workspace member), `IdmFactory` registered after Tracker, descriptor id `idm` (`IDENTIFICATION_BADGE`, Infra, title `Identity`), connection kind `keycloak` (`IDM_KINDS`, `is_idm_kind`, `of_idm_kinds`), the `[idm]` table (`profile.rs`, with `ca_file`), `IdmProvider` / `Caps` / `Page` / `Paged` (`provider.rs`), `runner::Session` (bounded queue of 32, work by topic, the newest aborting the older); a placeholder dashboard, sidebar and a tab that connects and reports what it reached. The Keycloak mark is vendored and registered (`bytes://product/keycloak.svg`) and drawn through `conn_icon` wherever the placeholder draws the server, but not yet looked at on screen, so its box stays open. Tested so far: the profile round-trip and `Caps` section and write availability (unit); the kittest boxes, Settings → Identity, the three-column tab and the App check are for the screens. Gate: fmt, clippy -D warnings, `cargo test -p tool-idm` and `-p hs-core`, deny - not the whole workspace test nor `--self-test`, so the Gate box stays open.
+- **Notes (screens, 2026-11-14):** built in `ui/` (`mod`, `tab`, `dashboard`, `sidebar`, `common`, `dialogs`, one module per section) and Settings → Identity in `settings_ui.rs` (`identity`, `idm_form`, Test Connection through `conn_test` with the realm list). The Test box stays open: the profile round-trip and `Caps` are unit-tested, but the kittest of the empty dashboard and the per-kind Settings form are not written.
 
 ### FEAT-0110 · Keycloak provider: auth, token refresh, server info and version gating
 - **State:** In-Progress · **Spec:** docs/tools/idm.md §5.2, §8.3, §8.4 · **Phase:** P
@@ -191,81 +194,86 @@ Change Request : CR-0098
 - **Depends on:** FEAT-0109
 - [x] Three grants, refresh and retry
 - [x] Server info, version parse, `Caps`, fallbacks
-- [ ] Realm picker from the server and the Realm Settings summary
-- [ ] `service_http` per-request auth and Verify TLS (with the red badge)
+- [x] Realm picker from the server and the Realm Settings summary
+- [x] `service_http` per-request auth and Verify TLS (with the red badge)
 - [x] Test: grant bodies, refresh timing and single flight, 401-retry-once, token-endpoint errors in words, `Caps` per version row, Red Hat version parse, a lightweight token gives no hints; live connect with each kind (`HS_KEYCLOAK`)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — connect with client credentials and with the admin password; switch realm; a wrong secret and a stopped server give the error state in words; the Realm Settings page
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
+- [ ] App: `--data-dir ./tmp-data` — connect with client credentials and with the admin password; switch realm; a wrong secret and a stopped server give the error state in words; the Realm Settings page — 2026-11-14: client credentials connected and Realm Settings read on screen; the admin password, a realm switch (the service account sees one realm), a wrong secret and a stopped server not yet tried in the app (the live test covers them), so the box stays open
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · ADR-032 status
 - **Notes:** 2026-11-08. The provider is complete for phase 1 (every read and write of §4, creates included, partial export with cancel); `realms()` and `realm_settings()` exist but the realm picker and Realm Settings page do not, and `service_http::Tls` / `Http::request_as` are in `hs-core` with tests but the red *TLS not verified* badge is a screen - both boxes stay open. Live on the bench's Keycloak 26.8.2 (`tests/keycloak_live.rs`, client credentials, admin password and offline token): passed. Found there and written into the spec and GOTCHAS: the `kc-admin-api` audience 401 (reported as `IdmError::Audience`), no `systemInfo` for a realm-scoped account (version unknown, `Caps` from the features list), `unauthorized_client` for a wrong secret, `exact` ignored beside `search`. Spec, CHANGELOG and GOTCHAS updated; README, CHECKLIST and ADR-032's status wait for the screens.
 
 ### FEAT-0111 · IDM Users
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.3 · **Phase:** P
+- **State:** In-Progress · **Spec:** docs/tools/idm.md §4.3 · **Phase:** P
 - **Branch:** feat/idm
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** the Users list (search, exact, `q=` attribute search, enabled filter, `first`/`max`, `briefRepresentation`, `/users/count`); the item page's Details, Attributes (user profile on 24+, free map on 22-23), Credentials (metadata; Reset Password with the temporary flag), Groups (join / leave), Role Mapping (assign / unassign realm and client roles, effective view) and Sessions (log out, end session) tabs; Enable / Disable; Delete with a typed confirmation; read-merge-write saves with the review
 - **Depends on:** FEAT-0110, FEAT-0116
-- [ ] List with server-side search, paging and count
-- [ ] Details and Attributes with read-merge-write and the review
-- [ ] Credentials and Reset Password
-- [ ] Groups and Role Mapping tabs
-- [ ] Sessions tab, Log Out, Enable / Disable, Delete
+- [x] List with server-side search, paging and count
+- [x] Details and Attributes with read-merge-write and the review
+- [x] Credentials and Reset Password
+- [x] Groups and Role Mapping tabs
+- [x] Sessions tab, Log Out, Enable / Disable, Delete
 - [ ] Test: query building and paging, stale-generation drop, read-merge-write keeps untouched fields, user-profile metadata to form fields, the unmanaged-attribute policy; live: page, edit an attribute, disable / enable, temporary reset, join / leave, assign / unassign, log out, delete a throwaway user
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — search the bench realm, open a user, walk every tab, each write once, at the default and a narrow size; the *Checking a screen* list
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
+- [x] App: `--data-dir ./tmp-data` — search the bench realm, open a user, walk every tab, each write once, at the default and a narrow size; the *Checking a screen* list — 2026-11-14: Users listed with the count (1–25 of 25), a user's six tabs, Add User (throwaway `hs-ui-check`, selected after create), a Details save through the review, Delete with the typed confirmation (OK disabled until the name matched); Enable / Disable, Reset Password, Log Out, Join / Leave and Assign / Unassign not pressed on screen (the live test runs each)
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** 2026-11-14, built (`ui/users.rs`, the group and role pickers). Unit tests: an unedited draft changes nothing, a save sends the whole attribute map, an unticked attribute row is dropped. The query, paging and live boxes rest on the foundation's tests (`tests/mock.rs`, `tests/keycloak_live.rs`); the Test box stays open until the screen-level ones (stale generation through the tab, user-profile metadata to fields) are written. Deviations, in the spec: Show Effective adds inherited realm roles only; Reset Password does not show the realm's password policy.
 
 ### FEAT-0112 · IDM Groups and Roles
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.4, §4.5 · **Phase:** P
+- **State:** In-Progress · **Spec:** docs/tools/idm.md §4.4, §4.5 · **Phase:** P
 - **Branch:** feat/idm
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** the lazy group tree (`/groups`, `/groups/count`, `/children` on 23+, `subGroups` on 22, More per level, search with paths); the group page's Members (paged, add / remove, Include Sub-Group Users as a Job), Role Mapping, Attributes and Details (rename); Delete group with a typed confirmation; the Realm Roles and Client Roles lists; the role page's Details (description), Composite Roles (read-only), Users in Role and Groups in Role; Delete role with a typed confirmation; built-in roles never offered for deletion
 - **Depends on:** FEAT-0110, FEAT-0116
-- [ ] Group tree and group page
-- [ ] Realm and client role lists and the role page
+- [x] Group tree and group page
+- [x] Realm and client role lists and the role page
 - [ ] Test: tree paging on the 22 and 23+ shapes, role-mapping requests, built-in roles excluded from Delete; live: members add / remove, role map / unmap on a group, delete a throwaway group and role
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
 - [ ] App: `--data-dir ./tmp-data` — expand the bench realm's group tree, open a group and a role, each write once; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** 2026-11-14, built (`ui/groups.rs`, `ui/roles.rs`); walked on screen (the tree with a sub-group count, a group's members, Realm Roles and a role page, built-in roles' Delete disabled). Not built: Include Sub-Group Users (a group's Members lists direct members). App box open until a group and a role write are pressed on screen.
 
 ### FEAT-0113 · IDM Clients
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.6 · **Phase:** P
+- **State:** In-Progress · **Spec:** docs/tools/idm.md §4.6 · **Phase:** P
 - **Branch:** feat/idm
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** the Clients list (`clientId` search, paging); the Settings page of the common fields (read-merge-write with the review, More Settings read-only); Credentials with the secret masked, Show (30 s), Copy (clipboard cleared after 60 s) and Regenerate with a typed confirmation; the client's Roles; Service Account Roles; the client's Sessions; Delete with a typed confirmation; the realm's built-in clients read-only and never deletable
 - **Depends on:** FEAT-0110, FEAT-0112, FEAT-0116
-- [ ] List and Settings page
-- [ ] Credentials (mask, show, copy, regenerate)
-- [ ] Roles, Service Account Roles and Sessions tabs; Delete
+- [x] List and Settings page
+- [x] Credentials (mask, show, copy, regenerate)
+- [x] Roles, Service Account Roles and Sessions tabs; Delete
 - [ ] Test: the settings merge keeps unknown fields, built-in clients refused, the secret never in logs or the audit log; live: edit redirect URIs, read and regenerate a throwaway client's secret, a service-account role map, delete the throwaway client; grep the data folder for the secret
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
 - [ ] App: `--data-dir ./tmp-data` — open `hs-admin` and a throwaway client, show / copy / regenerate, edit settings through the review; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** 2026-11-14, built (`ui/clients.rs`); unit tests: an unedited client changes nothing, a redirect-list change sends the list, an attribute-backed setting keeps the client's other attributes. Walked on screen: the list, a built-in client opening read-only with Delete disabled. Show / Copy / Regenerate not pressed on screen (no secret on screen during the check), so the App box stays open.
 
 ### FEAT-0114 · IDM Sessions and Events
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.7, §4.8 · **Phase:** P
+- **State:** In-Progress · **Spec:** docs/tools/idm.md §4.7, §4.8 · **Phase:** P
 - **Branch:** feat/idm
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** realm sessions by client (`/client-session-stats`, `/clients/{id}/user-sessions`), End Session, Log Out All Sessions with a typed confirmation (`/logout-all`); the Login Events and Admin Events tables with their filters (type multi-pick, client, user, IP, date range), paging and detail; the Level word coloured through the shared log-level function (CR-0077); the events-not-stored empty states from `/events/config`; admin-event representations masked
 - **Depends on:** FEAT-0110, FEAT-0116
-- [ ] Sessions section and Log Out All
-- [ ] Login Events and Admin Events
+- [x] Sessions section and Log Out All
+- [x] Login Events and Admin Events
 - [ ] Test: event parsing and level mapping, filter query building, masking of admin-event representations; live: list sessions, end one, read both event tables after a failed login
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
 - [ ] App: `--data-dir ./tmp-data` — make a failed login on the bench realm and find it, filter by date, log out all on a scratch realm; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** 2026-11-14, built (`ui/sessions.rs`, `ui/events.rs`); walked on screen: sessions by client, both event tables with the app check's own create / update / delete in Admin Events and the level word coloured. App box open until End Session and Log Out All are pressed against a scratch realm.
 
 ### FEAT-0115 · IDM Realm export
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.9 · **Phase:** P
+- **State:** In-Progress · **Spec:** docs/tools/idm.md §4.9 · **Phase:** P
 - **Branch:** feat/idm
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** the Export Realm modal (clients, groups and roles), `POST /partial-export` as a Job with cancel, the JSON in a read-only `hs-editor` view with Save As, Open in Editor (`OpenRequest::Text`) and Copy; any unmasked secret masked before it is shown; no import
 - **Depends on:** FEAT-0110, FEAT-0116
-- [ ] Export Job and read-only view
+- [x] Export Job and read-only view
 - [ ] Test: masking of an export with a planted unmasked secret; live: export the bench realm, cancel a running export
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
 - [ ] App: `--data-dir ./tmp-data` — export, fold and search the JSON, Save As, Open in Editor
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- **Notes:** 2026-11-14, built (`ui/export.rs`): the modal, the Job with cancel, Save As, Open in Editor, Copy. On screen the bench's `hs-admin` service account got the server's 403 (it lacks `manage-realm`), shown in words; the export itself is proven by the live test as the master admin. Deviation, in the spec: the JSON is read-only text in a well, not the editor engine (no folding or search yet).
 
 ### FEAT-0116 · IDM safety: guards, typed confirmations, audit log, secret masking
 - **State:** In-Progress · **Spec:** docs/tools/idm.md §6 · **Phase:** P
@@ -273,16 +281,16 @@ Change Request : CR-0098
 - **Source:** owner, 2026-11-08 (as FEAT-0109)
 - **Scope:** the `Guarded` wrapper (every write refused on a protected environment or a read-only profile, controls disabled with the reason, `env_banner`); the typed-confirmation modal moved from `tool-queue` to `hs_ui::dialog` and used for deleting a user, group, client or role, regenerating a secret and logging out all; the field-by-field review before a multi-field save; `idm/audit.jsonl` in the workspace (field names, never values) with the dashboard's Recent Changes and Clear History; `mask.rs` for server JSON; secrets masked by default and never logged, put in history or given to the assistant
 - **Depends on:** FEAT-0109
-- [ ] `Guarded` wrapper and the read-only tab
-- [ ] Typed confirmation in `hs_ui::dialog` (tool-queue moved onto it) and the save review
-- [ ] Audit log, Recent Changes, Clear History
+- [x] `Guarded` wrapper and the read-only tab
+- [x] Typed confirmation in `hs_ui::dialog` (tool-queue moved onto it) and the save review
+- [x] Audit log, Recent Changes, Clear History
 - [x] Masking and secret handling
 - [ ] Test: every write method refused when read-only (fails when a new one is not listed); the typed confirmation's OK disabled until the name matches (kittest); audit lines carry no secret, password or token; masking of nested JSON; the data-folder grep after a live run
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-14: 1511 passed (run at -j 2), deny ok, self-test ok
 - [ ] App: `--data-dir ./tmp-data` — a Production-tier profile opens read-only with every write disabled; each typed confirmation; the audit file after a session; tool-queue's Delete still works
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · docs/06 (an IDM row in the protection table)
 - **Notes:** built before the section items (FEAT-0111 to FEAT-0115 depend on it), so no write ships unguarded. 2026-11-08: `guarded.rs` (`Guarded` over every write in `WRITES`, `WriteGate` with the owner's session Allow Writes unlock), `audit.rs` (`<workspace>/idm/audit.jsonl`, append, recent, clear, remove; the workspace `.gitignore` lists it), `mask.rs` (server JSON; exports and admin-event representations are masked inside the provider), `Secret` with a value-free `Debug`, the reset password zeroised in our buffers. Tested: every write refused on a read-only tab before the provider sees it, plus a source check that fails on a trait method in neither `WRITES` nor `READS`; audit lines name fields and carry no password, secret or edited value; masking of nested JSON; the live run's data-folder search for the client secret, the reset password, the admin password and tokens. Still open: the read-only tab's disabled controls, the env banner and the Allow Writes control, the typed confirmation in `hs_ui::dialog` and its kittest, Recent Changes on the dashboard, Clear History's menu - so those boxes stay open.
-
+- **Notes (screens, 2026-11-14):** the read-only tab and Allow Writes walked on screen with the profile on PRODUCTION: every write control and field disabled with the reason, Allow Writes asks naming the environment, then writes are live. Found and fixed there: the tab drew a stale `Caps` snapshot after Allow Writes (it asks the guarded provider each frame now), and a profile's environment change now reconnects an open tab. `hs_ui::dialog::typed_confirm` with a unit test of the match rule; the kittest box stays open.
 
 ### FEAT-0117 · Identity: the LDAP provider (users, groups, the directory tree)
 - **State:** Pending · **Spec:** docs/tools/idm.md §4.12 · **Phase:** P

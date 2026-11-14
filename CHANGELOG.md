@@ -16,10 +16,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Identity (IDM) activity, foundation: the `tool-idm` crate on the rail after Tracker, the `IdmProvider` trait and the Keycloak provider over its Admin REST API (client credentials, admin password and offline token; tokens in memory only, renewed before expiry, one retry on 401; version gating 22-26; every phase-1 read and write including create; errors in words, among them Keycloak 26.8's `kc-admin-api` audience 401), the `Guarded` write gate (read-only on a protected environment unless the tab allows writes), the workspace audit log `idm/audit.jsonl` (field names, never values) and one masking function for server JSON; screens follow (FEAT-0109, FEAT-0110, FEAT-0116)
 - Connection kind `keycloak` with the Keycloak mark, vendored from Simple Icons and recoloured (FEAT-0109)
 - `hs_core::service_http`: a Verify TLS switch and a CA file per client (`Tls`, `Http::with_tls`), and `Http::request_as` for a credential per request (FEAT-0110)
+- Settings → Identity: identity servers listed left and the form right, only the chosen authentication's fields (Client Credentials, Admin Password, Offline Token), Verify TLS and a CA file, Test Connection that fills the Auth Realm and Default Realm pickers from the server, and the activity's Rows per Page and Request Timeout (FEAT-0109)
+- Identity dashboard: servers, realms and users of the open tabs, Saved Identity Servers, and Recent Changes from the workspace's audit log with Clear History and Remove (FEAT-0109, FEAT-0116)
+- An identity server's tab: the realm picker and the section column, the section's list and the item page beside it, Refresh, Open in Admin Console, Export Realm and, on a protected environment, Allow Writes (FEAT-0109, FEAT-0110)
+- Identity Users: search (Exact, Enabled), paging with the count, Add User, and the user's Details, Attributes, Credentials, Groups, Role Mapping and Sessions; Enable / Disable, Reset Password (temporary by default), Log Out, End Session, Delete (FEAT-0111)
+- Identity Groups and Roles: the group tree loaded a level at a time, Create Group and Sub-Group, a group's Members, Role Mapping, Attributes and Details; Realm Roles and Client Roles with Create Role, a role's Details, Composite Roles, Users in Role and Groups in Role (FEAT-0112)
+- Identity Clients: the clients list, Create Client, a client's Settings (with More Settings read-only), Credentials (secret masked, Show for 30 s, Copy cleared after 60 s, Regenerate), Roles, Service Account Roles and Sessions; the realm's own clients read-only (FEAT-0113)
+- Identity Sessions, Login Events and Admin Events: sessions by client with End Session and Log Out All Sessions; both event tables filtered and paged, the level word in the shared log-level colours, an admin event's masked representation (FEAT-0114)
+- Identity Export Realm: clients and groups and roles as a Job with cancel, the masked JSON with Save As, Open in Editor and Copy (FEAT-0115)
+- Every Identity write behind its guard: a confirmation naming what changes, a typed confirmation to delete, regenerate a secret or log out all, and a review of each changed field before a save (FEAT-0116)
+- `hs_ui::dialog::typed_confirm`, the typed confirmation shared by Queue's Delete and Identity (FEAT-0116)
+- Palette commands for Identity, with Search… on Ctrl+Alt+U and Switch Realm… on Ctrl+Alt+Shift+R (FEAT-0109)
 
 ### Changed
 
 - New workspaces' `.gitignore` lists `idm/audit.jsonl` (FEAT-0116)
+- Queue's Delete uses the shared typed confirmation (FEAT-0116)
 
 ## 0.132.2 — 2026-11-13
 

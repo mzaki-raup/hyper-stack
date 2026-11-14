@@ -70,6 +70,30 @@ impl AuditLog {
         }
     }
 
+    /// The one log of the workspace rooted at `root`, shared by its tabs
+    /// and its dashboard, so Recent Changes shows a write the moment a tab
+    /// appends it rather than what the file held when it was first read.
+    pub fn shared(root: &Path) -> std::sync::Arc<AuditLog> {
+        use std::collections::HashMap;
+        use std::sync::{Arc, OnceLock};
+        static LOGS: OnceLock<Mutex<HashMap<PathBuf, Arc<AuditLog>>>> = OnceLock::new();
+        let log = AuditLog::in_workspace(root);
+        LOGS.get_or_init(Default::default)
+            .lock()
+            .entry(log.path.clone())
+            .or_insert_with(|| Arc::new(log))
+            .clone()
+    }
+
+    /// The last `n` entries, newest first, if the file has been read -
+    /// never reads it, so a frame can ask. `None` until [`AuditLog::recent`]
+    /// has run once (off the UI thread).
+    pub fn peek(&self, n: usize) -> Option<Vec<AuditEntry>> {
+        let tail = self.tail.lock();
+        tail.as_ref()
+            .map(|t| t.iter().rev().take(n).cloned().collect())
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }

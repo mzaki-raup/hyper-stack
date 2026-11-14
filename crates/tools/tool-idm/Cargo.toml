@@ -27,6 +27,8 @@ async-trait = { workspace = true }
 base64 = { workspace = true }
 # The token request is form-encoded (ADR-032), as Automation's are.
 reqwest = { workspace = true, features = ["form"] }
+# Save As for a realm export (§4.9).
+rfd = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

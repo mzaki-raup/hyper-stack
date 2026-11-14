@@ -31,6 +31,7 @@ pub enum Page {
     Queue,
     Automation,
     Tracker,
+    Identity,
     Security,
     Terminal,
     Editor,
@@ -53,6 +54,8 @@ pub fn page_for_kind(kind: &str) -> Page {
         Page::Automation
     } else if c::is_tracker_kind(kind) {
         Page::Tracker
+    } else if c::is_idm_kind(kind) {
+        Page::Identity
     } else {
         Page::Connections
     }
@@ -76,7 +79,7 @@ fn take_named_focus(ui: &egui::Ui, state: &mut SettingsState, which: FocusSectio
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 18] {
+    pub fn all() -> [(Page, &'static str); 19] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -90,6 +93,7 @@ impl Page {
             (Page::Queue, "settings-queue"),
             (Page::Automation, "settings-automation"),
             (Page::Tracker, "settings-tracker"),
+            (Page::Identity, "settings-identity"),
             (Page::Editor, "settings-editor"),
             (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
@@ -113,6 +117,7 @@ impl Page {
             Page::Queue => ph::QUEUE,
             Page::Automation => ph::FLOW_ARROW,
             Page::Tracker => ph::KANBAN,
+            Page::Identity => ph::IDENTIFICATION_BADGE,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -325,6 +330,8 @@ pub(crate) fn kind_family(kind: &str) -> (&'static [&'static str], bool) {
         (c::AUTOMATION_KINDS, true)
     } else if c::is_tracker_kind(kind) {
         (c::TRACKER_KINDS, true)
+    } else if c::is_idm_kind(kind) {
+        (c::IDM_KINDS, true)
     } else {
         (c::KINDS, false)
     }
@@ -585,6 +592,7 @@ fn page_inner(
         Page::Queue => queue(ui, theme, services, state, effects),
         Page::Automation => automation(ui, theme, services, state, effects),
         Page::Tracker => tracker(ui, theme, services, state, effects),
+        Page::Identity => identity(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
@@ -4294,6 +4302,141 @@ fn tracker(
     }
 }
 
+/// Settings -> Identity (docs/tools/idm.md §3.4): the identity servers
+/// listed left and the chosen one's form right, as Settings -> Tracker
+/// draws them, then the activity's defaults.
+fn identity(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::IDM_KINDS;
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-identity"),
+        Some(&s.t("settings-identity-sub")),
+    );
+    form::section(ui, theme, &s.t("settings-identity-servers"), |ui| {
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("idm-add")),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(IDM_KINDS[0]);
+            state.focus_form = true;
+        }
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                let servers: Vec<(String, String, String, String)> = s
+                    .connections
+                    .read()
+                    .of_idm_kinds()
+                    .map(|c| {
+                        let f = tool_idm::profile::IdmFields::from_table(&c.kind, &c.fields);
+                        (
+                            c.id.clone(),
+                            c.kind.clone(),
+                            c.name.clone(),
+                            f.label_for(&c.kind),
+                        )
+                    })
+                    .collect();
+                if servers.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-identity-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("identity-settings-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name, subtitle)) in servers.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::conn_list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::conn_icon(kind, ""),
+                            name,
+                            Some(subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(IDM_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_idm = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_idm_kind(&d.kind));
+                if !is_idm {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-identity-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-identity-limits"), |ui| {
+        let mut st = s.settings.write();
+        let d = &mut st.idm;
+        form::field_grid(ui, "identity-limits", |ui| {
+            form::label(ui, &s.t("settings-identity-page-size"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut d.page_size)
+                        .range(tool_idm::provider::PAGE_MIN..=tool_idm::provider::PAGE_MAX),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-identity-timeout"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut d.timeout_secs)
+                        .range(5..=120)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-identity-limits-hint"));
+        });
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -4427,6 +4570,7 @@ fn save_draft(
     let is_queue = hs_core::connections::is_queue_kind(&draft.kind);
     let is_automation = hs_core::connections::is_automation_kind(&draft.kind);
     let is_tracker = hs_core::connections::is_tracker_kind(&draft.kind);
+    let is_idm = hs_core::connections::is_idm_kind(&draft.kind);
     let parsed = if is_ssh
         || is_s3
         || is_db
@@ -4437,6 +4581,7 @@ fn save_draft(
         || is_queue
         || is_automation
         || is_tracker
+        || is_idm
     {
         // These forms write into `draft.fields` directly,
         // so the text box is a view rather than the truth.
@@ -4518,6 +4663,12 @@ fn save_draft(
                 draft.fields = table.clone();
             } else if is_tracker {
                 let mut f = tool_tracker::profile::TrackerFields::from_table(&draft.kind, &table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_idm {
+                let mut f = tool_idm::profile::IdmFields::from_table(&draft.kind, &table);
                 secrets_ok =
                     store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
                 f.write_into(&mut table);
@@ -4725,6 +4876,16 @@ fn conn_detail(
         automation_form(ui, theme, s, draft, fields_text);
     } else if hs_core::connections::is_tracker_kind(&draft.kind) {
         tracker_form(ui, theme, s, draft, fields_text);
+    } else if hs_core::connections::is_idm_kind(&draft.kind) {
+        // The realms the last Test Connection of this profile read, for
+        // the Auth Realm and Default Realm pickers.
+        let realms = state
+            .conn_test
+            .as_ref()
+            .filter(|t| t.profile_id == draft.id)
+            .map(|t| t.realms())
+            .unwrap_or_default();
+        idm_form(ui, theme, s, &realms, draft, fields_text);
     } else {
         form::section(ui, theme, &s.t("conn-fields"), |ui| {
             form::code_field(ui, fields_text, 8);
@@ -4886,6 +5047,7 @@ fn conn_detail(
             && !hs_core::connections::is_queue_kind(&probe.kind)
             && !hs_core::connections::is_automation_kind(&probe.kind)
             && !hs_core::connections::is_tracker_kind(&probe.kind)
+            && !hs_core::connections::is_idm_kind(&probe.kind)
             && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
         {
             probe.fields = table;
@@ -5702,6 +5864,13 @@ fn apply_secret_edit(
         }
         kind if hs_core::connections::is_tracker_kind(kind) => {
             let mut f = tool_tracker::profile::TrackerFields::from_table(kind, &table);
+            f.credential.secret = std::mem::take(password);
+            let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_idm_kind(kind) => {
+            let mut f = tool_idm::profile::IdmFields::from_table(kind, &table);
             f.credential.secret = std::mem::take(password);
             let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
             f.write_into(&mut table);
@@ -10517,6 +10686,143 @@ fn tracker_form(
                 _ => "conn-ssh-secret-hint",
             };
             form::row_hint(ui, theme, &s.t(hint));
+        });
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// An identity server's form (docs/tools/idm.md §5.1): where it is, how
+/// the token is asked for, the realms, and TLS. Only the fields of the
+/// chosen authentication are drawn; the secret goes into the vault on
+/// save (`.claude/rules/security.md`). `realms` is what the last Test
+/// Connection read, for the two realm pickers.
+fn idm_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    realms: &[String],
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_idm::profile::{AUTH_KINDS, IdmFields};
+    let kind = draft.kind.clone();
+    let mut f = IdmFields::from_table(&kind, &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-idm-section"), |ui| {
+        form::field_grid(ui, "idm-server", |ui| {
+            form::label(ui, &s.t("conn-idm-url"));
+            changed |= form::text_field(ui, &mut f.url, "https://sso.example.com").changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-idm-url-hint"));
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "idm-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "password" => "conn-idm-auth-password",
+                "token" => "conn-idm-auth-token",
+                _ => "conn-idm-auth-client",
+            };
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-idm-auth"));
+            egui::ComboBox::from_id_salt("idm-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&c.auth)))
+                .show_ui(ui, |ui| {
+                    for a in AUTH_KINDS {
+                        if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            c.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            form::label(ui, &s.t("conn-idm-auth-realm"));
+            changed |= form::pick_field(ui, theme, &mut f.auth_realm, realms, "master").changed();
+            ui.end_row();
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-idm-client-id"));
+            let example = match c.auth.as_str() {
+                "api-key" => "hs-admin",
+                _ => tool_idm::provider::keycloak::auth::ADMIN_CLI,
+            };
+            changed |= form::text_field(ui, &mut f.client_id, example).changed();
+            ui.end_row();
+            match c.auth.as_str() {
+                "password" => {
+                    form::label(ui, &s.t("conn-queue-user"));
+                    changed |= form::text_field(ui, &mut c.user, "admin").changed();
+                    ui.end_row();
+                    form::label(ui, &s.t("conn-queue-password"));
+                }
+                "token" => {
+                    form::label(ui, &s.t("conn-idm-offline-token"));
+                }
+                _ => {
+                    form::label(ui, &s.t("conn-idm-client-secret"));
+                }
+            }
+            changed |= secret_field(ui, theme, s, "idm-secret", &mut c.secret, scratch, 0);
+            ui.end_row();
+            let hint = match c.auth.as_str() {
+                "password" => "conn-idm-hint-password",
+                "token" => "conn-idm-hint-token",
+                _ => "conn-idm-hint-client",
+            };
+            form::row_hint(ui, theme, &s.t(hint));
+            form::label(ui, &s.t("conn-idm-default-realm"));
+            changed |= form::pick_field(
+                ui,
+                theme,
+                &mut f.default_realm,
+                realms,
+                &s.t("conn-idm-default-realm-hint"),
+            )
+            .changed();
+            ui.end_row();
+            if realms.is_empty() {
+                form::row_hint(ui, theme, &s.t("conn-idm-realms-hint"));
+            }
+        });
+    });
+    form::section(ui, theme, &s.t("conn-idm-section-tls"), |ui| {
+        form::field_grid(ui, "idm-tls", |ui| {
+            form::label(ui, &s.t("conn-idm-verify-tls"));
+            changed |= ui.checkbox(&mut f.tls_verify, "").changed();
+            ui.end_row();
+            if !f.tls_verify {
+                form::row_hint(ui, theme, &s.t("conn-idm-verify-tls-off"));
+            }
+            form::label(ui, &s.t("conn-idm-ca-file"));
+            form::centred_row(ui, |ui| {
+                changed |= form::text_field_width(
+                    ui,
+                    &mut f.ca_file,
+                    "company-ca.pem",
+                    form::FIELD_MIN_WIDTH,
+                )
+                .changed();
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::FOLDER_OPEN,
+                    &s.t("conn-ssh-browse"),
+                )
+                .clicked()
+                    && let Some(p) = rfd::FileDialog::new()
+                        .add_filter("PEM", &["pem", "crt", "cer"])
+                        .pick_file()
+                {
+                    f.ca_file = p.to_string_lossy().to_string();
+                    changed = true;
+                }
+            });
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-idm-ca-file-hint"));
         });
     });
     if changed {

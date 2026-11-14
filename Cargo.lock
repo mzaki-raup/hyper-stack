@@ -9577,7 +9577,7 @@ dependencies = [
 
 [[package]]
 name = "tool-idm"
-version = "0.131.2"
+version = "0.132.2"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9587,6 +9587,7 @@ dependencies = [
  "hs-ui",
  "parking_lot",
  "reqwest",
+ "rfd",
  "secrecy",
  "serde",
  "serde_json",

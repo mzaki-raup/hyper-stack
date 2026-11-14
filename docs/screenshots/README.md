@@ -37,6 +37,27 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-14: the Identity activity (FEAT-0109 to FEAT-0116)
+
+Taken from the `feat/idm` release build on the scratch data folder at
+1736 × 900, against the bench Keycloak 26.8 (`hs-keycloak`, port 8180,
+realm `hs-demo`, the `hs-admin` service-account client; its secret typed
+into the form from `bench/.env` by a script and kept in the vault). The
+margin outside the window frame was replaced by `home.png`'s, then each
+PNG quantised with `magick <in> -colors 256 -depth 8 <out>`.
+
+- `identity.png` - the dashboard: one server, the realm and users of the
+  open tab, and Recent Changes holding the create, update and delete of
+  a throwaway user (`hs-ui-check`) made during the app check.
+- `identity-users.png` - a server tab on Users with `alice.nguyen`'s
+  Details; the profile's environment is PRODUCTION and writes were
+  allowed for the tab, so the controls are live.
+- `identity-delete.png` - Delete User's typed confirmation with the name
+  half typed (Delete still disabled); cancelled, nothing deleted.
+- `identity-settings.png` - Settings → Identity with the server's form:
+  PRODUCTION, Client Credentials, and the secret shown only as *Stored
+  in the vault*.
+
 ## 2026-11-10 set: the README brought to the taller top bar (CR-0098)
 
 The top bar grew from 46 to 54 px (its rule moved from y=76 to y=84) and

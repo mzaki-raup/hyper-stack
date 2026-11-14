@@ -1384,6 +1384,7 @@ impl HyperStackApp {
             "settings:queue" => self.open_settings(Some(settings_ui::Page::Queue)),
             "settings:automation" => self.open_settings(Some(settings_ui::Page::Automation)),
             "settings:tracker" => self.open_settings(Some(settings_ui::Page::Tracker)),
+            "settings:identity" => self.open_settings(Some(settings_ui::Page::Identity)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
             // Add, from an activity whose kinds each have their own form:
             // an empty form of the page's first kind, Name focused; the
@@ -1392,7 +1393,8 @@ impl HyperStackApp {
             "settings:containers:new"
             | "settings:queue:new"
             | "settings:automation:new"
-            | "settings:tracker:new" => {
+            | "settings:tracker:new"
+            | "settings:identity:new" => {
                 use hs_core::connections as c;
                 let (page, kind) = match action {
                     "settings:containers:new" => {
@@ -1402,6 +1404,7 @@ impl HyperStackApp {
                     "settings:automation:new" => {
                         (settings_ui::Page::Automation, c::AUTOMATION_KINDS[0])
                     }
+                    "settings:identity:new" => (settings_ui::Page::Identity, c::IDM_KINDS[0]),
                     _ => (settings_ui::Page::Tracker, c::TRACKER_KINDS[0]),
                 };
                 self.open_settings(Some(page));

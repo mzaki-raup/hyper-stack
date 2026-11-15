@@ -165,7 +165,8 @@ impl GitHub {
             repo: cfg.repo.clone(),
             info: ServerInfo {
                 product: "GitHub Actions".into(),
-                version: String::new(),
+                // An Enterprise Server's; github.com has none (CR-0100).
+                version: hs_core::service_http::github_enterprise_version(&http).await,
             },
             http,
         })

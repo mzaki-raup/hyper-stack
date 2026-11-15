@@ -57,6 +57,10 @@ pub struct HostView {
     pub cred: GitCredential,
     projects: Option<Result<Vec<Project>, String>>,
     slot: Slot<Result<Vec<Project>, String>>,
+    /// The version the host says it runs, for the header; empty when it
+    /// has none to give (CR-0100).
+    pub version: String,
+    version_slot: Slot<String>,
     busy: bool,
     filter: String,
     /// A clone on its way.
@@ -74,6 +78,8 @@ impl HostView {
             cred,
             projects: None,
             slot: Default::default(),
+            version: String::new(),
+            version_slot: Default::default(),
             busy: false,
             filter: String::new(),
             cloning: None,
@@ -143,9 +149,12 @@ impl HostView {
             .unwrap_or_default();
         let cred = self.cred.clone();
         let slot = self.slot.clone();
+        let version_slot = self.version_slot.clone();
         self.busy = true;
         s.runtime.spawn(async move {
             let http = hs_core::ai::http_client();
+            // The version first: the listing's arrival is what redraws.
+            *version_slot.lock() = Some(crate::hosts::version(&http, &cred, &token).await);
             *slot.lock() = Some(crate::hosts::list_projects(&http, &cred, &token).await);
         });
         Ok(())
@@ -154,6 +163,9 @@ impl HostView {
     /// Take what the runtime left: the listing, and a finished clone,
     /// which is recorded in the repository list and opened.
     pub fn poll(&mut self, cx: &mut ToolContext) {
+        if let Some(v) = self.version_slot.lock().take() {
+            self.version = v;
+        }
         if let Some(r) = self.slot.lock().take() {
             self.projects = Some(r);
             self.busy = false;

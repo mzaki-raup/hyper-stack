@@ -205,6 +205,26 @@ impl Http {
     }
 }
 
+/// Whether `base` is github.com's API, which has no version to report.
+pub fn is_github_cloud(base: &str) -> bool {
+    base.trim_end_matches('/')
+        .eq_ignore_ascii_case("https://api.github.com")
+}
+
+/// A GitHub Enterprise Server's version, from `/meta`; empty on
+/// github.com, and empty rather than an error when it is refused: a
+/// header shows no version then (CR-0100). Shared by Automation and
+/// Tracker, which may not depend on each other.
+pub async fn github_enterprise_version(http: &Http) -> String {
+    if is_github_cloud(&http.base) {
+        return String::new();
+    }
+    http.get_json("/meta")
+        .await
+        .map(|v| s(&v, "installed_version"))
+        .unwrap_or_default()
+}
+
 /// A string field, or "".
 pub fn s(v: &Value, k: &str) -> String {
     match v.get(k) {
@@ -232,6 +252,14 @@ pub fn seg(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0100: only an Enterprise Server is asked for its version.
+    #[test]
+    fn github_dot_com_is_told_from_an_enterprise_server() {
+        assert!(is_github_cloud("https://api.github.com"));
+        assert!(is_github_cloud("https://API.github.com/"));
+        assert!(!is_github_cloud("https://github.example.com/api/v3"));
+    }
 
     #[test]
     fn a_refusal_says_what_the_server_said() {

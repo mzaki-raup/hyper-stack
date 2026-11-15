@@ -1512,3 +1512,31 @@ Written in full in `.claude/rules/ui.md`; in short:
   tooltip with the reference and its value through `hs_ui::varpeek`,
   installed once by the shell. A secret is shown masked and never
   decrypted for a tooltip; a locked vault and an unset name say so.
+
+## Addendum (2026-11-14): the server version in the work-pane header (CR-0099, CR-0100)
+
+A connection tab's header band shows the **Version** of the server it is
+connected to wherever the account in use can learn it. A version that
+cannot be learnt is left out (the band skips an empty fact), never shown
+as a guess.
+
+| Activity | Version from |
+|---|---|
+| Database | the engine's own function (`server_version`, `version()`, `sqlite_version()` ...) |
+| Redis | `INFO` (`redis_version` / `valkey_version`) |
+| NoSQL | MongoDB `buildInfo`, CouchDB and Qdrant `GET /` |
+| Containers | `docker version`, Kubernetes `/version` |
+| Queue | RabbitMQ `/api/overview`, NATS server info, Redis Streams `INFO` |
+| Automation | Jenkins `X-Jenkins`, Forgejo and GitLab `/version`, TeamCity, AWX `ping`, Puppet; GitHub Enterprise Server `/meta` |
+| Tracker | Jira `/serverInfo`, Forgejo and GitLab `/version`, GitHub Enterprise Server `/meta`, Confluence Server / Data Center's application links manifest |
+| Git host tabs | Forgejo / Gitea `/api/v1/version`, GitLab `/api/v4/version`, GitHub Enterprise Server `/meta` |
+| Identity | Keycloak `serverinfo`; through the optional Version Lookup account when the main one is not shown it (docs/tools/idm.md §8.3) |
+| SSH | the remote OS name and version |
+
+Left without a version on purpose, because the product gives none to the
+access the tab has: github.com, Bitbucket Cloud, Azure DevOps Services,
+Confluence Cloud and Redmine (no version API); Kafka (the protocol
+reports API ranges, not a broker version); MQTT (the header shows the
+protocol version, the broker reports none portably); S3 and its
+compatibles (none in the protocol); API Client and Logs (no server
+product behind a tab).

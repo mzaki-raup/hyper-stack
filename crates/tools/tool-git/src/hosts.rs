@@ -126,6 +126,47 @@ pub async fn whoami(
     parse_whoami(cred.kind, &body).ok_or_else(|| "no login in the answer".into())
 }
 
+/// Where a host says which version it runs (CR-0100). github.com,
+/// Bitbucket Cloud and Azure DevOps Services have no version to give.
+fn version_url(cred: &GitCredential) -> Option<String> {
+    let base = api_base(cred);
+    Some(match cred.kind {
+        HostKind::GitHub if cred.host() == "https://github.com" => return None,
+        // GitHub Enterprise Server.
+        HostKind::GitHub => format!("{base}/meta"),
+        HostKind::GitLab => format!("{base}/api/v4/version"),
+        HostKind::Forgejo | HostKind::Gitea => format!("{base}/api/v1/version"),
+        HostKind::Bitbucket | HostKind::Azure | HostKind::Generic => return None,
+    })
+}
+
+/// The version in a host's answer: `installed_version` from GitHub
+/// Enterprise's `/meta`, `version` from the others.
+pub fn parse_version(kind: HostKind, body: &Value) -> String {
+    match kind {
+        HostKind::GitHub => s(body, "installed_version"),
+        _ => s(body, "version"),
+    }
+}
+
+/// The version the host runs, or empty when it has none to give or
+/// refuses: the header then shows no version, never an error.
+pub async fn version(http: &reqwest::Client, cred: &GitCredential, token: &str) -> String {
+    let Some(url) = version_url(cred) else {
+        return String::new();
+    };
+    let Ok(resp) = request(http, &url, cred, token).send().await else {
+        return String::new();
+    };
+    if !resp.status().is_success() {
+        return String::new();
+    }
+    match resp.json::<Value>().await {
+        Ok(body) => parse_version(cred.kind, &body),
+        Err(_) => String::new(),
+    }
+}
+
 /// Every repository the credential can see, page after page.
 pub async fn list_projects(
     http: &reqwest::Client,
@@ -460,5 +501,49 @@ mod tests {
             whoami_url(&f).as_deref(),
             Some("https://git.zacx.net/api/v1/user")
         );
+    }
+
+    /// CR-0100: a self-hosted forge says its version; github.com and the
+    /// kinds with no version API are never asked.
+    #[test]
+    fn a_host_is_asked_its_version_only_where_it_has_one() {
+        let at = |kind, base_url: &str| GitCredential {
+            kind,
+            base_url: base_url.into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            version_url(&at(HostKind::Forgejo, "https://git.zacx.net")).as_deref(),
+            Some("https://git.zacx.net/api/v1/version")
+        );
+        assert_eq!(
+            version_url(&at(HostKind::GitLab, "https://gitlab.example.com")).as_deref(),
+            Some("https://gitlab.example.com/api/v4/version")
+        );
+        assert_eq!(
+            version_url(&at(HostKind::GitHub, "https://github.example.com")).as_deref(),
+            Some("https://github.example.com/api/v3/meta")
+        );
+        assert_eq!(
+            version_url(&at(HostKind::GitHub, "https://github.com")),
+            None
+        );
+        assert_eq!(
+            version_url(&at(HostKind::Bitbucket, "https://bitbucket.org")),
+            None
+        );
+        assert_eq!(
+            parse_version(
+                HostKind::Forgejo,
+                &json!({"version": "11.0.3+gitea-1.22.0"})
+            ),
+            "11.0.3+gitea-1.22.0"
+        );
+        assert_eq!(
+            parse_version(HostKind::GitHub, &json!({"installed_version": "3.14.2"})),
+            "3.14.2"
+        );
+        // github.com's /meta has no installed_version.
+        assert_eq!(parse_version(HostKind::GitHub, &json!({"hooks": []})), "");
     }
 }

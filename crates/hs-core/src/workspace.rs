@@ -232,7 +232,7 @@ impl Workspace {
             storage::write_toml(&meta_path, &meta)?;
             let gitignore = root.join(".gitignore");
             if !gitignore.exists() {
-                storage::write_atomic(&gitignore, b"layout.json\n*.local.toml\n")?;
+                storage::write_atomic(&gitignore, b"layout.json\n*.local.toml\nidm/audit.jsonl\n")?;
             }
             meta
         };
@@ -627,6 +627,10 @@ mod tests {
         assert_eq!(back.tabs, layout.tabs);
         assert_eq!(back.active, layout.active);
         assert!(ws.root().join(".gitignore").exists());
+        // HyperStack's own IDM audit log names the people it changed, so
+        // a shared workspace does not commit it (docs/tools/idm.md §6.4).
+        let ignore = std::fs::read_to_string(ws.root().join(".gitignore")).unwrap();
+        assert!(ignore.lines().any(|l| l == "idm/audit.jsonl"));
     }
 
     /// Split panes were removed on 2026-10-23 and `Layout::split` with them.

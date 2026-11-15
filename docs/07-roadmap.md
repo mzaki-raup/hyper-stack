@@ -121,6 +121,19 @@ The Phase 2 "Containers" line below is superseded by this; the Phase 2
 Logs line keeps its own Docker/Kubernetes **log source** work, which
 feeds the same handoff.
 
+## IDM activity (owner's request, 2026-11-08)
+
+A new activity for identity servers, Keycloak first, its work pane
+shaped like Keycloak's admin console and driven by the Admin REST API.
+Specified in [tools/idm.md](tools/idm.md), decided in ADR-032, listed
+as phase P of [10](10-depth-programme.md), ledger task version
+`v0.8.0`:
+
+- [ ] 1 · Phase 1: the activity, the Keycloak provider (auth, token refresh, version gating), Users, Groups and Roles, Clients, Sessions and Events, Realm export, and the safety work (guards, typed confirmations, audit log, masking) - FEAT-0109 to FEAT-0116
+- [ ] 2 · Identity providers and mappers, client scopes and protocol mappers, partial import with a diff preview, a read-only flow viewer, realm compare
+- [ ] 3 · Flow editor, authorization services, user federation (LDAP), organizations
+- [ ] Later providers: Authentik, Zitadel, Okta, Microsoft Entra ID, plain LDAP
+
 ## Phase 2 — Depth (≈ 16 weeks)
 
 The remaining Phase 2 and Phase 3 items were re-planned on 2026-10-30

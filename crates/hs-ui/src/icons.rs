@@ -240,6 +240,9 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "gitlab-issues" => "\u{e7eb}",
         "forgejo-issues" => "\u{e910}",
         "redmine" => ph::BUG,
+        // The identity servers (docs/tools/idm.md §3.6): the logo is
+        // what is drawn; the shield is the fallback glyph.
+        "keycloak" => ph::SHIELD_CHECK,
         _ => container_kind_icon(kind),
     }
 }
@@ -443,6 +446,10 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
     (
         "bytes://product/redmine.svg",
         include_bytes!("../../../assets/icons/simple/redmine.svg"),
+    ),
+    (
+        "bytes://product/keycloak.svg",
+        include_bytes!("../../../assets/icons/simple/keycloak.svg"),
     ),
     (
         "bytes://product/amazons3.svg",
@@ -824,6 +831,7 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "qdrant" => "qdrant",
         "mqtt" => "mqtt",
         "redmine" => "redmine",
+        "keycloak" => "keycloak",
         "s3" => "amazons3",
         "jira" => "jira",
         "confluence" => "confluence",
@@ -1618,6 +1626,7 @@ mod tests {
             ("qdrant", "qdrant"),
             ("mqtt", "mqtt"),
             ("redmine", "redmine"),
+            ("keycloak", "keycloak"),
         ] {
             assert_eq!(
                 conn_icon(k, "").image.map(str::to_owned),

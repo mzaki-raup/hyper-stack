@@ -139,13 +139,14 @@ impl GitHub {
             return Err(format!("{} has issues turned off", cfg.repo));
         }
         Ok(GitHub {
-            http,
             repo: cfg.repo.clone(),
             signed_in: cfg.auth != hs_core::service_auth::Auth::None,
             info: ServerInfo {
                 product: "GitHub Issues".into(),
-                version: String::new(),
+                // An Enterprise Server's; github.com has none (CR-0100).
+                version: hs_core::service_http::github_enterprise_version(&http).await,
             },
+            http,
         })
     }
 

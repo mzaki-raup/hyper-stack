@@ -37,6 +37,9 @@ pub fn factories(
         // After Automation, where the programme puts it
         // (docs/tools/tracker.md §8).
         Box::new(tool_tracker::TrackerFactory),
+        // After Tracker, beside the other admin activities
+        // (docs/tools/idm.md §8.1).
+        Box::new(tool_idm::IdmFactory),
         Box::new(tool_db::DbFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),

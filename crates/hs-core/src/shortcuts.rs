@@ -246,6 +246,8 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("tracker.search", "Ctrl+Alt+F"),
     ("tracker.new", "Ctrl+Alt+N"),
     ("tracker.transition", "Ctrl+Alt+T"),
+    ("idm.search", "Ctrl+Alt+U"),
+    ("idm.realm", "Ctrl+Alt+Shift+R"),
     ("queue.publish", "Ctrl+Alt+Shift+M"),
     ("vault.lock", "Ctrl+Shift+L"),
     ("zoom.in", "Ctrl+="),

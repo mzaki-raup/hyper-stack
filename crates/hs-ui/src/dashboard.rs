@@ -76,8 +76,9 @@ pub fn head(ui: &mut egui::Ui, theme: &Theme, icon: &str, title: &str, subtitle:
     });
 }
 
-/// How far the band and the rules stay clear of the pane's edges.
-const HEAD_MARGIN: f32 = 8.0;
+/// How far the band and the rules stay clear of the pane's edges; a
+/// section an activity draws itself lines up with it.
+pub const HEAD_MARGIN: f32 = 8.0;
 
 /// A full-width rule with room above and below it.
 ///

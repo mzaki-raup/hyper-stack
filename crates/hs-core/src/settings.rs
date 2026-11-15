@@ -26,6 +26,7 @@ pub struct Settings {
     pub queue: Queue,
     pub automation: Automation,
     pub tracker: Tracker,
+    pub idm: Idm,
 }
 
 /// A container registry and how to sign in to it.
@@ -113,6 +114,27 @@ pub struct Tracker {
 impl Default for Tracker {
     fn default() -> Self {
         Self { poll_secs: 60 }
+    }
+}
+
+/// Settings → Identity: the bounds every identity server's tab works
+/// within (`docs/tools/idm.md` §7). The servers themselves are
+/// connection profiles.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Idm {
+    /// Rows per page of every list (20-200).
+    pub page_size: u32,
+    /// How long a read may take before it is reported, in seconds.
+    pub timeout_secs: u32,
+}
+
+impl Default for Idm {
+    fn default() -> Self {
+        Self {
+            page_size: 50,
+            timeout_secs: 15,
+        }
     }
 }
 
@@ -581,6 +603,7 @@ impl Default for Settings {
             queue: Queue::default(),
             automation: Automation::default(),
             tracker: Tracker::default(),
+            idm: Idm::default(),
         }
     }
 }

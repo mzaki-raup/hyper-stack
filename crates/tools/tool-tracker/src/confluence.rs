@@ -49,6 +49,22 @@ impl Confluence {
         c.http
             .get_json(&format!("{}/space?limit=1", c.v1()))
             .await?;
+        // Server and Data Center say their version in the application
+        // links manifest; Cloud has none. A refusal leaves it empty
+        // (CR-0100).
+        let mut c = c;
+        if !c.cloud
+            && let Ok(m) = c
+                .http
+                .json(
+                    c.http
+                        .request(Method::GET, "/rest/applinks/1.0/manifest")
+                        .header("Accept", "application/json"),
+                )
+                .await
+        {
+            c.info.version = manifest_version(&m);
+        }
         Ok(c)
     }
 
@@ -355,5 +371,23 @@ impl Driver for Confluence {
         };
         self.http.json(rb).await?;
         Ok(format!("{} published as version {version}", page.title))
+    }
+}
+
+/// The application's version in an application links manifest.
+fn manifest_version(manifest: &Value) -> String {
+    s(manifest, "version")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// CR-0100: Server and Data Center report their version there.
+    #[test]
+    fn the_manifest_gives_the_server_version() {
+        let m = json!({"typeId": "confluence", "version": "8.5.4", "buildNumber": 9012});
+        assert_eq!(manifest_version(&m), "8.5.4");
+        assert_eq!(manifest_version(&json!({"typeId": "confluence"})), "");
     }
 }

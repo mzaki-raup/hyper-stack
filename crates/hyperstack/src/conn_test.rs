@@ -95,6 +95,18 @@ fn tracker_error(e: tool_tracker::profile::ProfileError) -> Outcome {
     }
 }
 
+fn idm_error(e: tool_idm::profile::ProfileError) -> Outcome {
+    use hs_core::service_auth::AuthError;
+    use tool_idm::profile::ProfileError as E;
+    match e {
+        E::Auth(AuthError::VaultLocked) => Outcome::VaultLocked,
+        E::MissingVariables(v) | E::Auth(AuthError::MissingVariables(v)) => {
+            Outcome::MissingVariables(v.join(", "))
+        }
+        other => Outcome::Failed(other.to_string()),
+    }
+}
+
 fn nosql_error(e: tool_nosql::profile::ProfileError) -> Outcome {
     use tool_nosql::profile::ProfileError as E;
     match e {
@@ -127,6 +139,9 @@ fn ssh_error(e: hs_ssh::config::ConfigError) -> Outcome {
 pub struct Test {
     pub profile_id: String,
     slot: Arc<Mutex<Outcome>>,
+    /// The realms an identity server listed (Settings -> Identity fills
+    /// its realm pickers from them); empty for every other kind.
+    realms: Arc<Mutex<Vec<String>>>,
     /// Aborts the spawned connect (the runtime's task handle, kept behind a
     /// closure so this crate need not name the runtime's types).
     abort: Option<Box<dyn FnOnce() + Send>>,
@@ -149,6 +164,10 @@ impl Test {
 
     pub fn running(&self) -> bool {
         self.outcome() == Outcome::Running
+    }
+
+    pub fn realms(&self) -> Vec<String> {
+        self.realms.lock().clone()
     }
 }
 
@@ -188,6 +207,7 @@ pub fn testable(kind: &str) -> bool {
             | "gitlab-issues"
             | "forgejo-issues"
             | "confluence"
+            | "keycloak"
     )
 }
 
@@ -198,12 +218,14 @@ type Probe = Pin<Box<dyn Future<Output = Outcome> + Send>>;
 /// is cheap; only the connect goes to the runtime.
 pub fn start(s: &Services, profile: &ConnectionProfile) -> Test {
     let slot = Arc::new(Mutex::new(Outcome::Running));
+    let realms = Arc::new(Mutex::new(Vec::new()));
     let mut test = Test {
         profile_id: profile.id.clone(),
         slot: slot.clone(),
+        realms: realms.clone(),
         abort: None,
     };
-    match probe(s, profile) {
+    match probe(s, profile, realms) {
         Ok(fut) => {
             let waker = s.runtime.waker();
             let handle = s.runtime.spawn(async move {
@@ -220,7 +242,11 @@ pub fn start(s: &Services, profile: &ConnectionProfile) -> Test {
     test
 }
 
-fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
+fn probe(
+    s: &Services,
+    profile: &ConnectionProfile,
+    realms: Arc<Mutex<Vec<String>>>,
+) -> Result<Probe, Outcome> {
     let read_only = profile.read_only;
     let lookup = {
         let envs = s.environments.read().clone();
@@ -286,6 +312,37 @@ fn probe(s: &Services, profile: &ConnectionProfile) -> Result<Probe, Outcome> {
                     }
                     Err(e) => Outcome::Failed(e),
                 }
+            }))
+        }
+        kind if hs_core::connections::is_idm_kind(kind) => {
+            let cfg = tool_idm::profile::IdmFields::from_table(kind, fields)
+                .resolve(kind, secrets, &lookup)
+                .map_err(idm_error)?;
+            Ok(Box::pin(async move {
+                use tool_idm::provider::IdmProvider;
+                let provider = match cfg {
+                    tool_idm::profile::ConnectConfig::Keycloak(k) => {
+                        match tool_idm::provider::keycloak::Keycloak::new(k) {
+                            Ok(p) => p,
+                            Err(e) => return Outcome::Failed(e),
+                        }
+                    }
+                };
+                let info = match provider.connect().await {
+                    Ok(i) => i,
+                    Err(e) => return Outcome::Failed(e.to_string()),
+                };
+                if let Ok(list) = provider.realms().await {
+                    *realms.lock() = list.into_iter().map(|r| r.name).collect();
+                }
+                provider.disconnect().await;
+                let mut detail = format!("{} {}", info.product, info.version_text)
+                    .trim()
+                    .to_string();
+                if !info.signed_in_as.is_empty() {
+                    detail = format!("{detail} · {} ({})", info.signed_in_as, info.auth_realm);
+                }
+                Outcome::Ok(detail)
             }))
         }
         kind if hs_core::connections::is_queue_kind(kind) => {
@@ -540,9 +597,11 @@ mod tests {
         let t = Test {
             profile_id: "x".into(),
             slot: Arc::new(Mutex::new(Outcome::Running)),
+            realms: Arc::new(Mutex::new(Vec::new())),
             abort: None,
         };
         assert!(t.running());
+        assert!(t.realms().is_empty());
         *t.slot.lock() = Outcome::Ok(String::new());
         assert!(!t.running());
         assert_eq!(t.outcome(), Outcome::Ok(String::new()));

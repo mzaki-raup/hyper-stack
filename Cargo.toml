@@ -29,6 +29,7 @@ members = [
   "crates/tools/tool-queue",
   "crates/tools/tool-automation",
   "crates/tools/tool-tracker",
+  "crates/tools/tool-idm",
 ]
 
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
@@ -71,6 +72,7 @@ tool-git = { path = "crates/tools/tool-git" }
 tool-queue = { path = "crates/tools/tool-queue" }
 tool-automation = { path = "crates/tools/tool-automation" }
 tool-tracker = { path = "crates/tools/tool-tracker" }
+tool-idm = { path = "crates/tools/tool-idm" }
 
 # UI
 eframe = "0.35"

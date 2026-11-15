@@ -747,6 +747,8 @@ impl Tool for GitTool {
                 host_conn_icon(h.cred.kind)
                     .header(h.cred.label())
                     .fact("Kind", h.cred.kind.name().to_string())
+                    // Empty (and so not drawn) where the host has none.
+                    .fact("Version", h.version.clone())
                     .fact("URL", h.cred.host())
                     .fact("User", h.cred.username.clone())
                     .fact("Open", h.tabs.len().to_string()),

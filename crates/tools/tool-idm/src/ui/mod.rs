@@ -153,6 +153,8 @@ pub struct IdmTool {
     protected: bool,
     /// The profile's environment as connected, to notice it change.
     env_id: Option<String>,
+    /// The profile the session was opened from; an edit reconnects.
+    fields: Option<IdmFields>,
     env_name: String,
     tls_off: bool,
     session: Option<Session>,
@@ -160,6 +162,9 @@ pub struct IdmTool {
     view: tab::TabView,
     /// The home tab's dashboard.
     dash: dashboard::DashState,
+    /// The review-only assistant (ADR-019): told about the selection with
+    /// secrets masked; it never sends a write.
+    assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
 impl IdmTool {
@@ -193,6 +198,7 @@ impl IdmTool {
         self.url = fields.url.clone();
         self.read_only_profile = read_only;
         self.env_id = env_id.clone();
+        self.fields = Some(fields.clone());
         self.tls_off = !fields.tls_verify;
         if self.state.realm.is_empty() {
             self.state.realm = fields.opening_realm().to_string();
@@ -321,7 +327,8 @@ impl Tool for IdmTool {
         h = h.fact(
             "Version",
             if info.version_text.is_empty() {
-                "not shown to this account".to_string()
+                // Keycloak shows it to master-realm admins only (CR-0099).
+                "not shown to this account (Settings → Version Lookup)".to_string()
             } else {
                 info.version_text.clone()
             },
@@ -362,10 +369,26 @@ impl Tool for IdmTool {
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
-        if cx.is_home || self.state.conn_id.is_none() {
-            return;
+        if !cx.is_home && self.state.conn_id.is_some() {
+            tab::toolbar(self, ui, cx);
         }
-        tab::toolbar(self, ui, cx);
+        let s = cx.services;
+        let theme = hs_ui::theme::Theme::from_settings(&s.settings.read().appearance);
+        hs_ui::toolbar::hard_right(ui, |ui| {
+            if hs_ui::toolbar::btn(ui, &theme, ph::SPARKLE, &s.t("ai-assistant"))
+                .on_hover_text(s.t("ai-shared-button-tip"))
+                .clicked()
+            {
+                self.assistant.toggle("Identity");
+            }
+        });
+    }
+
+    fn speakable(&self) -> Vec<hs_core::tool::Speakable> {
+        self.assistant
+            .last_answer()
+            .map(|a| vec![hs_core::tool::Speakable::new("Assistant's last answer", a)])
+            .unwrap_or_default()
     }
 
     fn commands(&self) -> Vec<CommandDescriptor> {
@@ -388,10 +411,14 @@ impl Tool for IdmTool {
                         return;
                     };
                     self.conn_name = c.name.clone();
-                    c.environment != self.env_id || c.read_only != self.read_only_profile
+                    c.environment != self.env_id
+                        || c.read_only != self.read_only_profile
+                        || self.fields.as_ref() != Some(&IdmFields::from_table(&c.kind, &c.fields))
                 };
                 // A protection change reaches an open tab at once: it
                 // reconnects, which also locks Allow Writes again (§6.1).
+                // So does an edit of the profile itself (its URL, account
+                // or Version Lookup, CR-0099).
                 if changed && self.session.is_some() {
                     self.connect(cx.services);
                 }
@@ -442,8 +469,11 @@ impl Tool for IdmTool {
     fn ui(&mut self, ui: &mut egui::Ui, cx: &mut ToolContext) {
         if cx.is_home {
             dashboard::show(self, ui, cx);
-        } else {
-            tab::body(self, ui, cx);
+            return;
         }
+        let (mut content, assistant_rect) =
+            hs_ui::ai_assistant::split_for_assistant(ui, self.assistant.open);
+        tab::body(self, &mut content, cx);
+        tab::assistant_column(self, ui, assistant_rect, cx);
     }
 }

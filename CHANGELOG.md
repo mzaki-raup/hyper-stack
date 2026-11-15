@@ -27,11 +27,19 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 - Every Identity write behind its guard: a confirmation naming what changes, a typed confirmation to delete, regenerate a secret or log out all, and a review of each changed field before a save (FEAT-0116)
 - `hs_ui::dialog::typed_confirm`, the typed confirmation shared by Queue's Delete and Identity (FEAT-0116)
 - Palette commands for Identity, with Search… on Ctrl+Alt+U and Switch Realm… on Ctrl+Alt+Shift+R (FEAT-0109)
+- Identity palette commands that act on the selected object: Enable / Disable User, Reset Password…, Log Out, Delete…, Join Group…, Assign Role…, Show / Copy / Regenerate Client Secret; a toast says when the verb does not apply (FEAT-0111, FEAT-0112, FEAT-0113)
+- The AI assistant in an Identity tab: the hard-right toolbar toggle, the section and selected object as context with secrets masked, and quick actions for a user's roles, a failing login and the events (FEAT-0109)
+- Identity Include Sub-Group Users: a group's members across its whole subtree, read as a Job, each with the group it is in (FEAT-0112)
+- Identity Show Effective lists inherited client roles too, under each client, read as a Job (FEAT-0111)
+- Identity Reset Password shows the realm's password policy as a hint (FEAT-0111)
+- Identity Version Lookup: an optional master-realm account on a Keycloak profile, asked once on connect for the server's version when the main account is not shown it; the version then appears in the tab's header (CR-0099)
+- The server version in the Git host tabs' header (Forgejo, Gitea, GitLab, GitHub Enterprise Server), for GitHub Enterprise Server in Automation and Tracker, and for Confluence Server / Data Center in Tracker (CR-0100)
 
 ### Changed
 
 - New workspaces' `.gitignore` lists `idm/audit.jsonl` (FEAT-0116)
 - Queue's Delete uses the shared typed confirmation (FEAT-0116)
+- Identity's realm export and an admin event's representation open in the read-only editor engine (JSON colours, folding, search) instead of plain text (FEAT-0114, FEAT-0115)
 
 ## 0.132.2 — 2026-11-13
 

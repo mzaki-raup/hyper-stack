@@ -155,6 +155,7 @@ fn provider(url: &str) -> Keycloak {
         },
         tls: Tls::default(),
         timeout: Duration::from_secs(5),
+        version_lookup: None,
     })
     .expect("provider")
 }

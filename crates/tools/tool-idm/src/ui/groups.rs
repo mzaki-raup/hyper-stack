@@ -62,6 +62,9 @@ pub struct GroupsView {
     attributes: Option<Vec<KvRow>>,
     name: Option<String>,
     add_member: Option<UserPick>,
+    /// Include Sub-Group Users is on, and what its Job read.
+    sub_users: bool,
+    sub: super::common::JobSlot<Vec<(UserRow, String)>>,
 }
 
 impl GroupsView {
@@ -84,11 +87,48 @@ impl GroupsView {
         self.roles = Load::Idle;
         self.attributes = None;
         self.name = None;
+        self.sub.reset();
     }
 
     pub fn select(&mut self, id: String) {
         self.selected = Some(id);
         self.reload_item();
+    }
+
+    /// What the assistant is told about the selected group.
+    pub fn ai_context(&self) -> Option<String> {
+        let g = self.item.ready()?;
+        let mut out = format!(
+            "Group: {}
+",
+            g.path
+        );
+        if let Some(m) = self.roles.ready() {
+            let realm: Vec<&str> = m.realm.iter().map(|r| r.name.as_str()).collect();
+            out.push_str(&format!(
+                "Realm roles assigned: {}
+",
+                realm.join(", ")
+            ));
+            for c in &m.clients {
+                let names: Vec<&str> = c.roles.iter().map(|r| r.name.as_str()).collect();
+                out.push_str(&format!(
+                    "Client {} roles assigned: {}
+",
+                    c.client,
+                    names.join(", ")
+                ));
+            }
+        }
+        if let Some(m) = self.members.ready() {
+            let names: Vec<&str> = m.rows.iter().map(|u| u.username.as_str()).collect();
+            out.push_str(&format!(
+                "Direct members: {}
+",
+                names.join(", ")
+            ));
+        }
+        Some(out)
     }
 
     pub fn forget_selected(&mut self) {
@@ -358,6 +398,9 @@ impl GroupsView {
         let Some(g) = self.item.ready().cloned() else {
             return;
         };
+        if cx.verb_is("idm.assign_role") {
+            self.tab = Tab::Roles;
+        }
         let may = cx.may_write("manage-users");
         let target = ObjRef::new(&g.id, &g.name);
         form::pane(ui, |ui| {
@@ -376,7 +419,9 @@ impl GroupsView {
                         name: String::new(),
                     }));
                 }
-                if write_button(ui, theme, &may, true, ph::TRASH, &cx.t("idm-delete"), "") {
+                if write_button(ui, theme, &may, true, ph::TRASH, &cx.t("idm-delete"), "")
+                    || cx.verb("idm.delete", &may)
+                {
                     let subs = g.sub_group_count.unwrap_or(g.sub_groups.len() as u64);
                     let (r, t) = (cx.realm.to_string(), target.clone());
                     cx.out.dialog = Some(Dialog::Typed {
@@ -463,6 +508,20 @@ impl GroupsView {
             }
         }
         ui.add_space(form::ROW_GAP);
+        // Include Sub-Group Users walks the subtree: a Job with progress
+        // and cancel (§4.4, §7).
+        if ui
+            .checkbox(&mut self.sub_users, cx.t("idm-include-sub-users"))
+            .on_hover_text(cx.t("idm-include-sub-users-tip"))
+            .changed()
+        {
+            self.sub.reset();
+        }
+        if self.sub_users {
+            self.sub_members(ui, cx, g);
+            return;
+        }
+        ui.add_space(form::ROW_GAP);
         form::hint(ui, theme, &cx.t("idm-members-direct-hint"));
         ui.add_space(form::ROW_GAP);
         if !state_note(ui, theme, cx.s, &self.members) {
@@ -521,6 +580,86 @@ impl GroupsView {
         }
     }
 
+    /// Every member of the group and of its sub-groups, with the group
+    /// each came from, read by a Job.
+    fn sub_members(&mut self, ui: &mut egui::Ui, cx: &mut Cx<'_>, g: &Group) {
+        let theme = cx.theme;
+        let provider = cx.session.provider();
+        let realm = cx.realm.to_string();
+        let root = (g.id.clone(), g.path.clone());
+        let title = cx.ta("idm-sub-users-job", &[("group", &g.path)]);
+        self.sub.start(cx.s, title, move |h| async move {
+            let err = |e: crate::provider::IdmError| e.to_string();
+            let mut out: Vec<(UserRow, String)> = Vec::new();
+            let mut queue = vec![root];
+            while let Some((id, path)) = queue.pop() {
+                if h.is_cancelled() {
+                    return Err("cancelled".into());
+                }
+                let mut page = Page::of(crate::provider::PAGE_MAX);
+                loop {
+                    let m = provider
+                        .group_members(&realm, &id, page)
+                        .await
+                        .map_err(err)?;
+                    out.extend(m.rows.into_iter().map(|u| (u, path.clone())));
+                    if !m.more {
+                        break;
+                    }
+                    page = page.next();
+                }
+                let mut page = Page::of(crate::provider::PAGE_MAX);
+                loop {
+                    let c = provider
+                        .group_children(&realm, &id, page)
+                        .await
+                        .map_err(err)?;
+                    queue.extend(c.rows.into_iter().map(|g| (g.id, g.path)));
+                    if !c.more {
+                        break;
+                    }
+                    page = page.next();
+                }
+                h.set_message(format!("{} users", out.len()));
+            }
+            Ok(out)
+        });
+        ui.add_space(form::ROW_GAP);
+        if self.sub.poll() {
+            form::centred_row(ui, |ui| {
+                ui.spinner();
+                ui.label(cx.t("idm-sub-users-reading"));
+            });
+            return;
+        }
+        let rows: Vec<Vec<String>> = match &self.sub.result {
+            Some(Ok(found)) => found
+                .iter()
+                .map(|(u, path)| vec![u.username.clone(), u.email.clone(), path.clone()])
+                .collect(),
+            Some(Err(e)) => {
+                form::note(ui, theme, ph::WARNING, &hs_core::fmt::sentence(e));
+                return;
+            }
+            None => return,
+        };
+        let cols = [
+            ColumnSpec::new(cx.t("idm-username"), 170.0),
+            ColumnSpec::new(cx.t("idm-email"), 190.0),
+            ColumnSpec::new(cx.t("idm-group"), 180.0),
+        ];
+        let mut state = TableState::default();
+        table(
+            ui,
+            cx,
+            &cols,
+            &rows,
+            &mut state,
+            &cx.t("idm-sub-users-empty"),
+            420.0,
+        );
+    }
+
     fn roles_tab(
         &mut self,
         ui: &mut egui::Ui,
@@ -538,7 +677,8 @@ impl GroupsView {
             ph::SHIELD_STAR,
             &cx.t("idm-assign-role"),
             "",
-        ) {
+        ) || cx.verb("idm.assign_role", may)
+        {
             self.assign = Some(RolePick::new(who.clone()));
         }
         if let Some(pick) = self.assign.as_mut() {

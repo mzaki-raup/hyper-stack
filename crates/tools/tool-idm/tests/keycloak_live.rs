@@ -59,6 +59,7 @@ fn keycloak(url: &str, auth_realm: &str, grant: Grant) -> Keycloak {
         grant,
         tls: Tls::default(),
         timeout: Duration::from_secs(15),
+        version_lookup: None,
     })
     .expect("provider")
 }
@@ -793,6 +794,68 @@ fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
         }
     }
     out
+}
+
+/// The realm-scoped service account is not shown the version; with the
+/// master admin as its Version Lookup account it is (CR-0099).
+#[test]
+fn keycloak_live_version_lookup_fills_the_version() {
+    let (Some(url), Some(secret), Some(user), Some(password)) = (
+        env("HS_KEYCLOAK"),
+        env("HS_KEYCLOAK_SECRET"),
+        env("HS_KEYCLOAK_ADMIN"),
+        env("HS_KEYCLOAK_ADMIN_PASSWORD"),
+    ) else {
+        return;
+    };
+    runtime().block_on(async {
+        let plain = service_account(&url, &secret)
+            .connect()
+            .await
+            .expect("connect");
+        assert!(plain.version_text.is_empty(), "{}", plain.version_text);
+        let looked_up = Keycloak::new(KeycloakConfig {
+            url: url.clone(),
+            auth_realm: REALM.into(),
+            grant: Grant::ClientCredentials {
+                client_id: "hs-admin".into(),
+                secret: SecretString::from(secret.clone()),
+            },
+            tls: Tls::default(),
+            timeout: Duration::from_secs(15),
+            version_lookup: Some(Grant::Password {
+                client_id: "admin-cli".into(),
+                username: user,
+                password: SecretString::from(password),
+            }),
+        })
+        .expect("provider")
+        .connect()
+        .await
+        .expect("connect");
+        assert!(looked_up.version.is_some(), "{}", looked_up.version_text);
+        // A wrong lookup password leaves the version unknown, never fails.
+        let refused = Keycloak::new(KeycloakConfig {
+            url,
+            auth_realm: REALM.into(),
+            grant: Grant::ClientCredentials {
+                client_id: "hs-admin".into(),
+                secret: SecretString::from(secret),
+            },
+            tls: Tls::default(),
+            timeout: Duration::from_secs(15),
+            version_lookup: Some(Grant::Password {
+                client_id: "admin-cli".into(),
+                username: "admin".into(),
+                password: SecretString::from("certainly-not-it".to_string()),
+            }),
+        })
+        .expect("provider")
+        .connect()
+        .await
+        .expect("connect");
+        assert!(refused.version_text.is_empty());
+    });
 }
 
 #[test]

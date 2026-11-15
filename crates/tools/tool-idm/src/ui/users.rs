@@ -14,8 +14,8 @@ use serde_json::{Value, json};
 use super::common::{
     After, Cx, Load, WriteOk, WriteReq, ask, chip, paging, state_note, take, when, write_button,
 };
-use super::dialogs::{Create, Dialog};
-use super::roles_pick::{RolePick, mapping_rows};
+use super::dialogs::{Create, Dialog, Reset};
+use super::roles_pick::{Effective, RolePick, mapping_rows};
 use crate::provider::{
     Change, CredentialInfo, Group, IdmProvider, NewUser, ObjRef, Page, Paged, RequiredAction,
     RoleMappings, Section, Session, Subject, UnmanagedPolicy, User, UserQuery, UserRow,
@@ -189,6 +189,7 @@ pub struct UsersView {
     roles: Load<RoleMappings>,
     effective: bool,
     effective_realm: Load<Vec<crate::provider::Role>>,
+    effective_clients: super::common::JobSlot<Vec<crate::provider::ClientRoles>>,
     sessions: Load<Vec<Session>>,
     session_table: TableState,
     /// A Save waiting for the fresh read its review compares with.
@@ -196,12 +197,71 @@ pub struct UsersView {
     join: Option<super::groups_pick::GroupPick>,
     assign: Option<RolePick>,
     focus: bool,
+    /// The realm's password policy, for Reset Password's hint.
+    policy: Load<String>,
 }
 
 impl UsersView {
     /// Drop everything read from the realm (a realm switch, §3.3).
     pub fn reset(&mut self) {
         *self = UsersView::default();
+    }
+
+    /// What the assistant is told about the selected user: facts, groups
+    /// and role mappings, never a credential (ADR-019, §6.5).
+    pub fn ai_context(&self) -> Option<String> {
+        let u = self.item.ready()?;
+        let mut out = format!(
+            "User: {}
+Email: {}
+Name: {}
+Enabled: {}
+Email verified: {}
+Required actions: {}
+Federated: {}
+",
+            u.row.username,
+            u.row.email,
+            u.row.full_name(),
+            u.row.enabled,
+            u.row.email_verified,
+            u.required_actions.join(", "),
+            u.row.federation_link.is_some(),
+        );
+        if let Some(g) = self.groups.ready() {
+            let paths: Vec<&str> = g.rows.iter().map(|g| g.path.as_str()).collect();
+            out.push_str(&format!(
+                "Groups: {}
+",
+                paths.join(", ")
+            ));
+        }
+        if let Some(m) = self.roles.ready() {
+            let realm: Vec<&str> = m.realm.iter().map(|r| r.name.as_str()).collect();
+            out.push_str(&format!(
+                "Realm roles assigned: {}
+",
+                realm.join(", ")
+            ));
+            for c in &m.clients {
+                let names: Vec<&str> = c.roles.iter().map(|r| r.name.as_str()).collect();
+                out.push_str(&format!(
+                    "Client {} roles assigned: {}
+",
+                    c.client,
+                    names.join(", ")
+                ));
+            }
+        }
+        if let Some(e) = self.effective_realm.ready() {
+            let names: Vec<&str> = e.iter().map(|r| r.name.as_str()).collect();
+            out.push_str(&format!(
+                "Effective realm roles: {}
+",
+                names.join(", ")
+            ));
+        }
+        Some(out)
     }
 
     /// The realm's user count, once read.
@@ -229,6 +289,7 @@ impl UsersView {
         self.groups = Load::Idle;
         self.roles = Load::Idle;
         self.effective_realm = Load::Idle;
+        self.effective_clients.reset();
         self.sessions = Load::Idle;
     }
 
@@ -315,6 +376,24 @@ impl UsersView {
                 "users.required",
                 &mut self.required,
                 move |p| async move { p.required_actions(&realm).await },
+            );
+        }
+        take(cx.session, "users.policy", &mut self.policy);
+        if self.policy.is_idle() {
+            let realm = cx.realm.to_string();
+            ask(
+                cx.session,
+                "users.policy",
+                &mut self.policy,
+                move |p| async move {
+                    p.realm_settings(&realm).await.map(|r| {
+                        r.raw
+                            .get("passwordPolicy")
+                            .and_then(Value::as_str)
+                            .unwrap_or("")
+                            .to_string()
+                    })
+                },
             );
         }
         take(cx.session, "users.unmanaged", &mut self.unmanaged);
@@ -547,6 +626,13 @@ impl UsersView {
         let Some(user) = self.item.ready().cloned() else {
             return;
         };
+        // A palette command for a tab's control brings that tab forward.
+        if cx.verb_is("idm.user.join_group") {
+            self.tab = Tab::Groups;
+        }
+        if cx.verb_is("idm.assign_role") {
+            self.tab = Tab::Roles;
+        }
         self.header(ui, cx, &user);
         ui.add_space(form::PANE_GAP);
         let labels: Vec<String> = Tab::ALL.iter().map(|t| cx.t(t.key())).collect();
@@ -606,7 +692,22 @@ impl UsersView {
                 } else {
                     (ph::TOGGLE_RIGHT, "idm-enable", true)
                 };
-                if write_button(ui, theme, &may, true, icon, &cx.t(key), "") {
+                let (want, other) = if enable {
+                    ("idm.user.enable", "idm.user.disable")
+                } else {
+                    ("idm.user.disable", "idm.user.enable")
+                };
+                // Asked for what the user already is: say so.
+                if cx.verb_is(other) {
+                    *cx.verb = None;
+                    let k = if enable { "idm-already-disabled" } else { "idm-already-enabled" };
+                    cx.out.toasts.push((
+                        hs_core::tool::ToastLevel::Info,
+                        cx.ta(k, &[("name", &target.name)]),
+                    ));
+                }
+                if write_button(ui, theme, &may, true, icon, &cx.t(key), "") || cx.verb(want, &may)
+                {
                     let (t, r) = (target.clone(), realm.clone());
                     let done_key = if enable {
                         "idm-done-enabled"
@@ -644,17 +745,18 @@ impl UsersView {
                     ph::PASSWORD,
                     &cx.t("idm-reset-password-menu"),
                     "",
-                ) {
-                    cx.out.dialog = Some(Dialog::ResetPassword {
-                        realm: realm.clone(),
-                        user: target.clone(),
-                        first: String::new(),
-                        second: String::new(),
-                        temporary: true,
-                        mismatch: false,
-                    });
+                ) || cx.verb("idm.user.reset_password", &may)
+                {
+                    let policy = self.policy.ready().cloned().unwrap_or_default();
+                    cx.out.dialog = Some(Dialog::ResetPassword(Reset::new(
+                        realm.clone(),
+                        target.clone(),
+                        policy,
+                    )));
                 }
-                if write_button(ui, theme, &may, true, ph::SIGN_OUT, &cx.t("idm-log-out"), "") {
+                if write_button(ui, theme, &may, true, ph::SIGN_OUT, &cx.t("idm-log-out"), "")
+                    || cx.verb("idm.user.logout", &may)
+                {
                     let (t, r) = (target.clone(), realm.clone());
                     cx.out.dialog = Some(Dialog::Confirm {
                         title: cx.t("idm-log-out"),
@@ -670,7 +772,9 @@ impl UsersView {
                         ),
                     });
                 }
-                if write_button(ui, theme, &may, true, ph::TRASH, &cx.t("idm-delete"), "") {
+                if write_button(ui, theme, &may, true, ph::TRASH, &cx.t("idm-delete"), "")
+                    || cx.verb("idm.delete", &may)
+                {
                     let (t, r) = (target.clone(), realm.clone());
                     let body = if user.row.federation_link.is_some() {
                         cx.ta("idm-delete-user-federated", &[("name", &target.name)])
@@ -1007,7 +1111,8 @@ impl UsersView {
             ph::USERS_THREE,
             &cx.t("idm-join-group"),
             "",
-        ) {
+        ) || cx.verb("idm.user.join_group", &may)
+        {
             self.join = Some(super::groups_pick::GroupPick::default());
         }
         if let Some(pick) = self.join.as_mut() {
@@ -1098,7 +1203,8 @@ impl UsersView {
                 ph::SHIELD_STAR,
                 &cx.t("idm-assign-role"),
                 "",
-            ) {
+            ) || cx.verb("idm.assign_role", &may)
+            {
                 self.assign = Some(RolePick::new(who.clone()));
             }
             ui.add_space(form::OPTION_GAP);
@@ -1108,6 +1214,7 @@ impl UsersView {
                 .changed()
             {
                 self.effective_realm = Load::Idle;
+                self.effective_clients.reset();
             }
         });
         if let Some(pick) = self.assign.as_mut() {
@@ -1128,10 +1235,62 @@ impl UsersView {
         let Some(mappings) = self.roles.ready().cloned() else {
             return;
         };
-        let effective = if self.effective {
-            self.effective_realm.ready().cloned()
-        } else {
-            None
+        // Effective client roles take one request per client: a Job (§7).
+        if self.effective {
+            let provider = cx.session.provider();
+            let (realm, w) = (cx.realm.to_string(), who.clone());
+            let title = cx.ta("idm-effective-job", &[("name", &user.row.username)]);
+            self.effective_clients
+                .start(cx.s, title, move |h| async move {
+                    let err = |e: crate::provider::IdmError| e.to_string();
+                    let mut clients = Vec::new();
+                    let mut page = crate::provider::Page::of(crate::provider::PAGE_MAX);
+                    loop {
+                        let c = provider.clients(&realm, "", page).await.map_err(err)?;
+                        clients.extend(c.rows);
+                        if !c.more {
+                            break;
+                        }
+                        page = page.next();
+                    }
+                    let mut out = Vec::new();
+                    for c in clients {
+                        if h.is_cancelled() {
+                            return Err("cancelled".into());
+                        }
+                        let roles = provider
+                            .client_role_mappings(&realm, &w, &c.id, true)
+                            .await
+                            .map_err(err)?;
+                        if !roles.is_empty() {
+                            out.push(crate::provider::ClientRoles {
+                                id: c.id,
+                                client: c.client_id,
+                                roles,
+                            });
+                        }
+                    }
+                    Ok(out)
+                });
+            if self.effective_clients.poll() {
+                form::centred_row(ui, |ui| {
+                    ui.spinner();
+                    ui.label(cx.t("idm-effective-reading"));
+                });
+                ui.add_space(form::ROW_GAP);
+            } else if let Some(Err(e)) = &self.effective_clients.result {
+                form::note(ui, theme, ph::WARNING, &hs_core::fmt::sentence(e));
+                ui.add_space(form::ROW_GAP);
+            }
+        }
+        let realm_eff = self.effective_realm.ready().cloned().unwrap_or_default();
+        let client_eff = match &self.effective_clients.result {
+            Some(Ok(c)) => c.clone(),
+            _ => Vec::new(),
+        };
+        let effective = Effective {
+            realm: &realm_eff,
+            clients: &client_eff,
         };
         if let Some(req) = mapping_rows(
             ui,
@@ -1139,7 +1298,7 @@ impl UsersView {
             &who,
             &user.row.username,
             &mappings,
-            effective.as_deref(),
+            self.effective.then_some(&effective),
             &may,
         ) {
             cx.out.writes.push(req);
@@ -1223,9 +1382,22 @@ pub fn table(
     empty: &str,
     height: f32,
 ) -> hs_ui::table::TableResponse {
-    let h =
-        (hs_ui::table::HEADER_HEIGHT + rows.len().max(1) as f32 * hs_ui::table::ROW_HEIGHT + 8.0)
-            .min(height);
+    // Columns wider than the pane scroll sideways; leave room for that bar,
+    // or it covers the last row (one row, in a narrow item column).
+    let wide = cols
+        .iter()
+        .map(|c| c.width + ui.spacing().item_spacing.x)
+        .sum::<f32>()
+        > ui.available_width();
+    let bar = if wide {
+        ui.spacing().scroll.allocated_width()
+    } else {
+        0.0
+    };
+    // The table lays each row out with the item spacing under it; without
+    // it a list of eight rows cuts its last one in half.
+    let row = hs_ui::table::ROW_HEIGHT + ui.spacing().item_spacing.y;
+    let h = (hs_ui::table::HEADER_HEIGHT + rows.len().max(1) as f32 * row + 8.0 + bar).min(height);
     ui.allocate_ui(egui::vec2(ui.available_width(), h), |ui| {
         DataTable {
             theme: cx.theme,

@@ -295,6 +295,20 @@ impl ClientsView {
         self.reload_item();
     }
 
+    /// What the assistant is told about the selected client: its
+    /// representation through the masking function, never the secret.
+    pub fn ai_context(&self) -> Option<String> {
+        let c = self.item.ready()?;
+        let mut raw = c.raw.clone();
+        crate::mask::mask(&mut raw);
+        Some(format!(
+            "Client: {}
+{}",
+            c.client_id,
+            serde_json::to_string_pretty(&raw).unwrap_or_default()
+        ))
+    }
+
     /// A regenerated secret, shown masked like the old one (§4.6).
     pub fn show_secret(&mut self, secret: Secret) {
         self.secret = Load::Ready(secret);
@@ -541,6 +555,16 @@ impl ClientsView {
         let Some(client) = self.item.ready().cloned() else {
             return;
         };
+        if [
+            "idm.client.show_secret",
+            "idm.client.copy_secret",
+            "idm.client.regenerate_secret",
+        ]
+        .iter()
+        .any(|v| cx.verb_is(v))
+        {
+            self.tab = Tab::Credentials;
+        }
         let builtin = client.is_builtin(cx.realm);
         let may = cx.may_write("manage-clients");
         form::pane(ui, |ui| {
@@ -568,7 +592,8 @@ impl ClientsView {
                     ph::TRASH,
                     &cx.t("idm-delete"),
                     &cx.t("idm-builtin-client"),
-                ) {
+                ) || (!builtin && cx.verb("idm.delete", &may))
+                {
                     let (r, t) = (cx.realm.to_string(), client.as_ref());
                     cx.out.dialog = Some(Dialog::Typed {
                         title: cx.t("idm-delete-client"),
@@ -823,12 +848,14 @@ impl ClientsView {
             if form::button(ui, theme, icon, &cx.t(key))
                 .on_hover_text(cx.t("idm-show-tip"))
                 .clicked()
+                || (!visible && cx.verb("idm.client.show_secret", &Ok(())))
             {
                 shown.shown_at = if visible { None } else { Some(Instant::now()) };
             }
             if form::button(ui, theme, ph::COPY, &cx.t("idm-copy"))
                 .on_hover_text(cx.t("idm-copy-secret-tip"))
                 .clicked()
+                || cx.verb("idm.client.copy_secret", &Ok(()))
             {
                 copy_and_clear(ui.ctx(), cx, shown.secret.expose());
                 cx.out
@@ -845,10 +872,15 @@ impl ClientsView {
             ph::ARROWS_CLOCKWISE,
             &cx.t("idm-regenerate-secret"),
             &cx.t("idm-builtin-client"),
-        ) {
+        ) || (!c.is_builtin(cx.realm) && cx.verb("idm.client.regenerate_secret", may))
+        {
             let (r, t) = (cx.realm.to_string(), c.as_ref());
             cx.out.dialog = Some(Dialog::Typed {
-                title: cx.t("idm-regenerate-secret"),
+                title: cx
+                    .t("idm-regenerate-secret")
+                    // The button's label, without its ellipsis.
+                    .trim_end_matches('…')
+                    .to_string(),
                 body: cx.ta("idm-regenerate-confirm", &[("name", &c.client_id)]),
                 name: c.client_id.clone(),
                 ok: format!("{} {}", ph::ARROWS_CLOCKWISE, cx.t("idm-regenerate")),

@@ -35,6 +35,9 @@ pub struct KeycloakConfig {
     pub grant: Grant,
     pub tls: Tls,
     pub timeout: Duration,
+    /// A master-realm account used only to read the version when `grant`
+    /// is not shown it (CR-0099).
+    pub version_lookup: Option<Grant>,
 }
 
 /// What a call is, for its error: the kind of object (for "this user no
@@ -242,6 +245,7 @@ pub struct Keycloak {
     auth_realm: String,
     http: Http,
     tokens: Tokens,
+    version_lookup: Option<Grant>,
     state: RwLock<State>,
 }
 
@@ -262,6 +266,7 @@ impl Keycloak {
         });
         Ok(Keycloak {
             tokens: Tokens::new(endpoint, cfg.grant, Arc::new(SystemClock)),
+            version_lookup: cfg.version_lookup,
             url,
             auth_realm: cfg.auth_realm,
             http,
@@ -371,6 +376,50 @@ impl Keycloak {
             let text = resp.text().await.unwrap_or_default();
             return Err(self.refusal(status, &text, op, realm, &token).await);
         }
+    }
+
+    /// The version through the Version Lookup account (CR-0099): a token
+    /// from the master realm, one `GET /admin/serverinfo`, then the token
+    /// dropped and a password grant's session ended.
+    async fn lookup_version(&self, grant: Grant) -> Result<String> {
+        let oidc = format!("{}/realms/master/protocol/openid-connect", self.url);
+        let endpoint = Arc::new(HttpTokens {
+            http: self.http.clone(),
+            token_url: format!("{oidc}/token"),
+            logout_url: format!("{oidc}/logout"),
+            grant: grant.clone(),
+            realm: "master".into(),
+        });
+        let tokens = Tokens::new(endpoint, grant, Arc::new(SystemClock));
+        let token = tokens.bearer().await?;
+        let auth = Auth::Token {
+            user: String::new(),
+            token: token.expose_secret().to_string(),
+        };
+        let sent = self
+            .http
+            .request_as(Method::GET, "/admin/serverinfo", &auth)
+            .send()
+            .await;
+        tokens.logout().await;
+        let resp = sent.map_err(|e| IdmError::Network(transport_error(&e)))?;
+        let status = resp.status();
+        tracing::debug!(
+            "idm: GET /admin/serverinfo (version lookup) -> {}",
+            status.as_u16()
+        );
+        if !status.is_success() {
+            return Err(IdmError::Other(format!(
+                "the version lookup account was refused server info ({})",
+                status.as_u16()
+            )));
+        }
+        let si = self.json(resp).await?;
+        Ok(si
+            .pointer("/systemInfo/version")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string())
     }
 
     async fn json(&self, resp: reqwest::Response) -> Result<Value> {
@@ -493,11 +542,21 @@ impl IdmProvider for Keycloak {
                 Value::Null
             }
         };
-        let version_text = si
+        let mut version_text = si
             .pointer("/systemInfo/version")
             .and_then(Value::as_str)
             .unwrap_or_default()
             .to_string();
+        // Withheld from this account: ask the Version Lookup account, if
+        // the profile has one. A refusal leaves it unknown (CR-0099).
+        if version_text.is_empty()
+            && let Some(grant) = self.version_lookup.clone()
+        {
+            match self.lookup_version(grant).await {
+                Ok(v) => version_text = v,
+                Err(e) => tracing::info!("idm: version lookup failed ({e})"),
+            }
+        }
         let parsed = version::parse_version(&version_text);
         let (features, listed) = version::features(&si);
         let enum_list = |k: &str| -> Vec<String> {
@@ -1520,6 +1579,7 @@ mod tests {
             },
             tls: Tls::default(),
             timeout: Duration::from_secs(5),
+            version_lookup: None,
         })
         .expect("provider");
         assert_eq!(

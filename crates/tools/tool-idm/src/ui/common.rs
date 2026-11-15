@@ -187,9 +187,33 @@ pub struct Cx<'a> {
     /// Why writes are refused on this tab, when they are (§6.1).
     pub refusal: Option<String>,
     pub out: &'a mut Out,
+    /// A palette command for the selected item, waiting for the control
+    /// that does the same thing to take it (§9).
+    pub verb: &'a mut Option<&'static str>,
 }
 
 impl Cx<'_> {
+    /// Whether the waiting palette command is `id`.
+    pub fn verb_is(&self, id: &str) -> bool {
+        *self.verb == Some(id)
+    }
+
+    /// Take the waiting palette command when it is `id`: true when the
+    /// write may run, else its reason as a toast - the same rule as the
+    /// button it stands for.
+    pub fn verb(&mut self, id: &str, may: &Result<(), String>) -> bool {
+        if !self.verb_is(id) {
+            return false;
+        }
+        *self.verb = None;
+        match may {
+            Ok(()) => true,
+            Err(why) => {
+                self.out.toasts.push((ToastLevel::Warning, why.clone()));
+                false
+            }
+        }
+    }
     /// Whether a write that needs `role` can be offered, and if not why
     /// (the read-only tab first, then the account's roles).
     pub fn may_write(&self, role: &str) -> Result<(), String> {
@@ -404,6 +428,115 @@ pub fn nothing_selected(ui: &mut egui::Ui, theme: &Theme, text: &str) {
     form::pane(ui, |ui| form::note(ui, theme, ph::INFO, text));
 }
 
+/// A read that takes many requests, run as a [`hs_core::jobs`] Job with
+/// progress and cancel (§7); its answer lands here.
+pub struct JobSlot<T> {
+    job: Option<hs_core::jobs::JobHandle>,
+    slot: Arc<Mutex<Option<Result<T, String>>>>,
+    pub result: Option<Result<T, String>>,
+}
+
+impl<T> Default for JobSlot<T> {
+    fn default() -> Self {
+        JobSlot {
+            job: None,
+            slot: Arc::new(Mutex::new(None)),
+            result: None,
+        }
+    }
+}
+
+impl<T: Send + 'static> JobSlot<T> {
+    /// Start `work` as a Job unless one runs or an answer is held.
+    pub fn start<F, Fut>(&mut self, s: &Services, title: String, work: F)
+    where
+        F: FnOnce(hs_core::jobs::JobHandle) -> Fut + Send + 'static,
+        Fut: Future<Output = Result<T, String>> + Send + 'static,
+    {
+        if self.job.is_some() || self.result.is_some() {
+            return;
+        }
+        let slot = self.slot.clone();
+        let waker = s.runtime.waker();
+        self.job = Some(s.jobs.spawn(title, "idm", move |h| async move {
+            let r = work(h).await;
+            let failed = r.as_ref().err().cloned();
+            *slot.lock() = Some(r);
+            waker.request_repaint();
+            match failed {
+                Some(e) => Err(e),
+                None => Ok(()),
+            }
+        }));
+    }
+
+    /// Take the answer once it came; true while the Job still runs.
+    pub fn poll(&mut self) -> bool {
+        if let Some(r) = self.slot.lock().take() {
+            self.result = Some(r);
+            self.job = None;
+        }
+        self.job.is_some()
+    }
+
+    /// Cancel a running Job (the request is dropped) and forget the answer.
+    pub fn reset(&mut self) {
+        if let Some(j) = self.job.take() {
+            j.cancel_token().cancel();
+        }
+        *self.slot.lock() = None;
+        self.result = None;
+    }
+}
+
+impl<T> Drop for JobSlot<T> {
+    fn drop(&mut self) {
+        if let Some(j) = self.job.take() {
+            j.cancel_token().cancel();
+        }
+    }
+}
+
+/// Server JSON shown read-only in the editor engine (folding, search,
+/// the JSON colours), as the API client shows a response. The text is
+/// already masked by the provider (§6.5); it is laid out once per change.
+pub struct JsonView {
+    text: String,
+    buf: hs_editor::buffer::Buffer,
+    cursors: hs_editor::cursor::Cursors,
+    view: hs_editor::view::EditorView,
+}
+
+impl JsonView {
+    pub fn new(s: &Services, salt: &str) -> JsonView {
+        let st = s.settings.read();
+        let dark = Theme::from_settings(&st.appearance).dark;
+        let mut view = hs_editor::view::EditorView::new(
+            egui::Id::new(("idm-json", salt)),
+            hs_editor::languages::by_extension("json"),
+            dark,
+            st.editor.font_size,
+        );
+        view.read_only = true;
+        JsonView {
+            text: String::new(),
+            buf: hs_editor::buffer::Buffer::from_text(""),
+            cursors: hs_editor::cursor::Cursors::default(),
+            view,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui, theme: &Theme, text: &str) {
+        if self.text != text {
+            self.text = text.to_string();
+            self.buf = hs_editor::buffer::Buffer::from_text(text);
+            self.cursors = hs_editor::cursor::Cursors::default();
+        }
+        let ed = hs_editor::view::EditorTheme::for_theme(theme);
+        self.view.show(ui, &mut self.buf, &mut self.cursors, &ed);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -414,6 +547,32 @@ mod tests {
         assert_eq!(group(999), "999");
         assert_eq!(group(1284), "1,284");
         assert_eq!(group(1_000_000), "1,000,000");
+    }
+
+    /// A read-only tab's write controls stay on screen, disabled, with the
+    /// reason as their tooltip (§3.3, FEAT-0116).
+    #[test]
+    fn a_refused_write_button_is_disabled_and_says_why() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+        let theme = Theme::dark();
+        let why = "Read-only: PRODUCTION is a protected environment";
+        let mut h = Harness::new_ui_state(
+            |ui, clicked: &mut bool| {
+                ui.ctx()
+                    .global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
+                let may: Result<(), String> = Err(why.into());
+                *clicked |= write_button(ui, &theme, &may, true, "x", "Delete", "");
+            },
+            false,
+        );
+        h.run();
+        h.get_by_label_contains("Delete").click();
+        h.run();
+        assert!(!*h.state(), "the button is drawn, and a click does nothing");
+        h.get_by_label_contains("Delete").hover();
+        h.run_steps(3);
+        assert!(h.query_by_label_contains(why).is_some(), "the reason shows");
     }
 
     #[test]

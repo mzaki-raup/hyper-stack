@@ -421,7 +421,8 @@ impl RolesView {
                     ph::TRASH,
                     &cx.t("idm-delete"),
                     &cx.t("idm-builtin-role"),
-                ) {
+                ) || (!builtin && cx.verb("idm.delete", &may))
+                {
                     let (r, t) = (cx.realm.to_string(), role.as_ref());
                     let warn = if role.composite {
                         cx.t("idm-delete-role-composite")

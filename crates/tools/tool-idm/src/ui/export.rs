@@ -23,6 +23,7 @@ pub struct ExportView {
     job: Option<JobHandle>,
     slot: Slot,
     json: Option<String>,
+    view: Option<super::common::JsonView>,
     error: Option<String>,
     realm: String,
 }
@@ -137,10 +138,10 @@ impl ExportView {
             ui.add_space(form::PANE_GAP);
             form::hint(ui, theme, &cx.t("idm-export-no-users"));
             ui.add_space(form::PANE_GAP);
-            let h = ui.available_height().max(200.0);
-            form::scroll_well(ui, theme, "idm-export-json", Some(h), |ui| {
-                ui.add(egui::Label::new(egui::RichText::new(&json).monospace()).wrap());
-            });
+            let view = self
+                .view
+                .get_or_insert_with(|| super::common::JsonView::new(cx.s, "export"));
+            form::well(ui, theme, None, |ui| view.show(ui, theme, &json));
         });
     }
 

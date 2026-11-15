@@ -42,19 +42,38 @@ pub enum Dialog {
         stale: bool,
         then: WriteReq,
     },
-    ResetPassword {
-        realm: String,
-        user: ObjRef,
-        first: String,
-        second: String,
-        temporary: bool,
-        mismatch: bool,
-    },
+    ResetPassword(Reset),
     /// Unlock writes on a protected tab for this session (§6.1).
     AllowWrites {
         env: String,
     },
     Create(Create),
+}
+
+/// Reset Password's fields, carried between frames.
+pub struct Reset {
+    pub realm: String,
+    pub user: ObjRef,
+    pub first: String,
+    pub second: String,
+    pub temporary: bool,
+    pub mismatch: bool,
+    /// The realm's password policy, as the server words it, when read.
+    pub policy: String,
+}
+
+impl Reset {
+    pub fn new(realm: String, user: ObjRef, policy: String) -> Reset {
+        Reset {
+            realm,
+            user,
+            first: String::new(),
+            second: String::new(),
+            temporary: true,
+            mismatch: false,
+            policy,
+        }
+    }
 }
 
 pub enum Create {
@@ -154,16 +173,7 @@ impl Dialog {
                 stale,
                 then,
             } => review(ctx, theme, s, title, rows, stale, then),
-            Dialog::ResetPassword {
-                realm,
-                user,
-                first,
-                second,
-                temporary,
-                mismatch,
-            } => reset_password(
-                ctx, theme, s, realm, user, first, second, temporary, mismatch,
-            ),
+            Dialog::ResetPassword(r) => reset_password(ctx, theme, s, r),
             Dialog::AllowWrites { env } => match hs_ui::dialog::confirm(
                 ctx,
                 theme,
@@ -270,52 +280,51 @@ fn review(
 /// Reset Password (§4.3): typed twice, Temporary on by default. The text
 /// goes from the field into the request as a `SecretString` and both
 /// fields are zeroised; it is never stored, logged or shown.
-#[allow(clippy::too_many_arguments)] // reason: the dialog's own fields, carried between frames
-fn reset_password(
-    ctx: &egui::Context,
-    theme: &Theme,
-    s: &Services,
-    realm: String,
-    user: ObjRef,
-    mut first: String,
-    mut second: String,
-    mut temporary: bool,
-    mut mismatch: bool,
-) -> Answer {
+fn reset_password(ctx: &egui::Context, theme: &Theme, s: &Services, mut r: Reset) -> Answer {
     let mut go = false;
     let mut cancel = false;
     let modal = egui::Modal::new(egui::Id::new("idm-reset-password")).show(ctx, |ui| {
         ui.set_width(460.0);
-        ui.heading(s.i18n.t_args("idm-reset-title", &[("user", &user.name)]));
+        ui.heading(s.i18n.t_args("idm-reset-title", &[("user", &r.user.name)]));
         ui.add_space(form::PANE_GAP);
         form::field_grid(ui, "idm-reset-grid", |ui| {
             form::label(ui, &s.t("idm-reset-new"));
-            let r = ui.add(form::line_edit(&mut first).password(true));
-            if r.changed() {
-                mismatch = false;
+            if ui
+                .add(form::line_edit(&mut r.first).password(true))
+                .changed()
+            {
+                r.mismatch = false;
             }
             ui.end_row();
             form::label(ui, &s.t("idm-reset-again"));
             if ui
-                .add(form::line_edit(&mut second).password(true))
+                .add(form::line_edit(&mut r.second).password(true))
                 .changed()
             {
-                mismatch = false;
+                r.mismatch = false;
             }
             ui.end_row();
+            if !r.policy.trim().is_empty() {
+                form::row_hint(
+                    ui,
+                    theme,
+                    &s.i18n
+                        .t_args("idm-reset-policy", &[("policy", r.policy.trim())]),
+                );
+            }
             form::label(ui, &s.t("idm-reset-temporary"));
-            ui.checkbox(&mut temporary, "");
+            ui.checkbox(&mut r.temporary, "");
             ui.end_row();
             form::row_hint(ui, theme, &s.t("idm-reset-temporary-hint"));
         });
-        if mismatch {
+        if r.mismatch {
             ui.add_space(form::PANE_GAP);
             ui.colored_label(theme.error, s.t("idm-reset-mismatch"));
         }
         ui.add_space(form::ROW_GAP);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
-                .add_enabled_ui(!first.is_empty(), |ui| {
+                .add_enabled_ui(!r.first.is_empty(), |ui| {
                     form::primary_button(
                         ui,
                         theme,
@@ -334,43 +343,36 @@ fn reset_password(
         });
     });
     if cancel || (modal.should_close() && !go) {
-        first.zeroize();
-        second.zeroize();
+        r.first.zeroize();
+        r.second.zeroize();
         return Answer::Closed;
     }
-    if go {
-        if first != second {
-            second.zeroize();
-            return Answer::Open(Dialog::ResetPassword {
-                realm,
-                user,
-                first,
-                second,
-                temporary,
-                mismatch: true,
-            });
-        }
-        let password = SecretString::from(std::mem::take(&mut first));
-        second.zeroize();
-        let done = s.i18n.t_args("idm-done-reset", &[("user", &user.name)]);
-        return Answer::Send(WriteReq::new(
-            done,
-            After::Reload(Section::Users),
-            move |p| async move {
-                p.reset_password(&realm, &user, password, temporary)
-                    .await
-                    .map(|()| WriteOk::Done)
-            },
-        ));
+    if !go {
+        return Answer::Open(Dialog::ResetPassword(r));
     }
-    Answer::Open(Dialog::ResetPassword {
+    if r.first != r.second {
+        r.second.zeroize();
+        r.mismatch = true;
+        return Answer::Open(Dialog::ResetPassword(r));
+    }
+    let password = SecretString::from(std::mem::take(&mut r.first));
+    r.second.zeroize();
+    let Reset {
         realm,
         user,
-        first,
-        second,
         temporary,
-        mismatch,
-    })
+        ..
+    } = r;
+    let done = s.i18n.t_args("idm-done-reset", &[("user", &user.name)]);
+    Answer::Send(WriteReq::new(
+        done,
+        After::Reload(Section::Users),
+        move |p| async move {
+            p.reset_password(&realm, &user, password, temporary)
+                .await
+                .map(|()| WriteOk::Done)
+        },
+    ))
 }
 
 /// The create forms of §4.10. OK sends the create; the tab selects what
@@ -387,11 +389,19 @@ fn create(ctx: &egui::Context, theme: &Theme, s: &Services, mut c: Create) -> An
         Create::Role { .. } => s.t("idm-new-role"),
         Create::Client { .. } => s.t("idm-new-client"),
     };
-    let modal = egui::Modal::new(egui::Id::new("idm-create")).show(ctx, |ui| {
+    // One identity per kind: a modal and a grid keep their last size, so a
+    // shared one drew Create Group as tall as Create Client had been.
+    let kind = match &c {
+        Create::User { .. } => "user",
+        Create::Group { .. } => "group",
+        Create::Role { .. } => "role",
+        Create::Client { .. } => "client",
+    };
+    let modal = egui::Modal::new(egui::Id::new(("idm-create", kind))).show(ctx, |ui| {
         ui.set_width(520.0);
         ui.heading(&title);
         ui.add_space(form::PANE_GAP);
-        form::field_grid(ui, "idm-create-grid", |ui| match &mut c {
+        form::field_grid(ui, format!("idm-create-grid-{kind}"), |ui| match &mut c {
             Create::User { form: f, .. } => {
                 form::label(ui, &s.t("idm-username"));
                 form::text_field(ui, &mut f.username, "alice");

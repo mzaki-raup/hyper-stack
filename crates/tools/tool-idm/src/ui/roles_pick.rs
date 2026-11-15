@@ -8,7 +8,9 @@ use hs_ui::form;
 use hs_ui::icons::ph;
 
 use super::common::{After, Cx, Load, WriteOk, WriteReq, ask, state_note, take, write_button};
-use crate::provider::{Client, IdmProvider, ObjRef, Paged, Role, RoleMappings, Section, Subject};
+use crate::provider::{
+    Client, ClientRoles, IdmProvider, ObjRef, Paged, Role, RoleMappings, Section, Subject,
+};
 
 fn after(who: &Subject) -> After {
     match who {
@@ -17,16 +19,38 @@ fn after(who: &Subject) -> After {
     }
 }
 
+/// The roles a subject holds through composites and groups (Show
+/// Effective): realm roles, and each client's.
+pub struct Effective<'a> {
+    pub realm: &'a [Role],
+    pub clients: &'a [ClientRoles],
+}
+
+/// Inherited roles: muted, marked, without Unassign.
+fn inherited_rows(ui: &mut egui::Ui, cx: &Cx<'_>, glyph: &str, roles: &[&Role]) {
+    let theme = cx.theme;
+    for r in roles {
+        form::centred_row(ui, |ui| {
+            ui.label(egui::RichText::new(glyph).color(theme.text_muted));
+            ui.label(egui::RichText::new(&r.name).color(theme.text_muted));
+            super::common::chip(ui, &cx.t("idm-inherited"), theme.text_muted);
+        })
+        .response
+        .on_hover_text(cx.t("idm-inherited-tip"));
+        ui.add_space(form::ROW_GAP / 2.0);
+    }
+}
+
 /// The subject's mappings as rows: realm roles, then each client's, each
-/// with Unassign; with `effective`, the inherited realm roles too, marked
-/// and without Unassign. Returns the Unassign asked for.
+/// with Unassign; with `effective`, the inherited ones too, marked and
+/// without Unassign. Returns the Unassign asked for.
 pub fn mapping_rows(
     ui: &mut egui::Ui,
     cx: &mut Cx<'_>,
     who: &Subject,
     name: &str,
     m: &RoleMappings,
-    effective: Option<&[Role]>,
+    effective: Option<&Effective<'_>>,
     may: &Result<(), String>,
 ) -> Option<WriteReq> {
     let theme = cx.theme;
@@ -34,12 +58,41 @@ pub fn mapping_rows(
     let direct: BTreeSet<&str> = m.realm.iter().map(|r| r.name.as_str()).collect();
     let inherited: Vec<&Role> = effective
         .map(|e| {
-            e.iter()
+            e.realm
+                .iter()
                 .filter(|r| !direct.contains(r.name.as_str()))
                 .collect()
         })
         .unwrap_or_default();
-    if m.realm.is_empty() && m.clients.is_empty() && inherited.is_empty() {
+    // Each client's inherited roles: what the effective read found that is
+    // not assigned directly.
+    let inherited_clients: Vec<(&str, &str, Vec<&Role>)> = effective
+        .map(|e| {
+            e.clients
+                .iter()
+                .map(|c| {
+                    let assigned: BTreeSet<&str> = m
+                        .clients
+                        .iter()
+                        .filter(|d| d.id == c.id)
+                        .flat_map(|d| d.roles.iter().map(|r| r.name.as_str()))
+                        .collect();
+                    let extra: Vec<&Role> = c
+                        .roles
+                        .iter()
+                        .filter(|r| !assigned.contains(r.name.as_str()))
+                        .collect();
+                    (c.id.as_str(), c.client.as_str(), extra)
+                })
+                .filter(|(_, _, extra)| !extra.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if m.realm.is_empty()
+        && m.clients.is_empty()
+        && inherited.is_empty()
+        && inherited_clients.is_empty()
+    {
         form::hint(ui, theme, &cx.t("idm-roles-none"));
         return None;
     }
@@ -57,16 +110,7 @@ pub fn mapping_rows(
         });
         ui.add_space(form::ROW_GAP / 2.0);
     }
-    for r in &inherited {
-        form::centred_row(ui, |ui| {
-            ui.label(egui::RichText::new(realm_glyph).color(theme.text_muted));
-            ui.label(egui::RichText::new(&r.name).color(theme.text_muted));
-            super::common::chip(ui, &cx.t("idm-inherited"), theme.text_muted);
-        })
-        .response
-        .on_hover_text(cx.t("idm-inherited-tip"));
-        ui.add_space(form::ROW_GAP / 2.0);
-    }
+    inherited_rows(ui, cx, realm_glyph, &inherited);
     for c in &m.clients {
         ui.add_space(form::ROW_GAP);
         form::subsection(ui, theme, &c.client);
@@ -81,6 +125,19 @@ pub fn mapping_rows(
             });
             ui.add_space(form::ROW_GAP / 2.0);
         }
+        if let Some((_, _, extra)) = inherited_clients.iter().find(|(id, _, _)| *id == c.id) {
+            inherited_rows(ui, cx, client_glyph, extra);
+        }
+    }
+    // Clients the subject holds roles of only through composites or groups.
+    for (id, client, extra) in &inherited_clients {
+        if m.clients.iter().any(|c| c.id == *id) {
+            continue;
+        }
+        ui.add_space(form::ROW_GAP);
+        form::subsection(ui, theme, client);
+        ui.add_space(form::ROW_GAP / 2.0);
+        inherited_rows(ui, cx, client_glyph, extra);
     }
     let (client, role) = unassign?;
     let (realm, who2) = (cx.realm.to_string(), who.clone());

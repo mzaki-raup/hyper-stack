@@ -18,6 +18,8 @@ mod dock;
 mod editor_tests;
 #[cfg(test)]
 mod graphics_tests;
+#[cfg(test)]
+mod idm_tests;
 mod launcher;
 mod self_test;
 mod settings_ai;

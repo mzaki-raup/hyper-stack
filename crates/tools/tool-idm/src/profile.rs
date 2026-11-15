@@ -43,7 +43,16 @@ pub struct IdmFields {
     /// A PEM file of extra roots (a company CA); empty for none.
     pub ca_file: String,
     pub credential: Credential,
+    /// A master-realm account used only to read the version, when the
+    /// main one is not shown it (CR-0099). Off by default.
+    pub lookup: bool,
+    pub lookup_client_id: String,
+    pub lookup_credential: Credential,
 }
+
+/// The sign-in kinds of the Version Lookup account: a master-realm
+/// client's secret, or an admin's password through `admin-cli`.
+pub const LOOKUP_AUTH_KINDS: &[&str] = &["api-key", "password"];
 
 impl Default for IdmFields {
     fn default() -> Self {
@@ -56,6 +65,12 @@ impl Default for IdmFields {
             ca_file: String::new(),
             credential: Credential {
                 auth: "api-key".into(),
+                ..Default::default()
+            },
+            lookup: false,
+            lookup_client_id: String::new(),
+            lookup_credential: Credential {
+                auth: "password".into(),
                 ..Default::default()
             },
         }
@@ -109,6 +124,15 @@ impl IdmFields {
         }
         let url = s("url");
         let auth_realm = s("auth_realm");
+        let lt = t
+            .get("version_lookup")
+            .and_then(|v| v.as_table())
+            .cloned()
+            .unwrap_or_default();
+        let mut lookup_credential = Credential::from_table(&lt);
+        if !LOOKUP_AUTH_KINDS.contains(&lookup_credential.auth.as_str()) {
+            lookup_credential.auth = "password".into();
+        }
         IdmFields {
             url: if url.is_empty() {
                 default_url(kind).to_string()
@@ -128,6 +152,13 @@ impl IdmFields {
                 .unwrap_or(true),
             ca_file: s("ca_file"),
             credential,
+            lookup: lt.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
+            lookup_client_id: lt
+                .get("client_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            lookup_credential,
         }
     }
 
@@ -144,6 +175,14 @@ impl IdmFields {
         }
         t.insert("tls_verify".into(), toml::Value::Boolean(self.tls_verify));
         self.credential.write_into(&mut t);
+        let mut lt = toml::Table::new();
+        lt.insert("enabled".into(), toml::Value::Boolean(self.lookup));
+        lt.insert(
+            "client_id".into(),
+            toml::Value::String(self.lookup_client_id.clone()),
+        );
+        self.lookup_credential.write_into(&mut lt);
+        t.insert("version_lookup".into(), toml::Value::Table(lt));
         fields.insert("idm".into(), toml::Value::Table(t));
     }
 
@@ -204,55 +243,25 @@ impl IdmFields {
         if auth_realm.is_empty() {
             return Err(ProfileError::Invalid("the auth realm is missing".into()));
         }
+        let auth_error = |e| match e {
+            AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+            other => ProfileError::Auth(other),
+        };
         let auth = self
             .credential
             .resolve(secrets, lookup)
-            .map_err(|e| match e {
-                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
-                other => ProfileError::Auth(other),
-            })?;
-        let client_id = client_id.trim().to_string();
-        let grant = match auth {
-            Auth::ApiKey { key, .. } => {
-                if client_id.is_empty() {
-                    return Err(ProfileError::Invalid(
-                        "Client Credentials needs the client id".into(),
-                    ));
-                }
-                Grant::ClientCredentials {
-                    client_id,
-                    secret: SecretString::from(key),
-                }
-            }
-            Auth::Password { user, password } => {
-                if user.trim().is_empty() {
-                    return Err(ProfileError::Invalid(
-                        "Admin Password needs the username".into(),
-                    ));
-                }
-                Grant::Password {
-                    client_id: if client_id.is_empty() {
-                        ADMIN_CLI.into()
-                    } else {
-                        client_id
-                    },
-                    username: user.trim().to_string(),
-                    password: SecretString::from(password),
-                }
-            }
-            Auth::Token { token, .. } => Grant::OfflineToken {
-                client_id: if client_id.is_empty() {
-                    ADMIN_CLI.into()
-                } else {
-                    client_id
-                },
-                token: SecretString::from(token),
-            },
-            Auth::None => {
-                return Err(ProfileError::Invalid(
-                    "an identity server needs a credential".into(),
-                ));
-            }
+            .map_err(auth_error)?;
+        let grant = grant_of(auth, client_id.trim().to_string())?;
+        let version_lookup = if self.lookup {
+            let auth = self
+                .lookup_credential
+                .resolve(secrets, lookup)
+                .map_err(auth_error)?;
+            let client_id =
+                lookup(&self.lookup_client_id).map_err(ProfileError::MissingVariables)?;
+            Some(grant_of(auth, client_id.trim().to_string())?)
+        } else {
+            None
         };
         let tls = Tls {
             verify: self.tls_verify,
@@ -265,12 +274,60 @@ impl IdmFields {
                 grant,
                 tls,
                 timeout: TIMEOUT,
+                version_lookup,
             })),
             other => Err(ProfileError::Invalid(format!(
                 "{other} is not an identity server this version knows"
             ))),
         }
     }
+}
+
+/// A resolved credential and client id as the grant Keycloak takes.
+fn grant_of(auth: Auth, client_id: String) -> Result<Grant, ProfileError> {
+    let grant = match auth {
+        Auth::ApiKey { key, .. } => {
+            if client_id.is_empty() {
+                return Err(ProfileError::Invalid(
+                    "Client Credentials needs the client id".into(),
+                ));
+            }
+            Grant::ClientCredentials {
+                client_id,
+                secret: SecretString::from(key),
+            }
+        }
+        Auth::Password { user, password } => {
+            if user.trim().is_empty() {
+                return Err(ProfileError::Invalid(
+                    "Admin Password needs the username".into(),
+                ));
+            }
+            Grant::Password {
+                client_id: if client_id.is_empty() {
+                    ADMIN_CLI.into()
+                } else {
+                    client_id
+                },
+                username: user.trim().to_string(),
+                password: SecretString::from(password),
+            }
+        }
+        Auth::Token { token, .. } => Grant::OfflineToken {
+            client_id: if client_id.is_empty() {
+                ADMIN_CLI.into()
+            } else {
+                client_id
+            },
+            token: SecretString::from(token),
+        },
+        Auth::None => {
+            return Err(ProfileError::Invalid(
+                "an identity server needs a credential".into(),
+            ));
+        }
+    };
+    Ok(grant)
 }
 
 /// A URL without its scheme.
@@ -352,15 +409,31 @@ mod tests {
                 secret: "secret:01J0000000000000000000000".into(),
                 ..Default::default()
             },
+            lookup: true,
+            lookup_client_id: String::new(),
+            lookup_credential: Credential {
+                auth: "password".into(),
+                user: "admin".into(),
+                secret: "secret:01J0000000000000000000001".into(),
+                ..Default::default()
+            },
         };
         let mut t = toml::Table::new();
         f.write_into(&mut t);
         assert_eq!(IdmFields::from_table("keycloak", &t), f);
         assert!(t["idm"].as_table().unwrap().contains_key("auth"));
+        assert!(
+            t["idm"]["version_lookup"]
+                .as_table()
+                .unwrap()
+                .contains_key("secret")
+        );
         let empty = IdmFields::from_table("keycloak", &toml::Table::new());
         assert_eq!(empty.url, "http://127.0.0.1:8180");
         assert_eq!(empty.auth_realm, "master");
         assert_eq!(empty.credential.auth, "api-key");
+        assert!(!empty.lookup, "the version lookup is off by default");
+        assert_eq!(empty.lookup_credential.auth, "password");
         assert!(empty.tls_verify);
         assert_eq!(empty.opening_realm(), "master");
         assert_eq!(f.opening_realm(), "hs-demo");
@@ -394,6 +467,28 @@ mod tests {
         let mut bad = fields("api-key", "", "hs-admin");
         bad.url = "127.0.0.1:8180".into();
         assert!(matches!(r(bad), Err(ProfileError::Invalid(_))));
+        // CR-0099: no lookup unless it is on; on, the admin password goes
+        // through admin-cli.
+        assert!(
+            r(fields("api-key", "", "hs-admin"))
+                .unwrap()
+                .version_lookup
+                .is_none()
+        );
+        let mut on = fields("api-key", "", "hs-admin");
+        on.lookup = true;
+        on.lookup_credential = Credential {
+            auth: "password".into(),
+            user: "admin".into(),
+            secret: "pw".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            r(on.clone()).unwrap().version_lookup,
+            Some(Grant::Password { ref client_id, ref username, .. }) if client_id == "admin-cli" && username == "admin"
+        ));
+        on.lookup_credential.user.clear();
+        assert!(matches!(r(on), Err(ProfileError::Invalid(_))));
         let mut ca = fields("api-key", "", "hs-admin");
         ca.ca_file = "C:/certs/corp.pem".into();
         assert_eq!(

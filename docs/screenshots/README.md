@@ -37,6 +37,21 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-15: Identity with the server's version (CR-0099)
+
+The header band of a Keycloak tab now shows the version, so the two
+captures that include it were taken again the same way as the set below,
+and one was added:
+
+- `identity-users.png`, `identity-delete.png` - as below, the header now
+  reading *Version : 26.8.2* (read through the profile's Version Lookup
+  account, the bench's master admin; its password typed from
+  `bench/.env` by a script and kept in the vault). The delete dialog is
+  on a throwaway user, `hs-ui-check`, deleted afterwards.
+- `identity-version-lookup.png` - Settings → Identity scrolled to the
+  form's Version Lookup card: the checkbox on, Admin Password, the
+  username, and the password shown only as *Stored in the vault*.
+
 ## 2026-11-14: the Identity activity (FEAT-0109 to FEAT-0116)
 
 Taken from the `feat/idm` release build on the scratch data folder at

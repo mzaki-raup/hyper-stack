@@ -40,6 +40,9 @@ pub struct TabView {
     realm_text: String,
     /// A realm typed that the server refused, said once.
     restored_user: bool,
+    /// A palette command for the selected item and when it was asked;
+    /// the control it stands for takes it on a later frame.
+    verb: Option<(&'static str, std::time::Instant)>,
 }
 
 impl Default for TabView {
@@ -59,6 +62,7 @@ impl Default for TabView {
             writes: Writes::default(),
             realm_text: String::new(),
             restored_user: false,
+            verb: None,
         }
     }
 }
@@ -342,6 +346,8 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
     let Some(session) = tool.session.as_mut() else {
         return;
     };
+    let asked_at = tool.view.verb.map(|(_, t)| t);
+    let mut verb = tool.view.verb.take().map(|(v, _)| v);
     let mut cx2 = Cx {
         s,
         theme: &theme,
@@ -351,6 +357,7 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
         page,
         refusal,
         out: &mut out,
+        verb: &mut verb,
     };
     let v = &mut tool.view;
     if v.export.open() {
@@ -402,6 +409,18 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
         }
     }
     drop(cx2);
+    // A command no control took: wait while its item may still be
+    // loading, then say it does not apply.
+    if let (Some(v), Some(at)) = (verb, asked_at) {
+        if at.elapsed() < std::time::Duration::from_secs(3) {
+            tool.view.verb = Some((v, at));
+            ui.ctx()
+                .request_repaint_after(std::time::Duration::from_millis(100));
+        } else {
+            out.toasts
+                .push((ToastLevel::Warning, s.t("idm-verb-not-applicable")));
+        }
+    }
     apply_out(tool, out, ui, cx);
 }
 
@@ -499,6 +518,64 @@ fn open_console(tool: &IdmTool, cx: &mut ToolContext, page: &str) {
     cx.open("browser", Some(OpenRequest::Url { url }));
 }
 
+/// The review-only assistant (ADR-019, §9), told about the selection -
+/// a user, group, client or event - with every secret masked. It offers
+/// Explain These Roles, Why Did This Login Fail? and Summarise These
+/// Events; it never sends a write.
+pub fn assistant_column(
+    tool: &mut IdmTool,
+    outer: &mut egui::Ui,
+    panel: Option<egui::Rect>,
+    cx: &mut ToolContext,
+) {
+    if !tool.assistant.open {
+        return;
+    }
+    let s = cx.services;
+    let theme = Theme::from_settings(&s.settings.read().appearance);
+    let section: Section = tool.state.section.into();
+    let v = &tool.view;
+    let selected = match section {
+        Section::Users => v.users.ai_context(),
+        Section::Groups => v.groups.ai_context(),
+        Section::Clients => v.clients.ai_context(),
+        Section::LoginEvents => v.login_events.ai_context(),
+        Section::AdminEvents => v.admin_events.ai_context(),
+        _ => None,
+    }
+    .unwrap_or_else(|| s.t("idm-ai-context-none"));
+    let context = format!(
+        "Identity server: {} ({}), realm {}, section {}
+{selected}",
+        tool.conn_name,
+        hs_core::connections::kind_label(&tool.kind),
+        tool.state.realm,
+        s.t(super::common::section_key(section)),
+    );
+    tool.assistant.set_context("Identity", context);
+    if tool.assistant.quick_actions.is_empty() {
+        tool.assistant.quick_actions = hs_ui::ai_assistant::QuickAction::for_activity(s, "idm");
+    }
+    let Some(panel) = panel else {
+        return;
+    };
+    let mut child = outer.new_child(
+        egui::UiBuilder::new()
+            .max_rect(panel)
+            .layout(egui::Layout::top_down(egui::Align::Min)),
+    );
+    child.set_clip_rect(panel.intersect(outer.clip_rect()));
+    egui::Frame::new()
+        .fill(theme.panel_bg)
+        .stroke(egui::Stroke::new(1.0, theme.border))
+        .show(&mut child, |ui| {
+            ui.set_min_width(370.0);
+            // Review-only: nothing it writes is inserted anywhere.
+            tool.assistant.can_insert = false;
+            tool.assistant.ui(ui, s, &theme, "Identity");
+        });
+}
+
 /// The main toolbar (§3.3): Browse first, Refresh, Open in Admin
 /// Console, Export Realm, Allow Writes on a protected tab.
 pub fn toolbar(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
@@ -552,6 +629,20 @@ pub fn toolbar(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
     }
 }
 
+/// The commands that act on the selected item, as the controls know them.
+const VERBS: &[&str] = &[
+    "idm.user.enable",
+    "idm.user.disable",
+    "idm.user.reset_password",
+    "idm.user.logout",
+    "idm.user.join_group",
+    "idm.assign_role",
+    "idm.delete",
+    "idm.client.show_secret",
+    "idm.client.copy_secret",
+    "idm.client.regenerate_secret",
+];
+
 pub fn commands() -> Vec<CommandDescriptor> {
     let c = |id: &str, title: &str, key: Option<&str>| CommandDescriptor {
         id: id.into(),
@@ -576,6 +667,29 @@ pub fn commands() -> Vec<CommandDescriptor> {
         c("idm.console", "Identity: Open in Admin Console", None),
         c("idm.logout_all", "Identity: Log Out All Sessions…", None),
         c("idm.add", "Identity: Add Identity Server", None),
+        c("idm.user.enable", "Identity: Enable User", None),
+        c("idm.user.disable", "Identity: Disable User", None),
+        c("idm.user.reset_password", "Identity: Reset Password…", None),
+        c("idm.user.logout", "Identity: Log Out User", None),
+        c("idm.user.join_group", "Identity: Join Group…", None),
+        c("idm.assign_role", "Identity: Assign Role…", None),
+        c("idm.delete", "Identity: Delete…", None),
+        c(
+            "idm.client.show_secret",
+            "Identity: Show Client Secret",
+            None,
+        ),
+        c(
+            "idm.client.copy_secret",
+            "Identity: Copy Client Secret",
+            None,
+        ),
+        c(
+            "idm.client.regenerate_secret",
+            "Identity: Regenerate Client Secret…",
+            None,
+        ),
+        c("idm.ai", "Identity: AI Assistant", None),
     ]
 }
 
@@ -624,6 +738,35 @@ pub fn run_command(tool: &mut IdmTool, id: &str, cx: &mut ToolContext) -> bool {
         "idm.logout_all" => {
             tool.state.section = Section::Sessions.into();
             tool.view.sessions.ask_logout_all();
+            true
+        }
+        // Commands for the selected item: to the section that has it, and
+        // the control that does the same thing takes it (§9).
+        "idm.user.enable"
+        | "idm.user.disable"
+        | "idm.user.reset_password"
+        | "idm.user.logout"
+        | "idm.user.join_group"
+        | "idm.assign_role"
+        | "idm.delete"
+        | "idm.client.show_secret"
+        | "idm.client.copy_secret"
+        | "idm.client.regenerate_secret" => {
+            let here: Section = tool.state.section.into();
+            let to = match id {
+                "idm.delete" => here,
+                "idm.assign_role" if here == Section::Groups => here,
+                v if v.starts_with("idm.client.") => Section::Clients,
+                _ => Section::Users,
+            };
+            tool.state.section = to.into();
+            if let Some(verb) = VERBS.iter().find(|v| **v == id) {
+                tool.view.verb = Some((verb, std::time::Instant::now()));
+            }
+            true
+        }
+        "idm.ai" => {
+            tool.assistant.toggle("Identity");
             true
         }
         "idm.add" => {

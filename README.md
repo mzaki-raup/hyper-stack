@@ -440,7 +440,13 @@ One tab per identity server, **Keycloak** first (22 to 26), through its Admin RE
 | **Guards** - deleting, regenerating a secret or logging out a realm asks for the name to be typed; a save shows each changed field before → after | **Settings → Identity** - Client Credentials, Admin Password or an Offline Token, the secret in the vault, Verify TLS or a CA file, and Test Connection filling the realm lists |
 
 - **Sections** - Users, Groups (a tree loaded a level at a time), Realm Roles, Client Roles, Clients (settings, secret shown for 30 s and copied with the clipboard cleared after 60 s, regenerate, service-account roles), Sessions, Login Events and Admin Events (filters, the level word in the log colours), Realm Settings, and Export Realm as a cancellable job.
-- **Writes** - add users, groups, sub-groups, roles and clients; edit through read-merge-write so fields not on the form are kept; enable, disable, reset a password (temporary by default), log out, join groups, assign roles.
+- **Writes** - add users, groups, sub-groups, roles and clients; edit through read-merge-write so fields not on the form are kept; enable, disable, reset a password (temporary by default, with the realm's password policy shown), log out, join groups, assign roles.
+- **Looking deeper** - Show Effective lists the realm and client roles a user holds through composites and groups; Include Sub-Group Users lists a group's members across its whole subtree; the realm export and admin events open as JSON in the read-only editor (folding, search).
+- **Version** - Keycloak shows its version only to master-realm admins; a realm-scoped account can add an optional Version Lookup account in Settings → Identity, used once on connect to read it for the tab's header.
+
+  ![Settings → Identity: Version Lookup](docs/screenshots/identity-version-lookup.png)
+
+- **Palette and assistant** - each verb (Enable User, Reset Password…, Delete…, Assign Role…, Show / Copy / Regenerate Client Secret …) is a palette command on the selected object; the AI assistant on the toolbar's right explains a user's roles, a failing login or the events, with secrets masked.
 - **Safety** - a production-tier connection opens read-only until Allow Writes; the realm's own clients and built-in roles are never offered for deletion; every write is logged to the workspace's `idm/audit.jsonl` by field name, never value; secrets are masked wherever server JSON is shown.
 - **Credentials** - a confidential client's secret (preferred), an admin password through `admin-cli`, or an offline token, in the vault; tokens live only in memory.
 

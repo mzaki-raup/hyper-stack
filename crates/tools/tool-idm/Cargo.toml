@@ -12,6 +12,8 @@ publish.workspace = true
 [dependencies]
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
+# The read-only JSON view of a realm export and an admin event (§4.8, §4.9).
+hs-editor = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -32,3 +34,4 @@ rfd = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+egui_kittest = { workspace = true }

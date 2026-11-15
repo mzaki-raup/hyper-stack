@@ -4700,6 +4700,16 @@ ai-qa-tracker-reply = Draft a Reply
 ai-qa-tracker-reply-prompt = Draft a short, polite reply to the latest comment on this item that moves it forward. Put the reply alone in a ```markdown block so it can be inserted into the comment box.
 ai-qa-tracker-status = Suggest a Status
 ai-qa-tracker-status-prompt = From this item's description and comments, say which status it should most likely be in now and why, in two or three sentences.
+ai-qa-idm-roles = Explain These Roles
+ai-qa-idm-roles-prompt = From this user's or group's role mappings and groups, explain what it is allowed to do and where each role comes from - assigned directly, through a group, or through a composite role. Point out anything that looks broader than it needs to be.
+ai-qa-idm-login = Why Did This Login Fail?
+ai-qa-idm-login-prompt = From this login event's type, error and details, explain in plain words why the login failed and what an administrator should check or change. Say if more events would be needed to be sure.
+ai-qa-idm-events = Summarise These Events
+ai-qa-idm-events-prompt = Summarise the events shown: what happened, to which users, clients or resources, and anything unusual such as repeated failures or changes made by an unexpected account.
+idm-ai-context-none = Nothing is selected in this tab yet.
+idm-verb-not-applicable = That command does not apply to what is selected here.
+idm-already-enabled = { $name } is already enabled.
+idm-already-disabled = { $name } is already disabled.
 
 ## Identity, the IDM activity (docs/tools/idm.md)
 tool-idm = Identity
@@ -4877,7 +4887,16 @@ idm-assign-role = Assign Role…
 idm-assign = Assign
 idm-unassign = Unassign
 idm-show-effective = Show Effective
-idm-show-effective-tip = Also list the realm roles held through composites and groups
+idm-show-effective-tip = Also list the realm and client roles held through composites and groups
+idm-effective-job = Effective roles of { $name }
+idm-effective-reading = Reading the effective client roles…
+idm-reset-policy = The realm's password policy: { $policy }
+idm-include-sub-users = Include Sub-Group Users
+idm-include-sub-users-tip = Also list the members of every sub-group, with the group they are in
+idm-sub-users-job = Members of { $group } and its sub-groups
+idm-sub-users-reading = Reading the members of every sub-group…
+idm-sub-users-empty = This group and its sub-groups have no members.
+idm-group = Group
 idm-realm-roles = Realm Roles
 idm-client-roles = Client Roles
 idm-roles-none = No roles are assigned.
@@ -5074,6 +5093,9 @@ conn-idm-verify-tls = Verify TLS
 conn-idm-verify-tls-off = The server's certificate is not checked: the tab shows a TLS Not Verified badge. Use a CA file instead where you can.
 conn-idm-ca-file = CA File
 conn-idm-ca-file-hint = Optional: a PEM bundle of extra roots, such as a company CA, added to the system's own.
+conn-idm-section-lookup = Version Lookup
+conn-idm-lookup = Read the Version with a Master-Realm Account
+conn-idm-lookup-hint = Keycloak shows its version only to master-realm admins. When the account above is not shown it, this account is asked once on connect, and its token is dropped straight after.
 
 ## Settings → Tracker
 settings-tracker = Tracker

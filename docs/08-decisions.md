@@ -1048,7 +1048,7 @@ first live run with a real key is the owner's.
 
 ## ADR-032 · IDM activity: one provider trait, Keycloak's Admin REST first
 
-**Date** 2026-11-08 · **Status** proposed (see `docs/tools/idm.md`) ·
+**Date** 2026-11-08 · **Status** accepted, built 2026-11-14 (see `docs/tools/idm.md`) ·
 **Owner's request** (2026-11-08): *"add IDM as new Activity… For
 starter, Keycloak. If provide keycloak admin credentials, can the work
 pane resemble keycloak web interface (using APIs, etc)?"*, then

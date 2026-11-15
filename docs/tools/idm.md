@@ -171,6 +171,12 @@ through `form::button` / `form::primary_button`, **Test Connection**
 **Delete**. Below the list, the activity's defaults (§7: page size,
 request timeout).
 
+The form ends with a **Version Lookup** card (CR-0099), off by default:
+*Read the Version with a Master-Realm Account*, and when it is on, that
+account's authentication (Client Credentials or Admin Password), client
+id (`admin-cli` when empty, for a password), username and secret - the
+secret a `secret:<ulid>` like the main one. §8.3 says what it is for.
+
 ### 3.5 Every screen keeps the layout standard
 
 Every screen in §4 is checked against the *Checking a screen* list of
@@ -592,6 +598,13 @@ ca_file = ""                       # a PEM file of extra roots (a company CA); e
 auth = "api-key"                   # api-key | password | token
 user = ""                          # the admin's username for the password kind
 secret = "secret:01JC…"            # always a vault reference once saved
+
+[idm.version_lookup]               # optional, CR-0099: reads the version only (§8.3)
+enabled = false
+client_id = ""                     # admin-cli when empty, for the password kind
+auth = "password"                  # password | api-key
+user = "admin"
+secret = "secret:01JD…"
 ```
 
 | Field | Component | Notes |
@@ -608,6 +621,7 @@ secret = "secret:01JC…"            # always a vault reference once saved
 | Verify TLS | checkbox | on by default; off draws the red *TLS not verified* badge in the header (docs/06 §5) |
 | CA File | `text_field` with a file chooser | optional; a PEM bundle added to the system's roots for an internal Keycloak behind a company CA (owner, 2026-11-08); a missing or unreadable file is said in words at Test Connection |
 | Environment | dropdown | the workspace's environments; decides protection (§6.1) |
+| Read the Version with a Master-Realm Account | checkbox | off by default; on shows the lookup account's Authentication (Client Credentials · Admin Password), Client ID, Username and secret (`form::secret_field`, `secret:<ulid>`) as sub-settings (CR-0099, §8.3) |
 
 The form shows only the fields of the chosen authentication. `{{var}}`
 works in every text field through `hs_core::environments`.
@@ -870,8 +884,18 @@ that lack the list). `Caps` is built from both:
 
 - **A realm-scoped account is not shown the version**: on the bench's
   26.8.2, the `hs-demo` service account's `serverinfo` has no
-  `systemInfo` at all (only a master admin sees it). The version is then
-  unknown (`Support::Unknown`, said in the header) and `Caps` comes from
+  `systemInfo` at all (only a master admin sees it). With a **Version
+  Lookup** account on the profile (CR-0099, owner's choice 2026-11-14:
+  "Exact via master account") the provider then asks that account, once
+  per connect: a token from the `master` realm, one `GET
+  /admin/serverinfo`, the token dropped and a password grant's session
+  logged out straight after. It reads nothing else and never carries a
+  request of the tab. Its version is then a known one for the header and
+  for `Caps`. A lookup that is refused (wrong secret, no `master` access)
+  is logged and leaves the version unknown; it never fails the
+  connection. Without a lookup the version is
+  unknown (`Support::Unknown`; the header says it is not shown to this
+  account and points at Settings → Version Lookup) and `Caps` comes from
   the features: a server that sends the `features` list is a recent one
   and is treated as 24+ (declarative user profile on); one that does not
   is treated as 22. When `serverinfo` is refused outright the same rule
@@ -1090,12 +1114,14 @@ FEAT-0116); no screen of §4 yet.
   column, never narrower than its tab strip.
 - **Users, Groups, Realm and Client Roles, Clients, Sessions, Login and
   Admin Events, Realm Settings, Export** as §4.2-§4.9 and §4.10's
-  creates, with these simplifications in phase 1: the realm export and
-  an admin event's representation are shown as read-only monospaced
-  text in a well, not the editor engine; a group's Members lists direct
-  members only (Include Sub-Group Users is not built); Show Effective
-  adds inherited **realm** roles only; Reset Password does not show the
-  realm's password policy (a refusal is still reported).
+  creates. The realm export and an admin event's representation are
+  shown read-only in the editor engine (JSON colours, folding, search).
+  A group's Include Sub-Group Users is a Job that walks the subtree in
+  pages and lists each member with the group it is in. Show Effective
+  adds the inherited realm roles, and a Job reads each client's
+  effective roles (one request per client) and adds the inherited
+  ones under each client, marked Inherited. Reset Password shows the
+  realm's password policy as a hint when the account may read it.
 - **Guards** (§6): writes go through the session's `Guarded` provider on
   their own tasks (a newer write never aborts an older one); each ends
   in a toast and a re-read; a 404 drops the item from its list. Disable,
@@ -1106,9 +1132,18 @@ FEAT-0116); no screen of §4 yet.
   A protected environment's tab offers Allow Writes behind a
   confirmation naming it.
 - **Palette** (§9): the commands of the table; Search… (Ctrl+Alt+U) and
-  Switch Realm… (Ctrl+Alt+Shift+R) bound, the rest rebindable.
-- **Not yet**: the AI assistant control (§9's last paragraph), the
-  per-verb palette commands that act on the selected object (Enable
-  User, Reset Password…, Delete…, Show / Copy Client Secret,
-  Regenerate…, Assign Role…, Join Group…), and the kittest boxes of
-  §10's UI line beyond the typed confirmation's match rule.
+  Switch Realm… (Ctrl+Alt+Shift+R) bound, the rest rebindable. The
+  per-verb commands (Enable / Disable User, Reset Password…, Log Out,
+  Delete…, Join Group…, Assign Role…, Show / Copy / Regenerate Client
+  Secret) act on the selected object through the same guarded button
+  the page draws: the command opens the right tab, and when the verb
+  does not apply to what is selected (nothing selected, a built-in
+  client, writes refused) a toast says so after 3 s instead.
+- **AI assistant** (§9): the hard-right toolbar toggle opens the shared
+  assistant column with the section and the selected object as context
+  (a client's representation masked, never a secret), and three quick
+  actions (explain a user's roles, why a login fails, read the events).
+  It reads only; it never inserts or writes.
+- **Kittests** (§10's UI line): the dashboard's empty state, the Settings
+  form's per-kind fields, a refused write button disabled with its
+  reason, and the typed confirmation's OK held until the name matches.

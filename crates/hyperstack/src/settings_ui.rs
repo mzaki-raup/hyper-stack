@@ -4669,8 +4669,17 @@ fn save_draft(
                 draft.fields = table.clone();
             } else if is_idm {
                 let mut f = tool_idm::profile::IdmFields::from_table(&draft.kind, &table);
-                secrets_ok =
-                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
+                let [main] = f.credential.secret_fields();
+                // The Version Lookup account's secret too (CR-0099).
+                secrets_ok = store_typed_secrets(
+                    s,
+                    &draft.name,
+                    [
+                        main,
+                        ("version lookup secret", &mut f.lookup_credential.secret),
+                    ],
+                    effects,
+                );
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             } else if is_queue {
@@ -10823,6 +10832,57 @@ fn idm_form(
             });
             ui.end_row();
             form::row_hint(ui, theme, &s.t("conn-idm-ca-file-hint"));
+        });
+    });
+    // Keycloak shows its version only to master-realm admins: an optional
+    // second account reads it (CR-0099).
+    form::section(ui, theme, &s.t("conn-idm-section-lookup"), |ui| {
+        form::field_grid(ui, "idm-lookup", |ui| {
+            form::label(ui, &s.t("conn-idm-lookup"));
+            changed |= ui.checkbox(&mut f.lookup, "").changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-idm-lookup-hint"));
+            if f.lookup {
+                let auth_key = |a: &str| match a {
+                    "password" => "conn-idm-auth-password",
+                    _ => "conn-idm-auth-client",
+                };
+                let c = &mut f.lookup_credential;
+                form::sub_label(ui, &s.t("conn-idm-auth"));
+                egui::ComboBox::from_id_salt("idm-lookup-kind")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(s.t(auth_key(&c.auth)))
+                    .show_ui(ui, |ui| {
+                        for a in tool_idm::profile::LOOKUP_AUTH_KINDS {
+                            if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
+                                .clicked()
+                            {
+                                c.auth = (*a).to_string();
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+                form::sub_label(ui, &s.t("conn-idm-client-id"));
+                let example = match c.auth.as_str() {
+                    "password" => tool_idm::provider::keycloak::auth::ADMIN_CLI,
+                    _ => "hs-version",
+                };
+                changed |= form::text_field(ui, &mut f.lookup_client_id, example).changed();
+                ui.end_row();
+                let c = &mut f.lookup_credential;
+                if c.auth == "password" {
+                    form::sub_label(ui, &s.t("conn-queue-user"));
+                    changed |= form::text_field(ui, &mut c.user, "admin").changed();
+                    ui.end_row();
+                    form::sub_label(ui, &s.t("conn-queue-password"));
+                } else {
+                    form::sub_label(ui, &s.t("conn-idm-client-secret"));
+                }
+                changed |=
+                    secret_field(ui, theme, s, "idm-lookup-secret", &mut c.secret, scratch, 1);
+                ui.end_row();
+            }
         });
     });
     if changed {

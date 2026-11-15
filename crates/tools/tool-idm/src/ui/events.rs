@@ -34,6 +34,7 @@ pub struct EventsView {
     login: Load<Paged<LoginEvent>>,
     admin_list: Load<Paged<AdminEvent>>,
     table: TableState,
+    json: Option<super::common::JsonView>,
 }
 
 impl EventsView {
@@ -56,6 +57,7 @@ impl EventsView {
             login: Load::Idle,
             admin_list: Load::Idle,
             table: TableState::default(),
+            json: None,
         }
     }
 
@@ -417,6 +419,75 @@ impl EventsView {
         paging(ui, theme, cx.s, list)
     }
 
+    /// What the assistant is told: the clicked event, or the page of
+    /// events shown when none is clicked (the representation is already
+    /// masked, §6.5).
+    pub fn ai_context(&self) -> Option<String> {
+        if self.admin {
+            let list = self.admin_list.ready()?;
+            let one = |e: &AdminEvent| {
+                format!(
+                    "{} {} {} {} by {}{} from {}{}
+",
+                    super::common::when(e.time),
+                    e.operation,
+                    e.resource_type,
+                    e.resource_path,
+                    e.auth_user,
+                    e.auth_client,
+                    e.auth_ip,
+                    e.representation
+                        .as_deref()
+                        .map(|r| format!(
+                            "
+  representation: {r}"
+                        ))
+                        .unwrap_or_default()
+                )
+            };
+            return Some(match self.table.selected.and_then(|i| list.rows.get(i)) {
+                Some(e) => format!(
+                    "Admin event:
+{}",
+                    one(e)
+                ),
+                None => format!(
+                    "Admin events:
+{}",
+                    list.rows.iter().map(one).collect::<String>()
+                ),
+            });
+        }
+        let list = self.login.ready()?;
+        let one = |e: &LoginEvent| {
+            let details: Vec<String> = e.details.iter().map(|(k, v)| format!("{k}={v}")).collect();
+            format!(
+                "{} {} {} user={} client={} ip={} error={} {}
+",
+                super::common::when(e.time),
+                e.level(),
+                e.kind,
+                e.user_id,
+                e.client_id,
+                e.ip_address,
+                e.error,
+                details.join(" ")
+            )
+        };
+        Some(match self.table.selected.and_then(|i| list.rows.get(i)) {
+            Some(e) => format!(
+                "Login event:
+{}",
+                one(e)
+            ),
+            None => format!(
+                "Login events:
+{}",
+                list.rows.iter().map(one).collect::<String>()
+            ),
+        })
+    }
+
     /// The clicked event: its details, or the representation the admin
     /// event carries (already masked, §6.5).
     pub fn item(&mut self, ui: &mut egui::Ui, cx: &mut Cx<'_>) {
@@ -452,8 +523,16 @@ impl EventsView {
                     Some(json) => {
                         form::subsection(ui, theme, &cx.t("idm-representation"));
                         ui.add_space(form::PANE_GAP);
-                        form::scroll_well(ui, theme, "idm-admin-repr", Some(300.0), |ui| {
-                            ui.add(egui::Label::new(egui::RichText::new(json).monospace()).wrap());
+                        // Pretty when it parses; the server's text when not.
+                        let pretty = serde_json::from_str::<serde_json::Value>(json)
+                            .ok()
+                            .and_then(|v| serde_json::to_string_pretty(&v).ok())
+                            .unwrap_or_else(|| json.clone());
+                        let view = self.json.get_or_insert_with(|| {
+                            super::common::JsonView::new(cx.s, "admin-event")
+                        });
+                        ui.allocate_ui(egui::vec2(ui.available_width(), 320.0), |ui| {
+                            form::well(ui, theme, Some(300.0), |ui| view.show(ui, theme, &pretty));
                         });
                     }
                     None => form::hint(ui, theme, &cx.t("idm-no-representation")),

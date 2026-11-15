@@ -91,7 +91,11 @@ impl SessionsView {
             let realm = cx.realm.to_string();
             let r = realm.clone();
             cx.out.dialog = Some(Dialog::Typed {
-                title: cx.t("idm-logout-all"),
+                title: cx
+                    .t("idm-logout-all")
+                    // The button's label, without its ellipsis.
+                    .trim_end_matches('…')
+                    .to_string(),
                 body: cx.ta("idm-logout-all-confirm", &[("realm", &realm)]),
                 name: realm.clone(),
                 ok: format!("{} {}", ph::SIGN_OUT, cx.t("idm-logout-all-ok")),

@@ -89,6 +89,7 @@ existing workspace keeps exactly the protection it had.
 | S3 | delete of more than 10 objects or any prefix requires typing the bucket name; versioning status shown before delete |
 | Git | `push --force`, `branch -D`, `reset --hard` disabled on protected remotes (remote pattern configurable) |
 | Containers | stop/remove/prune require confirmation naming the context |
+| Identity | the tab opens read-only: every write control is drawn disabled with the reason, and the provider refuses a write that reaches it anyway (`Guarded`); **Allow Writes** asks, naming the environment, and lasts until the tab reconnects or closes; delete, regenerate a secret and log out all sessions still ask for the name to be typed (docs/tools/idm.md §6) |
 
 The whole main area gets a 2 px frame in the environment colour, and the title
 bar, the banner and Settings → Environments show the red shield in place of

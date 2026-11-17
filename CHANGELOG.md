@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.134.1 — 2026-11-17
+
 ### Fixed
 
-- An open Tracker tab reconnects when its profile's connection, credential, environment or Read-Only is edited, instead of keeping its old session until it is reopened; saving a query does not reconnect it (BUG-0065)
+- Reconnect an open tab when its profile is edited (0ba2e43d)
 
 ## 0.134.0 — 2026-11-17
 

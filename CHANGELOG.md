@@ -11,22 +11,21 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.134.0 — 2026-11-17
+
 ### Added
 
-- The server version in more headers: Nexus (from its `Server` header), a WebDAV share's web server, MinIO's release (admin keys), Kafka's release line such as `4.0.x`, and Redmine when the profile signs in with an administrator's password (CR-0101)
-
-### Changed
-
-- An Identity events date filter means your own days: on Keycloak 26 and later the From and To dates are sent as the first and last instant of the local day (BUG-0062)
-- A failed Test Connection shows the server's words in sentence case, for every connection kind (BUG-0063)
+- Read the server version for Nexus, WebDAV, MinIO, Kafka and Redmine (58d0eaa4)
 
 ### Fixed
 
-- Identity's docs said the JSON views fold; the editor engine has no folding, so the spec and README now say colours and search (BUG-0064)
+- Identity event dates use the local day, and Test Connection errors read in sentence case (2c8a0d60)
 
 ### Security
 
-- Take zip 9.0.5 for RUSTSEC-2026-0548 (HyperStack never extracts with `ZipStreamReader`, the affected path), and list chrono's unmaintained notice RUSTSEC-2026-0543 in `deny.toml` with its reason: no fixed version exists
+- Take zip 9.0.5 and list chrono's unmaintained notice in deny.toml (8cfa3de9)
 
 ## 0.133.0 — 2026-11-15
 

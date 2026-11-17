@@ -5012,7 +5012,11 @@ fn conn_detail(
                 ui.colored_label(theme.success, format!("{} {text}", hs_ui::icons::CHECK));
             }
             crate::conn_test::Outcome::Failed(e) => {
-                ui.colored_label(theme.error, format!("{} {e}", hs_ui::icons::WARNING));
+                // A driver's own words, in sentence case like every hint.
+                ui.colored_label(
+                    theme.error,
+                    format!("{} {}", hs_ui::icons::WARNING, hs_core::fmt::sentence(&e)),
+                );
             }
             crate::conn_test::Outcome::UnknownHostKey(fingerprint) => {
                 ui.colored_label(

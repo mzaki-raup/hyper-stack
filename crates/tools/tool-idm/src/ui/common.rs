@@ -497,8 +497,8 @@ impl<T> Drop for JobSlot<T> {
     }
 }
 
-/// Server JSON shown read-only in the editor engine (folding, search,
-/// the JSON colours), as the API client shows a response. The text is
+/// Server JSON shown read-only in the editor engine (search and the
+/// JSON colours), as the API client shows a response. The text is
 /// already masked by the provider (§6.5); it is laid out once per change.
 pub struct JsonView {
     text: String,
@@ -573,6 +573,34 @@ mod tests {
         h.get_by_label_contains("Delete").hover();
         h.run_steps(3);
         assert!(h.query_by_label_contains(why).is_some(), "the reason shows");
+    }
+
+    /// A built-in role or client (FEAT-0112, FEAT-0113): writes are allowed,
+    /// but Delete is drawn disabled and a click on it does nothing.
+    #[test]
+    fn a_built_in_object_cannot_be_deleted_from_its_page() {
+        use egui_kittest::Harness;
+        use egui_kittest::kittest::Queryable;
+        let theme = Theme::dark();
+        let mut h = Harness::new_ui_state(
+            |ui, clicked: &mut bool| {
+                let builtin = crate::provider::is_builtin_role("offline_access", "hs-demo", None);
+                *clicked |= write_button(
+                    ui,
+                    &theme,
+                    &Ok(()),
+                    !builtin,
+                    "x",
+                    "Delete",
+                    "Built-in roles cannot be deleted",
+                );
+            },
+            false,
+        );
+        h.run();
+        h.get_by_label_contains("Delete").click();
+        h.run();
+        assert!(!*h.state(), "a built-in role's Delete does nothing");
     }
 
     #[test]

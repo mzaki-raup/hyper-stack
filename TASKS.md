@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.8.0
 Features : FEAT-0118
-Bugs : BUG-0064
+Bugs : BUG-0065
 Change Request : CR-0101
 ```
 
@@ -375,6 +375,15 @@ Change Request : CR-0101
 - **Source:** the app check, 2026-11-15: the export's JSON view has search and colours but no folding; the editor engine has none
 - **Scope:** the spec, README and the code comment now say colours and search; folding in the editor engine is not added here
 - [x] Docs: spec §4.8, §4.9 · README · CHANGELOG
+
+### BUG-0065 · An open Tracker tab kept its old session after its profile was edited
+- **State:** Completed · 2026-11-17
+- **Source:** the CR-0101 app check, 2026-11-16: the Redmine profile switched to an administrator's password showed its version only after the tab was reopened; owner, 2026-11-17: "Fix the Tracker tab reconnect on profile edit"
+- **Scope:** like Identity (CR-0099), an open Tracker tab reconnects when its profile's connection changes (URL, repository or project, Cloud, Textile, credential), its environment or its Read-Only flag. Saving or deleting a query from the tab writes the profile too, and that alone does not reconnect
+- [x] Test: a reproducing unit test (`a_profile_edit_reconnects_but_a_saved_query_does_not`, failed before the fix)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 2 · deny · --self-test (2026-11-17)
+- [x] App: `--data-dir D:\Temp\hs-gui-data` — with a Bench Redmine tab open (Version 6.1.5.stable), its URL set to port 3011 in Settings: the tab reconnected at once and said nothing answered at 3011; set back to 3010: it reconnected and showed the version and items again; Save This Query with item #3 selected wrote `queries` to the profile and the tab kept its session and selection
+- [x] Docs: docs/tools/tracker.md · CHANGELOG · GOTCHAS
 
 ---
 

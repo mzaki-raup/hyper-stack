@@ -637,6 +637,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
   the width its content produced; a column holding only a heading and
   "Loading…" stays at its minimum and ignores a drag. Make the content
   fill the column (`ui.set_min_width(ui.available_width().floor())`).
+- **`Harness::run` fails while something loads in the background.** A
+  spinner asks for another repaint, and `run` gives up after a few steps
+  with "exceeded max_steps". The Identity dashboard's Recent Changes is
+  read on the runtime, which finished in time locally and in one CI run,
+  then didn't on a busy runner (run 569). Step until the loaded state
+  shows, with a deadline, instead of `run` (`idm_tests.rs`). Found
+  2026-11-17.
 ## Security and Vault
 
 - **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.

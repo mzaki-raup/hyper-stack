@@ -58,12 +58,20 @@ fn the_dashboard_says_there_are_no_servers_yet() {
                 fonts_ready: false,
             },
         );
-    h.run();
+    // Recent Changes is read on the runtime and shows a spinner until it
+    // lands, so step until it has (a busy CI runner takes longer than
+    // `run`'s few steps).
+    let recent_empty = services.t("idm-recent-empty");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while h.query_by_label_contains(&recent_empty).is_none() && std::time::Instant::now() < deadline
+    {
+        h.step();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     let none = services.t("idm-none");
     assert!(h.query_by_label_contains(&none).is_some(), "{none}");
     assert!(
-        h.query_by_label_contains(&services.t("idm-recent-empty"))
-            .is_some(),
+        h.query_by_label_contains(&recent_empty).is_some(),
         "Recent Changes says it is empty"
     );
 }

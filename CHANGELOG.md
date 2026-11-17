@@ -24,6 +24,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - Identity's docs said the JSON views fold; the editor engine has no folding, so the spec and README now say colours and search (BUG-0064)
 
+### Security
+
+- Take zip 9.0.5 for RUSTSEC-2026-0548 (HyperStack never extracts with `ZipStreamReader`, the affected path), and list chrono's unmaintained notice RUSTSEC-2026-0543 in `deny.toml` with its reason: no fixed version exists
+
 ## 0.133.0 — 2026-11-15
 
 ### Added

@@ -40,6 +40,12 @@ ignore = [
   # fixed version exists; the renderer processes local SVG only, never remote
   # content. Revisit when usvg moves to harfrust.
   { id = "RUSTSEC-2026-0206", reason = "transitive via usvg/resvg; local SVG rendering only, no fixed version" },
+  # chrono is declared unmaintained (2026-11). It is an informational
+  # advisory, not a vulnerability, and no fixed version exists. We use it
+  # directly in hs-core and most tools, and it also reaches us through
+  # arrow/duckdb, so moving off it means replacing it in our crates and
+  # waiting for arrow. Revisit with a move to jiff or time.
+  { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; no fixed version, used directly and via arrow/duckdb" },
 ]
 
 [licenses]

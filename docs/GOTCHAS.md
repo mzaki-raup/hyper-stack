@@ -554,6 +554,7 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **gitlab.com serves a public issue anonymously but not its notes** (401). Open the issue and say why the comments are missing rather than failing it.
 - **GitHub's issue search needs `is:issue`** (or `is:pr`) and is limited to the first 1000 results.
 - **A method named like a trait method shadows nothing.** An inherent `fn item(&self, &Value)` beside the trait's `async fn item(&mut self, &str)` resolved to the trait in `.map(|i| self.item(i))` and failed with a confusing future-type error; give the helper another name (`row`).
+- **A tab that keeps its session ignores a profile edit unless it compares.** `ConnectionsChanged` fires for every profile write, and the Tracker tab only refreshed its name and queries, so a switched credential (Redmine's admin password, CR-0101) reached the tab only when it was reopened. It now keeps what it connected with and reconnects when that changes, as Identity does - but saving a query from the tab writes the profile too, so the comparison leaves the queries out or every saved query would reset the tab (BUG-0065). Automation and Queue tabs have the same shape.
 
 ## Server Versions In Headers
 

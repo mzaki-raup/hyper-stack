@@ -110,6 +110,12 @@ Connections live in `hs_core::connections` with the kinds `jira`,
 | Forgejo Issues | basic | `token …` | — |
 | Confluence | Data Center basic | as Jira | — |
 
+**An edit reaches an open tab** (BUG-0065): when a profile's connection
+(its kind's fields or credential), its environment or its Read-Only flag
+changes in Settings, every open tab on it reconnects and Allow Writes locks
+again. Saving or deleting a query from the tab, renaming or pinning the
+profile leaves the session as it is.
+
 ## 6. Guards
 
 - **Transition**, **Edit**, **Comment** and **Create** are writes. On a

@@ -1436,6 +1436,47 @@ mod tests {
         }
     }
 
+    /// The user profile decides the form (§4.3.1): an attribute it manages
+    /// is a field of its own, one it does not is an attribute row, and the
+    /// four core fields are never shown twice.
+    #[test]
+    fn the_user_profile_turns_attributes_into_fields() {
+        let mut u = user();
+        u.attributes
+            .insert("email".to_string(), vec!["alice@example.com".to_string()]);
+        u.profile = Some(crate::provider::UserProfile {
+            attributes: ["username", "email", "department"]
+                .into_iter()
+                .map(|n| crate::provider::ProfileAttribute {
+                    name: n.into(),
+                    ..Default::default()
+                })
+                .collect(),
+            groups: Vec::new(),
+        });
+        let d = Draft::of(&u);
+        assert_eq!(
+            d.profile.keys().collect::<Vec<_>>(),
+            vec!["department"],
+            "a managed attribute is a field; a core one is not repeated"
+        );
+        assert_eq!(d.profile["department"], "Engineering");
+        let rows: Vec<(&str, &str)> = d
+            .attributes
+            .iter()
+            .map(|r| (r.key.as_str(), r.value.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            vec![("phone", "1"), ("phone", "2")],
+            "the rest are rows"
+        );
+        // Without a profile (before 24) every attribute is a row.
+        u.profile = None;
+        assert!(Draft::of(&u).profile.is_empty());
+        assert_eq!(Draft::of(&u).attributes.len(), 4);
+    }
+
     #[test]
     fn an_unedited_draft_changes_nothing() {
         let u = user();

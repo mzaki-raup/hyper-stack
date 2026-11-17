@@ -555,6 +555,12 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **GitHub's issue search needs `is:issue`** (or `is:pr`) and is limited to the first 1000 results.
 - **A method named like a trait method shadows nothing.** An inherent `fn item(&self, &Value)` beside the trait's `async fn item(&mut self, &str)` resolved to the trait in `.map(|i| self.item(i))` and failed with a confusing future-type error; give the helper another name (`row`).
 
+## Server Versions In Headers
+
+- **"It has no version API" is a claim to probe, not to assume.** CR-0100 listed Nexus, WebDAV, Kafka and Redmine as having no version to show; each had one somewhere else: Nexus and a WebDAV server in the `Server` response header, Kafka in the `metadata.version` range of `ApiVersions` v3 (level 25 is 4.0), Redmine on Administration → Information. Before writing a product off, read its response headers, its handshake and its admin pages against a real server (owner, 2026-11-15).
+- **A digit is not a version.** `Server: AmazonS3` contains a 3; the header counts as a version only with a dotted number in it (`server_header_version`).
+- **Redmine's session cookie comes on the 302.** The sign-in POST answers 302 with the new `_redmine_session`; a client that follows redirects never sees it and lands on the sign-in form again. The version read uses a client with redirects off.
+
 ## Tool-Specific: Identity (tool-idm)
 
 - **Keycloak 26.8 checks the admin API token's audience.** A service account holding every `realm-management` role it needs still gets **401 on every admin call** - not 403 - until its client also has the realm's `kc-admin-api` client scope; the server log says *Expected audience not available in the token*. New clients do not get that scope by default, so a freshly made service-account client always hits it. The provider turns the second 401 of a token without the `kc-admin-api` scope or an `…/admin/realms/…` audience into `IdmError::Audience`, which tells the admin to add the scope (Clients → the client → Client Scopes → Add client scope → `kc-admin-api`, Default). Seen on the bench's 26.8.2; the live test creates such a client to keep it proven.
@@ -564,6 +570,8 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **A partial `PUT` of a user drops what it leaves out.** On 24+ the declarative user profile validates the whole user and attributes absent from the body are removed, so every save reads the user again, merges the edited fields into the whole representation and writes that (`Change::merged_into`).
 - **`/client-session-stats` sends its counts as strings** (`"active": "8"`); read them as either.
 - **Allow Writes left every write disabled: the tab drew a stale `Caps`.** `Guarded::capabilities` turns `writes` off while the tab is read-only, and the session only refreshes its `Caps` snapshot after a request runs - so after Allow Writes, with nothing requested, every write stayed disabled with "This server is older than the supported range". The tab asks `session.provider().capabilities()` each frame instead of the snapshot. Likewise an open tab reconnects when its profile's environment or Read-Only flag changes, so protection follows the profile at once (2026-11-14).
+- **Keycloak's event date filters are UTC days.** `dateFrom=2026-11-14` is the 14th in UTC; at UTC+8 a filter "to the 14th" listed rows the table showed as the 15th's morning. 26.x also takes epoch milliseconds, so the provider sends the local day's first and last instant there (`day_bound`) (2026-11-15).
+- **A `tracing` test must own the process's subscriber.** `tracing::subscriber::with_default` is per thread, and a callsite first met on another test's thread with no subscriber is cached as "never"; the log test then captured nothing when run with its neighbours and passed alone. It sets the global default, which also gathers the other tests' lines (2026-11-15).
 - **Keycloak hides its version from accounts outside the master realm.** `GET /admin/serverinfo` answers a realm-scoped service account with 200 and everything except `systemInfo` (seen on 26.8.2), and no public page carries the version: the console page has only a `resourceVersion` hash. Do not look for another endpoint; the profile's optional Version Lookup account (a master-realm admin) is asked once on connect, and without it the header says the version is not shown (CR-0099).
 - **A table sized by `rows * ROW_HEIGHT` cuts its last row.** `DataTable` puts the item spacing under every row, so eight sessions needed 24 px more than the sum and the eighth was half hidden; and when the columns are wider than the pane, the sideways scroll bar sits over the last row unless its width is added too. `users::table` sizes with both (2026-11-15).
 - **An open tab kept its old session after its profile was saved.** The tab reconnected only when the profile's environment or read-only flag changed, so a new URL, account or Version Lookup took effect only after closing the tab. It now keeps the `IdmFields` it connected with and reconnects when a save changes them (2026-11-15).
@@ -629,6 +637,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
   the width its content produced; a column holding only a heading and
   "Loading…" stays at its minimum and ignores a drag. Make the content
   fill the column (`ui.set_min_width(ui.available_width().floor())`).
+- **`Harness::run` fails while something loads in the background.** A
+  spinner asks for another repaint, and `run` gives up after a few steps
+  with "exceeded max_steps". The Identity dashboard's Recent Changes is
+  read on the runtime, which finished in time locally and in one CI run,
+  then didn't on a busy runner (run 569). Step until the loaded state
+  shows, with a deadline, instead of `run` (`idm_tests.rs`). Found
+  2026-11-17.
 ## Security and Vault
 
 - **Secrets in test data.** Any test that writes a secret must grep the data folder afterwards.

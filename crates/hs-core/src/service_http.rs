@@ -261,6 +261,28 @@ mod tests {
         assert!(!is_github_cloud("https://github.example.com/api/v3"));
     }
 
+    /// CR-0100: github.com is not asked, and a server that cannot be
+    /// reached gives no version rather than an error.
+    #[test]
+    fn a_github_version_that_cannot_be_read_is_empty() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let at = |base: &str| {
+            Http::new(base, Auth::None, TokenAs::Bearer, Duration::from_secs(2)).expect("client")
+        };
+        assert_eq!(
+            rt.block_on(github_enterprise_version(&at("https://api.github.com"))),
+            ""
+        );
+        // Port 9 on loopback: nothing listens there.
+        assert_eq!(
+            rt.block_on(github_enterprise_version(&at("http://127.0.0.1:9/api/v3"))),
+            ""
+        );
+    }
+
     #[test]
     fn a_refusal_says_what_the_server_said() {
         let e = status_error(

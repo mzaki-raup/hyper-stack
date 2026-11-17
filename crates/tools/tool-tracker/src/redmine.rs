@@ -14,7 +14,7 @@ use crate::driver::{
 use crate::github::number;
 use crate::markup::{Lite, lite_to_md, md_to_lite};
 use crate::profile::ConnectConfig;
-use hs_core::service_http::{Http, s};
+use hs_core::service_http::{Http, s, seg};
 
 pub struct Redmine {
     http: Http,
@@ -31,6 +31,103 @@ pub struct Redmine {
     /// (FEAT-0095).
     members: Vec<(String, u64)>,
     info: ServerInfo,
+}
+
+/// The `name=value` pairs of a response's `Set-Cookie` headers, as a
+/// `Cookie` header sends them back.
+fn cookies(resp: &reqwest::Response) -> String {
+    resp.headers()
+        .get_all(reqwest::header::SET_COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|v| v.split(';').next())
+        .map(str::trim)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// The form token of Redmine's sign-in page.
+fn login_token(html: &str) -> Option<&str> {
+    let at = html.find("name=\"authenticity_token\"")?;
+    let rest = &html[at..];
+    let value = rest.find("value=\"")? + "value=\"".len();
+    let end = rest[value..].find('"')?;
+    Some(&rest[value..value + end])
+}
+
+/// The version Administration → Information names ("Redmine
+/// 6.1.5.stable" gives `6.1.5.stable`); empty when the page is not that
+/// page (the sign-in form a non-admin is sent back to).
+pub fn info_page_version(html: &str) -> String {
+    let mut rest = html;
+    while let Some(at) = rest.find("Redmine ") {
+        let tail = &rest[at + "Redmine ".len()..];
+        if tail.starts_with(|c: char| c.is_ascii_digit()) {
+            return tail
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '.')
+                .collect();
+        }
+        rest = tail;
+    }
+    String::new()
+}
+
+/// Redmine names its version nowhere in its API or its headers, only on
+/// Administration → Information, which is a page for an administrator
+/// signed in through the form (an API key is not taken there). With a
+/// username and password the driver signs in once, reads that page and
+/// forgets the session; Redmine keeps a session in its cookie, so there
+/// is nothing left on the server. Anything else - an API key, an account
+/// that is no administrator, a changed page - gives no version (CR-0101).
+async fn admin_version(
+    base: &str,
+    user: &str,
+    password: &str,
+    timeout: std::time::Duration,
+) -> String {
+    let read = async {
+        // No redirects: the session cookie comes with the 302 after the
+        // sign-in, which a followed redirect would drop.
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(timeout)
+            .build()
+            .ok()?;
+        let form = http.get(format!("{base}/login")).send().await.ok()?;
+        let cookie = cookies(&form);
+        let page = form.text().await.ok()?;
+        let token = login_token(&page)?;
+        let body = format!(
+            "authenticity_token={}&username={}&password={}",
+            seg(token),
+            seg(user),
+            seg(password)
+        );
+        let signed_in = http
+            .post(format!("{base}/login"))
+            .header("Cookie", cookie)
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .ok()?;
+        // A wrong password shows the form again (200), not a redirect.
+        if !signed_in.status().is_redirection() {
+            return None;
+        }
+        let info = http
+            .get(format!("{base}/admin/info"))
+            .header("Cookie", cookies(&signed_in))
+            .send()
+            .await
+            .ok()?;
+        if !info.status().is_success() {
+            return None;
+        }
+        Some(info_page_version(&info.text().await.ok()?))
+    };
+    read.await.unwrap_or_default()
 }
 
 fn named(v: &Value, list: &str) -> Vec<(String, u64)> {
@@ -95,7 +192,12 @@ impl Redmine {
             members: Vec::new(),
             info: ServerInfo {
                 product: "Redmine".into(),
-                version: String::new(),
+                version: match &cfg.auth {
+                    hs_core::service_auth::Auth::Password { user, password } => {
+                        admin_version(&cfg.url, user, password, cfg.timeout).await
+                    }
+                    _ => String::new(),
+                },
             },
         })
     }
@@ -493,6 +595,26 @@ impl Driver for Redmine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0101: the version comes from Administration → Information.
+    #[test]
+    fn the_information_page_names_the_version() {
+        let page = "<title>Information - Redmine</title><table>            <tr><td class=\"name\">Redmine 6.1.5.stable</td></tr></table>";
+        assert_eq!(info_page_version(page), "6.1.5.stable");
+        // The sign-in form a non-admin lands on names no version.
+        assert_eq!(
+            info_page_version("<title>Redmine</title> Powered by Redmine"),
+            ""
+        );
+        assert_eq!(info_page_version(""), "");
+    }
+
+    #[test]
+    fn the_sign_in_form_gives_its_token() {
+        let page = "<form action=\"/login\"><input type=\"hidden\"             name=\"authenticity_token\" value=\"aB+c/d==\" autocomplete=\"off\" /></form>";
+        assert_eq!(login_token(page), Some("aB+c/d=="));
+        assert_eq!(login_token("<form></form>"), None);
+    }
 
     #[test]
     fn project_members_become_the_assignee_list_without_the_groups() {

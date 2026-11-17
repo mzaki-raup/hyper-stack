@@ -147,8 +147,28 @@ fn user_filters(q: &UserQuery) -> Q {
     out
 }
 
-fn date(d: &str) -> String {
-    d.trim().to_string()
+/// A day filter of the events endpoints. Keycloak reads `yyyy-MM-dd` as
+/// a UTC day while the tables show local time, so a filter up to the 14th
+/// listed rows of the 15th's morning. From 26 on (checked on 26.8.2) the
+/// endpoints also take epoch milliseconds: with `epoch`, the first or the
+/// last instant of the day in `tz` is sent. An older or unknown server,
+/// and text that is not a date, get the text as typed.
+fn day_bound<Tz: chrono::TimeZone>(d: &str, end: bool, epoch: bool, tz: &Tz) -> String {
+    let d = d.trim();
+    let parsed = chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+    let instant = parsed.filter(|_| epoch).and_then(|day| {
+        let at = if end {
+            day.and_hms_milli_opt(23, 59, 59, 999)
+        } else {
+            day.and_hms_opt(0, 0, 0)
+        }?;
+        // A time a clock change skips or repeats: the earlier reading.
+        tz.from_local_datetime(&at).earliest()
+    });
+    match instant {
+        Some(t) => t.timestamp_millis().to_string(),
+        None => d.to_string(),
+    }
 }
 
 fn subject_base(who: &Subject) -> String {
@@ -278,6 +298,17 @@ impl Keycloak {
                 caps: Caps::default(),
             }),
         })
+    }
+
+    /// An events day filter in the user's own time zone (see [`day_bound`]).
+    fn day(&self, d: &str, end: bool) -> String {
+        let epoch = self
+            .state
+            .read()
+            .info
+            .version
+            .is_some_and(|v| v.major >= 26);
+        day_bound(d, end, epoch, &chrono::Local)
     }
 
     fn admin(&self, realm: &str, rest: &str) -> String {
@@ -1430,8 +1461,8 @@ impl IdmProvider for Keycloak {
             .s("client", &q.client)
             .s("user", &q.user)
             .s("ipAddress", &q.ip)
-            .s("dateFrom", &date(&q.date_from))
-            .s("dateTo", &date(&q.date_to))
+            .s("dateFrom", &self.day(&q.date_from, false))
+            .s("dateTo", &self.day(&q.date_to, true))
             .page(page)
             .on("/events");
         self.paged(
@@ -1459,8 +1490,8 @@ impl IdmProvider for Keycloak {
             .s("authClient", &q.auth_client)
             .s("authUser", &q.auth_user)
             .s("authIpAddress", &q.auth_ip)
-            .s("dateFrom", &date(&q.date_from))
-            .s("dateTo", &date(&q.date_to))
+            .s("dateFrom", &self.day(&q.date_from, false))
+            .s("dateTo", &self.day(&q.date_to, true))
             .page(page)
             .on("/admin-events");
         self.paged(
@@ -1549,6 +1580,25 @@ mod tests {
             path,
             "/events?type=LOGIN&type=LOGIN_ERROR&dateFrom=2026-11-01&first=0&max=21"
         );
+    }
+
+    /// An events filter means the user's own days: on 26+ the bounds go as
+    /// instants; otherwise, and for text that is no date, as typed.
+    #[test]
+    fn an_events_day_is_sent_as_the_local_days_bounds() {
+        let plus8 = chrono::FixedOffset::east_opt(8 * 3600).expect("offset");
+        // 2026-11-14 00:00 +08:00 is 2026-11-13 16:00 UTC.
+        assert_eq!(
+            day_bound("2026-11-14", false, true, &plus8),
+            "1794585600000"
+        );
+        assert_eq!(
+            day_bound(" 2026-11-14 ", true, true, &plus8),
+            (1794585600000i64 + 86_400_000 - 1).to_string()
+        );
+        assert_eq!(day_bound("2026-11-14", true, false, &plus8), "2026-11-14");
+        assert_eq!(day_bound("yesterday", false, true, &plus8), "yesterday");
+        assert_eq!(day_bound("", false, true, &plus8), "");
     }
 
     #[test]

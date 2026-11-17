@@ -140,19 +140,21 @@ impl Kafka {
             builder = builder.sasl_config(s);
         }
         let client = builder.build().await.map_err(err)?;
+        let groups = Settings {
+            bootstrap,
+            tls,
+            auth: cfg.auth.clone(),
+            sasl: cfg.sasl.clone(),
+            timeout: cfg.timeout,
+        };
         Ok(Kafka {
             client,
             info: ServerInfo {
                 product: "Kafka".into(),
-                version: String::new(),
+                // The release line; Kafka names no exact version.
+                version: crate::kafka_groups::release_line(&groups).await,
             },
-            groups: Settings {
-                bootstrap,
-                tls,
-                auth: cfg.auth.clone(),
-                sasl: cfg.sasl.clone(),
-                timeout: cfg.timeout,
-            },
+            groups,
             partitions: HashMap::new(),
             topics: BTreeMap::new(),
         })

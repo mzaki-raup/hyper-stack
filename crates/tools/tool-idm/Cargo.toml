@@ -35,3 +35,5 @@ rfd = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 egui_kittest = { workspace = true }
+# The mock test that reads the log for leaked secrets.
+tracing-subscriber = { workspace = true }

@@ -33,6 +33,36 @@ const REALM: &str = "hs-demo";
 const PREFIX: &str = "hstest-";
 /// A temporary password the test sets; the data folder is searched for it.
 const RESET_PASSWORD: &str = "Hstest-Temp-Pa55-Not-Kept";
+/// A second password the test signs the throwaway user in with, to have
+/// sessions to end; searched for afterwards too.
+const LOGIN_PASSWORD: &str = "Hstest-Login-Pa55-Not-Kept";
+
+/// Sign `user` in to `REALM` through `admin-cli` (direct grants are on for
+/// it by default) and say whether the server took the password. A wrong
+/// one is a failed login, which the realm records as `LOGIN_ERROR`.
+async fn sign_in(url: &str, user: &str, password: &str) -> bool {
+    reqwest::Client::new()
+        .post(format!(
+            "{url}/realms/{REALM}/protocol/openid-connect/token"
+        ))
+        .form(&[
+            ("grant_type", "password"),
+            ("client_id", "admin-cli"),
+            ("username", user),
+            ("password", password),
+        ])
+        .send()
+        .await
+        .is_ok_and(|r| r.status().is_success())
+}
+
+/// `what` must be gone: the next read of it is a 404.
+fn gone<T: std::fmt::Debug>(r: Result<T>, what: &str) -> R<()> {
+    match r {
+        Err(IdmError::NotFound { .. }) => Ok(()),
+        other => Err(format!("the {what} should be gone: {other:?}")),
+    }
+}
 
 type R<T> = std::result::Result<T, String>;
 
@@ -313,7 +343,7 @@ async fn reads(p: &dyn IdmProvider) -> R<()> {
 
 /// Create, change and delete a throwaway user, group, client and client
 /// role through the guarded provider, which writes the audit log.
-async fn round_trip(p: &dyn IdmProvider) -> R<()> {
+async fn round_trip(p: &dyn IdmProvider, url: &str) -> R<String> {
     let page = Page::of(20);
     // A user.
     let username = format!("{PREFIX}user");
@@ -367,6 +397,10 @@ async fn round_trip(p: &dyn IdmProvider) -> R<()> {
         "disabling keeps the attributes"
     );
     ck(p.set_user_enabled(REALM, &u, true).await, "enable")?;
+    assert!(
+        ck(p.user(REALM, &id).await, "read")?.row.enabled,
+        "enabled again"
+    );
     ck(
         p.reset_password(
             REALM,
@@ -412,6 +446,8 @@ async fn round_trip(p: &dyn IdmProvider) -> R<()> {
     let members = ck(p.group_members(REALM, &gid, page).await, "members")?;
     assert!(members.rows.iter().any(|m| m.id == id));
     ck(p.leave_group(REALM, &u, &g).await, "leave")?;
+    let members = ck(p.group_members(REALM, &gid, page).await, "members")?;
+    assert!(!members.rows.iter().any(|m| m.id == id), "left the group");
     // A client, its secret, its role, a mapping of it.
     let cname = format!("{PREFIX}client");
     let cid = ck(
@@ -492,6 +528,42 @@ async fn round_trip(p: &dyn IdmProvider) -> R<()> {
             .await,
         "unassign client role",
     )?;
+    let mapped = ck(
+        p.client_role_mappings(REALM, &who, &cid, false).await,
+        "client mappings",
+    )?;
+    assert!(!mapped.iter().any(|r| r.id == role.id), "unassigned");
+    // The same role on the group, and on the client's service account.
+    let sa = ck(p.service_account_user(REALM, &cid).await, "service account")?;
+    assert!(sa.username.starts_with("service-account-"));
+    for (subject, what) in [
+        (Subject::Group(gid.clone()), "group"),
+        (Subject::User(sa.id.clone()), "service account"),
+    ] {
+        ck(
+            p.add_client_roles(REALM, &subject, &c, std::slice::from_ref(&role))
+                .await,
+            what,
+        )?;
+        let on = ck(
+            p.client_role_mappings(REALM, &subject, &cid, false).await,
+            what,
+        )?;
+        assert!(on.iter().any(|r| r.id == role.id), "mapped on the {what}");
+        ck(
+            p.remove_client_roles(REALM, &subject, &c, std::slice::from_ref(&role))
+                .await,
+            what,
+        )?;
+        let off = ck(
+            p.client_role_mappings(REALM, &subject, &cid, false).await,
+            what,
+        )?;
+        assert!(
+            !off.iter().any(|r| r.id == role.id),
+            "unmapped on the {what}"
+        );
+    }
     // A realm role mapping on the user (the bench's viewer role).
     let available = ck(
         p.available_realm_roles(REALM, &who).await,
@@ -512,23 +584,113 @@ async fn round_trip(p: &dyn IdmProvider) -> R<()> {
             p.remove_realm_roles(REALM, &who, &[viewer]).await,
             "unassign realm role",
         )?;
+        let now = ck(
+            p.realm_role_mappings(REALM, &who, false).await,
+            "realm mappings",
+        )?;
+        assert!(!now.iter().any(|r| r.name == "viewer"), "viewer unassigned");
     }
-    let sa = ck(p.service_account_user(REALM, &cid).await, "service account")?;
-    assert!(sa.username.starts_with("service-account-"));
+    // Sessions: a usable password, a failed login, two sign-ins; End
+    // Session ends one, Log Out the other.
+    ck(
+        p.reset_password(
+            REALM,
+            &u,
+            SecretString::from(LOGIN_PASSWORD.to_string()),
+            false,
+        )
+        .await,
+        "set a login password",
+    )?;
+    ck(
+        p.update_user(
+            REALM,
+            &u,
+            &Change::default().set("requiredActions", serde_json::json!([])),
+        )
+        .await,
+        "clear required actions",
+    )?;
+    assert!(!sign_in(url, &username, "certainly-not-it").await);
+    let failed = ck(
+        p.login_events(
+            REALM,
+            &EventQuery {
+                types: vec!["LOGIN_ERROR".into()],
+                user: id.clone(),
+                ..Default::default()
+            },
+            page,
+        )
+        .await,
+        "login errors",
+    )?;
+    assert!(
+        failed.rows.iter().any(|e| e.kind == "LOGIN_ERROR"),
+        "the failed login is in Login Events"
+    );
+    assert!(sign_in(url, &username, LOGIN_PASSWORD).await, "signed in");
+    let sessions = ck(p.user_sessions(REALM, &id).await, "user sessions")?;
+    let one = sessions
+        .first()
+        .ok_or("a session after signing in")?
+        .clone();
+    ck(
+        p.end_session(REALM, &ObjRef::new(&one.id, &username)).await,
+        "end session",
+    )?;
+    assert!(
+        !ck(p.user_sessions(REALM, &id).await, "user sessions")?
+            .iter()
+            .any(|s| s.id == one.id),
+        "the session ended"
+    );
+    assert!(
+        sign_in(url, &username, LOGIN_PASSWORD).await,
+        "signed in again"
+    );
     ck(p.logout_user(REALM, &u).await, "log out")?;
-    // And away again.
+    assert!(
+        ck(p.user_sessions(REALM, &id).await, "user sessions")?.is_empty(),
+        "logged out of every session"
+    );
+    let admin_events = ck(
+        p.admin_events(
+            REALM,
+            &AdminEventQuery {
+                operation_types: vec!["CREATE".into()],
+                resource_types: vec!["USER".into()],
+                ..Default::default()
+            },
+            page,
+        )
+        .await,
+        "admin events",
+    )?;
+    assert!(
+        admin_events
+            .rows
+            .iter()
+            .any(|e| e.resource_path.ends_with(&id)),
+        "the user's creation is in Admin Events"
+    );
+    // And away again, each confirmed gone.
     ck(
         p.delete_role(REALM, &role.as_ref()).await,
         "delete client role",
     )?;
+    gone(p.role(REALM, &role.id).await, "client role")?;
     ck(p.delete_client(REALM, &c).await, "delete client")?;
+    gone(p.client(REALM, &cid).await, "client")?;
     ck(p.delete_group(REALM, &g).await, "delete group")?;
+    gone(p.group(REALM, &gid).await, "group")?;
     ck(p.delete_user(REALM, &u).await, "delete user")?;
     match p.user(REALM, &id).await {
         Err(IdmError::NotFound { what: "user" }) => {}
         other => return Err(format!("the user should be gone: {other:?}")),
     }
-    Ok(())
+    // The regenerated secret, for the data-folder search.
+    Ok(after.expose().to_string())
 }
 
 /// The audience gotcha (Keycloak 26.8): a client without the realm's
@@ -607,6 +769,7 @@ async fn realm_role_round_trip(p: &dyn IdmProvider) -> R<()> {
         p.delete_role(REALM, &role.as_ref()).await,
         "delete realm role",
     )?;
+    gone(p.role(REALM, &role.id).await, "realm role")?;
     Ok(())
 }
 
@@ -677,7 +840,7 @@ fn keycloak_live() {
         return;
     };
     let data = tempfile::tempdir().expect("data folder");
-    runtime().block_on(async {
+    let regenerated = runtime().block_on(async {
         let log = Arc::new(AuditLog::in_workspace(data.path()));
         let guarded = Guarded::new(
             Arc::new(service_account(&url, &secret)),
@@ -690,7 +853,7 @@ fn keycloak_live() {
         );
         let read = reads(&guarded).await;
         sweep(&guarded, false).await;
-        let trip = round_trip(&guarded).await;
+        let trip = round_trip(&guarded, &url).await;
         let aud = audience(&guarded, &url).await;
         // hs-admin may not create realm roles; the refusal names the role.
         let refused = guarded
@@ -735,6 +898,21 @@ fn keycloak_live() {
                     !export.contains(&secret),
                     "the export shows the hs-admin secret"
                 );
+                // A running export stops when cancelled (§4.9).
+                let cancel = tokio_util::sync::CancellationToken::new();
+                let stopped = {
+                    let run = a.export(REALM, ExportScope::default(), cancel.clone());
+                    let stop = async {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                        cancel.cancel();
+                    };
+                    tokio::join!(run, stop).0
+                };
+                assert!(
+                    matches!(stopped, Err(IdmError::Cancelled)),
+                    "the export was not cancelled: {:?}",
+                    stopped.map(|t| t.len())
+                );
                 a.disconnect().await;
                 r?;
                 offline(&url).await
@@ -745,7 +923,7 @@ fn keycloak_live() {
         }
 
         read.expect("reads");
-        trip.expect("round trip");
+        let regenerated = trip.expect("round trip");
         aud.expect("audience");
         match refused {
             Err(IdmError::Forbidden { needs, .. }) => assert_eq!(needs, Some("manage-realm")),
@@ -764,6 +942,7 @@ fn keycloak_live() {
                 .all(|e| e.by == "hs-admin"),
             "every line says who wrote it"
         );
+        regenerated
     });
     // Nothing secret anywhere in the data folder.
     let mut text = String::new();
@@ -771,7 +950,12 @@ fn keycloak_live() {
         text.push_str(&std::fs::read_to_string(entry).unwrap_or_default());
     }
     assert!(!text.is_empty(), "the audit log was written");
-    for needle in [secret.as_str(), RESET_PASSWORD] {
+    for needle in [
+        secret.as_str(),
+        RESET_PASSWORD,
+        LOGIN_PASSWORD,
+        regenerated.as_str(),
+    ] {
         assert!(
             !text.contains(needle),
             "a secret leaked into the data folder"

@@ -1526,17 +1526,27 @@ as a guess.
 | Redis | `INFO` (`redis_version` / `valkey_version`) |
 | NoSQL | MongoDB `buildInfo`, CouchDB and Qdrant `GET /` |
 | Containers | `docker version`, Kubernetes `/version` |
-| Queue | RabbitMQ `/api/overview`, NATS server info, Redis Streams `INFO` |
+| Queue | RabbitMQ `/api/overview`, NATS server info, Redis Streams `INFO`; Kafka's release line (`4.0.x`) from the newest `metadata.version` a KRaft broker supports (CR-0101) |
 | Automation | Jenkins `X-Jenkins`, Forgejo and GitLab `/version`, TeamCity, AWX `ping`, Puppet; GitHub Enterprise Server `/meta` |
-| Tracker | Jira `/serverInfo`, Forgejo and GitLab `/version`, GitHub Enterprise Server `/meta`, Confluence Server / Data Center's application links manifest |
+| Tracker | Redmine's Administration → Information page, when the profile signs in with an administrator's username and password (CR-0101); Jira `/serverInfo`, Forgejo and GitLab `/version`, GitHub Enterprise Server `/meta`, Confluence Server / Data Center's application links manifest |
 | Git host tabs | Forgejo / Gitea `/api/v1/version`, GitLab `/api/v4/version`, GitHub Enterprise Server `/meta` |
 | Identity | Keycloak `serverinfo`; through the optional Version Lookup account when the main one is not shown it (docs/tools/idm.md §8.3) |
 | SSH | the remote OS name and version |
+| S3 | Nexus's `Server` header (`3.70.1-02 (OSS)`); a WebDAV share's web server (`Apache/2.4.37 (Unix)`); MinIO's release from its admin info, when the keys may read it; any other endpoint whose `Server` header carries a dotted number (CR-0101) |
 
-Left without a version on purpose, because the product gives none to the
-access the tab has: github.com, Bitbucket Cloud, Azure DevOps Services,
-Confluence Cloud and Redmine (no version API); Kafka (the protocol
-reports API ranges, not a broker version); MQTT (the header shows the
-protocol version, the broker reports none portably); S3 and its
-compatibles (none in the protocol); API Client and Logs (no server
-product behind a tab).
+Left without a version, because the product gives none to the access
+the tab has: github.com, Bitbucket Cloud, Azure DevOps Services and
+Confluence Cloud (no version API); Redmine with an API key or an account
+that is no administrator (the version is on the admin page only); a
+ZooKeeper-mode Kafka broker (it lists no metadata levels), and any
+Kafka broker's patch release; MQTT (the header shows the protocol
+version, the broker reports none portably); AWS S3 and the compatibles
+whose `Server` header names only a product (S3Mock, R2); MinIO with keys
+that have no admin policy; API Client and Logs (no server product behind
+a tab).
+
+The first version of this list (CR-0100) put Nexus, WebDAV, Kafka and
+Redmine here without probing them: each does say something, found on the
+bench on 2026-11-15 (owner: "Why is some of s3, queue, tracker and
+automation connection not displaying version"). A product goes on this
+list only after its headers, its API and its admin pages have been read.

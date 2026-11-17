@@ -98,6 +98,9 @@ enum Load<T> {
 /// What async tasks write and the UI reads at frame start.
 #[derive(Default)]
 struct Shared {
+    /// What the server says it runs, for the header; empty when it says
+    /// nothing (CR-0101).
+    version: String,
     buckets: Load<Vec<Bucket>>,
     /// Objects and folders under the current prefix, and the next page token.
     objects: Load<(Vec<Object>, Vec<String>, Option<String>)>,
@@ -381,6 +384,8 @@ impl S3Tool {
     /// open the remembered / default bucket).
     fn connect(&mut self, services: &Services) {
         self.client = None;
+        // Another profile is another server.
+        self.shared.lock().version.clear();
         self.client_error = None;
         self.waiting_for_vault = false;
         self.env_id = self.environment_of(services);
@@ -500,6 +505,11 @@ impl S3Tool {
         self.shared.lock().buckets = Load::Loading;
         let shared = self.shared.clone();
         services.runtime.spawn(async move {
+            // Once per connection, before the list whose arrival redraws.
+            if shared.lock().version.is_empty() {
+                let v = client.server_version().await;
+                shared.lock().version = v;
+            }
             let r = client.containers().await;
             shared.lock().buckets = match r {
                 Ok(mut b) => {
@@ -3151,9 +3161,10 @@ impl Tool for S3Tool {
 
     /// The connection, what kind of store it is and where it lives.
     ///
-    /// An object store reports no version of its own - S3 is an API, not
-    /// a server you can ask - so that fact is left empty and the band
-    /// drops it rather than inventing one.
+    /// S3 is an API with no version of its own, but the server behind a
+    /// connection often names one (Nexus, a WebDAV server, MinIO's admin
+    /// info); where it names none the fact is empty and the band drops
+    /// it rather than inventing one (CR-0101).
     fn header(&self) -> Option<hs_core::tool::ToolHeader> {
         if self.state.conn_name.is_empty() {
             return None;
@@ -3165,6 +3176,7 @@ impl Tool for S3Tool {
                 .unwrap_or_else(|| hs_ui::icons::conn_icon(self.tab_kind(), ""))
                 .header(self.state.conn_name.clone())
                 .fact("Type", self.state.kind_label.clone())
+                .fact("Version", self.shared.lock().version.clone())
                 .fact(
                     if self.state.session_user.is_empty() {
                         "Host"

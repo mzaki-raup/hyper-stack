@@ -171,6 +171,13 @@ fn kafka_lists_peeks_publishes_and_purges_a_topic() {
         let mut d = driver::connect(&config("kafka", addr.clone(), Auth::None))
             .await
             .expect("connect");
+        // A KRaft broker's release line, from the metadata levels it
+        // supports (CR-0101); the bench's is 4.0.
+        let version = d.info().version.clone();
+        assert!(
+            version.ends_with(".x") || version.ends_with("or later"),
+            "the broker's release line: {version:?}"
+        );
         // Keyed records land by key; all three on one partition.
         let dest = round_trip(d.as_mut(), &topic, &topic, "same-key").await;
         assert_eq!(dest.figures[0], "2", "two partitions");

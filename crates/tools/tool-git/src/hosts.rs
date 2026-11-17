@@ -543,7 +543,37 @@ mod tests {
             parse_version(HostKind::GitHub, &json!({"installed_version": "3.14.2"})),
             "3.14.2"
         );
+        assert_eq!(
+            parse_version(
+                HostKind::GitLab,
+                &json!({"version": "17.5.1-ee", "revision": "abc"})
+            ),
+            "17.5.1-ee"
+        );
         // github.com's /meta has no installed_version.
         assert_eq!(parse_version(HostKind::GitHub, &json!({"hooks": []})), "");
+        // A host that cannot be reached gives no version, not an error.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let http = reqwest::Client::new();
+        assert_eq!(
+            rt.block_on(version(
+                &http,
+                &at(HostKind::Forgejo, "http://127.0.0.1:9"),
+                ""
+            )),
+            ""
+        );
+        assert_eq!(
+            rt.block_on(version(
+                &http,
+                &at(HostKind::GitHub, "https://github.com"),
+                ""
+            )),
+            "",
+            "github.com is not asked"
+        );
     }
 }

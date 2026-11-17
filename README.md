@@ -441,7 +441,7 @@ One tab per identity server, **Keycloak** first (22 to 26), through its Admin RE
 
 - **Sections** - Users, Groups (a tree loaded a level at a time), Realm Roles, Client Roles, Clients (settings, secret shown for 30 s and copied with the clipboard cleared after 60 s, regenerate, service-account roles), Sessions, Login Events and Admin Events (filters, the level word in the log colours), Realm Settings, and Export Realm as a cancellable job.
 - **Writes** - add users, groups, sub-groups, roles and clients; edit through read-merge-write so fields not on the form are kept; enable, disable, reset a password (temporary by default, with the realm's password policy shown), log out, join groups, assign roles.
-- **Looking deeper** - Show Effective lists the realm and client roles a user holds through composites and groups; Include Sub-Group Users lists a group's members across its whole subtree; the realm export and admin events open as JSON in the read-only editor (folding, search).
+- **Looking deeper** - Show Effective lists the realm and client roles a user holds through composites and groups; Include Sub-Group Users lists a group's members across its whole subtree; the realm export and admin events open as JSON in the read-only editor (colours, search).
 - **Version** - Keycloak shows its version only to master-realm admins; a realm-scoped account can add an optional Version Lookup account in Settings → Identity, used once on connect to read it for the tab's header.
 
   ![Settings → Identity: Version Lookup](docs/screenshots/identity-version-lookup.png)

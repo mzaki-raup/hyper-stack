@@ -502,6 +502,141 @@ fn a_keycloak_22_server_gives_sub_groups_in_the_parent() {
     });
 }
 
+/// Keycloak 23+: a group's children come from `/children`, a page at a
+/// time with the probe row saying there is more (§4.4).
+#[test]
+fn a_keycloak_23_server_pages_a_groups_children() {
+    runtime().block_on(async {
+        let (url, seen) = serve(Arc::new(|s: &Seen, n| {
+            let p = s.path.as_str();
+            if p.ends_with("/token") {
+                return (200, token(n, true));
+            }
+            if !p.contains("/groups/g1/children") {
+                return (404, "{}".into());
+            }
+            let q = |k: &str| {
+                p.split(['?', '&'])
+                    .find_map(|kv| kv.strip_prefix(&format!("{k}=")))
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(0)
+            };
+            // Five children; the page the request asks for.
+            let all: Vec<Value> = (1..=5)
+                .map(|i| json!({"id": format!("c{i}"), "name": format!("c{i}"), "path": format!("/g1/c{i}")}))
+                .collect();
+            let rows: Vec<Value> = all.into_iter().skip(q("first")).take(q("max")).collect();
+            (200, Value::Array(rows).to_string())
+        }))
+        .await;
+        let kc = provider(&url);
+        kc.connect().await.expect("connect");
+        let page = Page { first: 0, max: 2 };
+        let one = kc.group_children("hs-demo", "g1", page).await.expect("page 1");
+        assert_eq!(
+            one.rows.iter().map(|g| g.id.as_str()).collect::<Vec<_>>(),
+            vec!["c1", "c2"]
+        );
+        assert!(one.more, "the probe row says there is more");
+        let three = kc
+            .group_children("hs-demo", "g1", page.next().next())
+            .await
+            .expect("page 3");
+        assert_eq!(three.rows.len(), 1);
+        assert!(!three.more);
+        let asked: Vec<String> = seen
+            .lock()
+            .iter()
+            .filter(|s| s.path.contains("/children"))
+            .map(|s| s.path.clone())
+            .collect();
+        assert!(asked[0].contains("first=0") && asked[0].contains("max=3"), "{asked:?}");
+        assert!(asked[1].contains("first=4"), "{asked:?}");
+        assert!(kc.capabilities().group_children, "/children is kept");
+    });
+}
+
+/// What the provider logs names paths and statuses, never a secret: not a
+/// password it sends, not a client secret it reads back, not a token
+/// (§6.5, FEAT-0113).
+#[test]
+fn a_secret_never_reaches_the_log() {
+    let buf = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let sink = buf.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::TRACE)
+        .with_writer(move || Writer(sink.clone()))
+        .finish();
+    // The process's subscriber, not a scoped one: the other tests of this
+    // file run on other threads at the same time, and a callsite one of
+    // them meets first with no subscriber is cached as off. Their lines
+    // come here too, which only makes the check stricter.
+    tracing::subscriber::set_global_default(subscriber).expect("the only subscriber");
+    {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(async {
+                let (url, _) = serve(Arc::new(|s: &Seen, n| {
+                    if s.path.ends_with("/token") {
+                        (200, token(n, true))
+                    } else if s.path.contains("client-secret") {
+                        (
+                            200,
+                            json!({"type": "secret", "value": "mock-client-secret-XYZ"})
+                                .to_string(),
+                        )
+                    } else {
+                        (204, String::new())
+                    }
+                }))
+                .await;
+                let kc = provider(&url);
+                let c = ObjRef::new("c1", "orders-api");
+                let s = kc
+                    .regenerate_secret("hs-demo", &c)
+                    .await
+                    .expect("regenerate");
+                assert_eq!(s.expose(), "mock-client-secret-XYZ");
+                kc.reset_password(
+                    "hs-demo",
+                    &ObjRef::new("u1", "alice"),
+                    SecretString::from("Mock-Password-Not-Logged".to_string()),
+                    true,
+                )
+                .await
+                .expect("reset");
+            });
+    }
+    let log = String::from_utf8_lossy(&buf.lock()).to_string();
+    assert!(
+        log.contains("client-secret"),
+        "the calls were logged: {log}"
+    );
+    for needle in [
+        "mock-client-secret-XYZ",
+        "Mock-Password-Not-Logged",
+        "the-client-secret",
+        "eyJ",
+    ] {
+        assert!(!log.contains(needle), "{needle} reached the log");
+    }
+}
+
+/// A `tracing` writer into a shared buffer.
+struct Writer(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for Writer {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[test]
 fn an_export_is_masked_and_a_cancel_stops_it() {
     runtime().block_on(async {

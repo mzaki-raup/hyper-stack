@@ -1323,6 +1323,24 @@ mod tests {
         ));
     }
 
+    /// The realm's unmanaged-attribute policy (§4.3.1): unset hides them,
+    /// Admin View shows them read-only, Enabled and Admin Edit edit them.
+    #[test]
+    fn the_unmanaged_attribute_policy_decides_show_and_edit() {
+        use UnmanagedPolicy as P;
+        for (text, policy, shows, edits) in [
+            ("", P::Off, false, false),
+            ("SOMETHING_NEW", P::Off, false, false),
+            ("ADMIN_VIEW", P::AdminView, true, false),
+            ("ADMIN_EDIT", P::AdminEdit, true, true),
+            ("ENABLED", P::Enabled, true, true),
+        ] {
+            let p = P::parse(text);
+            assert_eq!(p, policy, "{text}");
+            assert_eq!((p.shows(), p.edits()), (shows, edits), "{text}");
+        }
+    }
+
     #[test]
     fn built_in_clients_and_roles_are_recognised() {
         assert!(is_builtin_client("admin-cli", "hs-demo"));

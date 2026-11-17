@@ -388,6 +388,61 @@ impl Pool<'_> {
     }
 }
 
+/// The release line of the newest `metadata.version` a broker supports.
+/// Kafka has no call that names a broker's version; a KRaft broker does
+/// say which metadata levels its software knows, and each level belongs
+/// to one release (`MetadataVersion` in Kafka's source: 25 is 4.0-IV3).
+/// The patch release cannot be told, hence the `.x`.
+pub fn release_of_metadata_level(level: i16) -> String {
+    let line = match level {
+        1 => "3.0",
+        2 => "3.1",
+        3 => "3.2",
+        4..=7 => "3.3",
+        8 => "3.4",
+        9..=11 => "3.5",
+        12..=14 => "3.6",
+        15..=19 => "3.7",
+        20 => "3.8",
+        21 => "3.9",
+        22..=25 => "4.0",
+        26..=27 => "4.1",
+        // A level this table does not know yet: newer than its last line.
+        l if l > 27 => return "4.2 or later".into(),
+        _ => return String::new(),
+    };
+    format!("{line}.x")
+}
+
+/// The first bootstrap broker's release line (CR-0101), or empty: a
+/// ZooKeeper-mode broker lists no `metadata.version`, and one too old
+/// for ApiVersions v3 lists no features at all.
+pub async fn release_line(s: &Settings) -> String {
+    for b in &s.bootstrap {
+        let Ok((host, port)) = crate::profile::host_port(b, 9092) else {
+            continue;
+        };
+        let Ok(mut c) = Conn::open(&host, port, s).await else {
+            continue;
+        };
+        // v3 carries the features, and refuses a request that does not
+        // name its client.
+        let mut req = ApiVersionsRequest::default();
+        req.client_software_name = str_bytes("hyperstack");
+        req.client_software_version = str_bytes(env!("CARGO_PKG_VERSION"));
+        let Ok(v) = c.send(req, 3).await else {
+            return String::new();
+        };
+        return v
+            .supported_features
+            .iter()
+            .find(|f| f.name.as_str() == "metadata.version")
+            .map(|f| release_of_metadata_level(f.max_version))
+            .unwrap_or_default();
+    }
+    String::new()
+}
+
 /// Every group with committed offsets on `topic`, and its lag per
 /// partition against `latest` (partition → latest offset).
 pub async fn topic_groups(
@@ -570,6 +625,25 @@ fn group_lag(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0101: each metadata level belongs to one Kafka release.
+    #[test]
+    fn a_metadata_level_names_its_release_line() {
+        for (level, line) in [
+            (1, "3.0.x"),
+            (7, "3.3.x"),
+            (14, "3.6.x"),
+            (19, "3.7.x"),
+            (21, "3.9.x"),
+            (22, "4.0.x"),
+            (25, "4.0.x"),
+            (27, "4.1.x"),
+            (28, "4.2 or later"),
+        ] {
+            assert_eq!(release_of_metadata_level(level), line, "{level}");
+        }
+        assert_eq!(release_of_metadata_level(0), "", "no such level");
+    }
 
     /// RFC 7677 §3, the SCRAM-SHA-256 example exchange.
     #[test]

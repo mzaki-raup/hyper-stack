@@ -43,6 +43,38 @@ fn unique(what: &str) -> String {
     format!("{what} {}", hs_core::new_id())
 }
 
+/// `HS_REDMINE_ADMIN=host:port:user:password`, an administrator: signed
+/// in with a password the driver reads the version from Administration →
+/// Information; an account's wrong password gives none (CR-0101).
+#[test]
+fn redmine_names_its_version_to_an_admin_password() {
+    let Ok(spec) = std::env::var("HS_REDMINE_ADMIN") else {
+        eprintln!("HS_REDMINE_ADMIN not set; skipping");
+        return;
+    };
+    let parts: Vec<&str> = spec.splitn(4, ':').collect();
+    let [host, port, user, password] = parts[..] else {
+        panic!("expected host:port:user:password");
+    };
+    runtime().block_on(async {
+        let cfg = config(
+            "redmine",
+            &format!("http://{host}:{port}"),
+            Auth::Password {
+                user: user.into(),
+                password: password.into(),
+            },
+            TokenAs::Bearer,
+        );
+        let d = driver::connect(&cfg).await.expect("connect");
+        let version = d.info().version.clone();
+        assert!(
+            version.starts_with(|c: char| c.is_ascii_digit()) && version.contains('.'),
+            "{version:?}"
+        );
+    });
+}
+
 #[test]
 fn redmine_files_an_issue_moves_it_edits_it_and_answers_it() {
     let Ok(spec) = std::env::var("HS_REDMINE") else {

@@ -95,6 +95,31 @@ impl Caps {
     };
 }
 
+/// The version in a `Server` response header, when it carries one:
+/// `Nexus/3.70.1-02 (OSS)` gives `3.70.1-02 (OSS)` for `product` "Nexus",
+/// and `Apache/2.4.37 (Unix)` is kept whole when no product is named (a
+/// WebDAV share is whatever web server serves it). A header with no
+/// dotted number in it (`MinIO`, `AmazonS3`) names a product, not a
+/// version.
+pub fn server_header_version(header: &str, product: Option<&str>) -> String {
+    let h = header.trim();
+    // A version is a dotted number; the 3 of `AmazonS3` is a name.
+    let b = h.as_bytes();
+    let dotted = b
+        .windows(3)
+        .any(|w| w[0].is_ascii_digit() && w[1] == b'.' && w[2].is_ascii_digit());
+    if !dotted {
+        return String::new();
+    }
+    match product {
+        Some(p) => match h.split_once('/') {
+            Some((name, rest)) if name.eq_ignore_ascii_case(p) => rest.trim().to_string(),
+            _ => h.to_string(),
+        },
+        None => h.to_string(),
+    }
+}
+
 /// A store the object browser can show.
 ///
 /// Deliberately the **subset the browser uses**, not everything each
@@ -104,6 +129,14 @@ impl Caps {
 pub trait ObjectStore: Send + Sync {
     fn backend(&self) -> Backend;
     fn caps(&self) -> Caps;
+
+    /// The version the server says it runs, for the tab's header
+    /// (CR-0101): Nexus and a WebDAV server name it in their `Server`
+    /// header, MinIO in its admin info. Empty when the server says none
+    /// or refuses - never an error, the header just shows no version.
+    async fn server_version(&self) -> String {
+        String::new()
+    }
 
     /// The buckets, shares or repositories on this connection.
     async fn containers(&self) -> Result<Vec<Bucket>>;
@@ -188,6 +221,28 @@ pub trait ObjectStore: Send + Sync {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0101: a `Server` header is a version only when it carries one.
+    #[test]
+    fn a_server_header_gives_a_version_only_when_it_has_one() {
+        assert_eq!(
+            server_header_version("Nexus/3.70.1-02 (OSS)", Some("Nexus")),
+            "3.70.1-02 (OSS)"
+        );
+        // A share is whatever web server serves it: named with its version.
+        assert_eq!(
+            server_header_version(" Apache/2.4.37 (Unix) ", None),
+            "Apache/2.4.37 (Unix)"
+        );
+        assert_eq!(
+            server_header_version("nginx/1.27.0", Some("Nexus")),
+            "nginx/1.27.0",
+            "a proxy in front names itself"
+        );
+        for product_only in ["MinIO", "AmazonS3", ""] {
+            assert_eq!(server_header_version(product_only, None), "");
+        }
+    }
 
     /// Every backend has to name itself and the thing it keeps keys in,
     /// because the pane says both out loud.

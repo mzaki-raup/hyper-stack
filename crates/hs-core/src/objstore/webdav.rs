@@ -285,10 +285,33 @@ fn decode_path(path: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+impl WebdavClient {
+    /// A WebDAV share is served by a web server, which names itself and
+    /// its version in the `Server` header (`Apache/2.4.37 (Unix)`).
+    async fn version(&self) -> String {
+        let Ok(resp) = self
+            .request(reqwest::Method::OPTIONS, &self.url_for(""))
+            .send()
+            .await
+        else {
+            return String::new();
+        };
+        resp.headers()
+            .get(reqwest::header::SERVER)
+            .and_then(|v| v.to_str().ok())
+            .map(|h| super::store::server_header_version(h, None))
+            .unwrap_or_default()
+    }
+}
+
 #[async_trait::async_trait]
 impl ObjectStore for WebdavClient {
     fn backend(&self) -> Backend {
         Backend::Webdav
+    }
+
+    async fn server_version(&self) -> String {
+        self.version().await
     }
 
     fn caps(&self) -> Caps {

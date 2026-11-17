@@ -396,6 +396,76 @@ impl S3Client {
         }
     }
 
+    /// What the server says it runs (CR-0101). S3 itself has no version,
+    /// but the server behind an endpoint names itself in its `Server`
+    /// header: one that carries a number is shown as it is, and MinIO,
+    /// which names only itself there, is asked through its admin API.
+    async fn version(&self) -> String {
+        let (scheme, host) = self.endpoint(&self.config.region);
+        // Unsigned: the header comes with the refusal too.
+        let Ok(resp) = self.http.head(format!("{scheme}://{host}/")).send().await else {
+            return String::new();
+        };
+        let server = resp
+            .headers()
+            .get(reqwest::header::SERVER)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        if server.to_ascii_lowercase().starts_with("minio") {
+            return self.minio_version(&scheme, &host).await;
+        }
+        super::store::server_header_version(&server, None)
+    }
+
+    /// MinIO's release (`2025-04-22T22:12:26Z`) from `GET
+    /// /minio/admin/v3/info`, signed like any S3 call. It answers keys
+    /// with an admin policy only; any refusal gives no version.
+    async fn minio_version(&self, scheme: &str, host: &str) -> String {
+        const PATH: &str = "/minio/admin/v3/info";
+        let date = amz_now();
+        let mut headers = vec![
+            ("host".to_string(), host.to_string()),
+            ("x-amz-date".to_string(), date.clone()),
+            ("x-amz-content-sha256".to_string(), EMPTY_SHA256.to_string()),
+        ];
+        if let Some(t) = &self.config.credentials.session_token {
+            headers.push(("x-amz-security-token".into(), t.clone()));
+        }
+        let auth = sigv4::authorization(
+            &self.config.credentials,
+            &self.config.region,
+            "s3",
+            &date,
+            &sigv4::Request {
+                method: "GET",
+                path: PATH,
+                query: &[],
+                headers: &headers,
+                payload_hash: EMPTY_SHA256,
+            },
+        );
+        let mut rb = self
+            .http
+            .get(format!("{scheme}://{host}{PATH}"))
+            .header("authorization", auth);
+        for (k, v) in headers.iter().filter(|(k, _)| k != "host") {
+            rb = rb.header(k.as_str(), v.as_str());
+        }
+        let Ok(resp) = rb.send().await else {
+            return String::new();
+        };
+        if !resp.status().is_success() {
+            return String::new();
+        }
+        resp.text()
+            .await
+            .ok()
+            .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+            .map(|v| minio_info_version(&v))
+            .unwrap_or_default()
+    }
+
     async fn send_xml(&self, call: Call<'_>) -> Result<Element> {
         let text = self.send(call).await?.text().await.map_err(http_err)?;
         parse_xml(&text)
@@ -1014,10 +1084,23 @@ pub fn content_type_for(key: &str) -> &'static str {
 // presigned URLs, versioning - lives in the methods above and stays
 // reachable for callers that hold an `S3Client` directly.
 
+/// The release a MinIO admin info answer names: the first server's
+/// `version`.
+fn minio_info_version(info: &serde_json::Value) -> String {
+    info.pointer("/servers/0/version")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string()
+}
+
 #[async_trait::async_trait]
 impl super::store::ObjectStore for S3Client {
     fn backend(&self) -> super::store::Backend {
         super::store::Backend::S3
+    }
+
+    async fn server_version(&self) -> String {
+        self.version().await
     }
 
     fn caps(&self) -> super::store::Caps {
@@ -1117,6 +1200,20 @@ impl super::store::ObjectStore for S3Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CR-0101: MinIO's admin info names the release of each server.
+    #[test]
+    fn minio_admin_info_names_the_release() {
+        let info = serde_json::json!({
+            "mode": "online",
+            "servers": [{"endpoint": "127.0.0.1:9000", "version": "2025-04-22T22:12:26Z"}]
+        });
+        assert_eq!(minio_info_version(&info), "2025-04-22T22:12:26Z");
+        assert_eq!(
+            minio_info_version(&serde_json::json!({"mode": "online"})),
+            ""
+        );
+    }
 
     /// A preview read asks for its range and never keeps more than the
     /// cap, even when the server sends the whole body.

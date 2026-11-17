@@ -300,10 +300,33 @@ fn delimit(assets: &[Asset], prefix: &str) -> Listing {
     listing
 }
 
+impl NexusClient {
+    /// Nexus names its version in the `Server` header of every answer;
+    /// the status endpoint needs no rights.
+    async fn version(&self) -> String {
+        let Ok(resp) = self
+            .request(reqwest::Method::GET, &self.api("status"))
+            .send()
+            .await
+        else {
+            return String::new();
+        };
+        resp.headers()
+            .get(reqwest::header::SERVER)
+            .and_then(|v| v.to_str().ok())
+            .map(|h| super::store::server_header_version(h, Some("Nexus")))
+            .unwrap_or_default()
+    }
+}
+
 #[async_trait::async_trait]
 impl ObjectStore for NexusClient {
     fn backend(&self) -> Backend {
         Backend::Nexus
+    }
+
+    async fn server_version(&self) -> String {
+        self.version().await
     }
 
     fn caps(&self) -> Caps {

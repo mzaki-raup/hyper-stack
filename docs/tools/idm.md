@@ -441,7 +441,12 @@ Rules for the writes:
 - **Login Events**: `GET /events?type=&client=&user=&ipAddress=&dateFrom=&dateTo=&first&max`.
   Filters: event type (a multi-pick of the server's types from
   `serverinfo`), client, user (id or username, resolved), IP, a date
-  range (`hs_ui::datefield::date_field`, `YYYY-MM-DD`). Columns: Time,
+  range (`hs_ui::datefield::date_field`, `YYYY-MM-DD`). The dates are
+  the user's own days: Keycloak reads `yyyy-MM-dd` as a UTC day while the
+  table shows local time, so on 26 and later (which also takes epoch
+  milliseconds) From is sent as the first instant of the local day and To
+  as the last; an older or unknown server gets the text (BUG-0062).
+  Columns: Time,
   Level, Type, User, Client, IP, Error. **Level** is the word `ERROR`
   for a type ending in `_ERROR` (or with an `error` set) and `INFO`
   otherwise, coloured through the shared log-level function
@@ -466,7 +471,8 @@ Rules for the writes:
   `POST /admin/realms/{realm}/partial-export?exportClients=&exportGroupsAndRoles=`
   as a Job with cancel.
 - The JSON opens **read-only** in an inner view drawn with the editor
-  engine (`hs-editor`, read-only, folding, search), with **Save As…** (a
+  engine (`hs-editor`, read-only, JSON colours and search; the
+  engine has no folding), with **Save As…** (a
   file the user chooses), **Open in Editor** (`OpenRequest::Text` with
   `application/json`), and **Copy**. Users are not part of a partial
   export; the view says so.
@@ -1115,7 +1121,8 @@ FEAT-0116); no screen of §4 yet.
 - **Users, Groups, Realm and Client Roles, Clients, Sessions, Login and
   Admin Events, Realm Settings, Export** as §4.2-§4.9 and §4.10's
   creates. The realm export and an admin event's representation are
-  shown read-only in the editor engine (JSON colours, folding, search).
+  shown read-only in the editor engine (JSON colours and search; the
+  engine has no folding).
   A group's Include Sub-Group Users is a Job that walks the subtree in
   pages and lists each member with the group it is in. Show Effective
   adds the inherited realm roles, and a Job reads each client's

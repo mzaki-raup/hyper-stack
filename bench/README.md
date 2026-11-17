@@ -357,6 +357,8 @@ export HS_JENKINS=$H:$JENKINS_PORT:$JENKINS_USER:$(cat .state/jenkins-token)
 export HS_FORGEJO=$H:$FORGEJO_PORT:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
 export HS_FORGEJO_ISSUES=$H:$FORGEJO_PORT:$FORGEJO_ADMIN_USER/demo:$(cat .state/forgejo-token)
 export HS_REDMINE=$H:$REDMINE_PORT:$(cat .state/redmine-api-key)
+# An administrator's password: the driver reads the version from the admin page (CR-0101).
+export HS_REDMINE_ADMIN=$H:$REDMINE_PORT:admin:$REDMINE_ADMIN_PASSWORD
 export HS_KEYCLOAK=http://$H:$KEYCLOAK_PORT   # realm hs-demo, client hs-admin, secret $KEYCLOAK_HS_ADMIN_SECRET
 ```
 

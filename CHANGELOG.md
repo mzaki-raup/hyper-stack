@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- An open Automation or Queue tab reconnects when its profile's connection, credential, environment or Read-Only flag is edited in Settings, instead of keeping its old session until it is reopened (BUG-0066).
 
 ## 0.134.1 — 2026-11-17
 

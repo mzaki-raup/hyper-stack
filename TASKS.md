@@ -152,7 +152,7 @@ Refs: BUG-0003
 ```
 Version : v0.8.0
 Features : FEAT-0118
-Bugs : BUG-0065
+Bugs : BUG-0066
 Change Request : CR-0101
 ```
 
@@ -384,6 +384,16 @@ Change Request : CR-0101
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 2 · deny · --self-test (2026-11-17)
 - [x] App: `--data-dir D:\Temp\hs-gui-data` — with a Bench Redmine tab open (Version 6.1.5.stable), its URL set to port 3011 in Settings: the tab reconnected at once and said nothing answered at 3011; set back to 3010: it reconnected and showed the version and items again; Save This Query with item #3 selected wrote `queries` to the profile and the tab kept its session and selection
 - [x] Docs: docs/tools/tracker.md · CHANGELOG · GOTCHAS
+
+
+### BUG-0066 · An open Automation or Queue tab kept its old session after its profile was edited
+- **State:** Completed
+- **Source:** the BUG-0065 follow-up, 2026-11-17: the Tracker fix found the same shape in Automation and Queue; owner, 2026-11-18: "Yes, fix both"
+- **Scope:** as BUG-0065 for Tracker, an open Automation or Queue tab reconnects when its profile's connection (kind fields, credential), its environment or its Read-Only flag changes, and locks Allow Writes again. A rename or a pin only renames the tab
+- [x] Test: a reproducing unit test per crate (`a_profile_edit_reconnects_but_a_rename_does_not`, failed before the fix)
+- [x] Gate: fmt · clippy -D warnings · test --workspace (run at -j 2) · deny · --self-test
+- [x] App: scratch `--data-dir` — Bench Forgejo CI's repository edited (the tab showed the 404 at once) and set back (jobs and runs again); renamed (the tab took the name and kept ci.yml selected, no reconnect); Bench Kafka Plain's bootstrap port edited (the tab reconnected to :9099) and set back (topics again)
+- [x] Docs: docs/tools/automation.md · docs/tools/queue.md · CHANGELOG · GOTCHAS
 
 ---
 

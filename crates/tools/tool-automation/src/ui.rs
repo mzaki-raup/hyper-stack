@@ -87,8 +87,31 @@ struct RunValues {
     values: Vec<(String, String)>,
 }
 
+/// What a tab connected with. An edit of any of it reconnects the tab
+/// (BUG-0066); a rename or a pin does not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ConnectedAs {
+    kind: String,
+    fields: AutomationFields,
+    env_id: Option<String>,
+    read_only: bool,
+}
+
+impl ConnectedAs {
+    fn of(c: &hs_core::connections::ConnectionProfile) -> ConnectedAs {
+        ConnectedAs {
+            kind: c.kind.clone(),
+            fields: AutomationFields::from_table(&c.kind, &c.fields),
+            env_id: c.environment.clone(),
+            read_only: c.read_only,
+        }
+    }
+}
+
 pub struct AutomationTool {
     state: State,
+    /// The profile the session was opened from; an edit reconnects.
+    connected_as: Option<ConnectedAs>,
     shared: Arc<Mutex<Shared>>,
     cmd: Option<mpsc::Sender<Cmd>>,
     conn_name: String,
@@ -195,6 +218,7 @@ impl AutomationTool {
     fn new(state: State) -> AutomationTool {
         AutomationTool {
             state,
+            connected_as: None,
             shared: Arc::new(Mutex::new(Shared::default())),
             cmd: None,
             conn_name: String::new(),
@@ -241,6 +265,7 @@ impl AutomationTool {
                 self.conn_error = Some(s.t("automation-no-profile"));
                 return;
             };
+            self.connected_as = Some(ConnectedAs::of(c));
             (
                 c.kind.clone(),
                 AutomationFields::from_table(&c.kind, &c.fields),
@@ -495,15 +520,23 @@ impl Tool for AutomationTool {
     fn on_event(&mut self, ev: &hs_core::events::Event, cx: &mut ToolContext) {
         match ev {
             hs_core::events::Event::ConnectionsChanged => {
-                if let Some(id) = self.state.conn_id.clone()
-                    && let Some(name) = cx
-                        .services
-                        .connections
-                        .read()
-                        .by_id(&id)
-                        .map(|c| c.name.clone())
-                {
-                    self.conn_name = name;
+                let Some(id) = self.state.conn_id.clone() else {
+                    return;
+                };
+                let changed = {
+                    let conns = cx.services.connections.read();
+                    let Some(c) = conns.by_id(&id) else {
+                        return;
+                    };
+                    self.conn_name = c.name.clone();
+                    self.connected_as.as_ref() != Some(&ConnectedAs::of(c))
+                };
+                // An edit of the profile's connection, environment or
+                // Read-Only reaches an open tab at once (BUG-0066), and
+                // locks Allow Writes again, as in Tracker and Identity.
+                if changed && self.connected_as.is_some() {
+                    self.writes_unlocked = false;
+                    self.connect(cx.services);
                 }
             }
             hs_core::events::Event::VaultUnlocked if self.waiting_for_vault => {
@@ -1667,5 +1700,51 @@ mod tests {
         assert!(!t.read_only());
         t.read_only_profile = true;
         assert!(t.read_only());
+    }
+
+    #[test]
+    fn a_profile_edit_reconnects_but_a_rename_does_not() {
+        // An open tab kept its old session after its profile was edited.
+        let mut f = AutomationFields {
+            url: "http://127.0.0.1:3000".into(),
+            repo: "dev/demo".into(),
+            credential: hs_core::service_auth::Credential {
+                auth: "token".into(),
+                secret: "secret:01a".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut c = hs_core::connections::ConnectionProfile {
+            kind: "forgejo-actions".into(),
+            ..Default::default()
+        };
+        f.write_into(&mut c.fields);
+        let before = ConnectedAs::of(&c);
+
+        let mut same = c.clone();
+        same.pinned = true;
+        same.name = "Renamed".into();
+        assert_eq!(ConnectedAs::of(&same), before);
+
+        let mut cred = c.clone();
+        let mut g = f.clone();
+        g.credential.auth = "password".into();
+        g.credential.user = "admin".into();
+        g.write_into(&mut cred.fields);
+        assert_ne!(ConnectedAs::of(&cred), before, "a credential edit");
+
+        let mut url = c.clone();
+        f.url = "http://127.0.0.1:3001".into();
+        f.write_into(&mut url.fields);
+        assert_ne!(ConnectedAs::of(&url), before, "a URL edit");
+
+        let mut env = c.clone();
+        env.environment = Some("prod".into());
+        assert_ne!(ConnectedAs::of(&env), before, "an environment edit");
+
+        let mut ro = c.clone();
+        ro.read_only = true;
+        assert_ne!(ConnectedAs::of(&ro), before, "a Read-Only edit");
     }
 }

@@ -4576,6 +4576,8 @@ conn-automation-project = Project
 conn-automation-hint-jenkins-token = The user and an API token (Jenkins → user → Security), sent as HTTP basic. Stored in the vault.
 conn-automation-hint-jenkins-password = A password is sent with a CSRF crumb; an API token is simpler. Stored in the vault.
 conn-automation-hint-gitlab-key = A personal or project access token, sent in the PRIVATE-TOKEN header. Stored in the vault.
+conn-automation-hint-teamcity-password = Your TeamCity login, sent as HTTP basic; a Windows domain login is usually DOMAIN\user. An older server (9.x) is asked under /httpAuth when it turns the login away. Stored in the vault.
+conn-automation-hint-teamcity-token = An access token (TeamCity 2019.1 and later: your profile → Access Tokens), sent as a bearer token. An older server has no tokens; use a password. Stored in the vault.
 
 ## Tracker (docs/tools/tracker.md)
 tool-tracker = Tracker

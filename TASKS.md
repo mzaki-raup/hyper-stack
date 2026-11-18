@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.8.0
-Features : FEAT-0118
+Features : FEAT-0119
 Bugs : BUG-0066
 Change Request : CR-0101
 ```
@@ -318,6 +318,17 @@ Change Request : CR-0101
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the Samba AD server: disable, enable and unlock a user, reset a password, nested group membership; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
+
+### FEAT-0119 · Automation: sign in to an older TeamCity (9.x) with a domain password
+- **State:** Completed · **Spec:** docs/tools/automation.md §4, §5
+- **Branch:** feat/teamcity-9
+- **Source:** owner, 2026-11-18: "i have teamcity old version (9.x). I connect using my microsoft active directory login. I cannot access the teamcity through hyperstack using password and Token", then "Yes, build it in"
+- **Scope:** TeamCity 9.x sends its login page from `/app/rest` and takes HTTP basic only under `/httpAuth`; it has no access tokens (2019.1) and no `$locator` in `fields`. A password login turned away on `/app/rest` is asked again under `/httpAuth`, which the session keeps; a token is not retried; the jobs list falls back to the configurations without their last build; the Settings form's hint for a TeamCity password (`DOMAIN\user`) and token (2019.1 and later)
+- [x] Test: mock (`an_old_teamcity_takes_a_password_under_http_auth_and_lists_its_jobs`, `a_teamcity_token_is_not_retried_under_http_auth`), failing before the change — 2026-11-18: the old-server test failed on connect against the old driver and passes now; the token test is a guard and passes either way
+- [x] Gate: fmt · clippy -D warnings · test --workspace (run at -j 2) · deny · --self-test — 2026-11-18
+- [x] App: scratch `--data-dir` — the TeamCity form's hints for a password and a token; a modern server (bench `hs-teamcity`) still connects — 2026-11-18: the bench TeamCity 2025.07.3 tab lists Bench / Hello Build with its last run on a password; Test Connection "Connected. TeamCity 2025.07.3 (build 197398)"; both hints read whole under the Credential field
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** there is no TeamCity 9.x on the bench; the old server is proven against a mock written from its documented behaviour, not a real one.
 
 ### CR-0099 · Identity: the Keycloak version through an optional master-realm account
 - **State:** Completed · **Spec:** docs/tools/idm.md §3.3, §3.4, §8.3 · **Phase:** P

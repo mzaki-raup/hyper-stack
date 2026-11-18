@@ -410,6 +410,7 @@ One tab per build server or automation controller: **Jenkins**, **TeamCity**, **
 - **Run** opens a form of the job's parameters - Jenkins parameters, `workflow_dispatch` inputs read from the workflow file, GitLab pipeline variables, AWX survey and extra vars - and sends nothing until it is filled in; a secret parameter is typed for one run and never kept.
 - **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
 - **Credentials** - username and password, token or API key, whichever the server takes, in the vault.
+- **Older TeamCity** - a 9.x server signs in with a password (a Windows domain login as `DOMAIN\user`) under its `/httpAuth` path, tried by itself; tokens need TeamCity 2019.1 or later.
 
 ### Tracker
 

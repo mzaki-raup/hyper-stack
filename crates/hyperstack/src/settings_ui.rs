@@ -10558,6 +10558,8 @@ fn automation_form(
                 ("jenkins", "token") => "conn-automation-hint-jenkins-token",
                 ("jenkins", "password") => "conn-automation-hint-jenkins-password",
                 ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",
+                ("teamcity", "password") => "conn-automation-hint-teamcity-password",
+                ("teamcity", "token") => "conn-automation-hint-teamcity-token",
                 _ => "conn-ssh-secret-hint",
             };
             form::row_hint(ui, theme, &s.t(hint));

@@ -10,6 +10,7 @@ use crate::driver::{
     Run, RunForm, RunState, ServerInfo, slice_from,
 };
 use crate::profile::ConnectConfig;
+use hs_core::service_auth::Auth;
 use hs_core::service_http::{Http, s, seg};
 
 pub struct TeamCity {
@@ -73,10 +74,22 @@ fn run(b: &Value) -> Run {
 
 impl TeamCity {
     pub async fn connect(cfg: &ConnectConfig) -> Result<TeamCity> {
-        let http = cfg
-            .http(&cfg.url)?
-            .with_header("Accept", "application/json");
-        let v = http.get_json("/app/rest/server").await?;
+        let at = |base: &str| -> Result<Http> {
+            Ok(cfg.http(base)?.with_header("Accept", "application/json"))
+        };
+        let base = cfg.url.trim_end_matches('/');
+        let mut http = at(base)?;
+        let v = match http.get_json("/app/rest/server").await {
+            Ok(v) => v,
+            // An older server (9.x) takes HTTP basic only under /httpAuth;
+            // on /app/rest it sends the login page (FEAT-0119). Its answer
+            // there is the clearer one when both fail (401 beats "not JSON").
+            Err(_) if matches!(cfg.auth, Auth::Password { .. }) && !base.ends_with("/httpAuth") => {
+                http = at(&format!("{base}/httpAuth"))?;
+                http.get_json("/app/rest/server").await?
+            }
+            Err(e) => return Err(e),
+        };
         Ok(TeamCity {
             info: ServerInfo {
                 product: "TeamCity".into(),
@@ -103,13 +116,23 @@ impl Driver for TeamCity {
     }
 
     async fn jobs(&mut self) -> Result<Listing> {
-        // Each configuration with its newest build, in one call.
-        let v = self
+        // Each configuration with its newest build, in one call. An older
+        // REST API without `$locator` in `fields` refuses that; then the
+        // configurations are listed without their last build (FEAT-0119).
+        let v = match self
             .http
             .get_json(&format!(
                 "/app/rest/buildTypes?fields=buildType(id,name,projectName,webUrl,builds($locator(count:1,defaultFilter:false),build({BUILD_FIELDS})))"
             ))
-            .await?;
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => self
+                .http
+                .get_json("/app/rest/buildTypes?fields=buildType(id,name,projectName,webUrl)")
+                .await
+                .map_err(|_| e)?,
+        };
         let mut jobs: Vec<Job> = v
             .get("buildType")
             .and_then(Value::as_array)

@@ -758,13 +758,23 @@ pub fn alter_table(before: Option<&TableSchema>, edit: &Edit, engine: Engine) ->
                 };
                 match add_foreign_key(&after, &fk, engine) {
                     Some(s) => push(&mut script, s),
-                    None => refuse(
-                        &mut script,
-                        format!(
-                            "{eng} cannot add a foreign key after the table is made; the key on {} is not created",
-                            fk.columns.join(", ")
-                        ),
-                    ),
+                    None => {
+                        // Named by what it has so far: a key added in the
+                        // designer has a name before it has columns.
+                        let columns = fk.columns.join(", ");
+                        let key = match (fk.name.is_empty(), columns.is_empty()) {
+                            (false, false) => format!("the key {} ({columns})", fk.name),
+                            (false, true) => format!("the key {}", fk.name),
+                            (true, false) => format!("the key on {columns}"),
+                            (true, true) => "the new key".to_string(),
+                        };
+                        refuse(
+                            &mut script,
+                            format!(
+                                "{eng} cannot add a foreign key after the table is made; {key} is not created"
+                            ),
+                        );
+                    }
                 }
             }
             Change::PrimaryKey { old_name, columns } => match engine {
@@ -1246,6 +1256,29 @@ mod tests {
             vec!["ALTER TABLE public.orders DROP PRIMARY KEY, ADD PRIMARY KEY (id, customer_id);"]
         );
         assert_eq!(alter_table(Some(&t), &e, Engine::Sqlite).refused.len(), 1);
+    }
+
+    /// A key added in the designer has its name before its columns; the
+    /// refusal names it either way, never "the key on  is not created".
+    #[test]
+    fn a_refused_foreign_key_is_named_even_before_it_has_columns() {
+        let t = orders();
+        let said = |name: &str, columns: &[&str]| {
+            let mut e = edit_of(&t);
+            e.table.foreign_keys.push(ForeignKey {
+                name: name.into(),
+                columns: columns.iter().map(|c| c.to_string()).collect(),
+                ..Default::default()
+            });
+            alter_table(Some(&t), &e, Engine::Sqlite).refused.join(" ")
+        };
+        let bare = said("orders_fk1", &[]);
+        assert!(bare.contains("orders_fk1"), "{bare}");
+        assert!(!bare.contains("on  is"), "{bare}");
+        let full = said("orders_fk1", &["customer_id"]);
+        assert!(full.contains("orders_fk1 (customer_id)"), "{full}");
+        let unnamed = said("", &[]);
+        assert!(!unnamed.contains("  "), "{unnamed}");
     }
 
     #[test]

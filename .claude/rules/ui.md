@@ -468,6 +468,12 @@ Each rule names the item that decided it, so the history is in `TASKS.md`.
   The only exception is a row's own small actions (move, remove) in a
   fixed, aligned column: an icon with a tooltip (CR-0027, CR-0030,
   CR-0061).
+- **A field beside its button leaves the button room:** a text field with
+  a Browse (or any) button after it on one row takes the available width
+  less `form::button_width(ui, icon, label)`, in a
+  `form::centred_row_wrapped`, so the row - and the card around it - stops
+  inside its column (BUG-0069: Settings → Git → Repos' Path ran to the
+  window edge).
 - **A row of buttons wraps** instead of running past the pane: build it
   with `ui.horizontal_wrapped`, never `ui.horizontal`, when it holds more
   than two buttons or sits beside a field. Only the AI Assistant corner

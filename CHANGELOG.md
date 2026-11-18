@@ -11,7 +11,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Automation: a TeamCity behind single sign-on (Keycloak, Microsoft …) signs in with the browser's session - the new Browser Session credential takes the `TCSESSIONID` cookie, kept in the vault; an ended session says to sign in again (FEAT-0120)
+
+### Fixed
+
+- Database: refusing a foreign key that has no columns yet names the key instead of reading "the key on  is not created" (BUG-0067)
+- Redis, NoSQL and Queue: a connection error reads in sentence case ("Timed out") (BUG-0068)
+- Settings → Git → Repos: the repository card stays inside the page; the Path field leaves Browse its room (BUG-0069)
 
 ## 0.135.1 — 2026-11-18
 

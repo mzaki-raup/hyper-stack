@@ -200,7 +200,7 @@ pub fn item_text(
 /// [`item_text`] with the colours spelled out: a disabled button needs
 /// both of them muted, since a `LayoutJob`'s own colours survive egui's
 /// dimming of the widget around them.
-fn item_text_in(
+pub(crate) fn item_text_in(
     ui: &egui::Ui,
     icon_colour: egui::Color32,
     text_colour: egui::Color32,

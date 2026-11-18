@@ -8083,9 +8083,16 @@ fn repo_detail(
             }
 
             form::label(ui, &s.t("settings-git-repo-path"));
-            ui.horizontal(|ui| {
+            form::centred_row_wrapped(ui, |ui| {
+                // The field leaves room for Browse, so the row stays inside
+                // its card instead of pushing it to the window edge.
+                let browse_w =
+                    form::button_width(ui, hs_ui::icons::ph::FOLDER_OPEN, &s.t("browse"))
+                        + ui.spacing().item_spacing.x;
+                let w = (ui.available_width() - browse_w)
+                    .clamp(form::FIELD_MIN_WIDTH, form::FIELD_MAX_WIDTH);
                 let mut path = e.path.display().to_string();
-                if form::text_field(ui, &mut path, "").changed() {
+                if form::text_field_width(ui, &mut path, "", w).changed() {
                     e.path = std::path::PathBuf::from(path);
                 }
                 if form::button(ui, theme, hs_ui::icons::ph::FOLDER_OPEN, &s.t("browse")).clicked()
@@ -10499,9 +10506,12 @@ fn automation_form(
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "automation-auth", |ui| {
+            // TeamCity's api-key is the browser's session cookie (FEAT-0120).
+            let session = kind == "teamcity";
             let auth_key = |a: &str| match a {
                 "password" => "conn-queue-auth-password",
                 "token" => "conn-queue-auth-token",
+                "api-key" if session => "conn-automation-auth-teamcity-session",
                 "api-key" => "conn-queue-auth-api-key",
                 _ => "conn-queue-auth-none",
             };
@@ -10543,6 +10553,13 @@ fn automation_form(
                         secret_field(ui, theme, s, "automation-secret", &mut c.secret, scratch, 0);
                     ui.end_row();
                 }
+                "api-key" if session => {
+                    // The header is always Cookie; only the session is asked.
+                    form::label(ui, &s.t("conn-automation-teamcity-session"));
+                    changed |=
+                        secret_field(ui, theme, s, "automation-secret", &mut c.secret, scratch, 0);
+                    ui.end_row();
+                }
                 "api-key" => {
                     form::label(ui, &s.t("conn-queue-header"));
                     changed |= form::text_field(ui, &mut c.header, default_header(&kind)).changed();
@@ -10555,6 +10572,7 @@ fn automation_form(
                 _ => {}
             }
             let hint = match (kind.as_str(), f.credential.auth.as_str()) {
+                ("teamcity", "api-key") => "conn-automation-hint-teamcity-session",
                 ("jenkins", "token") => "conn-automation-hint-jenkins-token",
                 ("jenkins", "password") => "conn-automation-hint-jenkins-password",
                 ("gitlab-ci", "api-key") => "conn-automation-hint-gitlab-key",

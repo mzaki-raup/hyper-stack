@@ -3805,7 +3805,7 @@ dependencies = [
 
 [[package]]
 name = "hs-container"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "futures-util",
  "hs-core",
@@ -3824,7 +3824,7 @@ dependencies = [
 
 [[package]]
 name = "hs-core"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "argon2 0.5.3",
  "async-trait",
@@ -3872,7 +3872,7 @@ dependencies = [
 
 [[package]]
 name = "hs-dap"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "hs-core",
  "serde",
@@ -3882,7 +3882,7 @@ dependencies = [
 
 [[package]]
 name = "hs-diagram"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -3895,7 +3895,7 @@ dependencies = [
 
 [[package]]
 name = "hs-editor"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -3911,7 +3911,7 @@ dependencies = [
 
 [[package]]
 name = "hs-git"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "hs-core",
  "similar",
@@ -3921,7 +3921,7 @@ dependencies = [
 
 [[package]]
 name = "hs-lsp"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "hs-core",
  "serde",
@@ -3931,7 +3931,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ssh"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "hs-core",
@@ -3951,7 +3951,7 @@ dependencies = [
 
 [[package]]
 name = "hs-term"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "alacritty_terminal",
  "egui",
@@ -3966,7 +3966,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ui"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "egui-phosphor",
@@ -4122,7 +4122,7 @@ dependencies = [
 
 [[package]]
 name = "hyperstack"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "clap",
@@ -9358,7 +9358,7 @@ checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
 name = "tool-api"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "base64 0.22.1",
  "boa_engine",
@@ -9381,7 +9381,7 @@ dependencies = [
 
 [[package]]
 name = "tool-automation"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9402,7 +9402,7 @@ dependencies = [
 
 [[package]]
 name = "tool-browser"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -9416,7 +9416,7 @@ dependencies = [
 
 [[package]]
 name = "tool-containers"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "hs-container",
@@ -9433,7 +9433,7 @@ dependencies = [
 
 [[package]]
 name = "tool-db"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -9473,7 +9473,7 @@ dependencies = [
 
 [[package]]
 name = "tool-devtools"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -9512,7 +9512,7 @@ dependencies = [
 
 [[package]]
 name = "tool-editor"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9537,7 +9537,7 @@ dependencies = [
 
 [[package]]
 name = "tool-git"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9558,7 +9558,7 @@ dependencies = [
 
 [[package]]
 name = "tool-graphics"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "base64 0.22.1",
  "egui",
@@ -9577,7 +9577,7 @@ dependencies = [
 
 [[package]]
 name = "tool-idm"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9604,7 +9604,7 @@ dependencies = [
 
 [[package]]
 name = "tool-logs"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -9627,7 +9627,7 @@ dependencies = [
 
 [[package]]
 name = "tool-nosql"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9652,7 +9652,7 @@ dependencies = [
 
 [[package]]
 name = "tool-queue"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -9684,7 +9684,7 @@ dependencies = [
 
 [[package]]
 name = "tool-redis"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9708,7 +9708,7 @@ dependencies = [
 
 [[package]]
 name = "tool-s3"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -9725,7 +9725,7 @@ dependencies = [
 
 [[package]]
 name = "tool-ssh"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9745,7 +9745,7 @@ dependencies = [
 
 [[package]]
 name = "tool-terminal"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "egui",
  "hs-container",
@@ -9762,7 +9762,7 @@ dependencies = [
 
 [[package]]
 name = "tool-tracker"
-version = "0.135.1"
+version = "0.136.0"
 dependencies = [
  "async-trait",
  "chrono",

@@ -437,17 +437,17 @@ Change Request : CR-0101
 > v0.127.0 (2026-11-06, merge `f8a7ecb`).
 
 ### CR-0040 · Workspace UI/UX Changes
-- **State:** In-Progress · audited 2026-11-06: box 4 was delivered by CR-0044; boxes 1-3 and 5 built in the fix/ui-sweep-0611 batch
+- **State:** Completed · audited 2026-11-06: box 4 was delivered by CR-0044; boxes 1-3 and 5 built in the fix/ui-sweep-0611 batch; checked on screen 2026-11-18
 - **Scope:** All Related Activities's Work Pane
 - [x] In Editor Activity -> Work Pane -> Code View Tab Pane; Please add top padding/margin between below Code view separator and Status bar below. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `PANE_GAP` above the Editor status bar and the Logs status line
 - [x] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel; Please add top padding/margin between below Code view separator and Debug toolbar. Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `PANE_GAP` above the debug tab row
 - [x] In Editor Activity -> Work Pane -> Code View Tab Pane -> Debug Panel - Debug Toolbar; Please add icon beside Toolbar items (Console, Variables, Call Stack, Breakpoints, etc). Check in other activites that have same characteristic like this and apply it where applicable. For Example in Log Activity -> Work Pane -> Log Detail Panel, etc. — `toolbar::tab` with an icon each (terminal window, curly brackets, stack, record)
 - [x] In Settings -> Containers, Settings -> Queue, Settings -> Automation, Settings -> Tracker; Remove the kind/type of those. Use single button (Add Container, Add Broker, Add Automation Server, Add Tracker). When click either, it will show the from of respective service. It will show the kind in drop down menu for respective service. Please refer the UI/UX from Settings -> Connections and follow almost exactly like it (dual Column Pane Card, list on the left, form on the right). In those activities Add Container, Add Broker, Add Automation Server, Add  Tracker, all will go to the respective Settings page with add new form of those connections and focus on that form. And every kind drop down of those server will list for that particular type (container, queue, automation, tracker) only. — delivered by CR-0044 (one Add button, kind in a dropdown, list left / form right; Settings → Queue seen in the app)
 - [x] In Settings -> Workspace -> Workspace List; User can switch workspace here too. Make a button/link (icon and label) and user can click on it to swith to other workspaces. If the workspaces are current, disable the button/link. — a Switch button (icon and label) in a right column, disabled with a tooltip for the open workspace
-- [ ] Test: none headless for padding; the gate's existing settings and editor tests run against the change
+- [x] Test: none headless for padding; the gate's existing settings and editor tests run against the change — the full gate passed again 2026-11-18 (tests at -j 2)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
-- [ ] App: `--data-dir ./tmp-data` — Editor status bar and Debug Panel, Logs status line, Settings → Workspace Switch (current one disabled); screenshots
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+- [x] App: `--data-dir ./tmp-data` — Editor status bar and Debug Panel, Logs status line, Settings → Workspace Switch (current one disabled); screenshots — 2026-11-18: the status bar and the Debug panel stand off the code view with their gap, the debug tabs wear their icons, the Logs status line sits under its strip, and the open workspace's Switch is disabled
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS — CHANGELOG line at the fix/ui-sweep-0611 release; the padding and the Switch button change no spec, README, CHECKLIST or GOTCHAS text
 
 ### FEAT-0099 · fal.ai as an AI image provider
 - **State:** Completed · **Spec:** docs/tools/graphics.md (addendum 2026-11-05) · **Branch:** feat/fal-ai
@@ -736,16 +736,16 @@ Change Request : CR-0101
 - [x] Docs: CHANGELOG — CHANGELOG line at merge (6b15a86); ui.md rule present
 
 ### CR-0060 · Browser joins Settings → Appearance → Material Icon: folders and logins wear Material icons
-- **State:** Pending ·
+- **State:** Completed · built in 3ed359a; checked on screen 2026-11-18
 - **Source:** owner, 2026-11-06 ("Add Browser Activity in the list. When enabled, it will display material icon in Browser Activity -> Sidebar Column -> Favorites List Folder and Saved Login")
 - **Scope:** `appearance.material_icons("browser")` in Settings → Appearance's activity list, `tool-browser` side panel (favorites folders through `hs_ui::fileicons::for_folder`, saved logins through a Material key / lock mark).
 - **Parent:** CR-0025
 - **Depends on:** FEAT-0084
 - [x] Browser appears in the Material Icon activity list and the setting round-trips — test in hs-core settings: listed and round-trips
-- [ ] With it on, favorites folders draw the Material folder and saved logins a Material mark; off, the Phosphor glyphs as today
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — toggle the setting and watch both lists change
-- [ ] Docs: CHANGELOG
+- [x] With it on, favorites folders draw the Material folder and saved logins a Material mark; off, the Phosphor glyphs as today — `tool-browser` side.rs (`folder_icon(material, …)`, the login row's key)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — 2026-11-18 (tests at -j 2)
+- [x] App: `--data-dir ./tmp-data` — toggle the setting and watch both lists change — 2026-11-18: on, the favorites folder wears the Material folder and the saved login the teal Material key; off, a plain folder and a plain globe; back on, the pictures return
+- [x] Docs: CHANGELOG — the line at the 3ed359a release
 
 ### CR-0061 · One layout standard for tables, inputs and pane spacing, written down and applied
 - **Also:** the owner's working role (Senior Rust Developer and Senior UI/UX Designer) written into `CLAUDE.md` → Role, so the standard is applied by default (owner, 2026-11-06)
@@ -757,13 +757,13 @@ Change Request : CR-0101
 - [x] The standard written down in `.claude/rules/ui.md` with every number and helper, each rule naming the item that decided it
 - [x] The table designer: `edit_table` for columns, indexes and keys; fields at field height and wide enough for their values; the pane margin and the gaps between its parts; rows middle-aligned — shipped in 0.128.0
 - [x] Every bare `TextEdit::singleline` becomes `form::line_edit` (or a `form` field), except the palette, title bar and dock — 2026-11-07: kv_editor, launcher, Scratchpad, SSH and Terminal fields now `line_edit`; the Editor's find / replace bar (`hs-editor` `view.rs`) is still bare — the last two, the code editor's find and replace bars, are `form::line_edit` (2026-11-08)
-- [ ] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top`
+- [x] Every loose dropdown row gets `form::centred_row` (height set before the row opens); no input row uses `horizontal_top` — 2026-11-18 audit: all 29 `horizontal_top` uses are page layouts; of 107 dropdowns the one loose row, Settings → Git → Repos' Fetch Project and project dropdown, is now a `centred_row`; the dock's level dropdown is the exempt compact dock
 - [x] Labels sit on the field's middle line in every row of every activity (owner, 2026-11-06: "main." and "Script" sat high); test `a_label_in_a_centred_row_sits_on_the_fields_middle_line`
 - [x] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06) — 2026-11-07: the Automation queue and the Queue consumer-lag tables are now `DataTable`s; the sweep found the rest compliant
 - [x] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height` — `an_edit_table_row_holds_a_field_with_air_and_has_a_header`, `a_line_edit_is_a_fields_height_and_a_bare_one_is_not` (hs-ui tests/layout_standard.rs), `header_band_stays_inside_its_area` (hs-ui table)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list
-- [ ] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS
+- [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list — 2026-11-18 at the default size: each screen passes (the designer's columns and keys, the Redis key tree, the RabbitMQ publish form, SSH Kept Forwards, the Git verbs and file list, the Repos project row on its middle line). Open: the narrow-window pass - the window would not resize on this machine (MoveWindow succeeded, the window kept its width)
+- [x] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS — the standard is in ui.md and docs/04, the label entry in GOTCHAS; CHANGELOG lines at each release
 - **Notes:** 2026-11-07 sweep: mostly compliant already; workspace tests passed (1428 passed, 0 failed). The `line_edit` box stays open for the Editor's find / replace bar; the `centred_row` box was not re-audited. Gate re-run: deny + release self-test pending. App: screen check pending.
 
 ### CR-0062 · Devtools: every tool's form to the layout standard
@@ -834,7 +834,7 @@ Change Request : CR-0101
 
 
 ### BUG-0047 · Database: a new or filled query tab stays behind the Design tab
-- **State:** In-Progress · fixed 2026-11-06; the app check follows
+- **State:** In-Progress · fixed 2026-11-06; checked on screen again 2026-11-18 (Open Data and New SELECT from a table's menu with the designer in front both bring the query tab forward); only the Test box stays open, since `Services` has no test constructor
 - **Source:** owner, 2026-11-06 ("When right click table -> Open data, why it not focus on the new tab to open data?"; "When i click button New query, why it not focus to the new query tab?")
 - **Scope:** `tool-db` `run_in_new_tab` and the New SELECT template clear `active_designer`, so the query tab they fill comes to the front.
 - **Parent:** FEAT-0103
@@ -871,7 +871,7 @@ Change Request : CR-0101
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
 - [ ] App: `--data-dir ./tmp-data` — Material on and off, screenshots
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line in 0.128.0; ui.md Icons rule
-- **Notes:** the 2026-11-07 sweep changed no code for this item. App: screen check pending.
+- **Notes:** the 2026-11-07 sweep changed no code for this item. 2026-11-18, with Material on: the Database Saved Queries and History rows wear the query tab's picture, as do the Git changed files, the Containers resources, the Redis key folders and the SSH file list; with it off only the Browser lists were seen (CR-0060), so the App box stays open for Database off.
 
 
 ### CR-0069 · Tabbed panes keep a minimum width; side panes can be hidden
@@ -890,14 +890,14 @@ Change Request : CR-0101
 
 
 ### CR-0070 · Fixes from the 2026-11-06 screen check of CR-0061…CR-0069
-- **State:** In-Progress · found on screen on v0.128.0, 2026-11-06
+- **State:** Completed · found on screen on v0.128.0, 2026-11-06; each fix seen on screen 2026-11-18
 - **Source:** the owner asked for the remaining screens to be checked ("Yes, check them"); these failed the checklist in `.claude/rules/ui.md`.
 - **Scope:** selected table rows readable; tab titles never under the close button; Git changed files and the Containers resource list in Material pictures; Redis key tree caret before icon; glyphs on every CR-0067 menu item and Clear disabled on an empty list; the API history's empty state; Devtools sidebar rows and tabs in their category colour; the Tracker query row's buttons at field height; the SSH Kept Forwards list scrolls and its Start button has a glyph.
 - **Parent:** CR-0061
 - [x] The ten defects fixed
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — each defect's screen again, screenshots
-- [ ] Docs: CHANGELOG, ui.md rules
+- [x] App: `--data-dir ./tmp-data` — each defect's screen again, screenshots — 2026-11-18: a selected run row keeps the normal text colour; tab titles elide before the close button; Git changed files and the Containers resources in Material pictures; the Redis caret before the folder picture; every table menu item glyphed and Clear History disabled on the empty API history, whose empty state says so; Devtools rows, cards and tabs in their tool's colours; the Tracker query, Search and Queries at one height; SSH's Start buttons glyphed (two kept forwards, too few to make the list scroll)
+- [x] Docs: CHANGELOG, ui.md rules — the rules are in ui.md; CHANGELOG lines at the 0.128.x releases
 
 
 ### CR-0071 · SSH: tunnel and host marks in colour, a structured monitor, tidy tunnel rows
@@ -915,14 +915,14 @@ Change Request : CR-0101
 
 
 ### CR-0072 · Fields fillable from a known list become dropdowns (designer FK columns first)
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; seen on screen 2026-11-18
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** the table designer's Foreign Keys Columns and Referenced Columns pick from the table's / referenced table's columns; a sweep turns every text field that a known list can fill into `pick_field`.
 - **Parent:** CR-0061
 - [x] Designer FK columns and referenced columns are pick fields
 - [x] Sweep of other activities applied
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
-- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [x] App: `--data-dir ./tmp-data` — screenshots of each screen — 2026-11-18: the designer's Foreign Keys Columns picker lists the table's columns (id, name, city, balance, opened), References has its caret, Referenced Columns is plain text until a table is picked; the RabbitMQ publish form's Exchange and Routing Key are pickers
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
@@ -951,39 +951,39 @@ Change Request : CR-0101
 
 
 ### CR-0075 · Detail views: a label beside its action button on one middle line
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; seen on screen 2026-11-18
 - **Source:** owner, 2026-11-06 (the owner's list of 2026-11-06)
 - **Scope:** a container's Ports beside Open in Browser, and every detail view row of a value with its action, open with `centred_row`.
 - **Parent:** CR-0061
 - [x] Containers detail views
 - [x] Every other activity's detail views
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
-- [ ] App: `--data-dir ./tmp-data` — screenshots of each screen
+- [x] App: `--data-dir ./tmp-data` — screenshots of each screen — 2026-11-18: hs-redmine's Ports label, its two port buttons and Open in Browser on one middle line; Settings → Git → Repos' Project label beside Fetch Project likewise
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0076 · Devtools and Graphics tools wear their own multi-colour pictures
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; the header audit and screen check 2026-11-18
 - **Source:** owner, 2026-11-06 ("In Devtools Activity -> Sidebar Column -> Tools Icon; If possible use multi color icon that represent the tool itself … In Graphics Activity -> Sidebar Column -> Tools Icon … Please use suitable multi color icon and it will reflect in the dashboard page and tab icon")
 - **Scope:** a coloured picture per Devtools utility and per Graphics tool (Image, Icon, Diagram Editor, Diagram Generator), used by the sidebar row, the dashboard card and the tab.
 - **Parent:** CR-0065
 - [x] Devtools: one picture per utility, in the sidebar, the dashboard and the tab
 - [x] Graphics: one picture per tool, in the sidebar, the dashboard and the tab
-- [ ] Every activity's work-pane header wears the same picture and colour as its tab (Graphics first; owner, 2026-11-06)
+- [x] Every activity's work-pane header wears the same picture and colour as its tab (Graphics first; owner, 2026-11-06) — 2026-11-18 audit: every tool builds its header and tab from the same `ConnIcon`, so they match (Graphics' diagram and icon tabs, Automation, Containers, Database, Redis, SSH, Terminal, Tracker and Queue seen on screen); Devtools and API Client's Manage and Library pages carry the mark in their page title instead of a band, and the Library title was the one without it - it now wears the tab's package in its colour
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
 - [x] App: `--data-dir ./tmp-data` — screenshots — screenshots 39, 51 (Devtools and Graphics)
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
 ### CR-0077 · Log-level colours follow the Logs activity everywhere
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; seen on screen 2026-11-18
 - **Source:** owner, 2026-11-06 ("In other activities that have logs, please follow Logs Activity Log color for Info, wan, debug, error, other alias, etc) the text color for those")
 - **Scope:** the Logs activity's level → colour mapping (with its aliases) moves to one shared `hs_ui` function; every other view that shows log lines uses it.
 - **Parent:** CR-0025
 - [x] Shared level-colour function with the aliases, unit-tested
 - [x] Every other log view uses it
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
-- [ ] App: `--data-dir ./tmp-data` — Logs, an Automation run log, a container log; screenshots
+- [x] App: `--data-dir ./tmp-data` — Logs, an Automation run log, a container log; screenshots — 2026-11-18: hs-redmine's container log in the Logs activity colours only the INFO word, the rest of the line in the normal text colour; the bench TeamCity run log has no level words and shows none coloured
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 
@@ -999,7 +999,7 @@ Change Request : CR-0101
 
 
 ### CR-0079 · Saved shells and other products wear their real multi-colour marks everywhere
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; seen on screen 2026-11-18
 - **Source:** owner, 2026-11-06 ("In Terminal Activity -> CLI Icon; Use actual multi color icon for cli that saved in the list. and it will reflect in all location that used it (Tab Icon, Dashboard Page, recent, history, Settings -> Terminal, etc). POlease check other activities that still not have the proper icon and multi color to apply it. Write it in the rule.")
 - **Scope:** the Terminal's saved shells resolve to real product logos (bundled SVG/PNG under the product-logo set), used by the sidebar list, the tab, the Terminal dashboard, Home's Recent, history and Settings → Terminal; an audit finds other activities' saved items still on a plain or wrong icon and fixes them.
 - **Parent:** CR-0036
@@ -1007,7 +1007,7 @@ Change Request : CR-0101
 - [x] Other activities' saved items found by the audit
 - [x] Test: every built-in shell kind resolves to a logo or a coloured glyph — `tool-terminal` `every_shell_wears_a_logo_or_a_coloured_glyph`
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test — passed 2026-11-06 before v0.129.0 (merge 3426379)
-- [ ] App: `--data-dir ./tmp-data` — Terminal sidebar, tab, dashboard, Settings → Terminal; screenshots
+- [x] App: `--data-dir ./tmp-data` — Terminal sidebar, tab, dashboard, Settings → Terminal; screenshots — 2026-11-18: PowerShell, Windows PowerShell, Command Prompt, Nushell, Git Bash and Ubuntu wear their marks in the sidebar, the Saved Shells cards, Open Here, the tabs, the header and Settings → Terminal's list
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line at merge (112e85e); ui.md rule present
 
 

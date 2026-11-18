@@ -11,7 +11,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Fixed
+
+- Settings → Git → Repos: the Fetch Project button and the project dropdown sit on the Project label's middle line (CR-0061)
+- API Client: a Package Library page's title wears its tab's package mark in the library's colour (CR-0076)
 
 ## 0.135.0 — 2026-11-18
 

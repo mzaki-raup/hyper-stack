@@ -2861,9 +2861,12 @@ pub(crate) fn library_tab(
         .auto_shrink([false, false])
         .show(ui, |ui| {
             let lib = &mut t.libraries[index];
-            form::page_title(
+            // The same mark the library's tab wears in the strip (ui.md, "A
+            // page title wears its tab's mark").
+            form::page_title_marked(
                 ui,
                 theme,
+                form::Mark::glyph(ph::PACKAGE, crate::library_icon(lib.kind).brand()).sized(26.0),
                 &s.t("api-library"),
                 Some(&s.t("api-libraries-hint")),
             );

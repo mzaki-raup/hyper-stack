@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.135.0 — 2026-11-18
+
 ### Added
 
-- TeamCity 9.x: a password login (a Windows domain login as `DOMAIN\user`) is retried under `/httpAuth`, and the jobs list falls back to a query the older REST API takes; the Settings form says tokens need TeamCity 2019.1 or later (FEAT-0119)
+- Sign in to an older TeamCity (9.x) with a domain password (97cdc0fa)
 
 ## 0.134.2 — 2026-11-18
 

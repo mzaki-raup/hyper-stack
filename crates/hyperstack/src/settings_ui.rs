@@ -7933,7 +7933,7 @@ fn repo_detail(
                 ui.end_row();
 
                 form::label(ui, &s.t("settings-git-repo-project"));
-                ui.horizontal(|ui| {
+                form::centred_row(ui, |ui| {
                     // Fetch Project asks the host for everything the
                     // credential can see; the dropdown is searched with
                     // the fuzzy matcher the palette uses.

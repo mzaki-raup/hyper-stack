@@ -997,7 +997,7 @@ impl RedisTool {
                 return;
             }
             Some(Status::Failed(e)) => {
-                form::note(ui, &theme, ph::WARNING, &e);
+                form::note(ui, &theme, ph::WARNING, &hs_core::fmt::sentence(&e));
                 if ui
                     .button(format!("{} {}", ph::ARROW_CLOCKWISE, s.t("redis-retry")))
                     .clicked()

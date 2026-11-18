@@ -133,12 +133,24 @@ shared `hs_core::service_auth` (ADR-028), which the Tracker activity uses too.
 | | password | token | api-key |
 |---|---|---|---|
 | Jenkins | basic, with a CSRF crumb | user + API token as basic | — |
-| TeamCity | basic (under `/httpAuth` on an older server) | `Authorization: Bearer` (2019.1 and later) | — |
+| TeamCity | basic (under `/httpAuth` on an older server) | `Authorization: Bearer` (2019.1 and later) | **Browser Session**: `Cookie: TCSESSIONID=…` |
 | GitHub Actions | — | `Authorization: Bearer` | — |
 | GitLab CI | — | `Authorization: Bearer` | `PRIVATE-TOKEN` (the named header) |
 | Forgejo Actions | basic | `Authorization: token …` | — |
 | AWX | basic | `Authorization: Bearer` | — |
 | Puppet | — | — | `X-Authentication` (a PE RBAC token) |
+
+**A TeamCity behind single sign-on** (FEAT-0120): when TeamCity signs users
+in through Keycloak, Microsoft or another identity provider, it never sees
+their password and refuses it on its API (a 401 even under `/httpAuth`).
+The TeamCity form's third credential, **Browser Session**, takes the
+`TCSESSIONID` cookie copied from a browser that is signed in; it is kept in
+the vault as an api-key whose header is fixed to `Cookie`, and a bare id is
+sent as `TCSESSIONID=…`. It is sent on `/app/rest` and never retried under
+`/httpAuth`. When the session ends, TeamCity answers with its login page or
+a 401, and the tab says to sign in again and paste a fresh one - on connect
+and when it re-reads its jobs. A newer TeamCity wants a CSRF token on writes
+made with a session; 9.x does not.
 
 **An edit reaches an open tab** (BUG-0066): when a profile's connection
 (its kind's fields or credential), its environment or its Read-Only flag

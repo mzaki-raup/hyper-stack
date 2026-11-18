@@ -123,3 +123,32 @@ fn an_edit_table_row_holds_a_field_with_air_and_has_a_header() {
         first_cell_top.get() - table_top.get()
     );
 }
+
+/// A field beside a button leaves it the room `button_width` says, so the
+/// row stays inside its card (Settings → Git → Repos' Path and Browse ran
+/// to the window edge, 2026-11-18).
+#[test]
+fn button_width_is_the_width_the_button_draws() {
+    let theme = hs_ui::theme::Theme::dark();
+    let said = Cell::new(0.0f32);
+    let drawn = Cell::new(0.0f32);
+    let mut harness = Harness::new_ui(|ui| {
+        said.set(hs_ui::form::button_width(
+            ui,
+            hs_ui::icons::ph::FOLDER_OPEN,
+            "Browse…",
+        ));
+        drawn.set(
+            hs_ui::form::button(ui, &theme, hs_ui::icons::ph::FOLDER_OPEN, "Browse…")
+                .rect
+                .width(),
+        );
+    });
+    harness.run();
+    assert!(
+        (said.get() - drawn.get()).abs() < 1.0,
+        "button_width {} vs drawn {}",
+        said.get(),
+        drawn.get()
+    );
+}

@@ -17,6 +17,9 @@ pub fn auth_kinds_for(kind: &str) -> &'static [&'static str] {
         // PuppetDB is usually open on its own network; Puppet Enterprise
         // takes an RBAC token in `X-Authentication` (FEAT-0092).
         "puppet" => &["none", "api-key"],
+        // A TeamCity behind single sign-on takes the browser's session,
+        // kept as an api-key sent in `Cookie` (FEAT-0120).
+        "teamcity" => &["none", "password", "token", "api-key"],
         _ => &["none", "password", "token"],
     }
 }
@@ -35,6 +38,7 @@ pub fn default_header(kind: &str) -> &'static str {
     match kind {
         "gitlab-ci" => "PRIVATE-TOKEN",
         "puppet" => "X-Authentication",
+        "teamcity" => "Cookie",
         _ => "",
     }
 }
@@ -332,5 +336,30 @@ mod tests {
         );
         assert_eq!(c.token_as, TokenAs::Bearer);
         assert_eq!(token_as("jenkins"), TokenAs::Basic);
+    }
+
+    /// A TeamCity behind single sign-on takes the browser's session, kept
+    /// as an api-key whose header is `Cookie` (FEAT-0120).
+    #[test]
+    fn teamcity_offers_a_browser_session_sent_as_a_cookie() {
+        assert!(auth_kinds_for("teamcity").contains(&"api-key"));
+        assert!(!auth_kinds_for("jenkins").contains(&"api-key"));
+        let f = AutomationFields {
+            url: "https://ci.example.com".into(),
+            credential: Credential {
+                auth: "api-key".into(),
+                secret: "TCSESSIONID=abc".into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let c = f.resolve("teamcity", false, &NoVault, &same).unwrap();
+        assert_eq!(
+            c.auth,
+            Auth::ApiKey {
+                header: "Cookie".into(),
+                key: "TCSESSIONID=abc".into()
+            }
+        );
     }
 }

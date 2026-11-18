@@ -1353,6 +1353,15 @@ pub fn button(ui: &mut egui::Ui, theme: &Theme, icon: &str, label: &str) -> egui
     sized_button(ui, egui::Button::new(text), label)
 }
 
+/// How wide [`button`] draws `icon` and `label`, so a field beside it can
+/// leave it room instead of pushing the row past its card.
+pub fn button_width(ui: &egui::Ui, icon: &str, label: &str) -> f32 {
+    // The same text the button lays out; the colours do not change it.
+    let white = egui::Color32::WHITE;
+    let job = crate::toolbar::item_text_in(ui, white, white, icon, label);
+    ui.painter().layout_job(job).size().x + 2.0 * BUTTON_PADDING.x
+}
+
 /// A form button at a field's height with [`BUTTON_PADDING`].
 /// `name` is what a screen reader and a test read: the label alone, never
 /// the icon glyph drawn before it.

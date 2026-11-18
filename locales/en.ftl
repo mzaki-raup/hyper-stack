@@ -4578,6 +4578,9 @@ conn-automation-hint-jenkins-password = A password is sent with a CSRF crumb; an
 conn-automation-hint-gitlab-key = A personal or project access token, sent in the PRIVATE-TOKEN header. Stored in the vault.
 conn-automation-hint-teamcity-password = Your TeamCity login, sent as HTTP basic; a Windows domain login is usually DOMAIN\user. An older server (9.x) is asked under /httpAuth when it turns the login away. Stored in the vault.
 conn-automation-hint-teamcity-token = An access token (TeamCity 2019.1 and later: your profile → Access Tokens), sent as a bearer token. An older server has no tokens; use a password. Stored in the vault.
+conn-automation-auth-teamcity-session = Browser Session
+conn-automation-teamcity-session = Session Cookie
+conn-automation-hint-teamcity-session = For a TeamCity that signs you in through single sign-on (Keycloak, Microsoft, Okta …). Sign in to TeamCity in your browser, open its developer tools → Application (or Storage) → Cookies, and copy the value of TCSESSIONID. Paste it here, with or without "TCSESSIONID=". The session ends when TeamCity ends it; paste a fresh one then. Stored in the vault.
 
 ## Tracker (docs/tools/tracker.md)
 tool-tracker = Tracker

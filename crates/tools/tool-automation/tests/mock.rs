@@ -23,12 +23,14 @@ use tool_automation::profile::ConnectConfig;
 /// matters), status, body.
 type Route = (&'static str, &'static str, u16, String);
 
-/// A request the server saw: method, path, Authorization header, body.
+/// A request the server saw: method, path, Authorization and Cookie
+/// headers, body.
 #[derive(Debug, Clone)]
 struct Seen {
     method: String,
     path: String,
     auth: String,
+    cookie: String,
     body: String,
 }
 
@@ -76,18 +78,19 @@ async fn serve(routes: Vec<Route>) -> (String, Arc<Mutex<Vec<Seen>>>) {
                 let mut first = head.lines().next().unwrap_or("").split(' ');
                 let method = first.next().unwrap_or("").to_string();
                 let path = first.next().unwrap_or("").to_string();
-                let auth = head
-                    .lines()
-                    .find_map(|l| {
-                        let (k, v) = l.split_once(':')?;
-                        k.eq_ignore_ascii_case("authorization")
-                            .then(|| v.trim().to_string())
-                    })
-                    .unwrap_or_default();
+                let header = |name: &str| {
+                    head.lines()
+                        .find_map(|l| {
+                            let (k, v) = l.split_once(':')?;
+                            k.eq_ignore_ascii_case(name).then(|| v.trim().to_string())
+                        })
+                        .unwrap_or_default()
+                };
                 log.lock().push(Seen {
                     method: method.clone(),
                     path: path.clone(),
-                    auth,
+                    auth: header("authorization"),
+                    cookie: header("cookie"),
                     body,
                 });
                 let (status, reply) = routes
@@ -244,6 +247,59 @@ fn a_teamcity_token_is_not_retried_under_http_auth() {
             driver::connect(&config("teamcity", &url, token("tc-t"), TokenAs::Bearer)).await;
         assert!(failed.is_err());
         assert!(seen.lock().iter().all(|s| !s.path.starts_with("/httpAuth")));
+    });
+}
+
+/// A TeamCity behind single sign-on (Keycloak, Microsoft) never sees the
+/// user's password; the browser's session cookie is the way in (FEAT-0120).
+/// A pasted bare session id is sent as `TCSESSIONID=…`, on `/app/rest`.
+#[test]
+fn a_teamcity_browser_session_is_sent_as_its_cookie() {
+    runtime().block_on(async {
+        let (url, seen) = serve(vec![(
+            "GET",
+            "/app/rest/server",
+            200,
+            r#"{"version":"9.1.7 (build 37573)"}"#.into(),
+        )])
+        .await;
+        let session = Auth::ApiKey {
+            header: "Cookie".into(),
+            key: "6A1B2C3D4E5F".into(),
+        };
+        let d = driver::connect(&config("teamcity", &url, session, TokenAs::Bearer))
+            .await
+            .expect("connect");
+        assert_eq!(d.info().version, "9.1.7 (build 37573)");
+        let seen = seen.lock().clone();
+        assert_eq!(seen[0].path, "/app/rest/server");
+        assert_eq!(seen[0].cookie, "TCSESSIONID=6A1B2C3D4E5F");
+        assert!(seen.iter().all(|s| !s.path.starts_with("/httpAuth")));
+    });
+}
+
+/// An ended session gets TeamCity's login page back; the error says to sign
+/// in again rather than "not JSON".
+#[test]
+fn an_ended_teamcity_session_asks_to_sign_in_again() {
+    runtime().block_on(async {
+        let (url, _) = serve(vec![(
+            "GET",
+            "/app/rest/server",
+            200,
+            "<html>Log in to TeamCity</html>".into(),
+        )])
+        .await;
+        let session = Auth::ApiKey {
+            header: "Cookie".into(),
+            key: "TCSESSIONID=old".into(),
+        };
+        let Err(e) = driver::connect(&config("teamcity", &url, session, TokenAs::Bearer)).await
+        else {
+            panic!("an ended session connected");
+        };
+        assert!(e.contains("Sign in"), "{e}");
+        assert!(!e.contains("not JSON"), "{e}");
     });
 }
 

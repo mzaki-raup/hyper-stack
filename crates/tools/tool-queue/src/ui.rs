@@ -1225,7 +1225,7 @@ impl QueueTool {
                 return;
             }
             Some(Status::Failed(e)) => {
-                form::note(ui, &theme, ph::WARNING, &e);
+                form::note(ui, &theme, ph::WARNING, &hs_core::fmt::sentence(&e));
                 if form::button(ui, &theme, ph::ARROWS_CLOCKWISE, &s.t("queue-retry")).clicked() {
                     self.connect(s);
                 }

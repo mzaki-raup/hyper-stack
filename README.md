@@ -411,6 +411,7 @@ One tab per build server or automation controller: **Jenkins**, **TeamCity**, **
 - **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
 - **Credentials** - username and password, token or API key, whichever the server takes, in the vault.
 - **Older TeamCity** - a 9.x server signs in with a password (a Windows domain login as `DOMAIN\user`) under its `/httpAuth` path, tried by itself; tokens need TeamCity 2019.1 or later.
+- **TeamCity behind single sign-on** - when TeamCity signs you in through Keycloak, Microsoft or similar, choose **Browser Session** and paste the `TCSESSIONID` cookie from a signed-in browser; when the session ends the tab says so and asks for a fresh one.
 
 ### Tracker
 

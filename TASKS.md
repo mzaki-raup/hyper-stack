@@ -151,8 +151,8 @@ Refs: BUG-0003
 
 ```
 Version : v0.8.0
-Features : FEAT-0119
-Bugs : BUG-0066
+Features : FEAT-0120
+Bugs : BUG-0069
 Change Request : CR-0101
 ```
 
@@ -330,6 +330,17 @@ Change Request : CR-0101
 - [x] Docs: spec · README · CHANGELOG · GOTCHAS
 - **Notes:** there is no TeamCity 9.x on the bench; the old server is proven against a mock written from its documented behaviour, not a real one.
 
+### FEAT-0120 · Automation: sign in to a single-sign-on TeamCity with the browser's session
+- **State:** In-Progress · **Spec:** docs/tools/automation.md §5
+- **Branch:** batch/teamcity-session
+- **Source:** owner, 2026-11-19: FEAT-0119's password was refused ("The server refused the credentials (401)"); their TeamCity signs in through Keycloak brokering Microsoft, so it never sees the AD password. Of a service account, a browser session and guest access, the owner chose "Build session login"
+- **Scope:** a third TeamCity credential, **Browser Session**: the `TCSESSIONID` cookie copied from a signed-in browser, kept in the vault as an api-key whose header is fixed to `Cookie`; a bare id is sent as `TCSESSIONID=…`; sent on `/app/rest`, never retried under `/httpAuth`; an ended session (the login page, or a 401) says to sign in again and paste a fresh one, on connect and when the tab re-reads its jobs; the form shows only the session field, with a hint saying where to copy it from
+- [ ] Test: profile (`teamcity_offers_a_browser_session_sent_as_a_cookie`) and mock (`a_teamcity_browser_session_is_sent_as_its_cookie`, `an_ended_teamcity_session_asks_to_sign_in_again`), failing before the change
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: scratch `--data-dir` — the TeamCity form with Browser Session: one Session Cookie field and its hint; a session copied from the bench TeamCity connects; a wrong one says to sign in again
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** checked against the bench TeamCity 2025.07 only; the owner's 9.x behind Keycloak is the real test. A newer TeamCity also wants a CSRF token on writes made with a session; 9.x does not.
+
 ### CR-0099 · Identity: the Keycloak version through an optional master-realm account
 - **State:** Completed · **Spec:** docs/tools/idm.md §3.3, §3.4, §8.3 · **Phase:** P
 - **Source:** owner, 2026-11-14: "In Keycloak Work Pane Header, please add version of the keycloak"; on Keycloak withholding `systemInfo` from accounts outside the master realm, the owner chose "Exact via master account"
@@ -405,6 +416,32 @@ Change Request : CR-0101
 - [x] Gate: fmt · clippy -D warnings · test --workspace (run at -j 2) · deny · --self-test
 - [x] App: scratch `--data-dir` — Bench Forgejo CI's repository edited (the tab showed the 404 at once) and set back (jobs and runs again); renamed (the tab took the name and kept ci.yml selected, no reconnect); Bench Kafka Plain's bootstrap port edited (the tab reconnected to :9099) and set back (topics again)
 - [x] Docs: docs/tools/automation.md · docs/tools/queue.md · CHANGELOG · GOTCHAS
+
+### BUG-0067 · Database: refusing a foreign key with no columns yet read "the key on  is not created"
+- **State:** In-Progress
+- **Source:** found on screen 2026-11-18 (the v0.7.7 check); owner, 2026-11-19: "fix this also"
+- **Scope:** `tool-db` `ddlgen`: an engine that cannot add a foreign key after the table is made (SQLite, DuckDB, ClickHouse) names the refused key by its name and its columns, whichever it has, never a blank
+- [ ] Test: `a_refused_foreign_key_is_named_even_before_it_has_columns`, failing before the fix
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: scratch `--data-dir` — the SQLite designer's Foreign Keys: Add Foreign Key, the warning names the key
+- [ ] Docs: CHANGELOG
+
+### BUG-0068 · Redis, NoSQL and Queue showed a connection error in lowercase ("timed out")
+- **State:** In-Progress
+- **Source:** found on screen 2026-11-18; owner, 2026-11-19: "fix this also"
+- **Scope:** the failed-connection note in Redis, NoSQL and Queue goes through `hs_core::fmt::sentence`, as Automation and Tracker already do (ui.md: sentence case for errors)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test (`fmt::sentence` is unit-tested; the note needs `Services`, which has no test constructor)
+- [ ] App: scratch `--data-dir` — a Redis tab whose server is down reads "Timed out"
+- [ ] Docs: CHANGELOG
+
+### BUG-0069 · Settings → Git → Repos: the repository card ran to the window's right edge
+- **State:** In-Progress
+- **Source:** found on screen 2026-11-18; owner, 2026-11-19: "fix this also"
+- **Scope:** the Path row's field took the full field width with Browse after it, so the row, and the card around it, ran past the column. The field now leaves Browse its width (`hs_ui::form::button_width`, new) and the row wraps when narrow (`centred_row_wrapped`)
+- [ ] Test: `button_width_is_the_width_the_button_draws` (hs-ui layout_standard)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: scratch `--data-dir` — a repo's card ends inside the page with Browse and Remove From List inside it
+- [ ] Docs: CHANGELOG · ui.md (the helper)
 
 ---
 

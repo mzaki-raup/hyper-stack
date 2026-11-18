@@ -16,6 +16,8 @@ use hs_core::service_http::{Http, s, seg};
 pub struct TeamCity {
     http: Http,
     info: ServerInfo,
+    /// Signed in with a browser session, which can end under the tab.
+    session: bool,
 }
 
 const BUILD_FIELDS: &str = "id,number,state,status,branchName,startDate,finishDate,queuedDate,webUrl,canceledInfo,triggered(user(username,name))";
@@ -72,8 +74,21 @@ fn run(b: &Value) -> Run {
     }
 }
 
+/// What an ended browser session gets: TeamCity's login page, or a 401.
+const SESSION_ENDED: &str = "TeamCity did not take the session: it has ended or was copied wrong. \
+     Sign in to TeamCity in the browser again and paste a fresh TCSESSIONID";
+
 impl TeamCity {
     pub async fn connect(cfg: &ConnectConfig) -> Result<TeamCity> {
+        // A browser session (FEAT-0120) may be pasted as the bare id.
+        let mut cfg = cfg.clone();
+        let session = matches!(&cfg.auth, Auth::ApiKey { header, .. } if header.eq_ignore_ascii_case("cookie"));
+        if let Auth::ApiKey { key, .. } = &mut cfg.auth
+            && session
+            && !key.contains('=')
+        {
+            *key = format!("TCSESSIONID={}", key.trim());
+        }
         let at = |base: &str| -> Result<Http> {
             Ok(cfg.http(base)?.with_header("Accept", "application/json"))
         };
@@ -88,7 +103,7 @@ impl TeamCity {
                 http = at(&format!("{base}/httpAuth"))?;
                 http.get_json("/app/rest/server").await?
             }
-            Err(e) => return Err(e),
+            Err(e) => return Err(if session { ended(e) } else { e }),
         };
         Ok(TeamCity {
             info: ServerInfo {
@@ -96,7 +111,23 @@ impl TeamCity {
                 version: s(&v, "version"),
             },
             http,
+            session,
         })
+    }
+
+    /// An error in a session's words: an ended session reads as one.
+    fn said(&self, e: String) -> String {
+        if self.session { ended(e) } else { e }
+    }
+}
+
+/// A session's refusal - the login page instead of JSON, or a 401 - says
+/// to sign in again; any other error is left as it is.
+fn ended(e: String) -> String {
+    if e.contains("not JSON") || e.contains("401") {
+        SESSION_ENDED.to_string()
+    } else {
+        e
     }
 }
 
@@ -131,7 +162,7 @@ impl Driver for TeamCity {
                 .http
                 .get_json("/app/rest/buildTypes?fields=buildType(id,name,projectName,webUrl)")
                 .await
-                .map_err(|_| e)?,
+                .map_err(|_| self.said(e))?,
         };
         let mut jobs: Vec<Job> = v
             .get("buildType")

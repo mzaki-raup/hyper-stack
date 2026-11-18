@@ -77,7 +77,15 @@ Notes per kind:
   is over. A username and API token are sent as
   HTTP basic, which Jenkins exempts from the CSRF crumb; a password is sent
   with a crumb fetched first.
-- **TeamCity** through its REST API (`/app/rest`), JSON.
+- **TeamCity** through its REST API (`/app/rest`), JSON. An older server
+  (9.x) takes HTTP basic only under `/httpAuth` and sends its login page
+  from `/app/rest`: when a password login is turned away there, the driver
+  asks again under `/httpAuth` and keeps that prefix for the session. Its
+  REST API has no `$locator` in `fields`, so when the jobs list with each
+  configuration's last build is refused, the configurations are listed
+  without it (the last run shows once a job is opened). Access tokens
+  arrived in 2019.1; an older server needs a password, and the form says
+  so (FEAT-0119).
 - **GitHub Actions** through the REST API. A run's log is per job; the tab
   lists the run's jobs and shows the selected job's log. Only workflows with a
   `workflow_dispatch` trigger can be run; the others say so.
@@ -125,7 +133,7 @@ shared `hs_core::service_auth` (ADR-028), which the Tracker activity uses too.
 | | password | token | api-key |
 |---|---|---|---|
 | Jenkins | basic, with a CSRF crumb | user + API token as basic | — |
-| TeamCity | basic | `Authorization: Bearer` | — |
+| TeamCity | basic (under `/httpAuth` on an older server) | `Authorization: Bearer` (2019.1 and later) | — |
 | GitHub Actions | — | `Authorization: Bearer` | — |
 | GitLab CI | — | `Authorization: Bearer` | `PRIVATE-TOKEN` (the named header) |
 | Forgejo Actions | basic | `Authorization: token …` | — |

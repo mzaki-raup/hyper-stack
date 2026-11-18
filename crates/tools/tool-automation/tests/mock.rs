@@ -189,6 +189,64 @@ fn teamcity_lists_triggers_and_cancels_through_the_build_queue() {
     });
 }
 
+/// TeamCity 9.x: `/app/rest` without a session answers with the login page,
+/// HTTP basic works only under `/httpAuth`, and `fields` has no `$locator`
+/// (FEAT-0119).
+#[test]
+fn an_old_teamcity_takes_a_password_under_http_auth_and_lists_its_jobs() {
+    runtime().block_on(async {
+        let (url, seen) = serve(vec![
+            ("GET", "/app/rest/server", 200, "<html>Log in to TeamCity</html>".into()),
+            ("GET", "/httpAuth/app/rest/server", 200, r#"{"version":"9.1.7 (build 37573)"}"#.into()),
+            (
+                "GET",
+                "/httpAuth/app/rest/buildTypes?fields=buildType(id,name,projectName,webUrl,builds",
+                400,
+                "Error: unknown field".into(),
+            ),
+            (
+                "GET",
+                "/httpAuth/app/rest/buildTypes?",
+                200,
+                r#"{"buildType":[{"id":"App_Build","name":"Build","projectName":"App","webUrl":"w"}]}"#.into(),
+            ),
+        ])
+        .await;
+        let login = Auth::Password {
+            user: r"CORP\ada".into(),
+            password: "pw".into(),
+        };
+        let mut d = driver::connect(&config("teamcity", &format!("{url}/"), login, TokenAs::Bearer))
+            .await
+            .expect("connect");
+        assert_eq!(d.info().version, "9.1.7 (build 37573)");
+        let jobs = d.jobs().await.expect("jobs").jobs;
+        assert_eq!(jobs[0].name, "App / Build");
+        assert!(jobs[0].last.is_none());
+        let seen = seen.lock().clone();
+        let server = seen.iter().find(|s| s.path == "/httpAuth/app/rest/server").unwrap();
+        assert!(server.auth.starts_with("Basic "), "{}", server.auth);
+    });
+}
+
+/// A token is not retried under `/httpAuth`: a server that old has no tokens.
+#[test]
+fn a_teamcity_token_is_not_retried_under_http_auth() {
+    runtime().block_on(async {
+        let (url, seen) = serve(vec![(
+            "GET",
+            "/app/rest/server",
+            200,
+            "<html>Log in to TeamCity</html>".into(),
+        )])
+        .await;
+        let failed =
+            driver::connect(&config("teamcity", &url, token("tc-t"), TokenAs::Bearer)).await;
+        assert!(failed.is_err());
+        assert!(seen.lock().iter().all(|s| !s.path.starts_with("/httpAuth")));
+    });
+}
+
 #[test]
 fn awx_launches_a_template_with_its_survey_and_cancels_the_job() {
     runtime().block_on(async {

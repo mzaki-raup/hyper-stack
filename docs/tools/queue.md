@@ -140,6 +140,11 @@ uses them:
 A kind that has no use for a credential kind does not offer it, rather than
 offering a field that would be ignored.
 
+**An edit reaches an open tab** (BUG-0066): when a profile's connection
+(its kind's fields or credential), its environment or its Read-Only flag
+changes in Settings, every open tab on it reconnects and Allow Writes locks
+again. Renaming or pinning the profile leaves the session as it is.
+
 ## 6. Guards
 
 - **Publish**, **Purge** and **Delete** are writes. On a protected environment

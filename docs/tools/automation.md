@@ -132,6 +132,11 @@ shared `hs_core::service_auth` (ADR-028), which the Tracker activity uses too.
 | AWX | basic | `Authorization: Bearer` | — |
 | Puppet | — | — | `X-Authentication` (a PE RBAC token) |
 
+**An edit reaches an open tab** (BUG-0066): when a profile's connection
+(its kind's fields or credential), its environment or its Read-Only flag
+changes in Settings, every open tab on it reconnects and Allow Writes locks
+again. Renaming or pinning the profile leaves the session as it is.
+
 ## 6. Guards
 
 - **Run** and **Cancel** are writes. On a protected environment the tab is

@@ -75,8 +75,9 @@ HS_MONGO=127.0.0.1:27017 HS_COUCH=http://admin:<password>@127.0.0.1:5984 cargo t
 
 The queue, automation and tracker tests take `HS_RABBITMQ`, `HS_KAFKA`,
 `HS_KAFKA_SASL`, `HS_NATS`, `HS_MQTT`, `HS_REDIS_STREAMS`, `HS_JENKINS`,
-`HS_FORGEJO`, `HS_FORGEJO_ISSUES` and `HS_REDMINE`; their formats are in
-bench/README.md.
+`HS_FORGEJO`, `HS_FORGEJO_ISSUES` and `HS_REDMINE`; the identity tests
+take `HS_KEYCLOAK` and `HS_LDAP` (with `HS_LDAP_PASSWORD`); their formats
+are in bench/README.md.
 
 Container-backed driver tests run only when `HS_INTEGRATION` is set.
 

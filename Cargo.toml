@@ -189,6 +189,9 @@ rustls-platform-verifier = "0.7"
 hickory-resolver = "0.26"
 x509-cert = "0.2"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12", "logging"] }
+# Identity's LDAP and Active Directory provider (ADR-033): rustls with ring,
+# the TLS stack the workspace already builds.
+ldap3 = { version = "0.12", default-features = false, features = ["tls-rustls-ring"] }
 # The system clipboard's file list (CF_HDROP) is Win32; everything else in
 # hs-core stays portable.
 windows-sys = { version = "0.61", features = [

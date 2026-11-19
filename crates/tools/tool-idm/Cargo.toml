@@ -31,6 +31,8 @@ base64 = { workspace = true }
 reqwest = { workspace = true, features = ["form"] }
 # Save As for a realm export (§4.9).
 rfd = { workspace = true }
+# The LDAP and Active Directory provider (ADR-033, §4.12).
+ldap3 = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

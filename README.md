@@ -124,7 +124,7 @@ the fixtures behind them.
 | [Queue](#queue) | RabbitMQ, Kafka, Redis Streams, NATS and MQTT: destinations with depth, peek without consuming, publish, consumer lag, guarded purge |
 | [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet: jobs and runs, run with parameters, follow the log, guarded cancel |
 | [Tracker](#tracker) | Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages: queries, read, change status, edit with a review, comment, file new items |
-| [Identity](#identity) | Keycloak: users, groups, realm and client roles, clients, sessions, login and admin events, realm settings, realm export; every write guarded and audited |
+| [Identity](#identity) | Keycloak: users, groups, realm and client roles, clients, sessions, login and admin events, realm settings, realm export; LDAP directories: users and groups; every write guarded and audited |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -445,6 +445,7 @@ One tab per identity server, **Keycloak** first (22 to 26), through its Admin RE
 - **Writes** - add users, groups, sub-groups, roles and clients; edit through read-merge-write so fields not on the form are kept; enable, disable, reset a password (temporary by default, with the realm's password policy shown), log out, join groups, assign roles.
 - **Looking deeper** - Show Effective lists the realm and client roles a user holds through composites and groups; Include Sub-Group Users lists a group's members across its whole subtree; the realm export and admin events open as JSON in the read-only editor (colours, search).
 - **Version** - Keycloak shows its version only to master-realm admins; a realm-scoped account can add an optional Version Lookup account in Settings → Identity, used once on connect to read it for the tab's header.
+- **LDAP directories** - OpenLDAP, 389 Directory Server, FreeIPA, OpenDJ and any LDAP v3 directory through the same Users and Groups pages: `ldap://`, `ldaps://` or StartTLS, a bind DN with its password in the vault (or an anonymous, read-only bind), the users and groups bases and filters; search, create, edit attributes, rename, reset a password, nested and posix groups, join and leave. A directory's naming contexts are its realms; the sections it has no use for are shown disabled with the reason.
 
   ![Settings → Identity: Version Lookup](docs/screenshots/identity-version-lookup.png)
 

@@ -263,6 +263,13 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                 .unwrap_or_default(),
         )
     };
+    // A directory's profile may name no base: the tab opens on the first
+    // naming context the server lists (§4.12).
+    if tool.state.realm.is_empty()
+        && let Some(first) = realms.first()
+    {
+        tool.state.realm = first.clone();
+    }
     // The dashboard's figures follow what this tab last read.
     if let Some(id) = &tool.state.conn_id {
         let users = tool.view.users.total();
@@ -515,6 +522,12 @@ fn open_console(tool: &IdmTool, cx: &mut ToolContext, page: &str) {
     };
     use crate::provider::IdmProvider;
     let url = x.provider().console_url(&tool.state.realm, page);
+    // A directory has no console (§4.12): say so, whatever asked.
+    if url.is_empty() {
+        let why = cx.services.t("idm-directory-no-console");
+        cx.toast(hs_core::tool::ToastLevel::Info, why);
+        return;
+    }
     cx.open("browser", Some(OpenRequest::Url { url }));
 }
 
@@ -599,15 +612,34 @@ pub fn toolbar(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
     {
         run_command(tool, "idm.refresh", cx);
     }
-    if hs_ui::toolbar::btn_enabled(ui, &theme, ready, ph::ARROW_SQUARE_OUT, &s.t("idm-console"))
-        .tip(s.t("idm-console-tip"))
-        .clicked()
+    // A directory has no admin console and no realm export (§4.12).
+    let directory = tool.session.as_ref().is_some_and(|x| {
+        use crate::provider::IdmProvider;
+        x.provider().capabilities().directory
+    });
+    if hs_ui::toolbar::btn_enabled(
+        ui,
+        &theme,
+        ready && !directory,
+        ph::ARROW_SQUARE_OUT,
+        &s.t("idm-console"),
+    )
+    .tip(s.t("idm-console-tip"))
+    .tip_disabled(s.t("idm-directory-no-console"))
+    .clicked()
     {
         run_command(tool, "idm.console", cx);
     }
-    if hs_ui::toolbar::btn_enabled(ui, &theme, ready, ph::DOWNLOAD_SIMPLE, &s.t("idm-export"))
-        .tip(s.t("idm-export-tip"))
-        .clicked()
+    if hs_ui::toolbar::btn_enabled(
+        ui,
+        &theme,
+        ready && !directory,
+        ph::DOWNLOAD_SIMPLE,
+        &s.t("idm-export"),
+    )
+    .tip(s.t("idm-export-tip"))
+    .tip_disabled(s.t("idm-directory-no-export"))
+    .clicked()
     {
         run_command(tool, "idm.export", cx);
     }

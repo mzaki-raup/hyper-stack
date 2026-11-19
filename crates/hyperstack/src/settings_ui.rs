@@ -10741,6 +10741,10 @@ fn idm_form(
 ) {
     use tool_idm::profile::{AUTH_KINDS, IdmFields};
     let kind = draft.kind.clone();
+    if kind == "ldap" {
+        ldap_form(ui, theme, s, realms, draft, scratch);
+        return;
+    }
     let mut f = IdmFields::from_table(&kind, &draft.fields);
     let mut changed = false;
     form::section(ui, theme, &s.t("conn-idm-section"), |ui| {
@@ -10822,42 +10826,7 @@ fn idm_form(
             }
         });
     });
-    form::section(ui, theme, &s.t("conn-idm-section-tls"), |ui| {
-        form::field_grid(ui, "idm-tls", |ui| {
-            form::label(ui, &s.t("conn-idm-verify-tls"));
-            changed |= ui.checkbox(&mut f.tls_verify, "").changed();
-            ui.end_row();
-            if !f.tls_verify {
-                form::row_hint(ui, theme, &s.t("conn-idm-verify-tls-off"));
-            }
-            form::label(ui, &s.t("conn-idm-ca-file"));
-            form::centred_row(ui, |ui| {
-                changed |= form::text_field_width(
-                    ui,
-                    &mut f.ca_file,
-                    "company-ca.pem",
-                    form::FIELD_MIN_WIDTH,
-                )
-                .changed();
-                if form::button(
-                    ui,
-                    theme,
-                    hs_ui::icons::ph::FOLDER_OPEN,
-                    &s.t("conn-ssh-browse"),
-                )
-                .clicked()
-                    && let Some(p) = rfd::FileDialog::new()
-                        .add_filter("PEM", &["pem", "crt", "cer"])
-                        .pick_file()
-                {
-                    f.ca_file = p.to_string_lossy().to_string();
-                    changed = true;
-                }
-            });
-            ui.end_row();
-            form::row_hint(ui, theme, &s.t("conn-idm-ca-file-hint"));
-        });
-    });
+    changed |= idm_tls_section(ui, theme, s, &mut f);
     // Keycloak shows its version only to master-realm admins: an optional
     // second account reads it (CR-0099).
     form::section(ui, theme, &s.t("conn-idm-section-lookup"), |ui| {
@@ -10909,6 +10878,153 @@ fn idm_form(
             }
         });
     });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// An identity server's Verify TLS and CA File, the same for every kind.
+fn idm_tls_section(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    f: &mut tool_idm::profile::IdmFields,
+) -> bool {
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-idm-section-tls"), |ui| {
+        form::field_grid(ui, "idm-tls", |ui| {
+            form::label(ui, &s.t("conn-idm-verify-tls"));
+            changed |= ui.checkbox(&mut f.tls_verify, "").changed();
+            ui.end_row();
+            if !f.tls_verify {
+                form::row_hint(ui, theme, &s.t("conn-idm-verify-tls-off"));
+            }
+            form::label(ui, &s.t("conn-idm-ca-file"));
+            form::centred_row(ui, |ui| {
+                changed |= form::text_field_width(
+                    ui,
+                    &mut f.ca_file,
+                    "company-ca.pem",
+                    form::FIELD_MIN_WIDTH,
+                )
+                .changed();
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::FOLDER_OPEN,
+                    &s.t("conn-ssh-browse"),
+                )
+                .clicked()
+                    && let Some(p) = rfd::FileDialog::new()
+                        .add_filter("PEM", &["pem", "crt", "cer"])
+                        .pick_file()
+                {
+                    f.ca_file = p.to_string_lossy().to_string();
+                    changed = true;
+                }
+            });
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-idm-ca-file-hint"));
+        });
+    });
+    changed
+}
+
+/// A directory's form (docs/tools/idm.md §4.12): where it is, how to
+/// bind, and where users and groups are searched.
+fn ldap_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    realms: &[String],
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_idm::profile::{IdmFields, LDAP_AUTH_KINDS};
+    use tool_idm::provider::ldap::map::{DEFAULT_GROUP_FILTER, DEFAULT_USER_FILTER};
+    let mut f = IdmFields::from_table("ldap", &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-ldap-section"), |ui| {
+        form::field_grid(ui, "ldap-server", |ui| {
+            form::label(ui, &s.t("conn-ldap-url"));
+            changed |= form::text_field(ui, &mut f.url, "ldaps://ldap.example.com:636").changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-url-hint"));
+            form::label(ui, &s.t("conn-ldap-starttls"));
+            changed |= ui.checkbox(&mut f.starttls, "").changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-starttls-hint"));
+            form::label(ui, &s.t("conn-ldap-base"));
+            changed |=
+                form::pick_field(ui, theme, &mut f.default_realm, realms, "dc=example,dc=com")
+                    .changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-base-hint"));
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "ldap-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "password" => "conn-ldap-bind-password",
+                _ => "conn-ldap-bind-anonymous",
+            };
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-ldap-bind"));
+            egui::ComboBox::from_id_salt("ldap-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&c.auth)))
+                .show_ui(ui, |ui| {
+                    for a in LDAP_AUTH_KINDS {
+                        if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            c.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            if c.auth == "password" {
+                form::label(ui, &s.t("conn-ldap-bind-dn"));
+                changed |=
+                    form::text_field(ui, &mut c.user, "cn=admin,dc=example,dc=com").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-queue-password"));
+                changed |= secret_field(ui, theme, s, "ldap-secret", &mut c.secret, scratch, 0);
+                ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-ldap-bind-hint"));
+            } else {
+                form::row_hint(ui, theme, &s.t("conn-ldap-anonymous-hint"));
+            }
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ldap-section-search"), |ui| {
+        form::field_grid(ui, "ldap-search", |ui| {
+            form::label(ui, &s.t("conn-ldap-users-base"));
+            changed |=
+                form::text_field(ui, &mut f.users_base, "ou=people,dc=example,dc=com").changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-ldap-groups-base"));
+            changed |=
+                form::text_field(ui, &mut f.groups_base, "ou=groups,dc=example,dc=com").changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-bases-hint"));
+            form::label(ui, &s.t("conn-ldap-user-filter"));
+            changed |= form::text_field(ui, &mut f.user_filter, DEFAULT_USER_FILTER).changed();
+            ui.end_row();
+            form::label(ui, &s.t("conn-ldap-group-filter"));
+            changed |= form::text_field(ui, &mut f.group_filter, DEFAULT_GROUP_FILTER).changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-filters-hint"));
+            form::label(ui, &s.t("conn-ldap-page-size"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut f.page_size).range(10..=1000))
+                .changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-ldap-page-size-hint"));
+        });
+    });
+    changed |= idm_tls_section(ui, theme, s, &mut f);
     if changed {
         f.write_into(&mut draft.fields);
     }

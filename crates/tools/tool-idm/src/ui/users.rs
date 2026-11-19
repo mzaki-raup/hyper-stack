@@ -9,6 +9,7 @@ use hs_ui::form;
 use hs_ui::icons::ph;
 use hs_ui::kv_editor::{KvEditor, KvRow};
 use hs_ui::table::{ColumnSpec, DataTable, TableState};
+use hs_ui::tip::TipExt;
 use serde_json::{Value, json};
 
 use super::common::{
@@ -502,21 +503,29 @@ Federated: {}
                     Some(true) => cx.t("idm-enabled"),
                     Some(false) => cx.t("idm-disabled"),
                 };
-                egui::ComboBox::from_id_salt("idm-users-enabled")
-                    .selected_text(label)
-                    .show_ui(ui, |ui| {
-                        for (v, k) in [
-                            (None, "idm-status-any"),
-                            (Some(true), "idm-enabled"),
-                            (Some(false), "idm-disabled"),
-                        ] {
-                            if form::selectable_label(ui, self.enabled == v, cx.t(k)).clicked() {
-                                self.enabled = v;
-                                self.page = None;
-                                self.list = Load::Idle;
+                // A directory has no enabled flag: the filter is drawn, not
+                // offered (§4.12).
+                let flags = !cx.caps.directory;
+                ui.add_enabled_ui(flags, |ui| {
+                    egui::ComboBox::from_id_salt("idm-users-enabled")
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            for (v, k) in [
+                                (None, "idm-status-any"),
+                                (Some(true), "idm-enabled"),
+                                (Some(false), "idm-disabled"),
+                            ] {
+                                if form::selectable_label(ui, self.enabled == v, cx.t(k)).clicked()
+                                {
+                                    self.enabled = v;
+                                    self.page = None;
+                                    self.list = Load::Idle;
+                                }
                             }
-                        }
-                    });
+                        })
+                })
+                .response
+                .on_disabled_hover_text(cx.t("idm-directory-no-enabled"));
                 let may = cx.may_write("manage-users");
                 if write_button(
                     ui,
@@ -544,26 +553,29 @@ Federated: {}
         let Some(list) = self.list.ready() else {
             return;
         };
-        let cols = [
+        // A directory has no enabled flag, so no Status column (§4.12).
+        let status = !cx.caps.directory;
+        let mut cols = vec![
             ColumnSpec::new(cx.t("idm-username"), 140.0),
             ColumnSpec::new(cx.t("idm-email"), 170.0),
             ColumnSpec::new(cx.t("idm-name"), 120.0),
-            ColumnSpec::new(cx.t("idm-status"), 70.0),
         ];
+        if status {
+            cols.push(ColumnSpec::new(cx.t("idm-status"), 70.0));
+        }
         let rows: Vec<Vec<String>> = list
             .rows
             .iter()
             .map(|r| {
-                vec![
-                    r.username.clone(),
-                    r.email.clone(),
-                    r.full_name(),
-                    if r.enabled {
+                let mut row = vec![r.username.clone(), r.email.clone(), r.full_name()];
+                if status {
+                    row.push(if r.enabled {
                         cx.t("idm-enabled")
                     } else {
                         cx.t("idm-disabled")
-                    },
-                ]
+                    });
+                }
+                row
             })
             .collect();
         self.table.selected = self
@@ -666,10 +678,13 @@ Federated: {}
                 ui.label(egui::RichText::new(glyph).size(20.0).color(colour));
                 ui.label(egui::RichText::new(&user.row.username).strong().size(16.0));
                 ui.add_space(form::BUTTON_GAP);
-                if user.row.enabled {
-                    chip(ui, &cx.t("idm-enabled"), theme.success);
-                } else {
-                    chip(ui, &cx.t("idm-disabled"), theme.text_muted);
+                // A directory has no enabled flag: no chip that would say so.
+                if !cx.caps.directory {
+                    if user.row.enabled {
+                        chip(ui, &cx.t("idm-enabled"), theme.success);
+                    } else {
+                        chip(ui, &cx.t("idm-disabled"), theme.text_muted);
+                    }
                 }
                 if user.row.email_verified {
                     chip(ui, &cx.t("idm-email-verified"), theme.accent);
@@ -706,7 +721,10 @@ Federated: {}
                         cx.ta(k, &[("name", &target.name)]),
                     ));
                 }
-                if write_button(ui, theme, &may, true, icon, &cx.t(key), "") || cx.verb(want, &may)
+                let flags = !cx.caps.directory;
+                let no_flag = cx.t("idm-directory-no-enabled");
+                if write_button(ui, theme, &may, flags, icon, &cx.t(key), &no_flag)
+                    || (flags && cx.verb(want, &may))
                 {
                     let (t, r) = (target.clone(), realm.clone());
                     let done_key = if enable {
@@ -754,8 +772,16 @@ Federated: {}
                         policy,
                     )));
                 }
-                if write_button(ui, theme, &may, true, ph::SIGN_OUT, &cx.t("idm-log-out"), "")
-                    || cx.verb("idm.user.logout", &may)
+                let no_sessions = cx.t("idm-directory-no-sessions");
+                if write_button(
+                    ui,
+                    theme,
+                    &may,
+                    flags,
+                    ph::SIGN_OUT,
+                    &cx.t("idm-log-out"),
+                    &no_sessions,
+                ) || (flags && cx.verb("idm.user.logout", &may))
                 {
                     let (t, r) = (target.clone(), realm.clone());
                     cx.out.dialog = Some(Dialog::Confirm {
@@ -796,7 +822,14 @@ Federated: {}
                         ),
                     });
                 }
-                if form::button(ui, theme, ph::ARROW_SQUARE_OUT, &cx.t("idm-console")).clicked()
+                // A directory has no admin console (§4.12).
+                if ui
+                    .add_enabled_ui(!cx.caps.directory, |ui| {
+                        form::button(ui, theme, ph::ARROW_SQUARE_OUT, &cx.t("idm-console"))
+                    })
+                    .inner
+                    .tip_disabled(cx.t("idm-directory-no-console"))
+                    .clicked()
                 {
                     cx.out.console = Some(format!("users/{}/settings", user.row.id));
                 }
@@ -844,8 +877,12 @@ Federated: {}
                 form::label(ui, &cx.t("idm-email"));
                 form::text_field(ui, &mut draft.email, "alice@example.com");
                 ui.end_row();
+                let flags = !cx.caps.directory;
                 form::label(ui, &cx.t("idm-email-verified"));
-                ui.checkbox(&mut draft.email_verified, "");
+                ui.add_enabled(
+                    flags,
+                    egui::Checkbox::without_text(&mut draft.email_verified),
+                );
                 ui.end_row();
                 form::label(ui, &cx.t("idm-first-name"));
                 form::text_field(ui, &mut draft.first_name, "");
@@ -854,7 +891,7 @@ Federated: {}
                 form::text_field(ui, &mut draft.last_name, "");
                 ui.end_row();
                 form::label(ui, &cx.t("idm-enabled"));
-                ui.checkbox(&mut draft.enabled, "");
+                ui.add_enabled(flags, egui::Checkbox::without_text(&mut draft.enabled));
                 ui.end_row();
                 // The profile's own attributes (24+), in its order, with
                 // its display names; read-only ones as text.
@@ -881,45 +918,50 @@ Federated: {}
                     }
                 }
                 form::label(ui, &cx.t("idm-required-actions"));
-                ui.vertical(|ui| {
-                    let mut remove = None;
-                    for (i, a) in draft.required_actions.iter().enumerate() {
-                        form::centred_row(ui, |ui| {
-                            ui.label(a);
-                            if ui
-                                .small_button(ph::X)
-                                .on_hover_text(cx.t("idm-remove"))
-                                .clicked()
-                            {
-                                remove = Some(i);
-                            }
-                        });
-                    }
-                    if let Some(i) = remove {
-                        draft.required_actions.remove(i);
-                    }
-                    let offered: Vec<String> = actions
-                        .iter()
-                        .filter(|a| !draft.required_actions.contains(a))
-                        .cloned()
-                        .collect();
-                    let r = form::pick_field(
-                        ui,
-                        theme,
-                        &mut self.add_action,
-                        &offered,
-                        &cx.t("idm-add-required-action"),
-                    );
-                    let chosen = self.add_action.trim().to_string();
-                    if (r.lost_focus() || offered.contains(&chosen))
-                        && !chosen.is_empty()
-                        && offered.contains(&chosen)
-                    {
-                        draft.required_actions.push(chosen);
-                        self.add_action.clear();
-                    }
+                ui.add_enabled_ui(flags, |ui| {
+                    ui.vertical(|ui| {
+                        let mut remove = None;
+                        for (i, a) in draft.required_actions.iter().enumerate() {
+                            form::centred_row(ui, |ui| {
+                                ui.label(a);
+                                if ui
+                                    .small_button(ph::X)
+                                    .on_hover_text(cx.t("idm-remove"))
+                                    .clicked()
+                                {
+                                    remove = Some(i);
+                                }
+                            });
+                        }
+                        if let Some(i) = remove {
+                            draft.required_actions.remove(i);
+                        }
+                        let offered: Vec<String> = actions
+                            .iter()
+                            .filter(|a| !draft.required_actions.contains(a))
+                            .cloned()
+                            .collect();
+                        let r = form::pick_field(
+                            ui,
+                            theme,
+                            &mut self.add_action,
+                            &offered,
+                            &cx.t("idm-add-required-action"),
+                        );
+                        let chosen = self.add_action.trim().to_string();
+                        if (r.lost_focus() || offered.contains(&chosen))
+                            && !chosen.is_empty()
+                            && offered.contains(&chosen)
+                        {
+                            draft.required_actions.push(chosen);
+                            self.add_action.clear();
+                        }
+                    })
                 });
                 ui.end_row();
+                if !flags {
+                    form::row_hint(ui, theme, &cx.t("idm-directory-no-flags"));
+                }
             });
         });
         if federated {
@@ -1064,6 +1106,10 @@ Federated: {}
 
     fn credentials(&mut self, ui: &mut egui::Ui, cx: &mut Cx<'_>, _user: &User) {
         let theme = cx.theme;
+        if cx.caps.directory {
+            form::note(ui, theme, ph::INFO, &cx.t("idm-directory-no-credentials"));
+            return;
+        }
         form::hint(ui, theme, &cx.t("idm-credentials-hint"));
         ui.add_space(form::ROW_GAP);
         if !state_note(ui, theme, cx.s, &self.creds) {
@@ -1192,6 +1238,10 @@ Federated: {}
 
     fn roles(&mut self, ui: &mut egui::Ui, cx: &mut Cx<'_>, user: &User) {
         let theme = cx.theme;
+        if cx.caps.directory {
+            form::note(ui, theme, ph::INFO, &cx.t("idm-directory-no-roles"));
+            return;
+        }
         let may = cx.may_write("manage-users");
         let who = Subject::User(user.row.id.clone());
         form::centred_row(ui, |ui| {
@@ -1307,6 +1357,10 @@ Federated: {}
 
     fn sessions(&mut self, ui: &mut egui::Ui, cx: &mut Cx<'_>, user: &User) {
         let theme = cx.theme;
+        if cx.caps.directory {
+            form::note(ui, theme, ph::INFO, &cx.t("idm-directory-no-sessions"));
+            return;
+        }
         let may = cx.may_write("manage-users");
         if !state_note(ui, theme, cx.s, &self.sessions) {
             return;

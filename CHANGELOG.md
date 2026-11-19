@@ -11,10 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.137.0 — 2026-11-19
+
 ### Added
 
-- Identity: LDAP directories (OpenLDAP, 389 DS, FreeIPA, OpenDJ) through the Users and Groups pages - bind DN or anonymous, LDAPS and StartTLS, users and groups bases and filters, search, create, edit, rename, reset password, nested and posix groups; the sections a directory lacks shown disabled with the reason (FEAT-0117, ADR-033)
-- Bench: `hs-openldap` with a seeded directory, and the `HS_LDAP` live test (FEAT-0117)
+- LDAP directories through the Users and Groups pages (bdcac09a)
 
 ## 0.136.0 — 2026-11-18
 

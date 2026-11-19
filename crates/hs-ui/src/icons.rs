@@ -243,6 +243,9 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         // The identity servers (docs/tools/idm.md §3.6): the logo is
         // what is drawn; the shield is the fallback glyph.
         "keycloak" => ph::SHIELD_CHECK,
+        // A directory: no product logo for LDAP itself, so its tree in
+        // OpenLDAP's blue (§3.6).
+        "ldap" => ph::TREE_STRUCTURE,
         _ => container_kind_icon(kind),
     }
 }
@@ -1049,6 +1052,7 @@ pub fn conn_icon(kind: &str, engine: &str) -> ConnIcon {
         ("nexus", _) => ConnTint::Brand(egui::Color32::from_rgb(0x2e, 0xa4, 0x4f)),
         ("webdav", _) => ConnTint::Brand(egui::Color32::from_rgb(0x4a, 0x90, 0xe2)),
         ("puppet", _) => ConnTint::Brand(egui::Color32::from_rgb(0xff, 0xae, 0x1a)),
+        ("ldap", _) => ConnTint::Brand(egui::Color32::from_rgb(0x3b, 0x7d, 0xd8)),
         _ => ConnTint::Default,
     };
     ConnIcon {

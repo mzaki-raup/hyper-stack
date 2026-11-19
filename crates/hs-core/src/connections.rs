@@ -50,6 +50,7 @@ pub const KINDS: &[&str] = &[
     "forgejo-issues",
     "confluence",
     "keycloak",
+    "ldap",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -124,7 +125,7 @@ pub const TRACKER_KINDS: &[&str] = &[
 
 /// The kinds the **Identity** activity opens (`docs/tools/idm.md` §5.1):
 /// Keycloak first; Authentik, Zitadel, Okta, Entra ID and LDAP later.
-pub const IDM_KINDS: &[&str] = &["keycloak"];
+pub const IDM_KINDS: &[&str] = &["keycloak", "ldap"];
 
 /// Whether a kind is opened by the Identity (IDM) activity.
 pub fn is_idm_kind(kind: &str) -> bool {
@@ -199,6 +200,7 @@ pub fn kind_label(kind: &str) -> &str {
         "forgejo-issues" => "Forgejo Issues",
         "confluence" => "Confluence",
         "keycloak" => "Keycloak",
+        "ldap" => "LDAP",
         other => other,
     }
 }

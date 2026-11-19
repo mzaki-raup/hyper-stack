@@ -86,7 +86,7 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `ci` | forgejo, forgejo-runner, jenkins, teamcity, teamcity-agent, redmine, puppetdb-fake | 5.8 GB | 3-4 GB |
 | `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
-| `idm` | keycloak (dev mode, embedded H2) | 1 GB | about 0.6 GB |
+| `idm` | keycloak (dev mode, embedded H2), openldap | 1.25 GB | about 0.65 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -139,6 +139,7 @@ defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 | ClickHouse | `http://<host>:8123` | `$CLICKHOUSE_USER` (`default`) | `$CLICKHOUSE_PASSWORD` | `shop` | same (stopped) |
 | Nexus | `http://<host>:8081` | `admin` | `$NEXUS_ADMIN_PASSWORD` | repository `hs-raw` | same (stopped) |
 | Keycloak (profile `idm`) | `http://<host>:8180` (`KEYCLOAK_PORT`) | admin `$KEYCLOAK_ADMIN_USER` (`admin`, realm `master`); service account client `hs-admin`; demo users | `$KEYCLOAK_ADMIN_PASSWORD`; `$KEYCLOAK_HS_ADMIN_SECRET`; `$KEYCLOAK_DEMO_PASSWORD` | realms `hs-demo`, `hs-other` - see [Keycloak](#keycloak-profile-idm) | `hs-keycloak`, same image, port and values |
+| OpenLDAP (profile `idm`) | `ldap://<host>:1389` (`LDAP_PORT`), LDAPS `1636` (`LDAPS_PORT`, the image's self-signed certificate) | `cn=admin,dc=hyperstack,dc=test`; demo users `uid=<name>,ou=<team>,ou=people,…` | `$LDAP_ADMIN_PASSWORD`; `$LDAP_DEMO_PASSWORD` | `dc=hyperstack,dc=test` - see [OpenLDAP](#openldap-profile-idm) | `hs-openldap`, same image, ports and values |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -171,6 +172,7 @@ The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
 | Nexus | raw hosted `hs-raw` with `docs/readme.txt`; the admin password changed from `admin123` |
 | k3s | `shop` and `ops` - see [Kubernetes](#kubernetes-profile-k8s) |
 | Keycloak | realms `hs-demo` (25 users, roles, groups, 3 clients, events) and `hs-other` (3 users) - see [Keycloak](#keycloak-profile-idm) |
+| OpenLDAP | `dc=hyperstack,dc=test`: 11 people, a service account, 6 groups - see [OpenLDAP](#openldap-profile-idm) |
 
 ### TeamCity's first start (by hand, once)
 
@@ -303,6 +305,40 @@ already there is changed, except that the realm settings, `hs-admin`'s
 roles, scope and secret are applied again. The logins run only while
 `web-app` has no sessions, so a re-run adds neither sessions nor events.
 
+
+## OpenLDAP (profile `idm`)
+
+OpenLDAP (`osixia/openldap:1.5.0`) for the IDM activity's LDAP provider
+(FEAT-0117). `LDAP_DOMAIN=hyperstack.test` makes the base
+`dc=hyperstack,dc=test` and the admin `cn=admin,dc=hyperstack,dc=test`;
+636 serves LDAPS with the image's own self-signed certificate. About
+50 MB (limit 256 MB).
+
+```bash
+docker compose --profile idm up -d
+./seed/seed-all.sh ldap     # or just ./seed/seed-all.sh
+```
+
+- **How HyperStack connects:** URL `ldap://<host>:1389`, bind DN
+  `cn=admin,dc=hyperstack,dc=test`, password `$LDAP_ADMIN_PASSWORD`, users
+  base `ou=people,dc=hyperstack,dc=test`, groups base
+  `ou=groups,dc=hyperstack,dc=test`. For LDAPS, `ldaps://<host>:1636` with
+  Verify TLS off (or the image's CA as the CA file).
+- **Live test variables:** `HS_LDAP=ldap://<host>:1389` and
+  `HS_LDAP_PASSWORD=$LDAP_ADMIN_PASSWORD`.
+- **No `memberOf`:** this image does not maintain the overlay by default,
+  so the provider finds a user's groups by searching the groups for the
+  user's DN (and a posix group for the uid). That works on every server.
+
+What the seed loads (`seed/data/ldap/seed.ldif`; the demo password is hashed
+inside the container, `{SSHA}`, before it is loaded):
+
+| Where | Contents |
+|---|---|
+| `ou=people` | `ou=engineering` (ada, alan, grace, linus, margaret, ken, dennis), `ou=support` (barbara, edsger, frances), and tim directly under `ou=people`; `inetOrgPerson` with mail, given name, surname and some titles |
+| `ou=service` | `ci-bot`, outside the users base on purpose |
+| `ou=groups` | `backend` and `frontend` (`groupOfNames`); `engineering` nesting both plus grace; `support`; `admins` (`groupOfUniqueNames`: grace, barbara); `developers` (`posixGroup`, `memberUid` ada and linus) |
+
 ## Fixtures (`fixtures/`)
 
 | File | Used for |
@@ -360,6 +396,7 @@ export HS_REDMINE=$H:$REDMINE_PORT:$(cat .state/redmine-api-key)
 # An administrator's password: the driver reads the version from the admin page (CR-0101).
 export HS_REDMINE_ADMIN=$H:$REDMINE_PORT:admin:$REDMINE_ADMIN_PASSWORD
 export HS_KEYCLOAK=http://$H:$KEYCLOAK_PORT   # realm hs-demo, client hs-admin, secret $KEYCLOAK_HS_ADMIN_SECRET
+export HS_LDAP=ldap://$H:$LDAP_PORT HS_LDAP_PASSWORD=$LDAP_ADMIN_PASSWORD   # bind cn=admin,dc=hyperstack,dc=test
 ```
 
 (The `.state/` files live on the Linux box; copy the values across.) Note

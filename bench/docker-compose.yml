@@ -596,6 +596,30 @@ services:
       retries: 20
       start_period: 60s
 
+  # OpenLDAP for the IDM activity's LDAP provider (FEAT-0117). The base DN
+  # comes from LDAP_DOMAIN (hyperstack.test -> dc=hyperstack,dc=test); the
+  # admin is cn=admin under it. 636 serves LDAPS with the image's own
+  # self-signed certificate. seed/seed-ldap.sh loads the OU tree, users and
+  # groups of seed/data/ldap/seed.ldif.
+  openldap:
+    <<: *defaults
+    image: osixia/openldap:1.5.0
+    profiles: [idm]
+    environment:
+      LDAP_ORGANISATION: HyperStack Bench
+      LDAP_DOMAIN: hyperstack.test
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+      LDAP_CONFIG_PASSWORD: ${LDAP_ADMIN_PASSWORD}
+    ports: ["${LDAP_PORT:-1389}:389", "${LDAPS_PORT:-1636}:636"]
+    volumes: [ldap-data:/var/lib/ldap, ldap-config:/etc/ldap/slapd.d]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "ldapsearch -x -H ldap://localhost -b '' -s base namingContexts >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
 volumes:
   postgres-data:
   mysql-data:
@@ -629,3 +653,5 @@ volumes:
   nexus-data:
   k3s-data:
   keycloak-data:
+  ldap-data:
+  ldap-config:

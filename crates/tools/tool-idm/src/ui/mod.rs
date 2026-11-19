@@ -251,6 +251,16 @@ impl IdmTool {
                     }
                 }
             }
+            ConnectConfig::Ldap(mut l) => {
+                l.timeout = timeout;
+                match crate::provider::ldap::LdapProvider::new(l) {
+                    Ok(p) => Arc::new(p),
+                    Err(e) => {
+                        self.conn_error = Some(e);
+                        return;
+                    }
+                }
+            }
         };
         let audit = AuditLog::shared(s.workspace.read().root());
         self.audit = Some(audit.clone());
@@ -324,15 +334,20 @@ impl Tool for IdmTool {
             .header(self.conn_name.clone())
             .plain(hs_core::connections::kind_label(&self.kind).to_string())
             .fact("Server", crate::profile::short(&self.url).to_string());
-        h = h.fact(
-            "Version",
-            if info.version_text.is_empty() {
-                // Keycloak shows it to master-realm admins only (CR-0099).
-                "not shown to this account (Settings → Version Lookup)".to_string()
-            } else {
-                info.version_text.clone()
-            },
-        );
+        let directory = self.session.as_ref().is_some_and(|s| {
+            use crate::provider::IdmProvider;
+            s.provider().capabilities().directory
+        });
+        if !info.version_text.is_empty() {
+            h = h.fact("Version", info.version_text.clone());
+        } else if !directory {
+            // Keycloak shows it to master-realm admins only (CR-0099); a
+            // directory that publishes none simply has no Version fact.
+            h = h.fact(
+                "Version",
+                "not shown to this account (Settings → Version Lookup)".to_string(),
+            );
+        }
         if !info.signed_in_as.is_empty() {
             h = h.fact(
                 "Signed In As",

@@ -208,6 +208,7 @@ pub fn testable(kind: &str) -> bool {
             | "forgejo-issues"
             | "confluence"
             | "keycloak"
+            | "ldap"
     )
 }
 
@@ -320,10 +321,16 @@ fn probe(
                 .map_err(idm_error)?;
             Ok(Box::pin(async move {
                 use tool_idm::provider::IdmProvider;
-                let provider = match cfg {
+                let provider: Box<dyn IdmProvider> = match cfg {
                     tool_idm::profile::ConnectConfig::Keycloak(k) => {
                         match tool_idm::provider::keycloak::Keycloak::new(k) {
-                            Ok(p) => p,
+                            Ok(p) => Box::new(p),
+                            Err(e) => return Outcome::Failed(e),
+                        }
+                    }
+                    tool_idm::profile::ConnectConfig::Ldap(l) => {
+                        match tool_idm::provider::ldap::LdapProvider::new(l) {
+                            Ok(p) => Box::new(p),
                             Err(e) => return Outcome::Failed(e),
                         }
                     }

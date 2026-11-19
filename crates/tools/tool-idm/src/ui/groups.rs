@@ -7,6 +7,7 @@ use hs_ui::form;
 use hs_ui::icons::ph;
 use hs_ui::kv_editor::{KvEditor, KvRow};
 use hs_ui::table::{ColumnSpec, TableState};
+use hs_ui::tip::TipExt;
 use serde_json::json;
 
 use super::common::{
@@ -440,7 +441,16 @@ impl GroupsView {
                         ),
                     });
                 }
-                if form::button(ui, theme, ph::ARROW_SQUARE_OUT, &cx.t("idm-console")).clicked() {
+                // A directory has no admin console (§4.12).
+                let console = !cx.caps.directory;
+                if ui
+                    .add_enabled_ui(console, |ui| {
+                        form::button(ui, theme, ph::ARROW_SQUARE_OUT, &cx.t("idm-console"))
+                    })
+                    .inner
+                    .tip_disabled(cx.t("idm-directory-no-console"))
+                    .clicked()
+                {
                     cx.out.console = Some(format!("groups/{}", g.id));
                 }
             });
@@ -668,6 +678,10 @@ impl GroupsView {
         may: &Result<(), String>,
     ) {
         let theme = cx.theme;
+        if cx.caps.directory {
+            form::note(ui, theme, ph::INFO, &cx.t("idm-directory-no-roles"));
+            return;
+        }
         let who = Subject::Group(g.id.clone());
         if write_button(
             ui,

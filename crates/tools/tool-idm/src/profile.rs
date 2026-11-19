@@ -13,11 +13,28 @@ use secrecy::SecretString;
 
 use crate::provider::keycloak::KeycloakConfig;
 use crate::provider::keycloak::auth::{ADMIN_CLI, Grant};
+use crate::provider::ldap::LdapConfig;
 
 /// The credential kinds an identity server takes: `api-key` is a
 /// confidential client's secret (Client Credentials), `password` an
 /// admin's password (Admin Password), `token` an offline token.
 pub const AUTH_KINDS: &[&str] = &["api-key", "password", "token"];
+
+/// A directory binds with a DN and its password, or anonymously, which
+/// reads only (§4.12).
+pub const LDAP_AUTH_KINDS: &[&str] = &["password", "none"];
+
+/// The credential kinds `kind` takes.
+pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "ldap" => LDAP_AUTH_KINDS,
+        _ => AUTH_KINDS,
+    }
+}
+
+/// A search's page size against a directory: OpenLDAP and AD both cap a
+/// page at 1000 by default.
+pub const LDAP_PAGE_SIZE: u32 = 500;
 
 /// The request timeout (§7: 15 s by default).
 pub const TIMEOUT: Duration = Duration::from_secs(15);
@@ -25,6 +42,7 @@ pub const TIMEOUT: Duration = Duration::from_secs(15);
 pub fn default_url(kind: &str) -> &'static str {
     match kind {
         "keycloak" => "http://127.0.0.1:8180",
+        "ldap" => "ldap://127.0.0.1:1389",
         _ => "",
     }
 }
@@ -48,6 +66,17 @@ pub struct IdmFields {
     pub lookup: bool,
     pub lookup_client_id: String,
     pub lookup_credential: Credential,
+    /// LDAP: StartTLS on an `ldap://` URL.
+    pub starttls: bool,
+    /// LDAP: where users and groups are searched and created; empty for
+    /// the whole naming context.
+    pub users_base: String,
+    pub groups_base: String,
+    /// LDAP: the filters that say what a user and a group are; empty for
+    /// the provider's defaults.
+    pub user_filter: String,
+    pub group_filter: String,
+    pub page_size: u32,
 }
 
 /// The sign-in kinds of the Version Lookup account: a master-realm
@@ -73,6 +102,12 @@ impl Default for IdmFields {
                 auth: "password".into(),
                 ..Default::default()
             },
+            starttls: false,
+            users_base: String::new(),
+            groups_base: String::new(),
+            user_filter: String::new(),
+            group_filter: String::new(),
+            page_size: LDAP_PAGE_SIZE,
         }
     }
 }
@@ -98,12 +133,14 @@ impl std::fmt::Display for ProfileError {
 #[derive(Debug, Clone)]
 pub enum ConnectConfig {
     Keycloak(KeycloakConfig),
+    Ldap(LdapConfig),
 }
 
 impl ConnectConfig {
     pub fn url(&self) -> &str {
         match self {
             ConnectConfig::Keycloak(k) => &k.url,
+            ConnectConfig::Ldap(l) => &l.url,
         }
     }
 }
@@ -118,9 +155,10 @@ impl IdmFields {
         let s = |k: &str| t.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
         let mut credential = Credential::from_table(&t);
         // `none` is no answer for an admin API; the form's default is
-        // Client Credentials.
-        if !AUTH_KINDS.contains(&credential.auth.as_str()) {
-            credential.auth = "api-key".into();
+        // Client Credentials. A directory's is a bind DN and password - a
+        // new profile's, not one saved as anonymous.
+        if !auth_kinds(kind).contains(&credential.auth.as_str()) || !t.contains_key("auth") {
+            credential.auth = auth_kinds(kind)[0].into();
         }
         let url = s("url");
         let auth_realm = s("auth_realm");
@@ -139,7 +177,9 @@ impl IdmFields {
             } else {
                 url
             },
-            auth_realm: if auth_realm.is_empty() {
+            // A directory has no auth realm: its tab opens on the default
+            // base, else the server's first naming context.
+            auth_realm: if auth_realm.is_empty() && kind != "ldap" {
                 "master".into()
             } else {
                 auth_realm
@@ -159,6 +199,17 @@ impl IdmFields {
                 .unwrap_or("")
                 .to_string(),
             lookup_credential,
+            starttls: t.get("starttls").and_then(|v| v.as_bool()).unwrap_or(false),
+            users_base: s("users_base"),
+            groups_base: s("groups_base"),
+            user_filter: s("user_filter"),
+            group_filter: s("group_filter"),
+            page_size: t
+                .get("page_size")
+                .and_then(|v| v.as_integer())
+                .and_then(|n| u32::try_from(n).ok())
+                .filter(|n| *n > 0)
+                .unwrap_or(LDAP_PAGE_SIZE),
         }
     }
 
@@ -170,10 +221,19 @@ impl IdmFields {
             ("default_realm", &self.default_realm),
             ("client_id", &self.client_id),
             ("ca_file", &self.ca_file),
+            ("users_base", &self.users_base),
+            ("groups_base", &self.groups_base),
+            ("user_filter", &self.user_filter),
+            ("group_filter", &self.group_filter),
         ] {
             t.insert(k.into(), toml::Value::String(v.clone()));
         }
         t.insert("tls_verify".into(), toml::Value::Boolean(self.tls_verify));
+        t.insert("starttls".into(), toml::Value::Boolean(self.starttls));
+        t.insert(
+            "page_size".into(),
+            toml::Value::Integer(i64::from(self.page_size)),
+        );
         self.credential.write_into(&mut t);
         let mut lt = toml::Table::new();
         lt.insert("enabled".into(), toml::Value::Boolean(self.lookup));
@@ -228,6 +288,9 @@ impl IdmFields {
             missing.dedup();
             return Err(ProfileError::MissingVariables(missing));
         }
+        if kind == "ldap" {
+            return self.resolve_ldap(url, ca_file, secrets, lookup);
+        }
         let url = url.trim().trim_end_matches('/').to_string();
         if !url.starts_with("http://") && !url.starts_with("https://") {
             return Err(ProfileError::Invalid(format!(
@@ -280,6 +343,79 @@ impl IdmFields {
                 "{other} is not an identity server this version knows"
             ))),
         }
+    }
+}
+
+impl IdmFields {
+    /// A directory's profile (§4.12): an `ldap://` or `ldaps://` URL, the
+    /// bind DN and its password, or an anonymous bind.
+    fn resolve_ldap(
+        &self,
+        url: String,
+        ca_file: String,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<ConnectConfig, ProfileError> {
+        let url = url.trim().trim_end_matches('/').to_string();
+        if !url.starts_with("ldap://") && !url.starts_with("ldaps://") {
+            return Err(ProfileError::Invalid(format!(
+                "“{url}” is not an ldap:// or ldaps:// URL"
+            )));
+        }
+        let mut missing = Vec::new();
+        let mut sub = |v: &str| match lookup(v) {
+            Ok(s) => s.trim().to_string(),
+            Err(m) => {
+                missing.extend(m);
+                String::new()
+            }
+        };
+        let default_base = sub(&self.default_realm);
+        let users_base = sub(&self.users_base);
+        let groups_base = sub(&self.groups_base);
+        let user_filter = sub(&self.user_filter);
+        let group_filter = sub(&self.group_filter);
+        if !missing.is_empty() {
+            missing.sort();
+            missing.dedup();
+            return Err(ProfileError::MissingVariables(missing));
+        }
+        let auth = self
+            .credential
+            .resolve(secrets, lookup)
+            .map_err(|e| match e {
+                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+                other => ProfileError::Auth(other),
+            })?;
+        let (bind_dn, password) = match auth {
+            Auth::Password { user, password } => {
+                if user.trim().is_empty() {
+                    return Err(ProfileError::Invalid("a bind needs its DN".into()));
+                }
+                (user.trim().to_string(), Some(SecretString::from(password)))
+            }
+            Auth::None => (String::new(), None),
+            _ => {
+                return Err(ProfileError::Invalid(
+                    "a directory binds with a DN and password, or anonymously".into(),
+                ));
+            }
+        };
+        Ok(ConnectConfig::Ldap(LdapConfig {
+            url,
+            starttls: self.starttls,
+            tls_verify: self.tls_verify,
+            ca_file: ca_file.trim().to_string(),
+            bind_dn,
+            password,
+            default_base,
+            users_base,
+            groups_base,
+            user_filter,
+            group_filter,
+            page_size: self.page_size,
+            timeout: TIMEOUT,
+        }))
     }
 }
 
@@ -417,6 +553,7 @@ mod tests {
                 secret: "secret:01J0000000000000000000001".into(),
                 ..Default::default()
             },
+            ..Default::default()
         };
         let mut t = toml::Table::new();
         f.write_into(&mut t);
@@ -443,6 +580,7 @@ mod tests {
     fn each_kind_resolves_to_its_grant() {
         let r = |f: IdmFields| match f.resolve("keycloak", &NoVault, &same) {
             Ok(ConnectConfig::Keycloak(k)) => Ok(k),
+            Ok(other) => panic!("a keycloak profile resolved to {other:?}"),
             Err(e) => Err(e),
         };
         let k = r(fields("api-key", "", "hs-admin")).unwrap();
@@ -495,5 +633,42 @@ mod tests {
             r(ca).unwrap().tls.ca_file,
             Some(PathBuf::from("C:/certs/corp.pem"))
         );
+    }
+
+    /// FEAT-0117: a directory's profile keeps its own fields and resolves
+    /// a bind DN, or an anonymous bind, into the LDAP provider's config.
+    #[test]
+    fn a_directory_profile_round_trips_and_binds_by_dn_or_anonymously() {
+        let mut f = IdmFields::from_table("ldap", &toml::Table::new());
+        assert_eq!(f.url, "ldap://127.0.0.1:1389");
+        assert_eq!(
+            f.credential.auth, "password",
+            "a bind DN and password by default"
+        );
+        assert_eq!(f.opening_realm(), "", "no master: the server's first base");
+        f.starttls = true;
+        f.users_base = "ou=people,dc=x".into();
+        f.group_filter = "(objectClass=groupOfNames)".into();
+        f.page_size = 250;
+        f.credential.user = "cn=admin,dc=x".into();
+        f.credential.secret = "pw".into();
+        let mut t = toml::Table::new();
+        f.write_into(&mut t);
+        assert_eq!(IdmFields::from_table("ldap", &t), f);
+        let Ok(ConnectConfig::Ldap(l)) = f.resolve("ldap", &NoVault, &same) else {
+            panic!("not an LDAP config");
+        };
+        assert_eq!(l.bind_dn, "cn=admin,dc=x");
+        assert!(l.password.is_some() && l.starttls && l.page_size == 250);
+        f.credential.auth = "none".into();
+        let Ok(ConnectConfig::Ldap(anon)) = f.resolve("ldap", &NoVault, &same) else {
+            panic!("not an LDAP config");
+        };
+        assert!(anon.bind_dn.is_empty() && anon.password.is_none());
+        f.url = "https://x".into();
+        assert!(matches!(
+            f.resolve("ldap", &NoVault, &same),
+            Err(ProfileError::Invalid(_))
+        ));
     }
 }

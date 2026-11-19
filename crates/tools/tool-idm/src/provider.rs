@@ -12,6 +12,7 @@ use serde_json::{Map, Value};
 use tokio_util::sync::CancellationToken;
 
 pub mod keycloak;
+pub mod ldap;
 
 pub type Result<T> = std::result::Result<T, IdmError>;
 
@@ -335,6 +336,11 @@ pub struct Caps {
     pub roles: Option<BTreeMap<String, BTreeSet<String>>>,
     /// The realm the token was issued in, for reading `roles`.
     pub auth_realm: String,
+    /// A directory (LDAP, §4.12): its users have no enabled flag, verified
+    /// e-mail, required actions, credentials list or sessions, and it has
+    /// no admin console or realm export. Those controls are drawn
+    /// disabled with the reason.
+    pub directory: bool,
 }
 
 impl Caps {
@@ -373,7 +379,11 @@ impl Caps {
     /// cannot.
     pub fn section(&self, realm: &str, section: Section) -> Availability {
         if self.hidden.contains(&section) {
-            return Availability::No("this server does not offer it".into());
+            return Availability::No(if self.directory {
+                "a directory has no roles, clients, sessions, events or realm settings".into()
+            } else {
+                "this server does not offer it".into()
+            });
         }
         let roles = section.read_roles();
         match roles.iter().map(|r| self.may(realm, r)).collect::<Vec<_>>() {

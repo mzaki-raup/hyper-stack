@@ -48,6 +48,11 @@ reqwest = { workspace = true }
 # Favicons arrive as ICO or PNG and leave as one small PNG.
 image = { workspace = true }
 futures-util = { workspace = true }
+# `tls::client_config`: one rustls client configuration (ring, the
+# platform's trust store plus a CA file) for the protocols that are not
+# HTTP - LDAP first (ADR-033).
+rustls = { workspace = true }
+rustls-platform-verifier = { workspace = true }
 
 zip = { workspace = true }
 flate2 = { workspace = true }

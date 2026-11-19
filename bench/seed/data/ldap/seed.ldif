@@ -1,0 +1,184 @@
+# The bench directory (FEAT-0117): an OU tree, users and groups for the
+# Identity activity's LDAP provider. Loaded by seed/seed-ldap.sh, which fills
+# @BASE@ and @DEMO_PASSWORD@ from .env. groupOfNames nests a group by listing
+# it as a member (engineering holds backend and frontend).
+
+dn: ou=people,@BASE@
+objectClass: organizationalUnit
+ou: people
+description: Everyone with an account
+
+dn: ou=engineering,ou=people,@BASE@
+objectClass: organizationalUnit
+ou: engineering
+
+dn: ou=support,ou=people,@BASE@
+objectClass: organizationalUnit
+ou: support
+
+dn: ou=groups,@BASE@
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=service,@BASE@
+objectClass: organizationalUnit
+ou: service
+description: Accounts for programs, not people
+
+dn: uid=ada,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: ada
+cn: Ada Lovelace
+givenName: Ada
+sn: Lovelace
+mail: ada@hyperstack.test
+title: Principal Engineer
+telephoneNumber: +60 3 1000 0001
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=alan,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: alan
+cn: Alan Turing
+givenName: Alan
+sn: Turing
+mail: alan@hyperstack.test
+title: Engineer
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=grace,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: grace
+cn: Grace Hopper
+givenName: Grace
+sn: Hopper
+mail: grace@hyperstack.test
+title: Engineering Manager
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=linus,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: linus
+cn: Linus Torvalds
+givenName: Linus
+sn: Torvalds
+mail: linus@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=margaret,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: margaret
+cn: Margaret Hamilton
+givenName: Margaret
+sn: Hamilton
+mail: margaret@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=ken,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: ken
+cn: Ken Thompson
+givenName: Ken
+sn: Thompson
+mail: ken@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=dennis,ou=engineering,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: dennis
+cn: Dennis Ritchie
+givenName: Dennis
+sn: Ritchie
+mail: dennis@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=barbara,ou=support,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: barbara
+cn: Barbara Liskov
+givenName: Barbara
+sn: Liskov
+mail: barbara@hyperstack.test
+title: Support Lead
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=edsger,ou=support,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: edsger
+cn: Edsger Dijkstra
+givenName: Edsger
+sn: Dijkstra
+mail: edsger@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=frances,ou=support,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: frances
+cn: Frances Allen
+givenName: Frances
+sn: Allen
+mail: frances@hyperstack.test
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=tim,ou=people,@BASE@
+objectClass: inetOrgPerson
+uid: tim
+cn: Tim Berners-Lee
+givenName: Tim
+sn: Berners-Lee
+mail: tim@hyperstack.test
+description: Not in a team OU
+userPassword: @DEMO_PASSWORD@
+
+dn: uid=ci-bot,ou=service,@BASE@
+objectClass: inetOrgPerson
+uid: ci-bot
+cn: CI Bot
+sn: Bot
+description: The build server's directory account
+userPassword: @DEMO_PASSWORD@
+
+dn: cn=backend,ou=groups,@BASE@
+objectClass: groupOfNames
+cn: backend
+description: Services and APIs
+member: uid=ada,ou=engineering,ou=people,@BASE@
+member: uid=alan,ou=engineering,ou=people,@BASE@
+member: uid=ken,ou=engineering,ou=people,@BASE@
+member: uid=dennis,ou=engineering,ou=people,@BASE@
+
+dn: cn=frontend,ou=groups,@BASE@
+objectClass: groupOfNames
+cn: frontend
+description: The web and desktop clients
+member: uid=linus,ou=engineering,ou=people,@BASE@
+member: uid=margaret,ou=engineering,ou=people,@BASE@
+
+dn: cn=engineering,ou=groups,@BASE@
+objectClass: groupOfNames
+cn: engineering
+description: Every engineer, through the team groups
+member: cn=backend,ou=groups,@BASE@
+member: cn=frontend,ou=groups,@BASE@
+member: uid=grace,ou=engineering,ou=people,@BASE@
+
+dn: cn=support,ou=groups,@BASE@
+objectClass: groupOfNames
+cn: support
+member: uid=barbara,ou=support,ou=people,@BASE@
+member: uid=edsger,ou=support,ou=people,@BASE@
+member: uid=frances,ou=support,ou=people,@BASE@
+
+dn: cn=admins,ou=groups,@BASE@
+objectClass: groupOfUniqueNames
+cn: admins
+description: Directory administrators
+uniqueMember: uid=grace,ou=engineering,ou=people,@BASE@
+uniqueMember: uid=barbara,ou=support,ou=people,@BASE@
+
+dn: cn=developers,ou=groups,@BASE@
+objectClass: posixGroup
+cn: developers
+gidNumber: 5000
+memberUid: ada
+memberUid: linus

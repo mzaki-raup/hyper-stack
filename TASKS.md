@@ -293,18 +293,19 @@ Change Request : CR-0101
 - **Notes (screens, 2026-11-14):** the read-only tab and Allow Writes walked on screen with the profile on PRODUCTION: every write control and field disabled with the reason, Allow Writes asks naming the environment, then writes are live. Found and fixed there: the tab drew a stale `Caps` snapshot after Allow Writes (it asks the guarded provider each frame now), and a profile's environment change now reconnects an open tab. `hs_ui::dialog::typed_confirm` with a unit test of the match rule; the kittest box stays open.
 - **Notes (2026-11-15):** kittests added: the typed confirmation's OK does nothing until the name matches (`hs-ui/tests/typed_confirm.rs`), and a refused write button is drawn and ignores a click (`ui::common`); the tooltip's text is not asserted. Each typed confirmation (user, group, client, regenerate, log out all) seen on screen. Tool-queue's Delete was not pressed again after moving to the shared dialog, so the App box stays open.
 ### FEAT-0117 · Identity: the LDAP provider (users, groups, the directory tree)
-- **State:** Pending · **Spec:** docs/tools/idm.md §4.12 · **Phase:** P
-- **Source:** owner, 2026-11-08: "hold on CAS, But add LDAP and AD in the list"
+- **State:** In-Progress · part one (provider, profile, form, bench, tests) built 2026-11-19 on `feat/idm-ldap`; the Directory section is part two · **Spec:** docs/tools/idm.md §4.12 · **Phase:** P
+- **Source:** owner, 2026-11-08: "hold on CAS, But add LDAP and AD in the list"; taken up 2026-11-19 ("FEAT-0117 LDAP")
 - **Scope:** an `IdmProvider` for LDAP v3 (OpenLDAP, 389 DS / FreeIPA, OpenDJ): connection kind `ldap` (URL, StartTLS, Verify TLS, CA File, bind DN and password as `secret:<ulid>`, users / groups base and filter, page size); naming contexts as the realm switcher; users (search, view, create, edit attributes, rename / move, delete, password reset through Password Modify or `userPassword`); groups (`groupOfNames` / `groupOfUniqueNames` / `posixGroup`, members); the new **Directory** section (the DIT as a tree, a raw attribute editor with the schema's types, the save review); paged results; the other sections disabled through `Caps`; the ADR and `cargo deny` pass for the LDAP client crate; an OpenLDAP container in the bench kit's `idm` profile, seeded
 - **Depends on:** FEAT-0109, FEAT-0116 (the screens and the safety layer it plugs into)
-- [ ] ADR for the LDAP client (`ldap3`), `cargo deny`
-- [ ] Provider: bind, Root DSE, paging, users, groups, directory tree, password reset
+- [x] ADR for the LDAP client (`ldap3`), `cargo deny` — ADR-033; `tls-rustls-ring`, default features off; deny passes
+- [ ] Provider: bind, Root DSE, paging, users, groups, directory tree, password reset — all but the directory tree (part two)
 - [ ] Directory section in the tab (tree, attribute editor, review)
-- [ ] Bench: OpenLDAP in the `idm` profile with a seeded OU tree, users and groups
-- [ ] Test: unit (filters, DN escaping, paging, a change turned into LDAP modify operations); live round trip gated on `HS_LDAP`; the data-folder grep after it
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — an OpenLDAP server: browse, create, edit, move and delete a user and a group; a protected environment read-only; the *Checking a screen* list
-- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
+- [x] Bench: OpenLDAP in the `idm` profile with a seeded OU tree, users and groups — `hs-openldap` (`osixia/openldap:1.5.0`), `seed/seed-ldap.sh`, `seed/data/ldap/seed.ldif`
+- [x] Test: unit (filters, DN escaping, paging, a change turned into LDAP modify operations); live round trip gated on `HS_LDAP`; the data-folder grep after it — `provider::ldap::map` tests, `profile` round trip, `hs_core::tls`; `tests/ldap_live.rs` passes against `hs-openldap` (paging, search, membership both ways, create → edit → rename → password → group → delete, read-only refusal); 2026-11-19 the scratch data folder holds no plaintext bind password
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — part one passed 2026-11-19 (tests at -j 2); the box stays open for part two
+- [ ] App: `--data-dir ./tmp-data` — an OpenLDAP server: browse, create, edit, move and delete a user and a group; a protected environment read-only; the *Checking a screen* list — part one 2026-11-19: Settings form and Test Connection ("Connected. OpenLDAP · cn=admin,…"), Users (11, no Status column, filter disabled), a user's Details / Attributes / Groups, Groups (`/engineering` with grace), the Keycloak-only sections and buttons disabled with reasons, create → edit (review "firstName Test → Tested") → typed-confirmation delete of `hstest-ui`. Not yet: moving an entry (part two's tree), a protected environment
+- [x] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README — CHECKLIST waits for part two
+- **Notes:** the Groups list is flat: a directory's nesting shows as a group's children, not as a tree in the list (the provider leaves `sub_group_count` unset). The realm field elides a long base DN (`dc=hyperstack,dc=te…`); it scrolls, and the browse column can be widened.
 
 ### FEAT-0118 · Identity: Active Directory mode on the LDAP provider
 - **State:** Pending · **Spec:** docs/tools/idm.md §4.12 · **Phase:** P

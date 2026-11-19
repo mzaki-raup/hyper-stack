@@ -1154,3 +1154,55 @@ FEAT-0116); no screen of §4 yet.
 - **Kittests** (§10's UI line): the dashboard's empty state, the Settings
   form's per-kind fields, a refused write button disabled with its
   reason, and the typed confirmation's OK held until the name matches.
+
+## What is implemented (2026-11-19): the LDAP provider, part one (FEAT-0117)
+
+§4.12's provider for any LDAP v3 directory, behind the shared Users and
+Groups screens; the Directory section (the DIT as a tree with a raw
+attribute editor) is part two. Through `ldap3` (ADR-033) on the runtime,
+TLS from `hs_core::tls::client_config` (ring, the platform's roots plus
+the CA File). Checked against the bench's `hs-openldap` by
+`tests/ldap_live.rs` (`HS_LDAP`). Where the build differs from §4.12:
+
+- **Connection kind `ldap`** (`connections::IDM_KINDS`), its own Settings
+  form: URL, StartTLS, Base DN (a `pick_field` of the naming contexts once
+  Test Connection ran), Bind (Bind DN and Password, or Anonymous, which is
+  read-only), Users Base, Groups Base, User Filter, Group Filter, Page
+  Size (default 500), then the shared Verify TLS and CA File. The fields
+  live in the profile's `[idm]` table beside Keycloak's.
+- **Realms** are the Root DSE's naming contexts, the profile's Base DN
+  first; a tab with none opens on the server's first. The header names
+  the vendor (`OpenLDAP` from its Root DSE class, else `vendorName`).
+- **Users**: `(|(objectClass=person)(objectClass=posixAccount))` under the
+  users base, every search word matched in uid, cn, mail, given name and
+  surname, `attr:value` terms exact. A user's id is its DN; `uid` (else the
+  RDN's value) is the username, `givenName` / `sn` / `mail` the name and
+  e-mail, everything else but `objectClass`, `userPassword` and the
+  operational facts is an attribute on the Attributes tab. The page's
+  `raw` uses Keycloak's field names, so the form and its review are
+  unchanged; a save turns them into modifications (`map::user_mods`), a new
+  username into a `modrdn`. A field a directory lacks (enabled, verified
+  e-mail, required actions) is refused in words when it changed. Create
+  makes an `inetOrgPerson` `uid=<name>` under the users base. Reset
+  Password uses the Password Modify extended operation where the Root DSE
+  lists it, else replaces `userPassword`; the temporary flag has no LDAP
+  meaning and is ignored.
+- **Groups**: `groupOfNames`, `groupOfUniqueNames` and `posixGroup` under
+  the groups base. Children are the member values that are groups (a
+  directory's nesting); members are the rest; a posix group's members are
+  usernames. A user's groups are found by searching the groups for its DN
+  or uid - no `memberOf` overlay needed. Join and leave write the
+  attribute that group keeps its members in. A new group is a
+  `groupOfNames` whose required `member` holds the bind DN until the first
+  real member joins. Deleting a user or group also removes it from every
+  group that listed it.
+- **Paging**: the Simple Paged Results control at the profile's size; a
+  page reads `first + max + 1` entries and abandons the search, so
+  deep pages cost more on a large directory. A directory does not count:
+  the status line says "more" instead of a total.
+- **Caps**: `directory` set; Realm Roles, Client Roles, Clients, Sessions,
+  Login and Admin Events and Realm Settings are drawn disabled with "a
+  directory has no roles, clients, sessions, events or realm settings";
+  on the user page the Credentials, Role Mapping and Sessions tabs say
+  why they are empty, Enable / Disable and Log Out are disabled with the
+  reason, and Open in Admin Console and Export Realm too.

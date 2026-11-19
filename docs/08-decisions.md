@@ -1125,3 +1125,51 @@ ADR-029) and the credential kinds (`hs_core::service_auth`, ADR-028).
 - Interacts with ADR-019 (the assistant, told only masked data),
   ADR-026 (the rail order), ADR-028 (credential kinds) and ADR-029 (the
   shared HTTP plumbing).
+
+## ADR-033 · IDM: LDAP and Active Directory through `ldap3`
+
+**Date** 2026-11-19 · **Status** accepted (FEAT-0117, FEAT-0118; see
+`docs/tools/idm.md` §4.12) · **Owner's request** (2026-11-08): *"add LDAP
+and AD in the list"*; chosen as the next open item on 2026-11-19.
+
+**Context.** The Identity activity's second provider speaks LDAP v3 to any
+directory (OpenLDAP, 389 DS / FreeIPA, OpenDJ, Samba AD, Microsoft AD DS),
+with an Active Directory mode on top. LDAP is a binary protocol (BER over
+TCP, with StartTLS or LDAPS), not REST, so ADR-032's `reqwest` plumbing does
+not carry it: the provider needs an LDAP client. Directories hold many
+thousands of entries, so every search must page (RFC 2696), and nothing may
+block the UI thread.
+
+**Options.**
+
+| Option | For | Against |
+|---|---|---|
+| **`ldap3` (0.12) on tokio, `tls-rustls-ring`, default features off** | pure Rust, async on the runtime we have; Simple Paged Results, StartTLS, LDAPS, the Password Modify extended operation and `modrdn`; MIT/Apache-2.0; rustls with ring, the TLS stack the workspace already builds | one more crate family (`lber`, `x509-parser` for its rustls verifier hook); its API is search-and-stream, so paging is ours to drive |
+| `ldap3` with its default `tls-native` | default features | a second TLS stack (`native-tls`, SChannel on Windows) beside rustls |
+| OpenLDAP's `libldap` through FFI | the reference client | a C library to build or ship, against the single static exe (ADR-004) |
+| Shelling out to `ldapsearch` / `ldapmodify` | no Rust dependency | not on Windows by default; passwords on command lines; output parsing |
+
+**Decision.**
+
+- `ldap3 = { version = "0.12", default-features = false, features =
+  ["tls-rustls-ring"] }` in `[workspace.dependencies]`, used by `tool-idm`
+  only, behind `provider/ldap/`. No screen imports it.
+- Connections on the tokio runtime (`LdapConnAsync` driven by a spawned
+  task); every search uses the Simple Paged Results control with the
+  profile's page size; a cancelled page abandons its search.
+- TLS: `ldaps://` or StartTLS through rustls with the system roots plus the
+  profile's CA File (as Keycloak's, §5.1); Verify TLS off is the same red
+  badge. A plain `ldap://` connection never sends a password reset in AD
+  mode (`unicodePwd` needs TLS).
+- Membership is read by searching groups for the member's DN, so it works
+  without the `memberOf` overlay; AD mode adds the in-chain rule
+  (`1.2.840.113556.1.4.1941`) for nested groups.
+
+**Consequences.**
+- `cargo deny` covers the new crates (`ldap3`, `lber`, `x509-parser` and
+  its `asn1-rs` / `der-parser` family); all MIT or Apache-2.0.
+- The bench gains `hs-openldap` (`osixia/openldap:1.5.0`, profile `idm`)
+  seeded from `bench/seed/data/ldap/seed.ldif`; live tests are gated on
+  `HS_LDAP`.
+- Kerberos / GSSAPI (Windows integrated sign-in) stays a later step: it
+  would turn on `ldap3`'s `gssapi` feature and its own ADR.

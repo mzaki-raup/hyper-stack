@@ -786,7 +786,7 @@ Change Request : CR-0101
 
 ### CR-0061 · One layout standard for tables, inputs and pane spacing, written down and applied
 - **Also:** the owner's working role (Senior Rust Developer and Senior UI/UX Designer) written into `CLAUDE.md` → Role, so the standard is applied by default (owner, 2026-11-06)
-- **State:** In-Progress · the standard is in `.claude/rules/ui.md` (2026-11-06); the designer and the app-wide pass follow
+- **State:** Completed · the standard is in `.claude/rules/ui.md` (2026-11-06); the designer and the app-wide pass done; checked on screen 2026-11-18
 - **Source:** owner, 2026-11-06 ("Why in Database Activity → Work Pane → Design Tab the table not follow the rules for table before? … proper left/right/top/bottom padding/margin for all sections … text field same height with the dropdown … check other activities … update all rules … vertical middle align all the row that have multiple input … make it standard so that handover to other agent can understand it … vertical middle align all the row in table cells … some of the input text is not wide enough … proper top/bottom padding between form row")
 - **Scope:** `.claude/rules/ui.md` (Layout and controls standard), `docs/04-ui-design.md`, `hs_ui::form` (`line_edit`, `match_field_height`, `pick_field_width`, `pane`, `PANE_MARGIN`, `ROW_GAP`), `hs_ui::table` (`edit_table`, `EditColumn`, `edit_row_height`), the table designer, and every bare single-line text field and loose dropdown in the app.
 - **Parent:** CR-0025
@@ -799,7 +799,7 @@ Change Request : CR-0101
 - [x] Every table: header titles indented (`HEADER_INDENT`), the header one accent band across the full row, an empty table says so (owner, 2026-11-06) — 2026-11-07: the Automation queue and the Queue consumer-lag tables are now `DataTable`s; the sweep found the rest compliant
 - [x] Test: an `edit_table` row is `edit_row_height` tall with its header at `HEADER_HEIGHT`; `line_edit` comes out at `field_height` — `an_edit_table_row_holds_a_field_with_air_and_has_a_header`, `a_line_edit_is_a_fields_height_and_a_bare_one_is_not` (hs-ui tests/layout_standard.rs), `header_band_stays_inside_its_area` (hs-ui table)
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list — 2026-11-18 at the default size: each screen passes (the designer's columns and keys, the Redis key tree, the RabbitMQ publish form, SSH Kept Forwards, the Git verbs and file list, the Repos project row on its middle line). Open: the narrow-window pass - the window would not resize on this machine (MoveWindow succeeded, the window kept its width)
+- [x] App: `--data-dir ./tmp-data` — the designer, Redis keys, Queue publish, SSH tunnels, Git verbs and Settings → Git checked against the standard's "Checking a screen" list — 2026-11-18 at the default size: each screen passes (the designer's columns and keys, the Redis key tree, the RabbitMQ publish form, SSH Kept Forwards, the Git verbs and file list, the Repos project row on its middle line). There is no narrower window to check: the window's strict minimum is its default size, 1720 x 860 (`WindowState::MIN_SIZE`, the owner's rule of 2026-10-23), so the default size is the narrowest layout
 - [x] Docs: ui.md · docs/04 · CHANGELOG · GOTCHAS — the standard is in ui.md and docs/04, the label entry in GOTCHAS; CHANGELOG lines at each release
 - **Notes:** 2026-11-07 sweep: mostly compliant already; workspace tests passed (1428 passed, 0 failed). The `line_edit` box stays open for the Editor's find / replace bar; the `centred_row` box was not re-audited. Gate re-run: deny + release self-test pending. App: screen check pending.
 
@@ -899,16 +899,16 @@ Change Request : CR-0101
 
 
 ### CR-0068 · Material icons on every list row, not only tabs and cards
-- **State:** In-Progress · agreed 2026-11-06
+- **State:** Completed · agreed 2026-11-06; checked on screen, on and off, 2026-11-18/19
 - **Source:** owner, 2026-11-06 ("In Saved query list, use also colored material icon on the list (if enable the material icon in settings) same with the tab color icon of it. Check other activities list that still use generic plain icon instead material icon")
 - **Scope:** Database Saved Queries and Query History rows wear the query tab's Material picture; every other activity's list rows of an item kind found by a sweep get theirs from `hs_ui::fileicons` when Material icons are on.
 - **Parent:** CR-0065
 - [x] Database saved queries and history rows
 - [x] Every other list found by the sweep (built so far: Git, Editor, Containers, NoSQL, Redis, S3, Scratchpad) — 2026-11-07 sweep: the remaining lists were already compliant
 - [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · --self-test
-- [ ] App: `--data-dir ./tmp-data` — Material on and off, screenshots
+- [x] App: `--data-dir ./tmp-data` — Material on and off, screenshots — 2026-11-19, Database off: the saved query, the History rows, the schema and the query tabs all fall back to the plain glyphs together, lists and tabs still alike; back on, the pictures return
 - [x] Docs: CHANGELOG, ui.md rule — CHANGELOG line in 0.128.0; ui.md Icons rule
-- **Notes:** the 2026-11-07 sweep changed no code for this item. 2026-11-18, with Material on: the Database Saved Queries and History rows wear the query tab's picture, as do the Git changed files, the Containers resources, the Redis key folders and the SSH file list; with it off only the Browser lists were seen (CR-0060), so the App box stays open for Database off.
+- **Notes:** the 2026-11-07 sweep changed no code for this item. 2026-11-18, with Material on: the Database Saved Queries and History rows wear the query tab's picture, as do the Git changed files, the Containers resources, the Redis key folders and the SSH file list; off, the Browser lists (CR-0060) and the Database lists (2026-11-19) were seen.
 
 
 ### CR-0069 · Tabbed panes keep a minimum width; side panes can be hidden

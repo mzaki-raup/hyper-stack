@@ -266,6 +266,8 @@ pub struct ServerInfo {
 pub enum Section {
     Users,
     Groups,
+    /// A directory's tree (LDAP, §4.12); only a directory has one.
+    Directory,
     RealmRoles,
     ClientRoles,
     Clients,
@@ -276,9 +278,10 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 9] = [
+    pub const ALL: [Section; 10] = [
         Section::Users,
         Section::Groups,
+        Section::Directory,
         Section::RealmRoles,
         Section::ClientRoles,
         Section::Clients,
@@ -294,6 +297,9 @@ impl Section {
         match self {
             Section::Users => &["view-users", "query-users", "manage-users"],
             Section::Groups => &["query-groups", "view-users", "manage-users"],
+            // A directory has no realm-management roles; `Caps::section`
+            // answers for it first.
+            Section::Directory => &["view-users"],
             Section::RealmRoles | Section::RealmSettings => &["view-realm", "manage-realm"],
             Section::ClientRoles | Section::Clients => {
                 &["view-clients", "query-clients", "manage-clients"]
@@ -378,6 +384,13 @@ impl Caps {
     /// Whether `section` can be shown in `realm`, with the reason it
     /// cannot.
     pub fn section(&self, realm: &str, section: Section) -> Availability {
+        if section == Section::Directory {
+            return if self.directory {
+                Availability::Yes
+            } else {
+                Availability::No("only a directory (LDAP) has a tree".into())
+            };
+        }
         if self.hidden.contains(&section) {
             return Availability::No(if self.directory {
                 "a directory has no roles, clients, sessions, events or realm settings".into()
@@ -1031,6 +1044,57 @@ impl Default for ExportScope {
     }
 }
 
+// ------------------------------------------------------------- directory
+
+/// An entry of a directory's tree, for the Directory section (§4.12,
+/// FEAT-0117).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DirEntry {
+    pub dn: String,
+    /// The first component, as the server wrote it: `ou=people`.
+    pub rdn: String,
+    pub classes: Vec<String>,
+    /// Every attribute but `objectClass`, `userPassword` and the server's
+    /// operational facts, by name.
+    pub attributes: BTreeMap<String, Vec<String>>,
+    /// Whether entries sit under it (`hasSubordinates`; a server that does
+    /// not say reads as yes, and the opened node may turn out empty).
+    pub has_children: bool,
+}
+
+impl DirEntry {
+    /// What the tree draws it as.
+    pub fn kind(&self) -> DirKind {
+        let has = |c: &str| self.classes.iter().any(|x| x.eq_ignore_ascii_case(c));
+        if has("person") || has("inetOrgPerson") || has("posixAccount") || has("user") {
+            DirKind::Person
+        } else if has("groupOfNames")
+            || has("groupOfUniqueNames")
+            || has("posixGroup")
+            || has("group")
+        {
+            DirKind::Group
+        } else if has("organizationalUnit")
+            || has("organization")
+            || has("domain")
+            || has("dcObject")
+            || has("container")
+        {
+            DirKind::Container
+        } else {
+            DirKind::Other
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DirKind {
+    Container,
+    Person,
+    Group,
+    Other,
+}
+
 // ----------------------------------------------------------------- trait
 
 /// One identity product. Every method that changes the server is listed
@@ -1215,6 +1279,34 @@ pub trait IdmProvider: Send + Sync {
         scope: ExportScope,
         cancel: CancellationToken,
     ) -> Result<String>;
+
+    // directory (§4.12): only a directory has a tree, so the others keep
+    // these defaults and `Caps::section` never offers the section to them.
+    /// The entries one level under `dn`.
+    async fn dir_children(&self, _realm: &str, _dn: &str, _page: Page) -> Result<Paged<DirEntry>> {
+        Err(IdmError::Unsupported("a directory tree".into()))
+    }
+    async fn dir_entry(&self, _realm: &str, _dn: &str) -> Result<DirEntry> {
+        Err(IdmError::Unsupported("a directory tree".into()))
+    }
+    /// Write `attributes` as the entry's whole attribute set: changed ones
+    /// replaced, missing ones deleted, the hidden ones left alone.
+    async fn dir_modify(
+        &self,
+        _realm: &str,
+        _entry: &ObjRef,
+        _attributes: &BTreeMap<String, Vec<String>>,
+    ) -> Result<()> {
+        Err(IdmError::Unsupported("a directory tree".into()))
+    }
+    /// Move the entry, children and all, under `parent`; returns its new DN.
+    async fn dir_move(&self, _realm: &str, _entry: &ObjRef, _parent: &str) -> Result<String> {
+        Err(IdmError::Unsupported("a directory tree".into()))
+    }
+    /// Delete a leaf entry; one with entries under it is refused in words.
+    async fn dir_delete(&self, _realm: &str, _entry: &ObjRef) -> Result<()> {
+        Err(IdmError::Unsupported("a directory tree".into()))
+    }
 }
 
 #[cfg(test)]

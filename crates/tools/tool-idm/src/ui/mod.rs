@@ -6,6 +6,7 @@ mod clients;
 mod common;
 mod dashboard;
 mod dialogs;
+mod directory;
 mod events;
 mod export;
 mod groups;
@@ -103,6 +104,7 @@ pub enum SectionId {
     LoginEvents,
     AdminEvents,
     RealmSettings,
+    Directory,
 }
 
 impl From<SectionId> for Section {
@@ -117,6 +119,7 @@ impl From<SectionId> for Section {
             SectionId::LoginEvents => Section::LoginEvents,
             SectionId::AdminEvents => Section::AdminEvents,
             SectionId::RealmSettings => Section::RealmSettings,
+            SectionId::Directory => Section::Directory,
         }
     }
 }
@@ -133,6 +136,7 @@ impl From<Section> for SectionId {
             Section::LoginEvents => SectionId::LoginEvents,
             Section::AdminEvents => SectionId::AdminEvents,
             Section::RealmSettings => SectionId::RealmSettings,
+            Section::Directory => SectionId::Directory,
         }
     }
 }

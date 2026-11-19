@@ -26,6 +26,7 @@ use crate::runner::Status;
 pub struct TabView {
     users: UsersView,
     groups: GroupsView,
+    directory: super::directory::DirectoryView,
     realm_roles: RolesView,
     client_roles: RolesView,
     clients: ClientsView,
@@ -50,6 +51,7 @@ impl Default for TabView {
         TabView {
             users: UsersView::default(),
             groups: GroupsView::default(),
+            directory: Default::default(),
             realm_roles: RolesView::new(false),
             client_roles: RolesView::new(true),
             clients: ClientsView::default(),
@@ -78,6 +80,7 @@ impl TabView {
     fn reset_realm(&mut self) {
         self.users.reset();
         self.groups.reset();
+        self.directory.reset();
         self.realm_roles.reset();
         self.client_roles.reset();
         self.clients.reset();
@@ -96,6 +99,7 @@ impl TabView {
         match section {
             Section::Users => self.users.refresh(),
             Section::Groups => self.groups.refresh(),
+            Section::Directory => self.directory.refresh(),
             Section::RealmRoles => self.realm_roles.refresh(),
             Section::ClientRoles => self.client_roles.refresh(),
             Section::Clients => self.clients.refresh(),
@@ -155,6 +159,7 @@ impl TabView {
         match section {
             Section::Users => self.users.select(id),
             Section::Groups => self.groups.select(id),
+            Section::Directory => self.directory.select(id),
             Section::RealmRoles => self.realm_roles.select(id),
             Section::ClientRoles => self.client_roles.select(id),
             Section::Clients => self.clients.select(id),
@@ -166,6 +171,7 @@ impl TabView {
         match section {
             Section::Users => self.users.forget_selected(),
             Section::Groups => self.groups.forget_selected(),
+            Section::Directory => self.directory.forget_selected(),
             Section::RealmRoles => self.realm_roles.forget_selected(),
             Section::ClientRoles => self.client_roles.forget_selected(),
             Section::Clients => self.clients.forget_selected(),
@@ -381,6 +387,7 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                     .show(ui, |ui| match section {
                         Section::Users => v.users.item(ui, &mut cx2),
                         Section::Groups => v.groups.item(ui, &mut cx2),
+                        Section::Directory => v.directory.item(ui, &mut cx2),
                         Section::RealmRoles => v.realm_roles.item(ui, &mut cx2),
                         Section::ClientRoles => v.client_roles.item(ui, &mut cx2),
                         Section::Clients => v.clients.item(ui, &mut cx2),
@@ -403,6 +410,7 @@ pub fn body(tool: &mut IdmTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                         form::pane(ui, |ui| match section {
                             Section::Users => v.users.list(ui, &mut cx2),
                             Section::Groups => v.groups.list(ui, &mut cx2),
+                            Section::Directory => v.directory.list(ui, &mut cx2),
                             Section::RealmRoles => v.realm_roles.list(ui, &mut cx2),
                             Section::ClientRoles => v.client_roles.list(ui, &mut cx2),
                             Section::Clients => v.clients.list(ui, &mut cx2),
@@ -466,8 +474,15 @@ fn item_min_width(ui: &egui::Ui, s: &hs_core::Services, section: Section) -> f32
     };
     let labels: Vec<String> = keys.iter().map(|k| s.t(k)).collect();
     let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+    // A directory entry is a name = value editor: a name and a value
+    // side by side need more room than a page of tabs.
+    let floor = if section == Section::Directory {
+        520.0
+    } else {
+        360.0
+    };
     (hs_ui::tabs::segmented_min_width(ui, &refs, &[], &[]) + 2.0 * form::PANE_MARGIN + 16.0)
-        .max(360.0)
+        .max(floor)
 }
 
 /// What the sections asked for: dialogs, writes, toasts, the console.
@@ -828,6 +843,8 @@ impl TabView {
             Section::Sessions => "sessions".into(),
             Section::LoginEvents | Section::AdminEvents => "events".into(),
             Section::RealmSettings => "realm-settings".into(),
+            // A directory has no console; `open_console` says so.
+            Section::Directory => String::new(),
         }
     }
 }

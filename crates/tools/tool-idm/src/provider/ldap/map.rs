@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 use ldap3::{dn_escape, ldap_escape};
 use serde_json::{Map, Value, json};
 
-use crate::provider::{Change, Group, IdmError, Result, User, UserQuery, UserRow};
+use crate::provider::{Change, DirEntry, Group, IdmError, Result, User, UserQuery, UserRow};
 
 /// Every person, posix account or not, unless the profile says otherwise.
 pub const DEFAULT_USER_FILTER: &str = "(|(objectClass=person)(objectClass=posixAccount))";
@@ -27,7 +27,12 @@ const USER_FIELDS: [&str; 4] = ["uid", "givenName", "sn", "mail"];
 /// the entry's shape, and a password is never read back (§4.12).
 const HIDDEN: [&str; 2] = ["objectClass", "userPassword"];
 /// Read with every entry: the server's own facts.
-pub const OPERATIONAL: [&str; 3] = ["createTimestamp", "modifyTimestamp", "entryUUID"];
+pub const OPERATIONAL: [&str; 4] = [
+    "createTimestamp",
+    "modifyTimestamp",
+    "entryUUID",
+    "hasSubordinates",
+];
 
 /// An entry as read: its DN and attributes, names as the server spells
 /// them.
@@ -453,9 +458,20 @@ fn attribute_mods(e: &Entry, value: &Value) -> Result<Vec<ModOp>> {
     let Value::Object(new) = value else {
         return Err(invalid("attributes are a map of lists", "attributes"));
     };
-    let before = plain_attributes(e);
+    let after: BTreeMap<String, Vec<String>> =
+        new.iter().map(|(k, v)| (k.clone(), list(v))).collect();
+    mods_between(&plain_attributes(e), &after)
+}
+
+/// The modifications that turn `before` into `after`: changed attributes
+/// replaced, missing ones deleted, the hidden ones never touched.
+fn mods_between(
+    before: &BTreeMap<String, Vec<String>>,
+    after: &BTreeMap<String, Vec<String>>,
+) -> Result<Vec<ModOp>> {
+    let new = after;
     let mut mods = Vec::new();
-    for (name, v) in new {
+    for (name, values) in new {
         if !is_attr_name(name) {
             return Err(invalid(
                 &format!("“{name}” is not an attribute name"),
@@ -465,7 +481,7 @@ fn attribute_mods(e: &Entry, value: &Value) -> Result<Vec<ModOp>> {
         if HIDDEN.iter().any(|h| h.eq_ignore_ascii_case(name)) {
             continue;
         }
-        let values = list(v);
+        let values: Vec<String> = values.iter().filter(|v| !v.is_empty()).cloned().collect();
         let old = before
             .iter()
             .find(|(k, _)| k.eq_ignore_ascii_case(name))
@@ -563,6 +579,55 @@ pub fn new_user_attrs(
 /// The Keycloak-shaped JSON of a map, for a raw that is not a user.
 pub fn as_map(attrs: &BTreeMap<String, Vec<String>>) -> Map<String, Value> {
     attrs.iter().map(|(k, v)| (k.clone(), json!(v))).collect()
+}
+
+// -------------------------------------------------------------- directory
+
+/// An entry as the Directory section shows it (§4.12): every attribute
+/// but the class list, the password and the server's facts.
+pub fn dir_entry(e: &Entry) -> DirEntry {
+    let attributes = e
+        .attrs
+        .iter()
+        .filter(|(k, _)| {
+            !HIDDEN
+                .iter()
+                .chain(OPERATIONAL.iter())
+                .any(|f| f.eq_ignore_ascii_case(k))
+        })
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    DirEntry {
+        dn: e.dn.clone(),
+        rdn: components(&e.dn).into_iter().next().unwrap_or_default(),
+        classes: e.values("objectClass"),
+        attributes,
+        // A server that does not say reads as "may have some".
+        has_children: !e.first("hasSubordinates").eq_ignore_ascii_case("FALSE"),
+    }
+}
+
+/// The Directory editor's whole attribute set against what `e` holds. The
+/// RDN's attribute keeps its RDN value: a rename is a move, not an edit.
+pub fn dir_mods(e: &Entry, after: &BTreeMap<String, Vec<String>>) -> Result<Vec<ModOp>> {
+    let (rdn_attr, rdn_value) = rdn(&e.dn);
+    if let Some((_, values)) = after
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(&rdn_attr))
+        && !values.iter().any(|v| v == &rdn_value)
+    {
+        return Err(invalid(
+            &format!("{rdn_attr} must keep “{rdn_value}”: it names the entry"),
+            &rdn_attr,
+        ));
+    }
+    if !after.keys().any(|k| k.eq_ignore_ascii_case(&rdn_attr)) && !rdn_attr.is_empty() {
+        return Err(invalid(
+            &format!("{rdn_attr} names the entry and cannot be removed"),
+            &rdn_attr,
+        ));
+    }
+    mods_between(&dir_entry(e).attributes, after)
 }
 
 #[cfg(test)]
@@ -768,5 +833,51 @@ mod tests {
                 .unwrap()
                 .contains(&"inetOrgPerson".to_string())
         );
+    }
+
+    #[test]
+    fn a_directory_entry_hides_its_facts_and_guards_its_name() {
+        let ou = entry(
+            "ou=people,dc=x",
+            &[
+                ("objectClass", &["organizationalUnit"]),
+                ("ou", &["people"]),
+                ("description", &["Everyone"]),
+                ("hasSubordinates", &["TRUE"]),
+                ("entryUUID", &["u"]),
+            ],
+        );
+        let d = dir_entry(&ou);
+        assert_eq!(d.rdn, "ou=people");
+        assert!(d.has_children);
+        assert_eq!(d.kind(), crate::provider::DirKind::Container);
+        assert_eq!(
+            d.attributes.keys().collect::<Vec<_>>(),
+            ["description", "ou"]
+        );
+        let leaf = entry(
+            "cn=a,dc=x",
+            &[
+                ("objectClass", &["person"]),
+                ("hasSubordinates", &["FALSE"]),
+            ],
+        );
+        assert!(!dir_entry(&leaf).has_children);
+        // An edit: description changed, a new attribute, the RDN kept.
+        let mut after = d.attributes.clone();
+        after.insert("description".into(), vec!["All people".into()]);
+        after.insert("seeAlso".into(), vec!["cn=a,dc=x".into()]);
+        let mods = dir_mods(&ou, &after).unwrap();
+        assert!(mods.contains(&ModOp::Replace(
+            "description".into(),
+            vec!["All people".into()]
+        )));
+        assert!(mods.contains(&ModOp::Replace("seeAlso".into(), vec!["cn=a,dc=x".into()])));
+        assert_eq!(mods.len(), 2);
+        // The RDN's value cannot go, nor the attribute.
+        after.insert("ou".into(), vec!["staff".into()]);
+        assert!(dir_mods(&ou, &after).is_err());
+        after.remove("ou");
+        assert!(dir_mods(&ou, &after).is_err());
     }
 }

@@ -120,6 +120,13 @@ async fn every_write(g: &Guarded) -> Vec<(&'static str, Result<()>)> {
             g.regenerate_secret(r, &cl).await.map(|_| ()),
         ),
         ("logout_all", g.logout_all(r).await.map(|_| ())),
+        (
+            "dir_modify",
+            g.dir_modify(r, &u, &std::collections::BTreeMap::new())
+                .await,
+        ),
+        ("dir_move", g.dir_move(r, &u, "ou=x").await.map(|_| ())),
+        ("dir_delete", g.dir_delete(r, &u).await),
     ]
 }
 

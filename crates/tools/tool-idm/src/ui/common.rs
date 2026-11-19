@@ -359,6 +359,7 @@ pub fn section_mark(section: Section) -> (&'static str, egui::Color32) {
         Section::LoginEvents => (ph::SIGN_IN, [0xd8, 0x1b, 0x60]),
         Section::AdminEvents => (ph::LIST_CHECKS, [0x5c, 0x6b, 0xc0]),
         Section::RealmSettings => (ph::GEAR_SIX, [0x78, 0x90, 0x9c]),
+        Section::Directory => (ph::TREE_STRUCTURE, [0x3b, 0x7d, 0xd8]),
     };
     (glyph, egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]))
 }
@@ -374,6 +375,7 @@ pub fn section_key(section: Section) -> &'static str {
         Section::LoginEvents => "idm-section-login-events",
         Section::AdminEvents => "idm-section-admin-events",
         Section::RealmSettings => "idm-section-realm-settings",
+        Section::Directory => "idm-section-directory",
     }
 }
 

@@ -292,6 +292,95 @@ fn ldap_live_reads_and_writes_users_and_groups() -> R<()> {
             Err(IdmError::NotFound { .. })
         ));
 
+        // The Directory section (part two): the tree, an entry, an edit,
+        // a move and a delete.
+        let top = p
+            .dir_children(BASE, BASE, Page::of(50))
+            .await
+            .map_err(|e| e.to_string())?;
+        let tops: Vec<String> = top.rows.iter().map(|e| e.rdn.clone()).collect();
+        assert!(tops.contains(&"ou=people".to_string()), "{tops:?}");
+        assert!(
+            top.rows.iter().all(|e| e.has_children),
+            "every top OU holds entries"
+        );
+        let people = p
+            .dir_children(BASE, PEOPLE, Page::of(50))
+            .await
+            .map_err(|e| e.to_string())?;
+        // Containers first: engineering and support before tim.
+        let order: Vec<String> = people.rows.iter().map(|e| e.rdn.clone()).collect();
+        assert_eq!(
+            order.last().map(String::as_str),
+            Some("uid=tim"),
+            "{order:?}"
+        );
+        let probe_id = p
+            .create_user(
+                BASE,
+                &NewUser {
+                    username: "hstest-dir".into(),
+                    last_name: "Dir".into(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        let probe = ObjRef::new(probe_id.clone(), "uid=hstest-dir");
+        let mut entry = p
+            .dir_entry(BASE, &probe_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        assert_eq!(entry.kind(), DirKind::Person);
+        assert!(!entry.has_children);
+        assert!(
+            !entry.attributes.contains_key("objectClass")
+                && !entry.attributes.contains_key("userPassword")
+        );
+        entry
+            .attributes
+            .insert("description".into(), vec!["probe".into()]);
+        p.dir_modify(BASE, &probe, &entry.attributes)
+            .await
+            .map_err(|e| e.to_string())?;
+        let read = p
+            .dir_entry(BASE, &probe_id)
+            .await
+            .map_err(|e| e.to_string())?;
+        assert_eq!(
+            read.attributes.get("description"),
+            Some(&vec!["probe".to_string()])
+        );
+        // Renaming through the editor is refused: the RDN keeps its value.
+        let mut renamed = read.attributes.clone();
+        renamed.insert("uid".into(), vec!["hstest-other".into()]);
+        assert!(p.dir_modify(BASE, &probe, &renamed).await.is_err());
+        let support = format!("ou=support,{PEOPLE}");
+        let moved = p
+            .dir_move(BASE, &probe, &support)
+            .await
+            .map_err(|e| e.to_string())?;
+        assert_eq!(moved, format!("uid=hstest-dir,{support}"));
+        assert!(p.dir_entry(BASE, &moved).await.is_ok());
+        // An entry with children is not deleted; a move under itself is refused.
+        assert!(
+            p.dir_delete(BASE, &ObjRef::new(PEOPLE, "ou=people"))
+                .await
+                .is_err()
+        );
+        assert!(
+            p.dir_move(BASE, &ObjRef::new(PEOPLE, "ou=people"), &support)
+                .await
+                .is_err()
+        );
+        p.dir_delete(BASE, &ObjRef::new(moved.clone(), "uid=hstest-dir"))
+            .await
+            .map_err(|e| e.to_string())?;
+        assert!(matches!(
+            p.dir_entry(BASE, &moved).await,
+            Err(IdmError::NotFound { .. })
+        ));
+
         // A read-only tab refuses before anything is sent.
         let guarded = Guarded::new(
             Arc::new(LdapProvider::new(config(&url, &password))?),

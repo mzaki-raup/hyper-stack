@@ -47,6 +47,9 @@ pub const WRITES: &[&str] = &[
     "delete_client",
     "regenerate_secret",
     "logout_all",
+    "dir_modify",
+    "dir_move",
+    "dir_delete",
 ];
 
 /// Every method that only reads (including `connect`, `disconnect` and
@@ -94,6 +97,8 @@ pub const READS: &[&str] = &[
     "login_events",
     "admin_events",
     "export",
+    "dir_children",
+    "dir_entry",
 ];
 
 /// Whether a tab may write, and why not. Shared by the tab (to draw
@@ -726,6 +731,37 @@ impl IdmProvider for Guarded {
         cancel: CancellationToken,
     ) -> Result<String> {
         self.inner.export(realm, scope, cancel).await
+    }
+
+    async fn dir_children(&self, realm: &str, dn: &str, page: Page) -> Result<Paged<DirEntry>> {
+        self.inner.dir_children(realm, dn, page).await
+    }
+    async fn dir_entry(&self, realm: &str, dn: &str) -> Result<DirEntry> {
+        self.inner.dir_entry(realm, dn).await
+    }
+    async fn dir_modify(
+        &self,
+        realm: &str,
+        entry: &ObjRef,
+        attributes: &std::collections::BTreeMap<String, Vec<String>>,
+    ) -> Result<()> {
+        self.allow()?;
+        let r = self.inner.dir_modify(realm, entry, attributes).await;
+        let names = attributes.keys().cloned().collect();
+        self.record_obj(realm, "entry", entry, "update", names, &r);
+        r
+    }
+    async fn dir_move(&self, realm: &str, entry: &ObjRef, parent: &str) -> Result<String> {
+        self.allow()?;
+        let r = self.inner.dir_move(realm, entry, parent).await;
+        self.record_obj(realm, "entry", entry, "move", vec![parent.to_string()], &r);
+        r
+    }
+    async fn dir_delete(&self, realm: &str, entry: &ObjRef) -> Result<()> {
+        self.allow()?;
+        let r = self.inner.dir_delete(realm, entry).await;
+        self.record_obj(realm, "entry", entry, "delete", Vec::new(), &r);
+        r
     }
 }
 

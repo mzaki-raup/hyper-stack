@@ -4737,6 +4737,80 @@ fn save_draft(
     saved
 }
 
+/// The Use Saved Credential dropdown (FEAT-0125): every other saved
+/// credential held in the vault, by name, user and kind - never its
+/// secret. Read only while the list is open, not every frame.
+fn reuse_credential_pick(
+    ui: &mut egui::Ui,
+    s: &Services,
+    own_id: &str,
+) -> Option<crate::credentials::Row> {
+    use crate::credentials::Password;
+    let mut picked = None;
+    egui::ComboBox::from_id_salt("conn-reuse-credential")
+        .width(form::FIELD_MIN_WIDTH)
+        .selected_text(s.t("conn-reuse-credential-pick"))
+        .show_ui(ui, |ui| {
+            let rows: Vec<_> = crate::credentials::rows(s)
+                .into_iter()
+                .filter(|r| r.id != own_id && matches!(r.password, Password::Vault(_)))
+                .collect();
+            if rows.is_empty() {
+                ui.label(s.t("conn-reuse-credential-none"));
+            }
+            for r in rows {
+                let kind = credential_type(s, &r);
+                let label = if r.user.is_empty() {
+                    format!("{} · {kind}", r.name)
+                } else {
+                    format!("{} · {} · {kind}", r.name, r.user)
+                };
+                if form::selectable_label(ui, false, label).clicked() {
+                    picked = Some(r);
+                }
+            }
+        });
+    picked
+}
+
+/// Copy `from`'s user and secret into `draft`: the secret as a new vault
+/// entry of its own, so editing or deleting either connection later
+/// leaves the other's alone (FEAT-0125).
+fn reuse_credential(
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    from: &crate::credentials::Row,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use crate::credentials::Password;
+    use hs_core::tool::ToastLevel;
+    let Password::Vault(source) = &from.password else {
+        return;
+    };
+    if s.secrets.is_locked() {
+        effects.push(SettingsEffect::Toast(
+            ToastLevel::Warning,
+            s.t("settings-vault-unlock-first"),
+        ));
+        return;
+    }
+    let copied = s.secrets.get(source).and_then(|value| {
+        s.secrets
+            .create(&format!("{}: password", draft.name), &value)
+    });
+    match copied {
+        Ok(new) => {
+            crate::credentials::apply(draft, &from.user, &new.to_string_ref());
+            effects.push(SettingsEffect::Toast(
+                ToastLevel::Info,
+                s.i18n
+                    .t_args("conn-reuse-credential-done", &[("name", &from.name)]),
+            ));
+        }
+        Err(e) => effects.push(SettingsEffect::Toast(ToastLevel::Error, e.to_string())),
+    }
+}
+
 fn conn_detail(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -4748,6 +4822,7 @@ fn conn_detail(
         form::note(ui, theme, hs_ui::icons::INFO, &s.t("conn-select-hint"));
         return;
     };
+    let mut reused: Option<crate::credentials::Row> = None;
     form::section(ui, theme, &s.t("conn-section-details"), |ui| {
         form::field_grid(ui, "conn-form", |ui| {
             form::label(ui, &s.t("conn-name"));
@@ -4857,8 +4932,17 @@ fn conn_detail(
             form::label(ui, "");
             ui.checkbox(&mut draft.read_only, s.t("conn-read-only"));
             ui.end_row();
+            if crate::credentials::accepts(&draft.kind) {
+                form::label(ui, &s.t("conn-reuse-credential"));
+                reused = reuse_credential_pick(ui, s, &draft.id);
+                ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-reuse-credential-hint"));
+            }
         });
     });
+    if let Some(from) = reused {
+        reuse_credential(s, draft, &from, effects);
+    }
     let is_ssh = draft.kind == "ssh";
     let is_s3 = draft.kind == "s3";
     let is_db = draft.kind == "db";
@@ -5200,6 +5284,21 @@ fn credentials_section(
             // about with the length of each value. Every other column is left
             // to the grid, which sizes it to its own content.
             let pair_width = credentials_pair_width(ui, s, &rows, state, now);
+            // Host/URL gets one width too, so its Copy buttons stand in one
+            // line like the Username and Password ones (BUG-0073); a long
+            // URL truncates past 360 px rather than widening the page.
+            let host_width = {
+                let body = egui::TextStyle::Body.resolve(ui.style());
+                rows.iter()
+                    .map(|r| {
+                        ui.painter()
+                            .layout_no_wrap(r.host.clone(), body.clone(), egui::Color32::WHITE)
+                            .rect
+                            .width()
+                    })
+                    .fold(0.0_f32, f32::max)
+                    .min(360.0)
+            };
             // Eight columns do not fit a narrow window, and squeezing them
             // would hide the values this page exists to show.
             egui::ScrollArea::horizontal()
@@ -5233,7 +5332,7 @@ fn credentials_section(
                             for r in &rows {
                                 ui.label(&r.name);
                                 ui.label(credential_type(s, r));
-                                cred_cell(ui, s, theme, &r.host, None, effects);
+                                cred_cell(ui, s, theme, &r.host, Some(host_width), effects);
                                 ui.label(&r.port);
                                 cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
                                 secret_cell(
@@ -9434,6 +9533,20 @@ fn nexus_form(
 /// by `container_secrets`, exactly as every other kind does. The
 /// exception is the kubeconfig **path**, which is a path and stays one
 /// (§10.2).
+/// Whether `program` (docker or podman) is on this computer's PATH, looked
+/// up once per run: the form asks every frame, and a file-system walk per
+/// frame is the mistake ui.md warns about.
+fn client_on_path(program: &str) -> bool {
+    static FOUND: std::sync::OnceLock<(bool, bool)> = std::sync::OnceLock::new();
+    let (docker, podman) = *FOUND.get_or_init(|| {
+        (
+            hs_lsp::registry::on_path("docker").is_some(),
+            hs_lsp::registry::on_path("podman").is_some(),
+        )
+    });
+    if program == "podman" { podman } else { docker }
+}
+
 fn container_form(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -9547,6 +9660,35 @@ fn container_form(
                             .add(egui::DragValue::new(&mut f.port).range(1..=65535))
                             .changed();
                         ui.end_row();
+                        // Over TCP the client on this computer talks to the
+                        // far engine, so it must be installed here: said
+                        // every time, warned when missing (BUG-0070).
+                        let program = if draft.kind == "podman" {
+                            "podman"
+                        } else {
+                            "docker"
+                        };
+                        form::row_hint(
+                            ui,
+                            theme,
+                            &s.i18n
+                                .t_args("conn-container-tcp-client", &[("program", program)]),
+                        );
+                        if !client_on_path(program) {
+                            form::label(ui, "");
+                            // Wrapped, so the card keeps its width.
+                            ui.add(
+                                egui::Label::new(
+                                    egui::RichText::new(s.i18n.t_args(
+                                        "conn-container-tcp-client-missing",
+                                        &[("program", program)],
+                                    ))
+                                    .color(theme.warning),
+                                )
+                                .wrap(),
+                            );
+                            ui.end_row();
+                        }
                     }
                     Transport::Ssh => {
                         form::label(ui, &s.t("conn-container-over-ssh"));

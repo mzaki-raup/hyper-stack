@@ -407,6 +407,7 @@ One tab per build server or automation controller: **Jenkins**, **TeamCity**, **
 | **Guards** - Cancel asks first; a protected environment's tab is read-only and the driver refuses Run and Cancel too | **Settings → Automation** - a button per kind, and the credential the server takes (a Jenkins user and API token here), kept in the vault |
 
 - **Jobs** - Jenkins jobs (folders flattened), TeamCity build configurations, workflows, a GitLab project's refs with pipelines, AWX job templates, Puppet nodes with their latest report, each with its last run.
+- **Projects** - a searchable column beside the jobs, hidden from the toolbar's first button: Jenkins folders, TeamCity and AWX projects, the connection's repository; pick one and the jobs list shows only its jobs.
 - **Run** opens a form of the job's parameters - Jenkins parameters, `workflow_dispatch` inputs read from the workflow file, GitLab pipeline variables, AWX survey and extra vars - and sends nothing until it is filled in; a secret parameter is typed for one run and never kept.
 - **Log** follows a running build every 2 s from where it got to; **Open in Logs** hands it to the Logs activity; **Open in Browser** opens the run on the server's own page.
 - **Credentials** - username and password, token or API key, whichever the server takes, in the vault.
@@ -425,6 +426,8 @@ One tab per issue tracker or wiki: **Jira** (Cloud and Data Center), **Redmine**
 | **Guards** - Edit shows what will change, field by field, before it is sent; a read-only or protected connection disables every write and the driver refuses them too | **Settings → Tracker** - a button per kind, Cloud or Data Center for Atlassian's, and the credential the tracker takes (a Redmine API key here), kept in the vault |
 
 - **Query** - JQL for Jira, CQL for Confluence, and for the others the words GitHub uses (`is:open label:bug assignee:ada`); saved queries are kept with the tracker.
+- **Projects and Search Builder** (Redmine and Jira) - a searchable projects column, hidden from the toolbar's first button, runs the list for the picked project; the Search Builder's dropdowns (status, assignee, author, type, priority, from the server) write the query into the bar and run it.
+- **Sub-tickets** - a ticket's page shows its parent and its sub-tickets (Redmine's, nested ones indented, and Jira's), each opening its own page.
 - **Change Status** offers what the tracker's workflow allows - Jira transitions, Redmine's allowed statuses, open and closed on the forges.
 - **Text** - Jira's Atlassian Document Format and wiki markup, Confluence's storage format and Redmine's Textile are shown and edited as Markdown; content Markdown cannot keep is named, and a Confluence page holding it is read-only.
 - **Assistant** - Summarise This Ticket, Draft a Reply (Insert puts it in the comment box; nothing is sent by it), Suggest a Status.

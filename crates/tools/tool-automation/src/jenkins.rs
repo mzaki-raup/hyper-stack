@@ -107,6 +107,8 @@ fn flatten(list: &Value, prefix: &str, out: &mut Vec<Job>) {
             name: id,
             last: j.get("lastBuild").filter(|b| !b.is_null()).map(run),
             url: s(j, "url"),
+            // The folder it sits in; a top-level job has none.
+            project: prefix.to_string(),
         });
     }
 }

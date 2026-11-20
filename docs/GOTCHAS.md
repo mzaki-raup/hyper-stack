@@ -396,6 +396,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Output must be cleared** when the selected item changes.
 
 - **A "not yet" toast outlives the phase it waited for.** The Containers sidebar's saved entries answered a click with "opening is a later phase" long after Compose (phase 5) and manifests (phase 6) shipped, because nothing listed the toast as a loose end. When a click is deferred, file the item that removes the deferral at the same time, or the dead click ships as a feature (BUG-0046, 2026-11-06).
+- **An SSH engine was never run anywhere.** `cli.rs` built SSH invocations with `remote_ssh` set and its doc said "the caller runs it through `hs_ssh::exec`", but no caller did: `run::output` refused them with `Error::Remote(<connection id>)`, so every SSH host failed with "this host is reached through 01M4…" and Test Connection refused up front. The runner is now installed by the binary (`hs_container::run::set_remote`, the SSH service's `Tunnels::exec`). A doc comment that says "the caller does X" is a claim to check with a grep, not a design (BUG-0070, 2026-11-20).
+- **Over TCP the engine is remote but the client is local.** `docker -H tcp://host:2375 …` runs the `docker` on this computer, so a machine without Docker installed fails with "not found on PATH" against a perfectly good remote engine. The TCP form says so and warns when the client is missing; SSH needs nothing here (BUG-0070).
+- **An SSH exec's status comes after its EOF.** `hs_ssh::exec` stopped at `ChannelMsg::Eof`, so the `exit-status` that follows it was dropped and every remote command looked like it exited 0. Read until `Close` (BUG-0070).
+
+## Tool-Specific: Devtools and Previews
+- **Jasypt sizes the salt and the IV to the cipher's block size.** `StandardPBEByteEncryptor` sets both to `getBlockSize()`: 8 for `PBEWithMD5AndDES`, 16 for `PBEWITHHMACSHA512ANDAES_256`. The tool used an 8-byte salt and a 16-byte IV for both, so nothing a Spring app encrypted would decrypt here, and its own round trip still passed. Test against known answers made by Java (`javax.crypto` with a fixed salt and IV reproduces jasypt exactly; a JDK is on this machine), never only against our own encrypt (BUG-0075, 2026-11-20).
+- **A Markdown table is a block, not rows.** The preview drew each table row as its own `ui.horizontal` of quarter-width labels: no grid, no header fill, and the delimiter row's alignment (`Tag::Table(Vec<Alignment>)`) thrown away. Collect the whole table, size columns from their widest cell, and anchor each galley by its alignment (`job.halign` lays a centred galley out around x = 0) (BUG-0074, 2026-11-20).
 
 ## Tool-Specific: Graphics and Diagrams
 

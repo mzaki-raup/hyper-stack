@@ -40,7 +40,15 @@ The connection-per-tab shape of the Queue and Redis activities.
   icon, name and address; the grip to reorder (`hs_ui::reorder`).
 - **A tab per server**: the header band (name, kind, server version, the
   environment), the toolbar (`hs_ui::toolbar`, the AI assistant hard right),
-  and two panes:
+  a **projects column** and two panes:
+  - the projects column (FEAT-0121, 2026-11-20): a resizable left column,
+    hidden and shown from the toolbar's first item (*Projects*, palette
+    *Show or Hide Projects*, `Ctrl+Alt+J`), with a filter field, **All
+    Projects** and each project with its job count — a Jenkins folder
+    path ("(Top Level)" for jobs in none), a TeamCity project, an AWX
+    project, the connection's GitHub / Forgejo repository or GitLab
+    project. Picking one narrows the jobs list and drops the project from
+    the job names; Puppet nodes have none;
   - left: the server's **jobs** as a `hs_ui::table::DataTable` — Jenkins jobs,
     TeamCity build configurations, workflows, GitLab projects' pipelines,
     and AWX job templates — with the last run's status, when, how

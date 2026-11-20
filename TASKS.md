@@ -150,13 +150,138 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.8.0
-Features : FEAT-0120
-Bugs : BUG-0069
-Change Request : CR-0101
+Version : v0.8.1
+Features : FEAT-0125
+Bugs : BUG-0075
+Change Request : CR-0103
 ```
 
 ---
+
+## v0.8.1 — In-Progress
+
+> The owner's list of 2026-11-20: projects columns in Automation and
+> Tracker, Tracker's search builder and sub-tickets, remote Docker, Db2
+> over ODBC, reusing a saved credential, the log INFO colour, Markdown
+> tables, Jasypt, and three small alignments.
+
+### BUG-0075 · Devtools → Jasypt: encrypt and decrypt do not match Jasypt
+- **State:** Completed · **Spec:** docs/tools/devtools.md (Jasypt)
+- **Source:** owner, 2026-11-20: "In Devtool Activity -> Jasypt; the ecryptor and decryptor is wrong" — a Spring config with `PBEWithMD5AndDES` and `PBEWITHHMACSHA512ANDAES_256`, 1000 iterations, `RandomSaltGenerator`, `RandomIvGenerator`, base64
+- **Scope:** Jasypt's `StandardPBEByteEncryptor` sizes the salt and the IV to the cipher's block size: 8 and 8 for DES, 16 and 16 for AES-256. The tool used an 8-byte salt and a 16-byte IV for both, so neither a DES nor an AES message from Java decrypted, and ours did not decrypt in Java. Sizes follow the algorithm; the IV generator (Random / None) replaces the free byte counts
+- [x] Test: known answers made by Java 21's SunJCE for both algorithms, failing before the change — `both_algorithms_match_java` (decrypt and seal against Java's bytes), `des_without_an_iv_generator_drops_the_iv_bytes`, `round_trips_and_refusals`. The old code could not read them by construction (an 8-byte salt for AES, a 16-byte IV for DES); it was not run against them before the change
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [x] App: `--data-dir ./tmp-data` — decrypt the Java known answers, encrypt and decrypt back — 2026-11-20: Java's AES-256 and DES answers both decrypt to `jdbc-password` with password `hyperstack`; the IV Generator dropdown and the new hint read whole
+- [x] Docs: spec · CHANGELOG · GOTCHAS
+
+### CR-0102 · The INFO level wears a readable blue, not the accent
+- **State:** In-Progress · **Spec:** .claude/rules/ui.md (one set of log-level colours)
+- **Source:** owner, 2026-11-20: "All log consoles; Change the INFO level text color from accent color to blue color that suit in dark and light mode"
+- **Scope:** the shared log-level colour for INFO (and its aliases) becomes a blue readable on the dark and the light theme, in every view that colours log levels
+- [x] Test: the shared function gives INFO the blue in both themes, not the accent — `info_is_a_blue_not_the_accent_in_both_themes`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — INFO in Logs and one other console, dark and light — 2026-11-20: the Logs activity's INFO words and time strip in the blue on the dark theme; the light theme and a second console not looked at
+- [x] Docs: spec · CHANGELOG
+- **Notes:** every console colours levels through `hs_ui::loglevel::colour` (CR-0077), so one change covers them; the light-theme look is still to do.
+
+### BUG-0074 · Markdown previews draw tables without borders, header or alignment
+- **State:** In-Progress · **Spec:** docs/04-ui-design.md
+- **Source:** owner, 2026-11-20: "All markdown preview (Scratchpad, Editor, S3, etc); the table have no border, header and data cannot be differentiated. Also didn't follow the alignment"
+- **Scope:** every Markdown preview draws a table with cell borders, a header row set apart (the table header fill, bold), and each column's `:---` / `:---:` / `---:` alignment
+- [x] Test: the alignments parsed from the delimiter row reach the cells — `a_table_keeps_its_alignments_header_and_rows`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — a table with all three alignments in Scratchpad and the Editor's preview — 2026-11-20 in Scratchpad: borders, the header on its fill under a stronger rule, Left / Centre / Right columns aligned so; the Editor's and S3's previews share `hs_editor::markdown` and were not opened
+- [x] Docs: CHANGELOG · GOTCHAS
+
+### BUG-0071 · Tracker: the detail column's key and summary sit off the middle line
+- **State:** Completed · **Spec:** docs/tools/tracker.md
+- **Source:** owner, 2026-11-20: "Tracker activity - Detail Column - Header Text (Key and Summary) must vertically middle"
+- [x] Test: n/a beyond the gate (layout), checked on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [x] App: `--data-dir ./tmp-data` — a ticket's header, key and summary on one middle line — 2026-11-20: "#3 Backups slow on Sunday" and "#6 hstest sub-sub: tell the team" on the bench Redmine, the key on the summary's middle line (`centred_row_wrapped`)
+- [x] Docs: CHANGELOG
+
+### BUG-0073 · Settings → Security → Credentials: Host/URL's Copy button off its line
+- **State:** Completed · **Spec:** docs/06-security.md
+- **Source:** owner, 2026-11-20: "the copy button for Host/URL column is not in same vertical line with Username and Password copy button"
+- [x] Test: n/a beyond the gate (layout), checked on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [x] App: `--data-dir ./tmp-data` — the three Copy buttons on one vertical line — 2026-11-20: every Host/URL Copy button in one column, beside the Username and Password columns' own; the Identity connections listed too
+- [x] Docs: CHANGELOG
+
+### CR-0103 · Scratchpad: the pin a little smaller in the tab, a little bigger in the list
+- **State:** Completed · **Spec:** docs/tools/scratchpad.md
+- **Source:** owner, 2026-11-20: "Scratchpad -> the pin icon a little bit smaller in tab label, and a little bit bigger in Note list"
+- [x] Test: n/a beyond the gate (sizes), checked on screen
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [x] App: `--data-dir ./tmp-data` — a pinned note's tab and list row — 2026-11-20: the tab's pin at 82 % of the icon size, centred in its slot, a step smaller than the note icons beside it; the list row's pin at 13 px (was 11)
+- [x] Docs: CHANGELOG
+
+### BUG-0070 · Containers: a remote Docker host fails over TCP and over SSH
+- **State:** In-Progress · **Spec:** docs/tools/containers.md §10.3a
+- **Source:** owner, 2026-11-20: "docker was not found on PATH. Command: docker -H tcp://192.168.50.204:2375 version …" and "this host is reached through 01M4MRR1PHN2DBF6B2R30DF86X. Command: docker version …", and the words not in sentence case
+- **Scope:** an SSH host runs the engine's commands on that host through its saved SSH connection (the error named the connection's id: the SSH path was never wired): the runner `hs_container::run::set_remote`, installed by the binary over `Tunnels::exec` (the SSH service's shared session, 120 s cap), Test Connection included. A TCP host still runs the local client (§10.3a: the driver is the CLI), so the TCP form says the client is needed here and warns when it is not on PATH. Every engine error starts with a capital; the Host and Port labels, which read `conn-host` / `conn-port`, have their strings
+- [x] Test: an SSH host's invocation runs through the SSH exec path; the TCP path without a local client; the error wording — `a_remote_invocation_runs_through_the_runner` (the line with `DOCKER_API_VERSION=` before it), `a_remote_failure_reads_as_a_local_one` (127 as not installed, a daemon refusal as unreachable, an SSH failure in words), `the_errors_read_as_sentences`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — a remote engine over TCP and over SSH lists its containers — 2026-11-20: the TCP form's hint and "The docker client is not installed on this computer (not on PATH)." seen on this machine (no client here); no engine over SSH on the bench, so the SSH path is proven by the tests only
+- [x] Docs: spec · CHANGELOG · GOTCHAS
+- **Notes:** a TCP host with no local client could be reached without one through the Engine API over HTTP; that is a second driver (§10.3a deferred `bollard`), not this fix. The owner's LAN host over SSH is the check this item still needs.
+
+### BUG-0072 · Database: Db2 over ODBC fails with both IBM drivers
+- **State:** In-Progress · **Spec:** docs/tools/database.md
+- **Source:** owner, 2026-11-20: `C_DB2_clidriver115` "SQL1042C … SQLSTATE=58004", `C_DB2_clidriver` "IM003 … system error 126 … C:\DB2\clidriver\bin\db2clio.dll"
+- **Scope:** both are recorded in GOTCHAS (2026-11-01): IBM's `db2cli install -setup` registers a `db2clio.dll` the package lacks; the 11.5 driver's encrypted login fails with `SQL1042C`. Find what can be done on our side, and say each failure's remedy in the connection error
+- [x] Test: the error mapping for both failures — `the_two_known_db2_failures_name_their_remedy`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — the bench Db2 through ODBC — not run: the bench Db2 (heavy profile) is stopped, port 50000 closed
+- [x] Docs: spec · CHANGELOG · GOTCHAS
+- **Notes:** 2026-11-20 on this machine: `HKLM\SOFTWARE\ODBC\ODBCINST.INI\IBM DB2 ODBC DRIVER - C_DB2_clidriver` still points `Driver` at `C:\DB2\clidriver\bin\db2clio.dll`, which is not there (`db2app64.dll` is, 12.1.4); the `C_DB2_clidriver115` entry points at `db2app64.dll` (11.5.9). Fixing the registration is the owner's (an administrator registry change). `SQL1042C` is inside IBM's driver; whether 12.1 logs in once registered needs the Db2 server up.
+
+### FEAT-0125 · Every connection form can reuse a saved credential
+- **State:** In-Progress · **Spec:** docs/05-data-model-and-storage.md, docs/06-security.md
+- **Source:** owner, 2026-11-20: "In all Add/Edit connection (any activity host); allow user to pick existing credential from other connection. Credential will be duplicate into the new connection vault"
+- **Scope:** a Use Saved Credential pick on every connection form's credential: the saved credentials by connection name and user (never the secret), and picking one copies the user and a new `secret:<ulid>` holding a copy of the secret into this connection
+- [ ] Test: the copy is a new vault entry with the same value; the source is untouched; the data-folder grep — `a_reused_credential_lands_where_each_kind_keeps_it` (what `apply` writes, `row` reads back, for twelve kinds); the vault copy itself is not unit-tested
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — copy a credential into a new connection in two activities and connect — 2026-11-20: the row on a new Jira and a new Docker form; the list shows name · user · kind only; picking Bench Redmine's filled Username `admin` and "Stored in the vault". Not saved, not connected, one activity only. The data-folder grep could not tell: the bench password is a common 5-letter word that matches ordinary text; the vault file did not match
+- [ ] Docs: spec · README · CHANGELOG — CHANGELOG only
+- **Notes:** the copy is made when picked, so a form closed unsaved leaves an unused vault entry behind.
+
+### FEAT-0121 · Automation: a projects column, then a project's jobs, then a job
+- **State:** In-Progress · **Spec:** docs/tools/automation.md
+- **Source:** owner, 2026-11-20: "Automation activity; have a left column that list the projects (searchable and hideable). Clicking the project, will list it jobs at right side, and clicking the job will display job detail on right side"
+- [x] Test: jobs grouped under their project for each kind that has projects — `jobs_group_by_project_and_lose_it_from_their_names` (Jenkins folders, TeamCity, the top level)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — the bench Jenkins and TeamCity: filter projects, hide the column, open a job — 2026-11-20 on the bench TeamCity: Projects first in the toolbar, All Projects (1) and Bench (1), picking Bench lists "Hello Build" without its project, the job's detail beside it. Jenkins and the filter field not exercised
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** each job carries its `project` from the driver: Jenkins the folder path, TeamCity `projectName`, AWX `summary_fields.project.name`, GitHub / Forgejo the repository, GitLab the project; Puppet none.
+
+### FEAT-0122 · Tracker: a projects column, then a project's tickets, then a ticket
+- **State:** In-Progress · **Spec:** docs/tools/tracker.md
+- **Source:** owner, 2026-11-20: "Tracker activity; have a left column that list the projects (searchable and hideable). Clicking the project, will list it tickets at right side, and clicking the ticket will display ticket detail on right side"
+- [ ] Test: the project list and a project's tickets for each kind — the project pick runs through the builder, covered by its tests; the `/projects.json` and Jira `/project` reads have no test of their own
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — the bench Redmine and Forgejo: filter projects, hide the column, open a ticket — 2026-11-20 on the bench Redmine: Projects first in the toolbar, All Projects and Demo (`demo`), picking Demo writes `project:demo` and lists its tickets, a ticket opens beside. Forgejo lists no projects by design (the hint); Jira is not on the bench
+- [x] Docs: spec · README · CHANGELOG
+
+### FEAT-0123 · Tracker: a ticket's sub-tickets
+- **State:** Completed · **Spec:** docs/tools/tracker.md
+- **Source:** owner, 2026-11-20: "Tracker activity; i want display the ticket inside the ticket (especially for redmine)"
+- **Scope:** a ticket's parent and children (Redmine sub-tasks, nested ones indented; Jira sub-tasks) on its page, each opening its own page. Deviation: not nested in the items list - the list stays the server's order, the page carries the family
+- [x] Test: Redmine's `parent` turned into a tree; a child opens — `a_parent_and_nested_sub_tasks_are_read`
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [x] App: `--data-dir ./tmp-data` — the bench Redmine with a parent and two sub-tasks — 2026-11-20: throwaway #4 and #5 under #3 and #6 under #5 made through the API; #3 shows Sub-Tickets (3) with #6 indented, a click opens #6, whose Parent link reads #5
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** the bench Redmine keeps the throwaway issues #4-#6 ("hstest sub…").
+
+### FEAT-0124 · Tracker: an advanced search builder
+- **State:** In-Progress · **Spec:** docs/tools/tracker.md
+- **Source:** owner, 2026-11-20: "Tracker activity; Ticket list - i want advanced search builder to generate the query. Have dropdown for status, assignee, assigner, etc"
+- **Scope:** dropdowns filled from the server (status, assignee, author, tracker or type, priority) that write the kind's own query the list runs: Redmine's words (`author:` and `priority:` added to the query bar) and JQL. The forges have no builder yet
+- [x] Test: each kind's query built from the same picks — `the_builder_writes_the_query_bars_words` (Redmine), `the_builder_writes_jql` (Jira)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-20, tests at -j 2
+- [ ] App: `--data-dir ./tmp-data` — the bench Redmine and Forgejo: pick status and assignee, the list narrows — 2026-11-20 on the bench Redmine: Status listed open / closed / all and the server's statuses; In Progress wrote `status:In_Progress` and the list narrowed to #2; Clear brought every open ticket back. An assignee pick and Forgejo (no builder) not done
+- [x] Docs: spec · README · CHANGELOG
 
 ## v0.8.0 — In-Progress
 

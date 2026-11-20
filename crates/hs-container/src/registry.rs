@@ -75,8 +75,12 @@ pub fn helm_repo_add(name: &str, url: &str, user: &str) -> Invocation {
 pub fn run_with_secret(inv: &Invocation, env: &[(String, String)], secret: &str) -> Result<String> {
     use std::io::Write;
 
-    if let Some(conn) = &inv.remote_ssh {
-        return Err(Error::Remote(conn.clone()));
+    // The SSH runner sends no standard input, so a secret cannot follow
+    // the command there; say so rather than log in without it.
+    if inv.remote_ssh.is_some() {
+        return Err(Error::Remote(
+            "signing in to a registry on an SSH host is not supported yet".into(),
+        ));
     }
     let mut cmd = hs_core::paths::background_command(&inv.program);
     cmd.args(&inv.args);

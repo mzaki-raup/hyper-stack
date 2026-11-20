@@ -695,7 +695,9 @@ fn plain_note_row(ui: &mut egui::Ui, t: &Tree, n: &NoteMeta, acts: &mut Vec<Side
                     egui::pos2(slot.center().x, body.center().y),
                     egui::Align2::CENTER_CENTER,
                     ph::PUSH_PIN,
-                    egui::FontId::proportional(11.0),
+                    // A step bigger than it was (CR-0103), still inside
+                    // the grip's slot.
+                    egui::FontId::proportional(13.0),
                     // The same mark the tab wears, in the colour chosen
                     // in Settings -> Appearance -> Scratchpad (CR-0041).
                     t.theme.pin,

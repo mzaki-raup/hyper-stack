@@ -658,21 +658,26 @@ impl TabStrip<'_> {
                     .fit_to_exact_size(size)
                     .paint_at(ui, at);
             }
+            None if tab.pin_icon() => {
+                // The pin a step smaller than an icon (CR-0103), centred in
+                // the icon's slot so the title does not move.
+                let small = egui::FontId::new(font.size * 0.82, font.family.clone());
+                let at = Pos2::new(icon_pos.x + (font.size - small.size) / 2.0, icon_pos.y);
+                painter.text(
+                    at,
+                    egui::Align2::LEFT_CENTER,
+                    crate::icons::ph::PUSH_PIN,
+                    small,
+                    self.theme.pin,
+                );
+            }
             None => {
-                let (glyph, colour) = if tab.pin_icon() {
-                    (crate::icons::ph::PUSH_PIN, self.theme.pin)
-                } else {
-                    (
-                        tab.icon(),
-                        tab.icon_colour().unwrap_or(self.theme.text_muted),
-                    )
-                };
                 painter.text(
                     icon_pos,
                     egui::Align2::LEFT_CENTER,
-                    glyph,
+                    tab.icon(),
                     font.clone(),
-                    colour,
+                    tab.icon_colour().unwrap_or(self.theme.text_muted),
                 );
             }
         }

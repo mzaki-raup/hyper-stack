@@ -63,7 +63,11 @@ pub fn spawn(mut channel: russh::Channel<Msg>) -> ExecStream {
                             }
                         }
                         Some(ChannelMsg::ExitStatus { exit_status }) => exit = exit_status,
-                        Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
+                        // EOF ends the output, not the channel: the exit
+                        // status usually follows it, and a caller that
+                        // judges a command by its status needs it.
+                        Some(ChannelMsg::Eof) => {}
+                        Some(ChannelMsg::Close) | None => break,
                         Some(_) => {}
                     }
                 }

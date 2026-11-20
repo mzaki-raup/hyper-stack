@@ -618,7 +618,12 @@ them unchanged.
 - **The form** lists the engines; DuckDB takes a file (or `:memory:`), and
   Oracle and Db2 take an **ODBC Driver** chosen from the ones ODBC reports
   as installed, with a note naming the package to install when none is.
-  Oracle's database field is its **Service Name**.
+  Oracle's database field is its **Service Name**. A Db2 connect that
+  fails the two known ways of IBM's driver says what to do (BUG-0072,
+  2026-11-20): a registration pointing at the missing `db2clio.dll`
+  names `bin\db2app64.dll` and the other driver; `SQL1042C` says it
+  comes from inside the driver's encrypted login and to try
+  `db2cli validate -connect` and a second ODBC client.
 - **Dialects.** Quoting and case folding follow the engine: SQL Server
   brackets, ClickHouse backticks, Oracle and Db2 fold to upper case so a
   lower-case name is quoted, DuckDB to lower case like Postgres. Statement

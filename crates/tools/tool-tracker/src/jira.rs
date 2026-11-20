@@ -8,8 +8,9 @@ use reqwest::Method;
 use serde_json::{Map, Value, json};
 
 use crate::driver::{
-    Caps, Comment, CreateForm, Detail, Driver, Edit, Found, Item, MAX_COMMENTS, NewItem, PAGE,
-    Result, ServerInfo, Transition, iso_ms, q, time_ms,
+    ANY, CLOSED, Caps, Comment, CreateForm, Detail, Driver, Edit, Filters, Found, Item,
+    MAX_COMMENTS, ME, NewItem, OPEN, PAGE, Picks, Project, Result, ServerInfo, Transition, iso_ms,
+    q, time_ms,
 };
 use crate::markup::{Lite, adf_to_md, lite_to_md, md_to_adf, md_to_lite};
 use crate::profile::ConnectConfig;
@@ -24,6 +25,15 @@ pub struct Jira {
     cloud: bool,
     project: String,
     info: ServerInfo,
+    /// The assignable people the search builder last listed, display name
+    /// → what JQL takes (an account id on Cloud, a user name on Data
+    /// Center) (FEAT-0124).
+    people: Vec<(String, String)>,
+}
+
+/// A JQL string literal.
+fn jql_str(v: &str) -> String {
+    format!("\"{}\"", v.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 fn display(v: &Value, k: &str) -> String {
@@ -51,6 +61,7 @@ impl Jira {
                 product: "Jira".into(),
                 version: s(&v, "version"),
             },
+            people: Vec::new(),
         })
     }
 
@@ -184,7 +195,7 @@ impl Driver for Jira {
         let i = self
             .http
             .get_json(&format!(
-                "/issue/{}?fields={FIELDS},description,labels,duedate,issuetype,reporter,created,attachment,issuelinks,comment",
+                "/issue/{}?fields={FIELDS},description,labels,duedate,issuetype,reporter,created,attachment,issuelinks,comment,parent,subtasks",
                 seg(key)
             ))
             .await?;
@@ -240,6 +251,19 @@ impl Driver for Jira {
             .flatten()
             .filter_map(|l| l.as_str().map(String::from))
             .collect();
+        // The parent and the sub-tasks come with their key, summary and
+        // status, as a row does (FEAT-0123).
+        let parent = f
+            .get("parent")
+            .filter(|p| !p.is_null())
+            .map(|p| self.row(p));
+        let children = f
+            .get("subtasks")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .map(|c| self.row(c))
+            .collect();
         Ok(Detail {
             item: self.row(&i),
             fields,
@@ -251,6 +275,8 @@ impl Driver for Jira {
             comments_note: None,
             attachments,
             links,
+            parent,
+            children,
         })
     }
 
@@ -418,5 +444,168 @@ impl Driver for Jira {
             )
             .await?;
         Ok(s(&v, "key"))
+    }
+
+    async fn projects(&mut self) -> Result<Vec<Project>> {
+        let v = self.http.get_json("/project").await?;
+        Ok(v.as_array()
+            .into_iter()
+            .flatten()
+            .map(|p| Project {
+                key: s(p, "key"),
+                name: s(p, "name"),
+            })
+            .collect())
+    }
+
+    async fn filters(&mut self, project: &str) -> Result<Filters> {
+        let form = self.fields(project).await?;
+        let project = if project.is_empty() {
+            self.project.clone()
+        } else {
+            project.to_string()
+        };
+        let names = |v: Option<Value>| -> Vec<String> {
+            let mut out: Vec<String> = v
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .map(|x| s(x, "name"))
+                .filter(|n| !n.is_empty())
+                .collect();
+            out.sort();
+            out.dedup();
+            out
+        };
+        let mut statuses = vec![OPEN.to_string(), CLOSED.to_string(), ANY.to_string()];
+        statuses.extend(names(self.http.get_json("/status").await.ok()));
+        let kinds = if form.kinds.is_empty() {
+            names(self.http.get_json("/issuetype").await.ok())
+        } else {
+            form.kinds
+        };
+        // Display name → what JQL takes, read with the names.
+        self.people = if project.is_empty() {
+            Vec::new()
+        } else {
+            self.http
+                .get_json(&format!(
+                    "/user/assignable/search?project={}&maxResults=50",
+                    q(&project)
+                ))
+                .await
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .unwrap_or_default()
+                .iter()
+                .map(|u| {
+                    let id = if self.cloud {
+                        s(u, "accountId")
+                    } else {
+                        s(u, "name")
+                    };
+                    (s(u, "displayName"), id)
+                })
+                .filter(|(n, id)| !n.is_empty() && !id.is_empty())
+                .collect()
+        };
+        let mut people: Vec<String> = self.people.iter().map(|(n, _)| n.clone()).collect();
+        if self.signed_in {
+            people.insert(0, ME.to_string());
+        }
+        Ok(Filters {
+            statuses,
+            assignees: people.clone(),
+            authors: people,
+            kinds,
+            priorities: form.priorities,
+        })
+    }
+
+    fn build_query(&self, p: &Picks) -> Option<String> {
+        Some(jql(&self.people, p))
+    }
+}
+
+/// The builder's picks as JQL (FEAT-0124): "me" as `currentUser()`, a
+/// listed person by what JQL takes for them, open and closed by status
+/// category, newest first.
+pub fn jql(people: &[(String, String)], p: &Picks) -> String {
+    let person = |who: &str| -> String {
+        if who == ME {
+            return "currentUser()".into();
+        }
+        let id = people
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(who))
+            .map(|(_, id)| id.as_str())
+            .unwrap_or(who);
+        jql_str(id)
+    };
+    let mut clauses = Vec::new();
+    if !p.project.trim().is_empty() {
+        clauses.push(format!("project = {}", jql_str(p.project.trim())));
+    }
+    match p.status.trim() {
+        "" | OPEN => clauses.push("statusCategory != Done".into()),
+        CLOSED => clauses.push("statusCategory = Done".into()),
+        ANY => {}
+        name => clauses.push(format!("status = {}", jql_str(name))),
+    }
+    if !p.assignee.trim().is_empty() {
+        clauses.push(format!("assignee = {}", person(p.assignee.trim())));
+    }
+    if !p.author.trim().is_empty() {
+        clauses.push(format!("reporter = {}", person(p.author.trim())));
+    }
+    if !p.kind.trim().is_empty() {
+        clauses.push(format!("issuetype = {}", jql_str(p.kind.trim())));
+    }
+    if !p.priority.trim().is_empty() {
+        clauses.push(format!("priority = {}", jql_str(p.priority.trim())));
+    }
+    if !p.text.trim().is_empty() {
+        clauses.push(format!("text ~ {}", jql_str(p.text.trim())));
+    }
+    format!("{} ORDER BY updated DESC", clauses.join(" AND "))
+        .trim()
+        .to_string()
+}
+
+#[cfg(test)]
+mod builder_tests {
+    use super::*;
+
+    #[test]
+    fn the_builder_writes_jql() {
+        let people = vec![(
+            "Ada Lovelace".to_string(),
+            "5b10ac8d82e05b22cc7d4ef5".to_string(),
+        )];
+        let picks = Picks {
+            project: "OPS".into(),
+            status: "In Progress".into(),
+            assignee: "Ada Lovelace".into(),
+            author: ME.into(),
+            kind: "Bug".into(),
+            priority: String::new(),
+            text: "disk \"full\"".into(),
+        };
+        assert_eq!(
+            jql(&people, &picks),
+            "project = \"OPS\" AND status = \"In Progress\" AND assignee = \"5b10ac8d82e05b22cc7d4ef5\" AND reporter = currentUser() AND issuetype = \"Bug\" AND text ~ \"disk \\\"full\\\"\" ORDER BY updated DESC"
+        );
+        assert_eq!(
+            jql(&[], &Picks::default()),
+            "statusCategory != Done ORDER BY updated DESC"
+        );
+        let closed = Picks {
+            status: CLOSED.into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            jql(&[], &closed),
+            "statusCategory = Done ORDER BY updated DESC"
+        );
     }
 }

@@ -74,7 +74,53 @@ pub struct Detail {
     pub attachments: Vec<(String, String)>,
     /// How it is linked, the other item's key.
     pub links: Vec<(String, String)>,
+    /// The item this one is a sub-task of, where the kind has them
+    /// (Redmine's parent, Jira's parent) (FEAT-0123).
+    pub parent: Option<Item>,
+    /// Its sub-tasks, each opening its own page (FEAT-0123).
+    pub children: Vec<Item>,
 }
+
+/// A project the tracker lists, for the projects column (FEAT-0122).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Project {
+    /// What a query names it by: a Redmine identifier, a Jira key.
+    pub key: String,
+    pub name: String,
+}
+
+/// What the search builder's dropdowns offer, as the server names them
+/// (FEAT-0124). An empty list leaves its field free text.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Filters {
+    pub statuses: Vec<String>,
+    pub assignees: Vec<String>,
+    pub authors: Vec<String>,
+    /// Redmine trackers, Jira issue types.
+    pub kinds: Vec<String>,
+    pub priorities: Vec<String>,
+}
+
+/// What the search builder's fields hold; empty is "any" (FEAT-0124).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Picks {
+    pub project: String,
+    pub status: String,
+    pub assignee: String,
+    pub author: String,
+    pub kind: String,
+    pub priority: String,
+    pub text: String,
+}
+
+/// The word that means "the signed-in user" in an assignee or author pick.
+pub const ME: &str = "me";
+
+/// The words the status pick offers before the server's own statuses.
+pub const OPEN: &str = "open";
+pub const CLOSED: &str = "closed";
+pub const ANY: &str = "all";
 
 /// A status the item can move to: a Jira transition, a Redmine status,
 /// open / closed on the forges.
@@ -185,6 +231,20 @@ pub trait Driver: Send {
     async fn fields(&mut self, project: &str) -> Result<CreateForm>;
     /// Returns the new item's key.
     async fn create(&mut self, item: &NewItem) -> Result<String>;
+    /// The projects the server lists (FEAT-0122); empty where the
+    /// connection names its one repository or project instead.
+    async fn projects(&mut self) -> Result<Vec<Project>> {
+        Ok(Vec::new())
+    }
+    /// What the search builder offers for `project` (FEAT-0124).
+    async fn filters(&mut self, _project: &str) -> Result<Filters> {
+        Ok(Filters::default())
+    }
+    /// The query the search builder's picks make, in this kind's own
+    /// language; `None` where the kind has no builder (FEAT-0124).
+    fn build_query(&self, _picks: &Picks) -> Option<String> {
+        None
+    }
     async fn spaces(&mut self) -> Result<Vec<Space>> {
         Err("this tracker has no spaces".into())
     }
@@ -290,6 +350,15 @@ impl Driver for Guarded {
     async fn create(&mut self, item: &NewItem) -> Result<String> {
         self.allow("New Item", self.inner.caps().create)?;
         self.inner.create(item).await
+    }
+    async fn projects(&mut self) -> Result<Vec<Project>> {
+        self.inner.projects().await
+    }
+    async fn filters(&mut self, project: &str) -> Result<Filters> {
+        self.inner.filters(project).await
+    }
+    fn build_query(&self, picks: &Picks) -> Option<String> {
+        self.inner.build_query(picks)
     }
     async fn spaces(&mut self) -> Result<Vec<Space>> {
         self.inner.spaces().await

@@ -8,13 +8,23 @@ use hs_core::loglevel::{Level, level_span};
 
 use crate::theme::Theme;
 
+/// INFO's blue, one for each background: light enough to read on the dark
+/// theme, deep enough on the light one (CR-0102: the accent read poorly).
+pub fn info_blue(theme: &Theme) -> Color32 {
+    if theme.dark {
+        Color32::from_rgb(0x4F, 0xA3, 0xF7)
+    } else {
+        Color32::from_rgb(0x1A, 0x66, 0xC2)
+    }
+}
+
 /// The colour of a level: errors and fatals in the error colour, warnings
-/// in the warning colour, info in the accent, debug and trace muted.
+/// in the warning colour, info in a blue, debug and trace muted.
 pub fn colour(theme: &Theme, level: Level) -> Color32 {
     match level {
         Level::Trace => theme.text_muted,
         Level::Debug => theme.text_muted,
-        Level::Info => theme.accent,
+        Level::Info => info_blue(theme),
         Level::Warn => theme.warning,
         Level::Error | Level::Fatal => theme.error,
     }
@@ -85,8 +95,21 @@ mod tests {
         assert_eq!(line_colour(&t, "2026-11-06 12:00 WARN x"), Some(t.warning));
         assert_eq!(line_colour(&t, "level=error"), Some(t.error));
         assert_eq!(line_colour(&t, "[DBG] starting"), Some(t.text_muted));
-        assert_eq!(line_colour(&t, "INFO ready"), Some(t.accent));
+        assert_eq!(line_colour(&t, "INFO ready"), Some(info_blue(&t)));
         assert_eq!(line_colour(&t, "just some plain text"), None);
+    }
+
+    #[test]
+    fn info_is_a_blue_not_the_accent_in_both_themes() {
+        for t in [Theme::dark(), Theme::light()] {
+            let c = colour(&t, Level::Info);
+            assert_ne!(c, t.accent);
+            assert!(c.b() > c.r() && c.b() > c.g(), "{c:?} is blue");
+        }
+        assert_ne!(
+            colour(&Theme::dark(), Level::Info),
+            colour(&Theme::light(), Level::Info)
+        );
     }
 
     #[test]

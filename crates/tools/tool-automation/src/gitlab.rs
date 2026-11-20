@@ -126,6 +126,8 @@ impl Driver for GitLab {
                 name: reference,
                 last: Some(run(p)),
                 url: String::new(),
+                // The one project this connection names, as written.
+                project: self.project.replace("%2F", "/").replace("%2f", "/"),
             });
         }
         jobs.sort_by(|a, b| a.name.cmp(&b.name));

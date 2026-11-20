@@ -222,6 +222,7 @@ impl Driver for GitHub {
                     id,
                     name: s(w, "name"),
                     url: s(w, "html_url"),
+                    project: self.repo.clone(),
                 }
             })
             .collect();

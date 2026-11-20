@@ -462,12 +462,9 @@ fn probe(
         // call, so it runs on the blocking pool; the button was disabled
         // for every container kind until 2026-10-29 (owner's report).
         "docker" | "podman" | "wincontainer" => {
+            // An SSH host's `docker version` runs on that host through the
+            // SSH service, as the tab's do (BUG-0070).
             let f = hs_container::profile::ContainerFields::from_table(fields);
-            if f.transport == hs_container::profile::Transport::Ssh {
-                // Run on the far side through the SSH tool, which this
-                // page cannot do; opening the host does.
-                return Err(Outcome::Failed(s.t("conn-test-over-ssh")));
-            }
             let engine = hs_container::Engine::new(&profile.kind, f);
             let handle = s.runtime.handle();
             Ok(Box::pin(async move {

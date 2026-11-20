@@ -15,7 +15,10 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use hs_core::connections::Connections;
 use hs_core::runtime::AppRuntime;
 use hs_core::secrets::SecretStore;
-use hs_core::tunnels::{ForwardResult, ForwardSpec, TunnelError, TunnelInfo, TunnelState, Tunnels};
+use hs_core::tunnels::{
+    ExecOutput, ExecResult, ForwardResult, ForwardSpec, TunnelError, TunnelInfo, TunnelState,
+    Tunnels,
+};
 use parking_lot::{Mutex, RwLock};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -23,7 +26,7 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
 use crate::config::{ConfigError, config_from_fields};
-use crate::{KnownHosts, SshClient, SshError, SshFields};
+use crate::{ExecChunk, KnownHosts, SshClient, SshError, SshFields};
 
 #[derive(Default)]
 struct Counters {
@@ -371,4 +374,48 @@ impl Tunnels for TunnelManager {
             })
             .collect()
     }
+
+    fn exec(&self, ssh_id: &str, command: &str) -> oneshot::Receiver<ExecResult> {
+        let (tx, rx) = oneshot::channel();
+        let inner = self.inner.clone();
+        let (ssh_id, command) = (ssh_id.to_string(), command.to_string());
+        self.inner.runtime.handle().spawn(async move {
+            let answer = async {
+                let client = inner.client(&ssh_id).await?;
+                let mut stream = client
+                    .exec(&command)
+                    .await
+                    .map_err(|e| TunnelError::Other(e.to_string()))?;
+                let (mut out, mut err) = (Vec::new(), Vec::new());
+                let mut status = 0;
+                while let Some(chunk) = stream.next().await {
+                    match chunk {
+                        ExecChunk::Stdout(b) => out.extend(b),
+                        ExecChunk::Stderr(b) => err.extend(b),
+                        ExecChunk::Exit(code) => status = code,
+                    }
+                }
+                Ok(ExecOutput {
+                    stdout: String::from_utf8_lossy(&out).into_owned(),
+                    stderr: String::from_utf8_lossy(&err).into_owned(),
+                    status,
+                })
+            };
+            // A command that never ends (a host that stops answering) must
+            // not hold its caller's worker for ever.
+            let answer = tokio::time::timeout(EXEC_TIMEOUT, answer)
+                .await
+                .unwrap_or_else(|_| {
+                    Err(TunnelError::Other(format!(
+                        "no answer within {} seconds",
+                        EXEC_TIMEOUT.as_secs()
+                    )))
+                });
+            let _ = tx.send(answer);
+        });
+        rx
+    }
 }
+
+/// How long [`Tunnels::exec`] waits for a command to finish.
+const EXEC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);

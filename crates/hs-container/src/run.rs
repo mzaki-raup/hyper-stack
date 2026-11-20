@@ -6,10 +6,13 @@
 //! goes through `hs_core::paths::background_command`, so **no console
 //! window ever appears** — the owner's rule of 2026-10-24.
 //!
-//! A remote engine is not run here. `Invocation::remote_ssh` names the
-//! saved connection, and the caller runs `Invocation::to_line()` through
-//! `hs_ssh::exec`: this crate must not depend on `hs-ssh`, or the
-//! dependency would run the wrong way round.
+//! A remote engine is not run here either. `Invocation::remote_ssh` names
+//! the saved connection, and `Invocation::to_line()` goes to the runner
+//! the binary installs with [`set_remote`] (the SSH service's exec): this
+//! crate must not depend on `hs-ssh`, or the dependency would run the
+//! wrong way round. With no runner installed, a remote invocation is
+//! refused rather than run against the local engine (BUG-0070: before
+//! the runner, every SSH host failed this way).
 
 use crate::cli::{Engine, Invocation};
 use crate::model;
@@ -25,17 +28,22 @@ pub enum Error {
     Unreachable(String),
     /// It answered, and said no.
     Refused(String),
-    /// This invocation has to be run somewhere else.
+    /// Running it on its SSH host failed before the engine answered (no
+    /// runner, no connection, the vault locked), in these words.
     Remote(String),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Sentences, as every pane shows them (BUG-0070).
         match self {
-            Error::NotInstalled(p) => write!(f, "{p} was not found on PATH"),
-            Error::Unreachable(m) => write!(f, "could not reach the engine: {m}"),
+            Error::NotInstalled(p) => write!(
+                f,
+                "The {p} command was not found on this computer's PATH. Install the {p} client: a remote engine over TCP needs it here too, or reach the host over SSH instead."
+            ),
+            Error::Unreachable(m) => write!(f, "Could not reach the engine: {m}"),
             Error::Refused(m) => write!(f, "{m}"),
-            Error::Remote(c) => write!(f, "this host is reached through {c}"),
+            Error::Remote(m) => write!(f, "Could not run the command over SSH: {m}"),
         }
     }
 }
@@ -44,7 +52,95 @@ impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Run a local invocation and give back its stdout.
+/// What a remote command answered: stdout, stderr and its exit status.
+pub type RemoteAnswer = std::result::Result<(String, String, u32), String>;
+
+/// Runs one shell line on a saved SSH connection: `(connection id, line)`.
+pub type RemoteRunner = dyn Fn(&str, &str) -> RemoteAnswer + Send + Sync;
+
+static REMOTE: std::sync::RwLock<Option<std::sync::Arc<RemoteRunner>>> =
+    std::sync::RwLock::new(None);
+
+/// Install the runner for SSH hosts. The binary does this once at start-up
+/// with the SSH service; tests and `--self-test` leave it unset.
+pub fn set_remote(runner: std::sync::Arc<RemoteRunner>) {
+    if let Ok(mut slot) = REMOTE.write() {
+        *slot = Some(runner);
+    }
+}
+
+fn remote_runner() -> Option<std::sync::Arc<RemoteRunner>> {
+    REMOTE.read().ok().and_then(|r| r.clone())
+}
+
+/// The line an SSH host runs: the engine's environment as assignments
+/// before the command, which is how a POSIX shell takes them.
+fn remote_line(inv: &Invocation, env: &[(String, String)]) -> String {
+    let mut line = String::new();
+    for (k, v) in env {
+        line.push_str(&format!("{k}={} ", crate::cli::shell_quote(v)));
+    }
+    line.push_str(&inv.to_line());
+    line
+}
+
+/// A remote invocation through `runner`, its answer read as a local one is.
+fn remote_output<F: Fn(&str, &str) -> RemoteAnswer + ?Sized>(
+    runner: &F,
+    conn: &str,
+    inv: &Invocation,
+    env: &[(String, String)],
+    with_stderr: bool,
+) -> Result<String> {
+    let (stdout, stderr, status) = runner(conn, &remote_line(inv, env)).map_err(Error::Remote)?;
+    if status != 0 {
+        let stderr = stderr.trim();
+        // 127 is a POSIX shell's "command not found": the engine is not
+        // installed on that host, which deserves its own words.
+        if status == 127 {
+            return Err(Error::Refused(format!(
+                "The {} command was not found on the SSH host: install the engine there, or check its PATH for a non-interactive login.",
+                inv.program
+            )));
+        }
+        let message = if stderr.is_empty() {
+            format!("{} exited with {status}", inv.program)
+        } else {
+            stderr.to_string()
+        };
+        return Err(if looks_unreachable(&message.to_ascii_lowercase()) {
+            Error::Unreachable(message)
+        } else {
+            Error::Refused(message)
+        });
+    }
+    let mut text = stdout;
+    if with_stderr && !stderr.trim().is_empty() {
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str(&stderr);
+    }
+    Ok(text)
+}
+
+/// A remote invocation through the installed runner, or refused when
+/// there is none (never run against the local engine instead).
+fn remote(
+    conn: &str,
+    inv: &Invocation,
+    env: &[(String, String)],
+    with_stderr: bool,
+) -> Result<String> {
+    match remote_runner() {
+        Some(r) => remote_output(r.as_ref(), conn, inv, env, with_stderr),
+        None => Err(Error::Remote(
+            "SSH is not available in this process".to_string(),
+        )),
+    }
+}
+
+/// Run an invocation and give back its stdout.
 ///
 /// A non-zero exit is an error carrying **stderr**, because that is
 /// where an engine says what was wrong; returning the empty stdout
@@ -52,7 +148,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// permission on the socket".
 pub fn output(inv: &Invocation, env: &[(String, String)]) -> Result<String> {
     if let Some(conn) = &inv.remote_ssh {
-        return Err(Error::Remote(conn.clone()));
+        return remote(conn, inv, env, false);
     }
     let mut cmd = hs_core::paths::background_command(&inv.program);
     cmd.args(&inv.args);
@@ -98,7 +194,7 @@ pub fn output(inv: &Invocation, env: &[(String, String)]) -> Result<String> {
 /// stdout as JSON and must not have progress text mixed into it.
 pub fn output_with_stderr(inv: &Invocation, env: &[(String, String)]) -> Result<String> {
     if let Some(conn) = &inv.remote_ssh {
-        return Err(Error::Remote(conn.clone()));
+        return remote(conn, inv, env, true);
     }
     let mut cmd = hs_core::paths::background_command(&inv.program);
     cmd.args(&inv.args);
@@ -304,10 +400,77 @@ mod tests {
                 ..Default::default()
             },
         );
+        // No test installs a runner, so this is the "no SSH here" case.
         match containers(&e) {
-            Err(Error::Remote(conn)) => assert_eq!(conn, "web01"),
+            Err(Error::Remote(_)) => {}
             other => panic!("expected a Remote error, got {other:?}"),
         }
+    }
+
+    /// An SSH host's commands go to the runner as one line, with the
+    /// engine's environment before it, and its answer reads as a local
+    /// one does (BUG-0070: before, every SSH host failed with the
+    /// connection's id).
+    #[test]
+    fn a_remote_invocation_runs_through_the_runner() {
+        let e = Engine::new(
+            "docker",
+            ContainerFields {
+                transport: Transport::Ssh,
+                tunnel_ssh: "web01".into(),
+                api_version: "1.41".into(),
+                ..Default::default()
+            },
+        );
+        let seen = std::sync::Mutex::new(Vec::<(String, String)>::new());
+        let runner = |conn: &str, line: &str| -> RemoteAnswer {
+            seen.lock().unwrap().push((conn.into(), line.into()));
+            Ok(("27.3.1\n".into(), String::new(), 0))
+        };
+        let inv = e.version();
+        let out = remote_output(&runner, "web01", &inv, &e.env(), false).unwrap();
+        assert_eq!(out, "27.3.1\n");
+        let (conn, line) = seen.lock().unwrap()[0].clone();
+        assert_eq!(conn, "web01");
+        assert_eq!(
+            line,
+            "DOCKER_API_VERSION=1.41 docker version --format '{{json .}}'"
+        );
+    }
+
+    #[test]
+    fn a_remote_failure_reads_as_a_local_one() {
+        let inv = Invocation {
+            program: "docker".into(),
+            args: vec!["ps".into()],
+            remote_ssh: Some("web01".into()),
+        };
+        let missing = |_: &str, _: &str| -> RemoteAnswer {
+            Ok((String::new(), "sh: docker: not found".into(), 127))
+        };
+        let err = remote_output(&missing, "web01", &inv, &[], false).unwrap_err();
+        assert!(
+            err.to_string()
+                .starts_with("The docker command was not found on the SSH host")
+        );
+        let down = |_: &str, _: &str| -> RemoteAnswer {
+            Ok((
+                String::new(),
+                "Cannot connect to the Docker daemon at unix:///var/run/docker.sock.".into(),
+                1,
+            ))
+        };
+        assert!(matches!(
+            remote_output(&down, "web01", &inv, &[], false),
+            Err(Error::Unreachable(_))
+        ));
+        let no_ssh = |_: &str, _: &str| -> RemoteAnswer { Err("the vault is locked".into()) };
+        assert_eq!(
+            remote_output(&no_ssh, "web01", &inv, &[], false)
+                .unwrap_err()
+                .to_string(),
+            "Could not run the command over SSH: the vault is locked"
+        );
     }
 
     /// A missing binary is its own case, because its remedy is its own.
@@ -359,14 +522,15 @@ mod tests {
 
     #[test]
     fn the_errors_read_as_sentences() {
-        assert_eq!(
-            Error::NotInstalled("docker".into()).to_string(),
-            "docker was not found on PATH"
-        );
+        // Each starts with a capital (BUG-0070) and the missing client
+        // names both remedies.
+        let missing = Error::NotInstalled("docker".into()).to_string();
+        assert!(missing.starts_with("The docker command was not found on this computer's PATH."));
+        assert!(missing.contains("over TCP") && missing.contains("over SSH"));
         assert!(
             Error::Unreachable("no socket".into())
                 .to_string()
-                .starts_with("could not reach the engine")
+                .starts_with("Could not reach the engine")
         );
         // A refusal is the engine's own words, unwrapped.
         assert_eq!(

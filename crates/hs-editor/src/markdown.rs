@@ -5,7 +5,7 @@
 //! back to the source with a note).
 
 use egui::{Color32, RichText};
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 
 use crate::buffer::Buffer;
 use crate::highlight::LineHighlighter;
@@ -104,11 +104,16 @@ enum Block {
         job: Rich,
     },
     Quote(Rich),
-    TableRow {
-        cells: Vec<Rich>,
-        header: bool,
+    Table {
+        /// Each column's `:---` / `:---:` / `---:` from the delimiter row.
+        align: Vec<Alignment>,
+        header: Vec<Rich>,
+        rows: Vec<Vec<Rich>>,
     },
 }
+
+/// A table while it is parsed: its alignments, header and rows so far.
+type TableSoFar = (Vec<Alignment>, Vec<Rich>, Vec<Vec<Rich>>);
 
 /// Render `text` into `ui`.
 /// Draw one run of text; a click on a link in it is reported through
@@ -162,7 +167,6 @@ pub fn parse_doc(text: &str, style: &MarkdownStyle) -> MarkdownDoc {
 
 /// Draw a document [`parse_doc`] parsed.
 pub fn render_doc(ui: &mut egui::Ui, doc: &MarkdownDoc, style: &MarkdownStyle) -> MarkdownResponse {
-    let mut last_was_table = false;
     let mut clicked: Option<String> = None;
     for b in &doc.blocks {
         match b {
@@ -232,32 +236,126 @@ pub fn render_doc(ui: &mut egui::Ui, doc: &MarkdownDoc, style: &MarkdownStyle) -
                 });
                 ui.add_space(4.0);
             }
-            Block::TableRow { cells, header } => {
-                ui.horizontal(|ui| {
-                    for c in cells {
-                        let mut job = c.clone();
-                        if *header {
-                            for s in &mut job.job.sections {
-                                s.format.color = style.text;
-                            }
-                        }
-                        ui.add_sized(
-                            [ui.available_width() / 4.0_f32.max(1.0), 18.0],
-                            egui::Label::new(job.job).truncate(),
-                        );
-                    }
-                });
-                last_was_table = true;
-                continue;
+            Block::Table {
+                align,
+                header,
+                rows,
+            } => {
+                table(ui, align, header, rows, style);
+                ui.add_space(6.0);
             }
-        }
-        if last_was_table {
-            ui.add_space(6.0);
-            last_was_table = false;
         }
     }
     MarkdownResponse {
         link_clicked: clicked,
+    }
+}
+
+/// A table with a ruled grid, the header row on a fill, and each column
+/// aligned as its delimiter row says. Columns take their text's width;
+/// when the whole is wider than the pane, they share the pane and wrap.
+fn table(
+    ui: &mut egui::Ui,
+    align: &[Alignment],
+    header: &[Rich],
+    rows: &[Vec<Rich>],
+    style: &MarkdownStyle,
+) {
+    const PAD_X: f32 = 8.0;
+    const PAD_Y: f32 = 4.0;
+    let columns = align
+        .len()
+        .max(header.len())
+        .max(rows.iter().map(Vec::len).max().unwrap_or(0));
+    if columns == 0 {
+        return;
+    }
+    let all: Vec<&[Rich]> = std::iter::once(header)
+        .chain(rows.iter().map(Vec::as_slice))
+        .collect();
+    // Each column's natural width: its widest cell on one line.
+    let mut natural = vec![24.0_f32; columns];
+    for row in &all {
+        for (c, cell) in row.iter().enumerate() {
+            let mut job = cell.job.clone();
+            job.wrap.max_width = f32::INFINITY;
+            let w = ui.fonts_mut(|f| f.layout_job(job)).size().x;
+            natural[c] = natural[c].max(w + 2.0 * PAD_X);
+        }
+    }
+    let room = ui.available_width().max(columns as f32 * 48.0);
+    let total: f32 = natural.iter().sum();
+    let widths: Vec<f32> = if total <= room {
+        natural
+    } else {
+        natural
+            .iter()
+            .map(|w| (w * room / total).max(48.0))
+            .collect()
+    };
+    // Lay every cell out at its column's width, then size the rows.
+    let laid: Vec<Vec<std::sync::Arc<egui::Galley>>> = all
+        .iter()
+        .map(|row| {
+            (0..columns)
+                .map(|c| {
+                    let mut job = row.get(c).map(|r| r.job.clone()).unwrap_or_default();
+                    job.wrap.max_width = widths[c] - 2.0 * PAD_X;
+                    job.halign = match align.get(c) {
+                        Some(Alignment::Center) => egui::Align::Center,
+                        Some(Alignment::Right) => egui::Align::RIGHT,
+                        _ => egui::Align::LEFT,
+                    };
+                    ui.fonts_mut(|f| f.layout_job(job))
+                })
+                .collect()
+        })
+        .collect();
+    let heights: Vec<f32> = laid
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|g| g.size().y)
+                .fold(style.base_size, f32::max)
+                + 2.0 * PAD_Y
+        })
+        .collect();
+    let size = egui::vec2(widths.iter().sum(), heights.iter().sum());
+    let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let painter = ui.painter_at(rect.expand(1.0));
+    let line = egui::Stroke::new(1.0, style.quote_bar);
+    let header_rect = egui::Rect::from_min_size(rect.min, egui::vec2(size.x, heights[0]));
+    painter.rect_filled(header_rect, 0.0, style.code_bg);
+    let mut y = rect.top();
+    for (r, row) in laid.iter().enumerate() {
+        let mut x = rect.left();
+        for (c, galley) in row.iter().enumerate() {
+            let w = widths[c];
+            // A centred or right-aligned galley is laid out around its
+            // anchor, so the anchor moves with the alignment.
+            let anchor = match align.get(c) {
+                Some(Alignment::Center) => x + w / 2.0,
+                Some(Alignment::Right) => x + w - PAD_X,
+                _ => x + PAD_X,
+            };
+            painter.galley(egui::pos2(anchor, y + PAD_Y), galley.clone(), style.text);
+            x += w;
+        }
+        y += heights[r];
+        // The rule under the header is the stronger one.
+        let stroke = if r == 0 {
+            egui::Stroke::new(2.0, style.quote_bar)
+        } else {
+            line
+        };
+        painter.hline(rect.x_range(), y, stroke);
+    }
+    painter.hline(rect.x_range(), rect.top(), line);
+    let mut x = rect.left();
+    painter.vline(x, rect.y_range(), line);
+    for w in &widths {
+        x += w;
+        painter.vline(x, rect.y_range(), line);
     }
 }
 
@@ -410,6 +508,8 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
     let mut in_quote = false;
     let mut code: Option<(String, String)> = None;
     let mut table_cells: Vec<Rich> = Vec::new();
+    // The table being read: its alignments, header and rows so far.
+    let mut table: Option<TableSoFar> = None;
     let mut in_table_header = false;
     let mut in_table = false;
     let base = style.base_size;
@@ -445,7 +545,10 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                 Tag::Strong => inline.bold += 1,
                 Tag::Strikethrough => inline.strike += 1,
                 Tag::Link { dest_url, .. } => inline.link = Some(dest_url.to_string()),
-                Tag::Table(_) => in_table = true,
+                Tag::Table(align) => {
+                    in_table = true;
+                    table = Some((align, Vec::new(), Vec::new()));
+                }
                 Tag::TableHead => in_table_header = true,
                 Tag::TableRow => {}
                 Tag::TableCell => {}
@@ -501,22 +604,29 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                 TagEnd::Strikethrough => inline.strike = inline.strike.saturating_sub(1),
                 TagEnd::Link => inline.link = None,
                 TagEnd::TableHead => {
-                    blocks.push(Block::TableRow {
-                        cells: std::mem::take(&mut table_cells),
-                        header: true,
-                    });
+                    if let Some((_, header, _)) = table.as_mut() {
+                        *header = std::mem::take(&mut table_cells);
+                    }
                     in_table_header = false;
                 }
                 TagEnd::TableRow => {
-                    blocks.push(Block::TableRow {
-                        cells: std::mem::take(&mut table_cells),
-                        header: false,
-                    });
+                    if let Some((_, _, rows)) = table.as_mut() {
+                        rows.push(std::mem::take(&mut table_cells));
+                    }
                 }
                 TagEnd::TableCell => {
                     table_cells.push(std::mem::take(&mut job));
                 }
-                TagEnd::Table => in_table = false,
+                TagEnd::Table => {
+                    in_table = false;
+                    if let Some((align, header, rows)) = table.take() {
+                        blocks.push(Block::Table {
+                            align,
+                            header,
+                            rows,
+                        });
+                    }
+                }
                 _ => {}
             },
             Event::Text(t) => {
@@ -680,7 +790,7 @@ mod tests {
                 Block::Code { .. } => "code",
                 Block::Quote(_) => "q",
                 Block::Rule => "hr",
-                Block::TableRow { .. } => "tr",
+                Block::Table { .. } => "table",
             })
             .collect();
         assert_eq!(
@@ -694,5 +804,35 @@ mod tests {
             assert_eq!(lang, "rust");
             assert_eq!(text, "fn x() {}\n");
         }
+    }
+
+    #[test]
+    fn a_table_keeps_its_alignments_header_and_rows() {
+        let md =
+            "| Left | Centre | Right |\n| :--- | :---: | ---: |\n| a | b | c |\n| d | e | f |\n";
+        let blocks = parse(md, &style(), 600.0);
+        assert_eq!(blocks.len(), 1, "one table block");
+        let Block::Table {
+            align,
+            header,
+            rows,
+        } = &blocks[0]
+        else {
+            panic!("not a table");
+        };
+        assert_eq!(
+            align,
+            &[Alignment::Left, Alignment::Center, Alignment::Right]
+        );
+        let text = |r: &Rich| r.job.text.clone();
+        assert_eq!(
+            header.iter().map(text).collect::<Vec<_>>(),
+            ["Left", "Centre", "Right"]
+        );
+        assert_eq!(rows.len(), 2);
+        assert_eq!(
+            rows[1].iter().map(text).collect::<Vec<_>>(),
+            ["d", "e", "f"]
+        );
     }
 }

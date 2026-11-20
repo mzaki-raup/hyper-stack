@@ -8,8 +8,8 @@ use parking_lot::Mutex;
 use tokio::sync::mpsc;
 
 use crate::driver::{
-    self, Caps, CreateForm, Detail, Edit, Found, NewItem, Page, PageRef, ServerInfo, Space,
-    Transition,
+    self, Caps, CreateForm, Detail, Edit, Filters, Found, NewItem, Page, PageRef, Picks, Project,
+    ServerInfo, Space, Transition,
 };
 use crate::profile::ConnectConfig;
 
@@ -39,6 +39,12 @@ pub enum Cmd {
     Pages(Space),
     Page(String),
     Publish(Page, String),
+    /// The projects column's list (FEAT-0122).
+    Projects,
+    /// The search builder's lists for a project (FEAT-0124).
+    Filters(String),
+    /// Turn the builder's picks into a query and run it (FEAT-0124).
+    Build(Picks),
 }
 
 /// A result for one item or page, so a late answer for the one the user
@@ -74,6 +80,14 @@ pub struct Shared {
     pub busy: Option<&'static str>,
     /// (success, text) for the tab to toast.
     pub toasts: Vec<(bool, String)>,
+    /// The projects the server lists (FEAT-0122).
+    pub projects: Option<Result<Vec<Project>, String>>,
+    /// The search builder's lists, keyed by the project they are for.
+    pub filters: Option<For<Filters>>,
+    /// Whether this kind has a search builder (FEAT-0124).
+    pub has_builder: bool,
+    /// A query the builder just made, for the tab to put in its bar.
+    pub built: Option<String>,
 }
 
 pub fn spawn(
@@ -99,6 +113,7 @@ pub fn spawn(
             sh.info = d.info().clone();
             sh.caps = d.caps();
             sh.default_query = d.default_query();
+            sh.has_builder = d.build_query(&Picks::default()).is_some();
         }
         waker.request_repaint();
         // Polls pile up behind a slow server; one is enough.
@@ -122,6 +137,8 @@ fn busy_key(cmd: &Cmd) -> &'static str {
         Cmd::Item(_) | Cmd::Page(_) => "tracker-busy-item",
         Cmd::Transitions(_) | Cmd::Fields(_) => "tracker-busy-form",
         Cmd::Spaces | Cmd::Pages(_) => "tracker-busy-pages",
+        Cmd::Projects | Cmd::Filters(_) => "tracker-busy-form",
+        Cmd::Build(_) => "tracker-busy-search",
         Cmd::Transition(..)
         | Cmd::Edit(..)
         | Cmd::Comment(..)
@@ -239,6 +256,23 @@ async fn serve(
         Cmd::Fields(project) => {
             let r = d.fields(&project).await;
             shared.lock().form = Some(r);
+        }
+        Cmd::Projects => {
+            let r = d.projects().await;
+            shared.lock().projects = Some(r);
+        }
+        Cmd::Filters(project) => {
+            let r = d.filters(&project).await;
+            shared.lock().filters = Some(For {
+                key: project,
+                result: r,
+            });
+        }
+        Cmd::Build(picks) => {
+            if let Some(q) = d.build_query(&picks) {
+                shared.lock().built = Some(q.clone());
+                search(d, shared, q).await;
+            }
         }
         Cmd::Create(item) => match d.create(&item).await {
             Ok(key) => {

@@ -162,8 +162,10 @@ Change Request : CR-0103
 
 > **Analytics (BI)**, Metabase first. Spec `docs/tools/analytics.md`,
 > decision ADR-034, depth-programme phase Q. Specified 2026-11-20 at the
-> owner's request ("Yes, Metabase first"); §10 of the spec holds the
-> questions still open.
+> owner's request ("Yes, Metabase first"); the owner's answers are the
+> spec's §10: Tableau Server, Metabase by password and API key, read-only,
+> Tableau's interactive views in the Browser activity, Open in Database on
+> the matching connection, the rail after Database.
 
 ### FEAT-0126 · Analytics activity: crate, provider trait, connections, Settings page, dashboard
 - **State:** Pending · **Spec:** docs/tools/analytics.md §3, §4.1, §5, §8 · **Phase:** Q
@@ -227,12 +229,12 @@ Change Request : CR-0103
 ### FEAT-0131 · Analytics: the Tableau provider
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
-- **Scope:** kind `tableau`; Personal Access Token or password into one site; projects, workbooks, views, data sources; a view's PNG with filter fields, its data in a `DataTable`, exports; extract refresh tasks and jobs, Refresh Now guarded and audited (Identity's audit log moved into `hs-core`); Open Interactive in the Browser activity; version gating from `/serverinfo`
-- **Depends on:** FEAT-0129; the owner's answers to the spec's §10 questions 1 and 4
-- [ ] Provider, screens, Refresh Now with its guard
-- [ ] Test: a mock from the API reference; live gated on `HS_TABLEAU` (a Developer Program site)
+- **Scope:** kind `tableau` for **Tableau Server** (owner, 2026-11-20); username and password or a Personal Access Token into one site; projects, workbooks, views, data sources; a view's PNG with filter fields, its data in a `DataTable`, exports; extract refresh tasks and jobs, read-only (no Refresh Now: the owner chose read-only); Open Interactive in the Browser activity; version gating from `/serverinfo`
+- **Depends on:** FEAT-0129
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference; a read-only live test gated on `HS_TABLEAU` (the owner's Server)
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a Tableau site: browse, a view with a filter, its data, Refresh Now refused on a protected environment
+- [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 
 ## v0.8.1 — In-Progress

@@ -1,6 +1,6 @@
 # Tool spec — Analytics
 
-**Status:** draft · **Last updated:** 2026-11-20 · **Phase:** Q
+**Status:** draft, decisions recorded (§10) · **Last updated:** 2026-11-20 · **Phase:** Q
 (`docs/10-depth-programme.md`) · **Decisions:** ADR-034
 
 ## 1. Purpose
@@ -132,7 +132,7 @@ disabled with the reason, never hidden). The trait's questions:
 | `dashboard(id)` | the grid, cards and filters | — (a workbook's views) |
 | `export(item, format)` | CSV, JSON, XLSX | CSV, PDF, PNG |
 | `databases()`, `native(db, sql)` | the databases and an ad-hoc SQL run | — |
-| `refresh_extract(ds)` | — | the one write (§6) |
+| `extract_tasks()`, `jobs()` | — | read-only (§6) |
 
 ### 4.2 Browsing and search
 
@@ -162,10 +162,18 @@ disabled with the reason, never hidden). The trait's questions:
     `visualization_settings` (§4.4); a display this tab does not draw
     shows the table with a hint and **Open in Browser**.
   - **SQL** — a native question's query in the read-only editor engine
-    (`hs-editor`, SQL colours) with **Open in Database** (an
-    `OpenRequest::Text` into a new Database query tab, the connection
-    left for the user to pick; HyperStack does not guess which saved
-    connection is Metabase's database). A question built in Metabase's
+    (`hs-editor`, SQL colours) with **Open in Database**: a new Database
+    query tab with the SQL, on the saved connection that matches the
+    question's database (owner, 2026-11-20). The match: Metabase's
+    database `engine`, `details.host`, `details.port` and
+    `details.dbname` (from `/api/database/:id`) against each saved `db`
+    connection's engine, host, port and database, host compared without
+    case and `localhost` equal to `127.0.0.1`. One match opens on it; no
+    match or several (or details the account may not read, which
+    Metabase hides from non-admins) opens the tab with the connection
+    picker on the candidates and a hint saying why. The SQL is passed as
+    an `OpenRequest` carrying the connection id, never a password. A
+    question built in Metabase's
     query builder shows the SQL Metabase compiles it to
     (`POST /api/dataset/native`), marked as generated.
 - **Parameters**: a native question's template tags and a question's
@@ -253,11 +261,15 @@ a column whose name the secret-word rule masks).
 
 What Tableau's REST API allows, and so what a Tableau tab is:
 
-- **Sign-in**: `POST /api/{version}/auth/signin` with a **Personal Access
-  Token** (name + secret; the only choice on Tableau Cloud with MFA) or a
-  username and password (Server), into one **site**; the token returned
-  lives in memory only. A PAT unused for 15 days expires: the tab says
-  so and asks for a new one.
+- **Tableau Server** (owner, 2026-11-20), not Cloud.
+- **Sign-in**: `POST /api/{version}/auth/signin` with a username and
+  password (a Server using Active Directory or local authentication) or a
+  **Personal Access Token** (name + secret; the way in when the Server
+  signs people in through SAML or OpenID), into one **site**; the token
+  returned lives in memory only and is sent back as `X-Tableau-Auth`;
+  `auth/signout` when the tab closes. A PAT unused for the Server's idle
+  limit (15 days by default) expires: the tab says so and asks for a new
+  one.
 - **Browse**: projects → workbooks → views, data sources, with owners and
   last-updated; search.
 - **A view**: its **picture** (`GET …/views/:id/image`, PNG, at the
@@ -267,12 +279,18 @@ What Tableau's REST API allows, and so what a Tableau tab is:
   servers and is **not** drawn here: **Open Interactive** opens the view
   in the Browser activity, where the user signs in to Tableau as usual.
 - **Extracts and jobs**: a data source's or workbook's extract refresh
-  tasks with their schedule and last result, **Refresh Now** (the one
-  write, §6), and the recent jobs with failures and their messages.
-- **Version gating** by the REST API version `/serverinfo` reports.
-- Testing has no container: Tableau Server is licensed. The live test
-  runs against a Tableau Developer Program site when `HS_TABLEAU` names
-  one; the rest against a mock written from the API reference.
+  tasks with their schedule and last result, and the recent jobs with
+  failures and their messages - read-only (owner, 2026-11-20): there is
+  no Refresh Now; **Open in Browser** leads to the task on the server.
+- **Version gating** by the REST API version `GET /api/{v}/serverinfo`
+  reports (`productVersion`, `restApiVersion`): the provider asks with a
+  low version first, then talks the server's own, so an older Server
+  answers in the version it knows; calls a version lacks are disabled
+  with the reason.
+- Testing has no container: Tableau Server is licensed. Because the
+  provider only reads, the live test may run against the owner's Server
+  when `HS_TABLEAU` names it; everything else runs against a mock written
+  from the REST API reference.
 
 ### 4.9 Later (not specified further now)
 
@@ -308,28 +326,26 @@ Connection kind `metabase` (later `tableau`), listed by
 
 ### 5.2 Tableau (phase 2)
 
-Kind `tableau`: Server URL, **Site** (content URL; empty for the default
-site), Credential **Personal Access Token** (name + secret) or Username
-and Password, the API version (detected; overridable), Verify TLS.
+Kind `tableau` (Tableau Server): Server URL, **Site** (content URL; empty
+for the default site), Credential **Username and Password** or
+**Personal Access Token** (name + secret), the API version (detected;
+overridable), Verify TLS and CA File (a company CA is usual on an
+internal Server).
 
 ## 6. Guards
 
-- **Phase 1 is read-only.** Nothing the Metabase provider sends changes
-  the server: running a question, a dashboard card or ad-hoc SQL is a
+- **Read-only, both providers** (owner, 2026-11-20). Nothing the
+  Metabase or Tableau provider sends changes the server: running a question, a dashboard card or ad-hoc SQL is a
   read on the server's side. An ad-hoc SQL page states that statements
   run as the Metabase account against the warehouse, so a database
   connected with write rights could still be written by an `UPDATE`; on
   a **protected environment** the SQL page is disabled ("PROD is
   read-only. Allow Writes for this tab…"), as other activities' query
   editors are.
-- **Tableau's Refresh Now** (phase 2) is the one write: a confirmation
-  naming the data source and the server, refused on a protected
-  environment until Allow Writes, and recorded in a local audit log
-  like Identity's (`tool_idm::audit`, which phase 2 moves into `hs-core`
-  so both activities share it; a tool must not depend on another).
 - **Never offered:** editing, archiving or deleting items; permissions;
   user and group administration; alerts and subscriptions; caching and
-  sync settings.
+  sync settings; Tableau's extract Refresh Now and any other job start.
+  With no write there is no audit log here.
 - **Secrets:** the API key, password and session never reach logs or
   history; result rows are not written to disk except by an explicit
   Export; the AI context masks secret-named columns.
@@ -414,20 +430,22 @@ query, and greps the data folder for the password and the key.
 
 Nothing on Ctrl+C/V/X, Ctrl+Shift+V or Shift+Insert.
 
-## 10. Open questions
+## 10. Decisions (owner, 2026-11-20)
 
-1. Tableau Server or Tableau Cloud, and which version? (Decides phase 2's
-   sign-in and the API versions to support.)
-2. How do your people sign in to Metabase — password, SSO (then an API
-   key is the only way), or both?
-3. Read-only as §6 says, or is any write wanted beyond Tableau's Refresh
-   Now?
-4. Is **Open Interactive** in the Browser activity acceptable for
-   Tableau's charts?
-5. Should **Open in Database** pick the saved connection whose host and
-   database match Metabase's database details (where the account may
-   read them), instead of leaving the choice to the user?
-6. Rail position: after Database (proposed) or with Tracker and Identity?
+The questions this section held, answered:
+
+1. **Tableau Server**, not Cloud. Phase 2 signs in with a username and
+   password or a Personal Access Token to a Server site (§5.2); the
+   Server version was not given, so the REST API version is read from
+   `/serverinfo` and gated there (§4.8).
+2. **Metabase: password and API key**, both offered on the form (§5.1).
+3. **Read-only**, everywhere. Tableau's Refresh Now is dropped: the
+   Tableau provider shows extract tasks and jobs but changes nothing
+   (§4.8, §6).
+4. **Open Interactive in the Browser activity** is accepted for
+   Tableau's charts.
+5. **Open in Database picks the matching saved connection** (§4.3).
+6. **Rail after Database**, as proposed.
 
 ## What is implemented (2026-11-20)
 

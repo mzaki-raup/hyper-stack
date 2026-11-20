@@ -1202,7 +1202,7 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
 | Charts | **`egui_plot`** (the egui project's plot crate, the release for egui 0.35) for line, area, bar, scatter; pie, gauge, progress and funnel hand-painted | MIT/Apache-2.0, pure Rust, no new rendering stack, follows the theme | its pie and funnel do not exist; a release per egui version to track |
 | Charts | `plotters` with an egui backend | many chart kinds | a second drawing model and font stack; the backend crate lags egui |
 | Charts | everything hand-painted | no dependency | axes, ticks, zoom and hover written again |
-| Tableau charts | **the view's PNG plus its data, and Open Interactive in the Browser activity** | what the API gives; honest | not interactive inside the tab |
+| Tableau charts | **the view's PNG plus its data, and Open Interactive in the Browser activity** (owner, 2026-11-20) | what the API gives; honest | not interactive inside the tab |
 | Tableau charts | the Embedding API in a web view inside the tab | interactive | a second embedded browser inside a work pane; the user signs in there anyway |
 
 **Decision.**
@@ -1215,7 +1215,13 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
   `/api/session/properties`.
 - `egui_plot` in `[workspace.dependencies]`, used by `tool-analytics` only;
   `cargo deny` before it lands.
-- Phase 1 is read-only; Tableau's Refresh Now is the only write planned.
+- Read-only for both providers (owner, 2026-11-20): no write at all,
+  Tableau's extract Refresh Now included.
+- Tableau means **Tableau Server** (owner): username and password or a
+  Personal Access Token, the REST version read from `/serverinfo`.
+- Open in Database picks the saved connection matching the question's
+  database (owner); Tableau's interactive views open in the Browser
+  activity (owner).
 
 **Consequences.**
 
@@ -1224,5 +1230,6 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
   Browser.
 - The bench gains a `metabase` service in a new `bi` profile with the
   bundled Sample Database; live tests are gated on `HS_METABASE`. Tableau
-  has no container: a Developer Program site (`HS_TABLEAU`) and a mock.
-- Identity's audit log moves into `hs-core` when Tableau's write lands.
+  Server has no container: a mock, and a read-only live test against the
+  owner's Server when `HS_TABLEAU` names it.
+- With no write, the activity keeps no audit log.

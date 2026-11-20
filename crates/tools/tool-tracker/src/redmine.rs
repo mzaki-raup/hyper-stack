@@ -8,8 +8,9 @@ use reqwest::Method;
 use serde_json::{Map, Value, json};
 
 use crate::driver::{
-    Caps, Comment, CreateForm, Detail, Driver, Edit, Found, Item, MAX_COMMENTS, NewItem, PAGE,
-    Result, ServerInfo, Transition, iso_ms, q, time_ms,
+    ANY, CLOSED, Caps, Comment, CreateForm, Detail, Driver, Edit, Filters, Found, Item,
+    MAX_COMMENTS, ME, NewItem, OPEN, PAGE, Picks, Project, Result, ServerInfo, Transition, iso_ms,
+    q, time_ms,
 };
 use crate::github::number;
 use crate::markup::{Lite, lite_to_md, md_to_lite};
@@ -253,9 +254,14 @@ impl Redmine {
                     }
                 }
                 Some(("assignee", v)) => rest.push_str(&filter("assigned_to_id", "=", Some(v))),
+                Some(("author", v)) => rest.push_str(&filter("author_id", "=", Some(v))),
                 Some(("tracker", v)) => {
-                    let id = lookup(&self.trackers, v, "tracker")?;
+                    let id = lookup(&self.trackers, &v.replace('_', " "), "tracker")?;
                     rest.push_str(&filter("tracker_id", "=", Some(&id.to_string())));
+                }
+                Some(("priority", v)) => {
+                    let id = lookup(&self.priorities, &v.replace('_', " "), "priority")?;
+                    rest.push_str(&filter("priority_id", "=", Some(&id.to_string())));
                 }
                 _ => text.push(w),
             }
@@ -268,6 +274,10 @@ impl Redmine {
             path.push_str(&format!("&project_id={}", q(&project)));
         }
         Ok(path)
+    }
+
+    fn family(&self, i: &Value) -> (Option<Item>, Vec<Item>) {
+        family(&self.web, i)
     }
 
     async fn put(&self, n: u64, issue: Map<String, Value>) -> Result<()> {
@@ -309,6 +319,36 @@ impl Redmine {
             "Redmine takes the assignee as “me”, a user id or a project member's name, not “{who}”"
         ))
     }
+}
+
+/// An issue's parent and its sub-tasks, nested sub-tasks flattened in
+/// order (FEAT-0123). Redmine gives a parent its id only and a child its
+/// subject, so the status is read on the child's own page.
+pub fn family(web: &str, i: &Value) -> (Option<Item>, Vec<Item>) {
+    let parent = i
+        .pointer("/parent/id")
+        .and_then(Value::as_u64)
+        .map(|id| Item {
+            key: format!("#{id}"),
+            url: format!("{web}/issues/{id}"),
+            ..Default::default()
+        });
+    fn walk(web: &str, list: Option<&Value>, depth: usize, out: &mut Vec<Item>) {
+        for c in list.and_then(Value::as_array).into_iter().flatten() {
+            let id = s(c, "id");
+            out.push(Item {
+                key: format!("#{id}"),
+                // Deeper sub-tasks are indented under their parent.
+                summary: format!("{}{}", "    ".repeat(depth), s(c, "subject")),
+                url: format!("{web}/issues/{id}"),
+                ..Default::default()
+            });
+            walk(web, c.get("children"), depth + 1, out);
+        }
+    }
+    let mut children = Vec::new();
+    walk(web, i.get("children"), 0, &mut children);
+    (parent, children)
 }
 
 /// The people in a `/projects/{id}/memberships.json` answer, name → user
@@ -375,10 +415,11 @@ impl Driver for Redmine {
         let v = self
             .http
             .get_json(&format!(
-                "/issues/{n}.json?include=journals,attachments,relations"
+                "/issues/{n}.json?include=journals,attachments,relations,children"
             ))
             .await?;
         let i = v.get("issue").cloned().unwrap_or_default();
+        let (parent, children) = self.family(&i);
         let (description, lossy) = self.md_in(&s(&i, "description"));
         let comments = i
             .get("journals")
@@ -434,6 +475,8 @@ impl Driver for Redmine {
             comments_note: None,
             attachments,
             links,
+            parent,
+            children,
         })
     }
 
@@ -590,11 +633,134 @@ impl Driver for Redmine {
                 .unwrap_or_default()
         ))
     }
+
+    /// Every project the account can see, a page of 100 at a time up to
+    /// 1000 (FEAT-0122).
+    async fn projects(&mut self) -> Result<Vec<Project>> {
+        let mut out = Vec::new();
+        loop {
+            let v = self
+                .http
+                .get_json(&format!("/projects.json?limit=100&offset={}", out.len()))
+                .await?;
+            let page: Vec<Project> = v
+                .get("projects")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|p| Project {
+                    key: s(p, "identifier"),
+                    name: s(p, "name"),
+                })
+                .collect();
+            let total = v.get("total_count").and_then(Value::as_u64).unwrap_or(0);
+            let done = page.is_empty();
+            out.extend(page);
+            if done || out.len() as u64 >= total || out.len() >= 1000 {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
+    async fn filters(&mut self, project: &str) -> Result<Filters> {
+        // The members, as New Item reads them, are who can be picked.
+        let form = self.fields(project).await?;
+        let mut people = form.assignees;
+        if self.signed_in {
+            people.insert(0, ME.to_string());
+        }
+        let mut statuses = vec![OPEN.to_string(), CLOSED.to_string(), ANY.to_string()];
+        statuses.extend(self.statuses.iter().map(|(n, _)| n.clone()));
+        Ok(Filters {
+            statuses,
+            assignees: people.clone(),
+            authors: people,
+            kinds: form.kinds,
+            priorities: form.priorities,
+        })
+    }
+
+    fn build_query(&self, p: &Picks) -> Option<String> {
+        Some(query_words(&self.members, p))
+    }
+}
+
+/// The builder's picks as the query bar's words (FEAT-0124): a member's
+/// name as their id, a name with spaces with underscores, the rest of the
+/// text searched in the subject.
+pub fn query_words(members: &[(String, u64)], p: &Picks) -> String {
+    let person = |who: &str| {
+        members
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case(who))
+            .map(|(_, id)| id.to_string())
+            .unwrap_or_else(|| who.replace(' ', "_"))
+    };
+    let mut words = Vec::new();
+    let mut word = |key: &str, value: String| {
+        if !value.trim().is_empty() {
+            words.push(format!("{key}:{}", value.trim()));
+        }
+    };
+    word("project", p.project.clone());
+    // Open unless a status is picked, as the query bar reads it.
+    word("status", p.status.trim().replace(' ', "_"));
+    word("assignee", person(p.assignee.trim()));
+    word("author", person(p.author.trim()));
+    word("tracker", p.kind.trim().replace(' ', "_"));
+    word("priority", p.priority.trim().replace(' ', "_"));
+    if !p.text.trim().is_empty() {
+        words.push(p.text.trim().to_string());
+    }
+    words.join(" ")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_builder_writes_the_query_bars_words() {
+        let members = vec![("Ada Lovelace".to_string(), 7u64)];
+        let picks = Picks {
+            project: "ops".into(),
+            status: "In Progress".into(),
+            assignee: "Ada Lovelace".into(),
+            author: ME.into(),
+            kind: "Bug".into(),
+            priority: "Very high".into(),
+            text: "disk full".into(),
+        };
+        assert_eq!(
+            query_words(&members, &picks),
+            "project:ops status:In_Progress assignee:7 author:me tracker:Bug priority:Very_high disk full"
+        );
+        assert_eq!(query_words(&members, &Picks::default()), "");
+    }
+
+    #[test]
+    fn a_parent_and_nested_sub_tasks_are_read() {
+        let issue = json!({
+            "parent": { "id": 3 },
+            "children": [
+                { "id": 11, "subject": "Front", "children": [ { "id": 12, "subject": "Form" } ] },
+                { "id": 13, "subject": "Back" }
+            ]
+        });
+        let (parent, children) = family("https://rm", &issue);
+        assert_eq!(parent.map(|p| p.key), Some("#3".to_string()));
+        let rows: Vec<(String, String)> =
+            children.into_iter().map(|c| (c.key, c.summary)).collect();
+        assert_eq!(
+            rows,
+            [
+                ("#11".to_string(), "Front".to_string()),
+                ("#12".to_string(), "    Form".to_string()),
+                ("#13".to_string(), "Back".to_string())
+            ]
+        );
+    }
 
     /// CR-0101: the version comes from Administration → Information.
     #[test]

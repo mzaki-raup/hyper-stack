@@ -68,6 +68,11 @@ pub struct State {
     pub job: Option<String>,
     pub run: Option<String>,
     pub detail: Detail,
+    /// The project the jobs list is narrowed to; `None` is every project
+    /// (FEAT-0121).
+    pub project: Option<String>,
+    /// The projects column is hidden.
+    pub hide_projects: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -141,6 +146,8 @@ pub struct AutomationTool {
     /// the same text does not lay it out again.
     log_lines: Option<(LogKey, Vec<crate::logfmt::Line>)>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The projects column's filter text (FEAT-0121).
+    project_filter: String,
 }
 
 impl Drop for AutomationTool {
@@ -241,6 +248,7 @@ impl AutomationTool {
             settled: None,
             log_lines: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            project_filter: String::new(),
         }
     }
 
@@ -586,6 +594,11 @@ impl Tool for AutomationTool {
             c("automation.add", "Automation: Add Server", None),
             c("automation.reconnect", "Automation: Reconnect", None),
             c("automation.ai", "Automation: AI Assistant", None),
+            c(
+                "automation.projects",
+                "Automation: Show or Hide Projects",
+                Some("automation.projects"),
+            ),
         ]
     }
 
@@ -623,6 +636,10 @@ impl Tool for AutomationTool {
             }
             "automation.ai" => {
                 self.assistant.toggle("Automation");
+                true
+            }
+            "automation.projects" => {
+                self.state.hide_projects = !self.state.hide_projects;
                 true
             }
             _ => false,
@@ -765,6 +782,18 @@ impl Tool for AutomationTool {
             };
             let has_job = self.job().is_some();
             let run = self.run();
+            // The projects column's toggle comes first (CR-0073).
+            let mut shown = !self.state.hide_projects;
+            hs_ui::toolbar::toggle(
+                ui,
+                &theme,
+                &mut shown,
+                ph::SIDEBAR_SIMPLE,
+                &s.t("automation-projects"),
+            )
+            .tip(s.t("automation-projects-tip"));
+            self.state.hide_projects = !shown;
+            ui.separator();
             if hs_ui::toolbar::btn_enabled(
                 ui,
                 &theme,
@@ -1057,6 +1086,18 @@ impl AutomationTool {
             FIGURES.lock().insert(id.clone(), (running, failed));
         }
         self.dialogs(ui, cx);
+        // The projects column, hidden from the toolbar's first item; a
+        // hidden column is not drawn at all, so egui keeps its width
+        // (FEAT-0121).
+        if !self.state.hide_projects {
+            egui::Panel::left(ui.id().with("automation-projects"))
+                .resizable(true)
+                .default_size(240.0)
+                .size_range(180.0..=420.0)
+                .show(ui, |ui| {
+                    form::pane(ui, |ui| self.projects(ui, &theme, s));
+                });
+        }
         let left = (ui.available_width() * 0.45).clamp(300.0, 640.0);
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -1068,6 +1109,61 @@ impl AutomationTool {
                 self.detail(ui, &theme, cx);
             });
         });
+    }
+
+    /// The projects column: All Projects, then each project the jobs belong
+    /// to with its count, narrowed by the filter; a click narrows the jobs
+    /// list (FEAT-0121).
+    fn projects(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let listing = self.shared.lock().listing.clone();
+        ui.strong(s.t("automation-projects"));
+        ui.add_space(form::PANE_GAP);
+        ui.add(
+            form::line_edit(&mut self.project_filter)
+                .hint_text(s.t("automation-projects-filter"))
+                .desired_width(f32::INFINITY),
+        );
+        ui.add_space(form::PANE_GAP);
+        let Some(listing) = listing else {
+            form::hint(ui, theme, &s.t("automation-listing"));
+            return;
+        };
+        let groups = project_groups(&listing.jobs);
+        let needle = self.project_filter.trim().to_lowercase();
+        let material = s.settings.read().appearance.material_icons("automation");
+        let folder = hs_ui::fileicons::item_icon(material, "folder", ph::FOLDER);
+        let all = hs_ui::fileicons::item_icon(material, "folder", ph::STACK);
+        egui::ScrollArea::vertical()
+            .id_salt("automation-projects-list")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let count = listing.jobs.len().to_string();
+                if form::list_row_icon(
+                    ui,
+                    theme,
+                    self.state.project.is_none(),
+                    &all,
+                    &s.t("automation-projects-all"),
+                    Some(&count),
+                )
+                .clicked()
+                {
+                    self.state.project = None;
+                }
+                let top = s.t("automation-project-top");
+                for (project, n) in &groups {
+                    let name = if project.is_empty() { &top } else { project };
+                    if !needle.is_empty() && !name.to_lowercase().contains(&needle) {
+                        continue;
+                    }
+                    let selected = self.state.project.as_deref() == Some(project.as_str());
+                    if form::list_row_icon(ui, theme, selected, &folder, name, Some(&n.to_string()))
+                        .clicked()
+                    {
+                        self.state.project = Some(project.clone());
+                    }
+                }
+            });
     }
 
     fn jobs(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
@@ -1102,19 +1198,30 @@ impl AutomationTool {
             form::note(ui, theme, ph::INFO, &s.t("automation-no-jobs"));
             return;
         }
+        // The picked project's jobs only, each named without the project
+        // the column already says (FEAT-0121).
+        let project = self.state.project.clone();
+        let jobs: Vec<&Job> = listing
+            .jobs
+            .iter()
+            .filter(|j| project.as_ref().is_none_or(|p| &j.project == p))
+            .collect();
         let columns = [
             ColumnSpec::new(s.t("automation-col-name"), 200.0),
             ColumnSpec::new(s.t("automation-col-status"), 90.0),
             ColumnSpec::new(s.t("automation-col-last"), 120.0),
             ColumnSpec::new(s.t("automation-col-duration"), 80.0),
         ];
-        let rows: Vec<Vec<String>> = listing
-            .jobs
+        let rows: Vec<Vec<String>> = jobs
             .iter()
             .map(|j| {
                 let last = j.last.as_ref();
                 vec![
-                    j.name.clone(),
+                    if project.is_some() {
+                        short_name(j)
+                    } else {
+                        j.name.clone()
+                    },
                     last.map(|r| s.t(r.state.key())).unwrap_or_default(),
                     last.and_then(|r| r.started_ms)
                         .map(driver::time_ms)
@@ -1129,7 +1236,7 @@ impl AutomationTool {
             .state
             .job
             .as_ref()
-            .and_then(|id| listing.jobs.iter().position(|j| &j.id == id));
+            .and_then(|id| jobs.iter().position(|j| &j.id == id));
         let table = DataTable {
             theme,
             columns: &columns,
@@ -1145,7 +1252,7 @@ impl AutomationTool {
             .push_id("automation-jobs", |ui| table.show(ui, &mut self.jobs_table))
             .inner;
         if let Some(i) = r.clicked.or(r.double_clicked)
-            && let Some(j) = listing.jobs.get(i)
+            && let Some(j) = jobs.get(i)
             && self.state.job.as_ref() != Some(&j.id)
         {
             self.state.job = Some(j.id.clone());
@@ -1687,9 +1794,59 @@ impl AutomationTool {
     }
 }
 
+/// Each project the jobs belong to, by name, with how many jobs it has
+/// (FEAT-0121). The top level (no project) sorts first.
+fn project_groups(jobs: &[Job]) -> Vec<(String, usize)> {
+    let mut groups: std::collections::BTreeMap<String, usize> = Default::default();
+    for j in jobs {
+        *groups.entry(j.project.clone()).or_default() += 1;
+    }
+    groups.into_iter().collect()
+}
+
+/// A job's name inside its project: Jenkins' `folder/job` and TeamCity's
+/// `Project / Build` lose the project the column already names.
+fn short_name(j: &Job) -> String {
+    if j.project.is_empty() {
+        return j.name.clone();
+    }
+    [format!("{}/", j.project), format!("{} / ", j.project)]
+        .iter()
+        .find_map(|p| j.name.strip_prefix(p.as_str()))
+        .unwrap_or(&j.name)
+        .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn jobs_group_by_project_and_lose_it_from_their_names() {
+        let job = |name: &str, project: &str| Job {
+            id: name.into(),
+            name: name.into(),
+            project: project.into(),
+            ..Default::default()
+        };
+        let jobs = [
+            job("deploy/staging", "deploy"),
+            job("deploy/prod", "deploy"),
+            job("seed", ""),
+            job("Bench / Hello Build", "Bench"),
+        ];
+        assert_eq!(
+            project_groups(&jobs),
+            [
+                (String::new(), 1),
+                ("Bench".to_string(), 1),
+                ("deploy".to_string(), 2)
+            ]
+        );
+        assert_eq!(short_name(&jobs[0]), "staging");
+        assert_eq!(short_name(&jobs[2]), "seed");
+        assert_eq!(short_name(&jobs[3]), "Hello Build");
+    }
 
     #[test]
     fn a_protected_tab_is_read_only_until_unlocked() {

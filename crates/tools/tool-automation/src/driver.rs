@@ -90,6 +90,10 @@ pub struct Job {
     pub name: String,
     pub last: Option<Run>,
     pub url: String,
+    /// What it belongs to, for the projects column (FEAT-0121): a Jenkins
+    /// folder path, a TeamCity project, the connection's repository or
+    /// project. Empty for a job at the top level or a kind with none.
+    pub project: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]

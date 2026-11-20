@@ -179,6 +179,7 @@ impl Driver for TeamCity {
                     .and_then(|a| a.first())
                     .map(run),
                 url: s(t, "webUrl"),
+                project: s(t, "projectName"),
             })
             .collect();
         let cut = jobs.len() > MAX_JOBS;

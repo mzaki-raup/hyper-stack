@@ -138,6 +138,12 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.user;
             r.password = Password::read(&v.secret);
         }
+        kind if hs_core::connections::is_idm_kind(kind) => {
+            let v = tool_idm::profile::IdmFields::from_table(kind, f);
+            r.host = v.url;
+            r.user = v.credential.user;
+            r.password = Password::read(&v.credential.secret);
+        }
         "s3" => {
             let v = hs_core::objstore::profile::S3Fields::from_table(f);
             r.host = v.endpoint;
@@ -256,6 +262,105 @@ pub fn rows_from(
     out
 }
 
+/// Write a user and a password reference into a profile, in the fields its
+/// kind keeps them in: what [`row`] reads, written back (FEAT-0125, a
+/// saved credential reused in another connection). False for a kind that
+/// keeps no user and password.
+pub fn apply(profile: &mut ConnectionProfile, user: &str, secret: &str) -> bool {
+    let f = &mut profile.fields;
+    // A credential with no kind yet signs in with a password.
+    let set = |c: &mut hs_core::service_auth::Credential| {
+        c.user = user.to_string();
+        c.secret = secret.to_string();
+        if c.auth.is_empty() || c.auth == "none" {
+            c.auth = "password".into();
+        }
+    };
+    match profile.kind.as_str() {
+        "ssh" => {
+            let mut v = hs_ssh::SshFields::from_table(f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.auth = "password".into();
+            v.write_into(f);
+        }
+        "db" => {
+            let mut v = tool_db::profile::DbFields::from_table(f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.write_into(f);
+        }
+        "redis" | "valkey" => {
+            let mut v = tool_redis::profile::RedisFields::from_table(f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.write_into(f);
+        }
+        "mongodb" | "couchdb" | "qdrant" => {
+            let mut v = tool_nosql::profile::NoSqlFields::from_table(&profile.kind, f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.write_into(f);
+        }
+        kind if hs_core::connections::is_automation_kind(kind) => {
+            let mut v = tool_automation::profile::AutomationFields::from_table(kind, f);
+            set(&mut v.credential);
+            v.write_into(f);
+        }
+        kind if hs_core::connections::is_tracker_kind(kind) => {
+            let mut v = tool_tracker::profile::TrackerFields::from_table(kind, f);
+            set(&mut v.credential);
+            v.write_into(f);
+        }
+        kind if hs_core::connections::is_idm_kind(kind) => {
+            let mut v = tool_idm::profile::IdmFields::from_table(kind, f);
+            set(&mut v.credential);
+            v.write_into(f);
+        }
+        kind if hs_core::connections::is_queue_kind(kind) => {
+            let mut v = tool_queue::profile::QueueFields::from_table(kind, f);
+            v.user = user.to_string();
+            v.secret = secret.to_string();
+            v.write_into(f);
+        }
+        "s3" => {
+            let mut v = hs_core::objstore::profile::S3Fields::from_table(f);
+            v.access_key = user.to_string();
+            v.secret_key = secret.to_string();
+            v.write_into(f);
+        }
+        "webdav" => {
+            let mut v = hs_core::objstore::http_profile::WebdavFields::from_table(f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.write_into(f);
+        }
+        "nexus" => {
+            let mut v = hs_core::objstore::http_profile::NexusFields::from_table(f);
+            v.user = user.to_string();
+            v.password = secret.to_string();
+            v.write_into(f);
+        }
+        kind if kind != "k8s" && hs_core::connections::is_container_kind(kind) => {
+            let mut v = hs_container::profile::ContainerFields::from_table(f);
+            v.registry_user = user.to_string();
+            v.registry_password = secret.to_string();
+            v.write_into(f);
+        }
+        _ => return false,
+    }
+    true
+}
+
+/// Whether [`apply`] can write into a profile of `kind`.
+pub fn accepts(kind: &str) -> bool {
+    let mut probe = ConnectionProfile {
+        kind: kind.to_string(),
+        ..Default::default()
+    };
+    apply(&mut probe, "", "")
+}
+
 /// Every saved credential the services know of, for Settings → Security.
 pub fn rows(s: &hs_core::Services) -> Vec<Row> {
     let settings = s.settings.read();
@@ -278,6 +383,32 @@ mod tests {
             fields: toml::from_str(table).expect("fixture parses"),
             ..Default::default()
         }
+    }
+
+    /// What `apply` writes, `row` reads back, for every kind that keeps a
+    /// user and a password (FEAT-0125).
+    #[test]
+    fn a_reused_credential_lands_where_each_kind_keeps_it() {
+        for kind in [
+            "ssh", "db", "redis", "mongodb", "jenkins", "redmine", "keycloak", "rabbitmq", "s3",
+            "webdav", "nexus", "docker",
+        ] {
+            assert!(accepts(kind), "{kind} keeps a credential");
+            let mut p = profile(kind, "");
+            assert!(apply(&mut p, "ada", "secret:01COPY"));
+            let r = row(&p).unwrap_or_else(|| panic!("{kind} is listed"));
+            assert_eq!(r.user, "ada", "{kind}");
+            assert_eq!(
+                r.password,
+                Password::Vault(SecretRef("01COPY".into())),
+                "{kind}"
+            );
+        }
+        assert!(
+            !accepts("k8s"),
+            "a cluster's token is not a user and password"
+        );
+        assert!(!accepts("api"));
     }
 
     #[test]

@@ -70,6 +70,13 @@ pub struct State {
     pub page: Option<String>,
     /// Confluence: the left pane shows search results, not the tree.
     pub searching: bool,
+    /// The project the projects column picked, by key (FEAT-0122).
+    pub project: Option<String>,
+    /// The projects column is hidden.
+    pub hide_projects: bool,
+    /// The search builder's picks, and whether it is open (FEAT-0124).
+    pub picks: crate::driver::Picks,
+    pub builder: bool,
 }
 
 /// What the right pane shows.
@@ -209,6 +216,12 @@ pub struct TrackerTool {
     /// The item or page last asked for, so a restored tab loads it once.
     requested: Option<String>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
+    /// The projects column's filter text, and whether its list was asked
+    /// for on this session (FEAT-0122).
+    project_filter: String,
+    projects_asked: bool,
+    /// The open ticket's sub-tickets table (FEAT-0123).
+    children_table: TableState,
 }
 
 impl Drop for TrackerTool {
@@ -340,7 +353,27 @@ impl TrackerTool {
             focus_comment: false,
             requested: None,
             assistant: hs_ui::ai_assistant::AssistantPanel::default(),
+            project_filter: String::new(),
+            projects_asked: false,
+            children_table: TableState::default(),
         }
+    }
+
+    /// Narrow the list to a project, or show every project again
+    /// (FEAT-0122): the builder's project follows, and the query runs.
+    fn pick_project(&mut self, project: Option<String>) {
+        self.state.project = project.clone();
+        self.state.picks.project = project.unwrap_or_default();
+        let picks = self.state.picks.clone();
+        self.send(Cmd::Filters(picks.project.clone()));
+        self.build(picks);
+    }
+
+    /// Run the builder's picks as a query; the query it made comes back
+    /// into the bar (FEAT-0124).
+    fn build(&mut self, picks: crate::driver::Picks) {
+        self.last_poll = Some(Instant::now());
+        self.send(Cmd::Build(picks));
     }
 
     fn read_only(&self) -> bool {
@@ -362,6 +395,7 @@ impl TrackerTool {
         self.edit = None;
         self.new = None;
         self.page_edit = None;
+        self.projects_asked = false;
         let Some(id) = self.state.conn_id.clone() else {
             return;
         };
@@ -772,6 +806,16 @@ impl Tool for TrackerTool {
             c("tracker.add", "Tracker: Add Tracker", None),
             c("tracker.reconnect", "Tracker: Reconnect", None),
             c("tracker.ai", "Tracker: AI Assistant", None),
+            c(
+                "tracker.projects",
+                "Tracker: Show or Hide Projects",
+                Some("tracker.projects"),
+            ),
+            c(
+                "tracker.builder",
+                "Tracker: Search Builder",
+                Some("tracker.builder"),
+            ),
         ]
     }
 
@@ -823,6 +867,14 @@ impl Tool for TrackerTool {
             }
             "tracker.ai" => {
                 self.assistant.toggle("Tracker");
+                true
+            }
+            "tracker.projects" => {
+                self.state.hide_projects = !self.state.hide_projects;
+                true
+            }
+            "tracker.builder" => {
+                self.state.builder = !self.state.builder;
                 true
             }
             _ => false,
@@ -963,6 +1015,20 @@ impl Tool for TrackerTool {
                     matches!(sh.status, Some(Status::Ready)),
                 )
             };
+            // The projects column's toggle comes first (CR-0073).
+            if !self.is_pages() {
+                let mut shown = !self.state.hide_projects;
+                hs_ui::toolbar::toggle(
+                    ui,
+                    &theme,
+                    &mut shown,
+                    ph::SIDEBAR_SIMPLE,
+                    &s.t("tracker-projects"),
+                )
+                .tip(s.t("tracker-projects-tip"));
+                self.state.hide_projects = !shown;
+                ui.separator();
+            }
             if hs_ui::toolbar::btn_enabled(
                 ui,
                 &theme,
@@ -1294,6 +1360,27 @@ impl TrackerTool {
             self.pane = Pane::View;
             self.new = None;
         }
+        // The query the search builder made shows in the bar, where it can
+        // be read, edited and saved (FEAT-0124).
+        if let Some(q) = self.shared.lock().built.take() {
+            self.state.query = q.clone();
+            self.query_text = q;
+        }
+        // The projects column, hidden from the toolbar's first item
+        // (FEAT-0122); a hidden column is not drawn, so egui keeps its width.
+        if !self.is_pages() && !self.state.hide_projects {
+            if !self.projects_asked {
+                self.projects_asked = true;
+                self.send(Cmd::Projects);
+            }
+            egui::Panel::left(ui.id().with("tracker-projects"))
+                .resizable(true)
+                .default_size(240.0)
+                .size_range(180.0..=420.0)
+                .show(ui, |ui| {
+                    form::pane(ui, |ui| self.projects(ui, &theme, s));
+                });
+        }
         // Wide enough for the six columns; the item takes the rest.
         let mut left = (ui.available_width() * 0.5).clamp(320.0, 720.0);
         if self.is_pages() {
@@ -1500,6 +1587,169 @@ impl TrackerTool {
         }
     }
 
+    /// The projects column (FEAT-0122): All Projects, then each project
+    /// the server lists, narrowed by the filter; a click runs the list for
+    /// that project.
+    fn projects(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        ui.strong(s.t("tracker-projects"));
+        ui.add_space(form::PANE_GAP);
+        ui.add(
+            form::line_edit(&mut self.project_filter)
+                .hint_text(s.t("tracker-projects-filter"))
+                .desired_width(f32::INFINITY),
+        );
+        ui.add_space(form::PANE_GAP);
+        let listed = self.shared.lock().projects.clone();
+        let projects = match listed {
+            None => {
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(s.t("tracker-projects-loading"));
+                });
+                return;
+            }
+            Some(Err(e)) => {
+                form::note(ui, theme, ph::WARNING, &hs_core::fmt::sentence(&e));
+                return;
+            }
+            Some(Ok(p)) => p,
+        };
+        if projects.is_empty() {
+            form::hint(ui, theme, &s.t("tracker-projects-none"));
+            return;
+        }
+        let needle = self.project_filter.trim().to_lowercase();
+        let material = s.settings.read().appearance.material_icons("tracker");
+        let folder = hs_ui::fileicons::item_icon(material, "folder", ph::FOLDER);
+        let all = hs_ui::fileicons::item_icon(material, "folder", ph::STACK);
+        let mut picked: Option<Option<String>> = None;
+        egui::ScrollArea::vertical()
+            .id_salt("tracker-projects-list")
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                if form::list_row_icon(
+                    ui,
+                    theme,
+                    self.state.project.is_none(),
+                    &all,
+                    &s.t("tracker-projects-all"),
+                    None,
+                )
+                .clicked()
+                {
+                    picked = Some(None);
+                }
+                for p in &projects {
+                    if !needle.is_empty()
+                        && !p.name.to_lowercase().contains(&needle)
+                        && !p.key.to_lowercase().contains(&needle)
+                    {
+                        continue;
+                    }
+                    let selected = self.state.project.as_deref() == Some(p.key.as_str());
+                    if form::list_row_icon(ui, theme, selected, &folder, &p.name, Some(&p.key))
+                        .clicked()
+                    {
+                        picked = Some(Some(p.key.clone()));
+                    }
+                }
+            });
+        if let Some(p) = picked {
+            self.pick_project(p);
+        }
+    }
+
+    /// The search builder (FEAT-0124): a dropdown per field, filled from
+    /// the server, that writes this kind's own query into the bar and runs
+    /// it. Folded under its heading until opened.
+    fn builder(&mut self, ui: &mut egui::Ui, theme: &Theme, s: &Services) {
+        let mut open = self.state.builder;
+        form::centred_row(ui, |ui| {
+            hs_ui::toolbar::toggle(ui, theme, &mut open, ph::FUNNEL, &s.t("tracker-builder"))
+                .tip(s.t("tracker-builder-tip"));
+        });
+        self.state.builder = open;
+        if !open {
+            ui.add_space(form::PANE_GAP);
+            return;
+        }
+        let project = self.state.picks.project.clone();
+        let filters = {
+            let sh = self.shared.lock();
+            sh.filters.clone().filter(|f| f.key == project)
+        };
+        let lists = match filters {
+            Some(f) => f.result.unwrap_or_default(),
+            None => {
+                // Asked once per project: the placeholder stops a repeat
+                // while the answer is on its way.
+                self.shared.lock().filters = Some(runner::For {
+                    key: project.clone(),
+                    result: Ok(Default::default()),
+                });
+                self.send(Cmd::Filters(project));
+                Default::default()
+            }
+        };
+        ui.add_space(form::PANE_GAP);
+        let mut run = false;
+        let p = &mut self.state.picks;
+        form::field_grid(ui, "tracker-builder", |ui| {
+            let rows: [(&str, &mut String, &Vec<String>); 5] = [
+                ("tracker-builder-status", &mut p.status, &lists.statuses),
+                (
+                    "tracker-builder-assignee",
+                    &mut p.assignee,
+                    &lists.assignees,
+                ),
+                ("tracker-builder-author", &mut p.author, &lists.authors),
+                ("tracker-builder-kind", &mut p.kind, &lists.kinds),
+                (
+                    "tracker-builder-priority",
+                    &mut p.priority,
+                    &lists.priorities,
+                ),
+            ];
+            for (key, value, options) in rows {
+                form::label(ui, &s.t(key));
+                form::pick_field(ui, theme, value, options, &s.t("tracker-builder-any"));
+                ui.end_row();
+            }
+            form::label(ui, &s.t("tracker-builder-text"));
+            let r = form::text_field(ui, &mut p.text, &s.t("tracker-builder-text-hint"));
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                run = true;
+            }
+            ui.end_row();
+        });
+        ui.add_space(form::ROW_GAP);
+        ui.horizontal_wrapped(|ui| {
+            if form::primary_button(
+                ui,
+                theme,
+                &format!("{} {}", ph::MAGNIFYING_GLASS, s.t("tracker-builder-run")),
+            )
+            .clicked()
+            {
+                run = true;
+            }
+            ui.add_space(form::BUTTON_GAP);
+            if form::button(ui, theme, ph::BROOM, &s.t("tracker-builder-clear")).clicked() {
+                let project = std::mem::take(&mut self.state.picks.project);
+                self.state.picks = crate::driver::Picks {
+                    project,
+                    ..Default::default()
+                };
+                run = true;
+            }
+        });
+        ui.add_space(form::PANE_GAP);
+        if run {
+            let picks = self.state.picks.clone();
+            self.build(picks);
+        }
+    }
+
     fn items(&mut self, ui: &mut egui::Ui, theme: &Theme, cx: &mut ToolContext) {
         let s = cx.services;
         if self.is_pages() {
@@ -1508,6 +1758,9 @@ impl TrackerTool {
         ui.add_space(form::PANE_GAP);
         self.query_bar(ui, s, cx);
         ui.add_space(form::PANE_GAP);
+        if !self.is_pages() && self.shared.lock().has_builder {
+            self.builder(ui, theme, s);
+        }
         let (found, error, busy) = {
             let sh = self.shared.lock();
             (sh.found.clone(), sh.found_error.clone(), sh.busy)
@@ -1780,7 +2033,9 @@ impl TrackerTool {
                 return;
             }
         };
-        ui.horizontal_wrapped(|ui| {
+        // Key and summary on one middle line (BUG-0071): the row's height
+        // is set before it opens, so the smaller key is not left high.
+        form::centred_row_wrapped(ui, |ui| {
             ui.strong(&d.item.key);
             ui.heading(&d.item.summary);
         });
@@ -1866,6 +2121,80 @@ impl TrackerTool {
                     });
                     if let Some(k) = go {
                         self.select(k);
+                    }
+                }
+                // The ticket's place among others (FEAT-0123): its parent,
+                // and its sub-tickets as a table that opens each one.
+                if d.parent.is_some() || !d.children.is_empty() {
+                    ui.add_space(form::PANE_GAP);
+                    ui.separator();
+                    ui.add_space(form::PANE_GAP);
+                }
+                if let Some(parent) = &d.parent {
+                    let mut open = false;
+                    form::centred_row_wrapped(ui, |ui| {
+                        ui.strong(s.t("tracker-parent"));
+                        let text = if parent.summary.is_empty() {
+                            parent.key.clone()
+                        } else {
+                            format!("{} {}", parent.key, parent.summary)
+                        };
+                        open = ui
+                            .link(format!("{} {text}", ph::ARROW_ELBOW_LEFT_UP))
+                            .clicked();
+                    });
+                    if open {
+                        self.select(parent.key.clone());
+                    }
+                    ui.add_space(form::ROW_GAP);
+                }
+                if !d.children.is_empty() {
+                    ui.strong(
+                        s.i18n
+                            .t_args("tracker-children", &[("n", &d.children.len().to_string())]),
+                    );
+                    ui.add_space(form::ROW_GAP);
+                    // Redmine names no child's status: a column no row
+                    // fills is not drawn (ui.md).
+                    let with_status = d.children.iter().any(|c| !c.status.is_empty());
+                    let mut columns = vec![
+                        ColumnSpec::new(s.t("tracker-col-key"), 80.0),
+                        ColumnSpec::new(s.t("tracker-col-summary"), 240.0),
+                    ];
+                    if with_status {
+                        columns.push(ColumnSpec::new(s.t("tracker-col-status"), 100.0));
+                    }
+                    let rows: Vec<Vec<String>> = d
+                        .children
+                        .iter()
+                        .map(|c| {
+                            let mut row = vec![c.key.clone(), c.summary.clone()];
+                            if with_status {
+                                row.push(c.status.clone());
+                            }
+                            row
+                        })
+                        .collect();
+                    let table = DataTable {
+                        theme,
+                        columns: &columns,
+                        rows: &rows,
+                        row_height: hs_ui::table::ROW_HEIGHT,
+                        show_filter: false,
+                        copy_row_label: &s.t("table-copy-row"),
+                        built_in_menu: true,
+                        row_icons: None,
+                        empty_hint: None,
+                    };
+                    let r = ui
+                        .push_id("tracker-children", |ui| {
+                            table.show(ui, &mut self.children_table)
+                        })
+                        .inner;
+                    if let Some(i) = r.clicked.or(r.double_clicked)
+                        && let Some(c) = d.children.get(i)
+                    {
+                        self.select(c.key.clone());
                     }
                 }
                 ui.add_space(form::PANE_GAP);

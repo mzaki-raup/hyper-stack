@@ -144,6 +144,7 @@ impl Driver for Forgejo {
                 url: format!("{}/{}/actions?workflow={}", self.web, self.repo, seg(&name)),
                 id: name.clone(),
                 name,
+                project: self.repo.clone(),
             })
             .collect();
         Ok(Listing { jobs, note: None })

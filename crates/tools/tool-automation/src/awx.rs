@@ -168,6 +168,12 @@ impl Driver for Awx {
                         self.web,
                         s(t, "id")
                     ),
+                    // The AWX project the template runs from.
+                    project: t
+                        .pointer("/summary_fields/project/name")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
                 }
             })
             .collect();

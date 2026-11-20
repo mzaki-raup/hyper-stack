@@ -79,6 +79,8 @@ pub fn node(n: &Value) -> Job {
         name: certname,
         last,
         url: String::new(),
+        // Nodes have no project; the column lists them under one entry.
+        project: String::new(),
     }
 }
 

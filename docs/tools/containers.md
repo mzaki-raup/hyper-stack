@@ -196,6 +196,23 @@ and only for the Local and Tcp transports, behind the same `Engine`
 interface so nothing above it changes. Until then the refresh interval
 in Settings governs, which is honest for a list of containers.
 
+**Two consequences, made explicit 2026-11-20 (BUG-0070):**
+
+- *Over SSH the line runs on the host.* `hs-container` builds the
+  invocation with `remote_ssh` set and hands `Invocation::to_line()` -
+  every word shell-quoted, the engine's environment as `NAME=value`
+  before it - to the runner the binary installs with
+  `run::set_remote`: the SSH service's `Tunnels::exec`, which shares the
+  session forwards use and caps a command at 120 s. Test Connection uses
+  the same path. A host key not yet trusted says to open the host once
+  in the SSH activity. Until 2026-11-20 nothing was installed and every
+  SSH host failed with the connection's id.
+- *Over TCP the client is local.* `docker -H tcp://…` runs the `docker`
+  on this computer, so the TCP form says the client must be installed
+  here and warns when it is not on PATH. Reaching a TCP engine with no
+  local client is the Engine API over HTTP - the deferred `bollard` - not
+  this driver.
+
 The parsing is where the surprises were, and they are the reason this is
 testable in isolation: `docker ps --format '{{json .}}'` is
 **line-delimited** JSON whose `Labels`, `Ports` and `Mounts` are *human

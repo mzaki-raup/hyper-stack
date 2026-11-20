@@ -93,6 +93,7 @@ pub fn forge_detail(i: &Value, comments: Vec<Comment>) -> Detail {
         comments_note: None,
         attachments: Vec::new(),
         links: Vec::new(),
+        ..Default::default()
     }
 }
 

@@ -40,14 +40,29 @@ The connection-per-tab shape of the Queue and Automation activities.
 - **Sidebar**: the saved trackers, one list, each with its product's mark,
   name and address; the grip to reorder.
 - **A tab per tracker**: the header band, the toolbar (`hs_ui::toolbar`, the
-  AI assistant hard right), and two panes:
+  AI assistant hard right), a **projects column** and two panes:
+  - the projects column (FEAT-0122, 2026-11-20): a resizable left column,
+    hidden and shown from the toolbar's first item (*Projects*,
+    `Ctrl+Alt+Shift+J`), with a filter field, **All Projects** and every
+    project the server lists (Redmine `/projects.json`, Jira `/project`).
+    Picking one runs the list for it through the search builder. The
+    forges list none: their connection names one repository or project;
   - left: a **query bar** in the tracker's own language (JQL for Jira,
     Redmine's filters, GitHub / GitLab / Forgejo search syntax) with saved
-    queries, over a `DataTable` of **items** - key, summary, status, assignee,
-    priority, updated;
+    queries, then the **Search Builder** (FEAT-0124, Redmine and Jira,
+    `Ctrl+Alt+Shift+F`): Status (open, closed, all, then the server's
+    statuses), Assignee and Author (me, then the project's members or
+    assignable users), Type, Priority and Text, each a `pick_field` from
+    the server; **Build and Search** writes the kind's own query into the
+    bar - Redmine's words (`author:` and `priority:` added), or JQL - and
+    runs it; then a `DataTable` of **items** - key, summary, status,
+    assignee, priority, updated;
   - right: the selected **item** - its fields, the description rendered as
-    Markdown, comments, attachments (names, open in the Browser), links - with
-    **Edit**, **Transition**, **Comment** and **Open in Browser**.
+    Markdown, attachments (names, open in the Browser), links, its
+    **Parent** and its **Sub-Tickets** (FEAT-0123: Redmine's `children`,
+    nested ones indented; Jira's `subtasks`), each opening its own page,
+    comments - with **Edit**, **Transition**, **Comment** and **Open in
+    Browser**.
 - **Confluence** tabs show a **space → page tree** on the left instead of the
   items table, and the page on the right, rendered from its storage format
   to Markdown, with **Edit** (Markdown, converted back on publish).

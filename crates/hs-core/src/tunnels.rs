@@ -73,6 +73,17 @@ pub struct TunnelInfo {
 
 pub type ForwardResult = Result<u16, TunnelError>;
 
+/// A command's whole answer from an SSH host.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ExecOutput {
+    pub stdout: String,
+    pub stderr: String,
+    /// The exit status; 0 is success.
+    pub status: u32,
+}
+
+pub type ExecResult = Result<ExecOutput, TunnelError>;
+
 pub trait Tunnels: Send + Sync {
     /// The local port of a forward to `remote_host:remote_port` through
     /// `ssh_id`, starting one unless an equivalent forward is already
@@ -92,6 +103,17 @@ pub trait Tunnels: Send + Sync {
     fn stop(&self, id: u64);
 
     fn list(&self) -> Vec<TunnelInfo>;
+
+    /// Run one shell line on `ssh_id` over the session forwards share, and
+    /// answer with all of its output once it ends (a remote container
+    /// engine's commands, BUG-0070). A host key not yet trusted fails as a
+    /// forward does.
+    fn exec(&self, ssh_id: &str, command: &str) -> oneshot::Receiver<ExecResult> {
+        let _ = (ssh_id, command);
+        let (tx, rx) = oneshot::channel();
+        let _ = tx.send(Err(TunnelError::Other("SSH is not available".into())));
+        rx
+    }
 }
 
 /// Used where no SSH implementation is installed (tests, `--self-test`).

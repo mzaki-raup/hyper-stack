@@ -2,14 +2,18 @@
 //! `PooledPBEStringEncryptor` with `RandomSaltGenerator` and
 //! `RandomIvGenerator` produce it:
 //!
+//! Jasypt sizes the salt and the IV to the cipher's block size: 8 bytes
+//! each for DES, 16 each for AES. Message = salt ‖ [iv] ‖ ciphertext, the
+//! IV there only with a `RandomIvGenerator`.
+//!
 //! - `PBEWithMD5AndDES` (Java PBES1): key and IV from PBKDF1-MD5 over the
-//!   password and an 8-byte salt, DES-CBC-PKCS5. Message = salt ‖ [iv] ‖
-//!   ciphertext. The IV bytes jasypt prepends when a `RandomIvGenerator` is
-//!   configured are ignored by PBES1 (it derives its own IV), but they are
-//!   still part of the message, so the layout is configurable.
-//! - `PBEWITHHMACSHA512ANDAES_256`: key from PBKDF2-HMAC-SHA512 over the
-//!   password and the salt (32 bytes), AES-256-CBC-PKCS5 with a random
-//!   16-byte IV. Message = salt ‖ iv ‖ ciphertext.
+//!   password and the salt, DES-CBC-PKCS5. PBES1 derives its own IV and
+//!   ignores the one jasypt prepends, but the bytes are still in the
+//!   message.
+//! - `PBEWITHHMACSHA512ANDAES_256`: a 256-bit key from PBKDF2-HMAC-SHA512
+//!   over the password and the salt, AES-256-CBC-PKCS5 with the message's
+//!   IV. It needs a `RandomIvGenerator`: without one Java picks an IV it
+//!   never writes down.
 //!
 //! Output is Base64 (jasypt's `base64` string output type) or hex, and can
 //! be wrapped as `ENC(…)` for Spring property files.
@@ -42,6 +46,14 @@ impl Algo {
             Algo::HmacSha512Aes256 => "PBEWITHHMACSHA512ANDAES_256",
         }
     }
+
+    /// The cipher's block size, which jasypt uses for the salt and the IV.
+    pub fn block(self) -> usize {
+        match self {
+            Algo::Md5Des => 8,
+            Algo::HmacSha512Aes256 => 16,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,10 +61,8 @@ impl Algo {
 pub struct Config {
     pub algo: Algo,
     pub iterations: u32,
-    pub salt_bytes: usize,
-    /// IV bytes carried in the message (0 = none). Jasypt's default with a
-    /// `RandomIvGenerator` is 16.
-    pub iv_bytes: usize,
+    /// `RandomIvGenerator` (an IV in the message) or `NoIvGenerator`.
+    pub random_iv: bool,
     pub hex: bool,
     pub enc_wrapper: bool,
 }
@@ -62,11 +72,17 @@ impl Default for Config {
         Self {
             algo: Algo::HmacSha512Aes256,
             iterations: 1000,
-            salt_bytes: 8,
-            iv_bytes: 16,
+            random_iv: true,
             hex: false,
             enc_wrapper: false,
         }
+    }
+}
+
+impl Config {
+    /// The IV bytes the message carries.
+    fn iv_len(&self) -> usize {
+        if self.random_iv { self.algo.block() } else { 0 }
     }
 }
 
@@ -96,53 +112,65 @@ fn decode_in(cfg: &Config, text: &str) -> Result<Vec<u8>, String> {
     }
 }
 
-pub fn encrypt(cfg: &Config, password: &str, plain: &str) -> Result<String, String> {
+/// Refusals both ways: a missing password, AES without an IV.
+fn check(cfg: &Config, password: &str) -> Result<(), String> {
     if password.is_empty() {
-        return Err("a password (the secret key) is needed".into());
+        return Err("A password (the secret key) is needed.".into());
     }
-    let salt = random_bytes(cfg.salt_bytes);
-    let message = match cfg.algo {
-        Algo::Md5Des => {
-            if cfg.salt_bytes != 8 {
-                return Err("PBEWithMD5AndDES needs an 8-byte salt".into());
-            }
-            let dk = pbkdf1_md5(password.as_bytes(), &salt, cfg.iterations);
-            let ct = cbc_encrypt::<des::Des>(&dk[..8], &dk[8..16], plain.as_bytes())?;
-            let mut m = salt;
-            m.extend(random_bytes(cfg.iv_bytes));
-            m.extend(ct);
-            m
-        }
-        Algo::HmacSha512Aes256 => {
-            if cfg.iv_bytes != 16 {
-                return Err("AES needs a 16-byte IV in the message".into());
-            }
-            let key = pbkdf2_hmac_sha512(password.as_bytes(), &salt, cfg.iterations, 32);
-            let iv = random_bytes(16);
-            let ct = cbc_encrypt::<aes::Aes256>(&key, &iv, plain.as_bytes())?;
-            let mut m = salt;
-            m.extend(iv);
-            m.extend(ct);
-            m
-        }
-    };
+    if cfg.algo == Algo::HmacSha512Aes256 && !cfg.random_iv {
+        return Err(
+            "PBEWITHHMACSHA512ANDAES_256 needs RandomIvGenerator: without one the IV is lost."
+                .into(),
+        );
+    }
+    Ok(())
+}
+
+pub fn encrypt(cfg: &Config, password: &str, plain: &str) -> Result<String, String> {
+    check(cfg, password)?;
+    let salt = random_bytes(cfg.algo.block());
+    let iv = random_bytes(cfg.iv_len());
+    let message = seal(cfg, password, plain, salt, iv)?;
     Ok(encode_out(cfg, &message))
 }
 
+/// salt ‖ iv ‖ ciphertext for the given salt and IV.
+fn seal(
+    cfg: &Config,
+    password: &str,
+    plain: &str,
+    salt: Vec<u8>,
+    iv: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    let ct = match cfg.algo {
+        Algo::Md5Des => {
+            let dk = pbkdf1_md5(password.as_bytes(), &salt, cfg.iterations);
+            cbc_encrypt::<des::Des>(&dk[..8], &dk[8..16], plain.as_bytes())?
+        }
+        Algo::HmacSha512Aes256 => {
+            let key = pbkdf2_hmac_sha512(password.as_bytes(), &salt, cfg.iterations, 32);
+            cbc_encrypt::<aes::Aes256>(&key, &iv, plain.as_bytes())?
+        }
+    };
+    let mut m = salt;
+    m.extend(iv);
+    m.extend(ct);
+    Ok(m)
+}
+
 pub fn decrypt(cfg: &Config, password: &str, text: &str) -> Result<String, String> {
-    if password.is_empty() {
-        return Err("a password (the secret key) is needed".into());
-    }
+    check(cfg, password)?;
     let message = decode_in(cfg, text)?;
-    let head = cfg.salt_bytes + cfg.iv_bytes;
+    let salt_len = cfg.algo.block();
+    let head = salt_len + cfg.iv_len();
     if message.len() <= head {
         return Err(format!(
-            "message too short: {} bytes, but salt and IV alone take {head}",
+            "The message is too short: {} bytes, but the salt and IV alone take {head}.",
             message.len()
         ));
     }
-    let salt = &message[..cfg.salt_bytes];
-    let iv = &message[cfg.salt_bytes..head];
+    let salt = &message[..salt_len];
+    let iv = &message[salt_len..head];
     let ct = &message[head..];
     let plain = match cfg.algo {
         Algo::Md5Des => {
@@ -243,12 +271,7 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
                 .selected_text(st.cfg.algo.name())
                 .show_ui(ui, |ui| {
                     for a in [Algo::HmacSha512Aes256, Algo::Md5Des] {
-                        if hs_ui::form::selectable_value(ui, &mut st.cfg.algo, a, a.name())
-                            .clicked()
-                        {
-                            st.cfg.salt_bytes = 8;
-                            st.cfg.iv_bytes = 16;
-                        }
+                        hs_ui::form::selectable_value(ui, &mut st.cfg.algo, a, a.name());
                     }
                 });
             ui.end_row();
@@ -264,11 +287,27 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
             form::label(ui, &s.t("dt-jasypt-iterations"));
             ui.add(egui::DragValue::new(&mut st.cfg.iterations).range(1..=100_000));
             ui.end_row();
-            form::label(ui, &s.t("dt-jasypt-salt"));
-            ui.add(egui::DragValue::new(&mut st.cfg.salt_bytes).range(8..=64));
-            ui.end_row();
             form::label(ui, &s.t("dt-jasypt-iv"));
-            ui.add(egui::DragValue::new(&mut st.cfg.iv_bytes).range(0..=32));
+            let iv_name = |random: bool| {
+                if random {
+                    "RandomIvGenerator"
+                } else {
+                    "NoIvGenerator"
+                }
+            };
+            egui::ComboBox::from_id_salt("jasypt-iv")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(iv_name(st.cfg.random_iv))
+                .show_ui(ui, |ui| {
+                    for random in [true, false] {
+                        hs_ui::form::selectable_value(
+                            ui,
+                            &mut st.cfg.random_iv,
+                            random,
+                            iv_name(random),
+                        );
+                    }
+                });
             ui.end_row();
             form::label(ui, &s.t("dt-jasypt-output"));
             form::centred_row(ui, |ui| {
@@ -393,15 +432,80 @@ pub fn ui(st: &mut State, ui: &mut egui::Ui, s: &Services, theme: &Theme) {
 mod tests {
     use super::*;
 
+    // Made by Java 21's SunJCE exactly as jasypt 1.9.3 does it (block-size
+    // salt and IV, `PBEParameterSpec(salt, 1000, IvParameterSpec(iv))`,
+    // salt ‖ iv ‖ ciphertext): password "hyperstack", salt 01 02 …, IV
+    // 21 22 …, plaintext "jdbc-password".
+    const JAVA_DES: &str = "AQIDBAUGBwghIiMkJSYnKNzeY+V48sK7xFiCsryZnlQ=";
+    const JAVA_AES: &str = "AQIDBAUGBwgJCgsMDQ4PECEiIyQlJicoKSorLC0uLzCwGC25Na8yYtsF8K9MzSb5";
+
+    fn seq(n: u8, start: u8) -> Vec<u8> {
+        (0..n).map(|i| start + i).collect()
+    }
+
+    fn des() -> Config {
+        Config {
+            algo: Algo::Md5Des,
+            ..Config::default()
+        }
+    }
+
     #[test]
-    fn aes_round_trip_has_jasypt_layout() {
-        let cfg = Config::default();
-        let enc = encrypt(&cfg, "secret", "hello jasypt").unwrap();
-        let raw = b64_decode(&enc).unwrap();
-        // salt(8) + iv(16) + one AES block for 12 bytes of text.
-        assert_eq!(raw.len(), 8 + 16 + 16);
-        assert_eq!(decrypt(&cfg, "secret", &enc).unwrap(), "hello jasypt");
-        assert!(decrypt(&cfg, "wrong", &enc).is_err());
+    fn both_algorithms_match_java() {
+        let aes = Config::default();
+        assert_eq!(
+            decrypt(&aes, "hyperstack", JAVA_AES).unwrap(),
+            "jdbc-password"
+        );
+        assert_eq!(
+            decrypt(&des(), "hyperstack", JAVA_DES).unwrap(),
+            "jdbc-password"
+        );
+        let sealed = seal(
+            &aes,
+            "hyperstack",
+            "jdbc-password",
+            seq(16, 1),
+            seq(16, 0x21),
+        );
+        assert_eq!(b64_encode(&sealed.unwrap()), JAVA_AES);
+        let sealed = seal(
+            &des(),
+            "hyperstack",
+            "jdbc-password",
+            seq(8, 1),
+            seq(8, 0x21),
+        );
+        assert_eq!(b64_encode(&sealed.unwrap()), JAVA_DES);
+    }
+
+    #[test]
+    fn des_without_an_iv_generator_drops_the_iv_bytes() {
+        // PBES1 ignores the IV, so NoIvGenerator's message is Java's
+        // without its eight IV bytes.
+        let mut raw = b64_decode(JAVA_DES).unwrap();
+        raw.drain(8..16);
+        let no_iv = Config {
+            random_iv: false,
+            ..des()
+        };
+        assert_eq!(
+            decrypt(&no_iv, "hyperstack", &b64_encode(&raw)).unwrap(),
+            "jdbc-password"
+        );
+    }
+
+    #[test]
+    fn round_trips_and_refusals() {
+        for cfg in [Config::default(), des()] {
+            let enc = encrypt(&cfg, "secret", "hello jasypt").unwrap();
+            let raw = b64_decode(&enc).unwrap();
+            // salt and IV at the block size, then whole blocks.
+            let block = cfg.algo.block();
+            assert_eq!(raw.len(), 2 * block + 16);
+            assert_eq!(decrypt(&cfg, "secret", &enc).unwrap(), "hello jasypt");
+            assert!(decrypt(&cfg, "wrong", &enc).is_err());
+        }
         let wrapped = Config {
             enc_wrapper: true,
             ..Config::default()
@@ -409,21 +513,12 @@ mod tests {
         let w = encrypt(&wrapped, "s", "x").unwrap();
         assert!(w.starts_with("ENC(") && w.ends_with(')'));
         assert_eq!(decrypt(&wrapped, "s", &w).unwrap(), "x");
-    }
-
-    #[test]
-    fn des_round_trip_with_and_without_iv_bytes() {
-        for iv in [0usize, 16] {
-            let cfg = Config {
-                algo: Algo::Md5Des,
-                iv_bytes: iv,
-                ..Config::default()
-            };
-            let enc = encrypt(&cfg, "pw", "legacy config value").unwrap();
-            let raw = b64_decode(&enc).unwrap();
-            assert_eq!(raw.len(), 8 + iv + 24);
-            assert_eq!(decrypt(&cfg, "pw", &enc).unwrap(), "legacy config value");
-        }
+        let aes_no_iv = Config {
+            random_iv: false,
+            ..Config::default()
+        };
+        assert!(encrypt(&aes_no_iv, "s", "x").is_err());
+        assert!(encrypt(&des(), "", "x").is_err());
     }
 
     #[test]

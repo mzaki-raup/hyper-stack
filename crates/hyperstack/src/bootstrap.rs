@@ -75,6 +75,7 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         secrets.clone(),
         paths.known_hosts_file(),
     ));
+    install_container_ssh(tunnels.clone());
 
     let services = Services {
         open_tabs: hs_core::open_tabs::OpenTabs::new(),
@@ -122,6 +123,23 @@ pub fn services(paths: DataDir, waker: Arc<dyn UiWaker>, kdf: KdfParams) -> Resu
         registry,
         settings_error,
     })
+}
+
+/// A container engine reached over SSH runs its commands through the SSH
+/// service (BUG-0070). Its runner is called on a worker thread, never the
+/// UI thread, so waiting for the answer there is allowed.
+fn install_container_ssh(tunnels: Arc<hs_ssh::tunnels::TunnelManager>) {
+    use hs_core::tunnels::{TunnelError, Tunnels};
+    hs_container::run::set_remote(Arc::new(move |ssh_id: &str, line: &str| {
+        match tunnels.exec(ssh_id, line).blocking_recv() {
+            Ok(Ok(out)) => Ok((out.stdout, out.stderr, out.status)),
+            Ok(Err(TunnelError::UnknownHostKey)) => Err(
+                "the host key is not trusted yet: open the host once in the SSH activity".into(),
+            ),
+            Ok(Err(e)) => Err(e.to_string()),
+            Err(_) => Err("the SSH service stopped".into()),
+        }
+    }));
 }
 
 /// Switch the live services to another workspace (reloads connections and environments).

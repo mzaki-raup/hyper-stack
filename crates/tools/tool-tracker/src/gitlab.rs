@@ -250,6 +250,7 @@ impl Driver for GitLab {
             comments_note,
             attachments: Vec::new(),
             links: Vec::new(),
+            ..Default::default()
         })
     }
 

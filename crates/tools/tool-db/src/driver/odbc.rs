@@ -254,6 +254,32 @@ enum Msg {
     Rows(Vec<Row>),
 }
 
+/// A failed connect with the remedy for the two ways IBM's Db2 drivers are
+/// known to fail on Windows (BUG-0072, docs/GOTCHAS.md), so the user is
+/// not left with a bare "system error 126".
+fn with_connect_remedy(mut e: DbError) -> DbError {
+    let lower = e.message.to_ascii_lowercase();
+    let remedy = if lower.contains("db2clio.dll") {
+        Some(
+            "IBM's installer registered bin\\db2clio.dll, which this driver package does not include. \
+             Point the driver's Driver and Setup entries (HKLM\\SOFTWARE\\ODBC\\ODBCINST.INI) at \
+             bin\\db2app64.dll, or choose the other Db2 driver in ODBC Driver.",
+        )
+    } else if lower.contains("sql1042c") {
+        Some(
+            "SQL1042C comes from inside IBM's driver, during its encrypted login. Check the same \
+             server with `db2cli validate -connect` and with another ODBC client; if both fail too, \
+             the driver release is at fault, not the connection.",
+        )
+    } else {
+        None
+    };
+    if let Some(r) = remedy {
+        e.message = format!("{}\n\n{r}", e.message);
+    }
+    e
+}
+
 fn odbc_err(e: odbc_api::Error) -> DbError {
     match &e {
         odbc_api::Error::Diagnostics { record, .. } => DbError {
@@ -321,7 +347,7 @@ impl OdbcSession {
                         c
                     }
                     Err(e) => {
-                        let _ = ready_tx.send(Err(odbc_err(e)));
+                        let _ = ready_tx.send(Err(with_connect_remedy(odbc_err(e))));
                         return;
                     }
                 };
@@ -703,6 +729,28 @@ mod tests {
         let err = guarded::<()>(|| panic!("Length indicator must be non-negative")).unwrap_err();
         assert!(err.message.contains("Length indicator"), "{}", err.message);
         assert_eq!(guarded(|| Ok(7)).unwrap(), 7);
+    }
+
+    #[test]
+    fn the_two_known_db2_failures_name_their_remedy() {
+        let missing = with_connect_remedy(DbError::msg(
+            "[Microsoft][ODBC Driver Manager] The setup routines for the IBM DB2 ODBC DRIVER - C_DB2_clidriver ODBC driver could not be loaded due to system error code 126: C:\\DB2\\clidriver\\bin\\db2clio.dll (IM003)",
+        ));
+        assert!(
+            missing.message.contains("db2app64.dll"),
+            "{}",
+            missing.message
+        );
+        let login = with_connect_remedy(DbError::msg(
+            "[IBM][CLI Driver] SQL1042C An unexpected system error occurred. SQLSTATE=58004 (HY000)",
+        ));
+        assert!(
+            login.message.contains("db2cli validate"),
+            "{}",
+            login.message
+        );
+        let other = with_connect_remedy(DbError::msg("password authentication failed"));
+        assert_eq!(other.message, "password authentication failed");
     }
 
     #[test]

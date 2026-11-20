@@ -14,6 +14,27 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Identity: the Directory section for LDAP directories - the tree a level at a time, every attribute of an entry in the raw editor with a review before save, Move To and Delete (FEAT-0117)
+- Every connection form: Use Saved Credential copies another connection's user and secret, the secret as a new vault entry (FEAT-0125)
+- Settings → Security → Credentials lists Identity connections too (FEAT-0125)
+- Automation: a hideable, searchable projects column - Jenkins folders, TeamCity and AWX projects, the connection's repository - that narrows the jobs list (FEAT-0121)
+- Tracker: a hideable, searchable projects column for Redmine and Jira that runs the list for the picked project (FEAT-0122)
+- Tracker: a ticket's parent and its sub-tickets on its page, each opening its own (Redmine sub-tasks, nested ones indented; Jira sub-tasks) (FEAT-0123)
+- Tracker: a Search Builder for Redmine and Jira - status, assignee, author, type, priority and text from the server's lists - that writes the query into the bar and runs it (FEAT-0124)
+
+### Changed
+
+- Log consoles: the INFO level wears a blue readable on the dark and the light theme instead of the accent (CR-0102)
+- Scratchpad: the pin is a step smaller in a tab and a step bigger in the note list (CR-0103)
+- Devtools → Jasypt: an IV Generator choice (RandomIvGenerator / NoIvGenerator) replaces the salt and IV byte counts, which now follow the algorithm (BUG-0075)
+
+### Fixed
+
+- Devtools → Jasypt: encrypt and decrypt match Jasypt for both algorithms - the salt and IV are the cipher's block size, 8 bytes for DES and 16 for AES (BUG-0075)
+- Containers: a remote engine over SSH runs its commands on that host instead of failing with the connection's id; Test Connection works over SSH too; the TCP form says the local client is needed and warns when it is missing; every engine error starts with a capital (BUG-0070)
+- Database: a Db2 connection that fails on IBM's missing `db2clio.dll` or with `SQL1042C` says what to do about it (BUG-0072)
+- Markdown previews (Scratchpad, Editor, S3): tables have borders, a header row on its own fill and each column's left, centre or right alignment (BUG-0074)
+- Tracker: a ticket's key and summary share the detail column's middle line (BUG-0071)
+- Settings → Security → Credentials: the Host/URL column's Copy buttons line up like Username and Password (BUG-0073)
 
 ## 0.137.0 — 2026-11-19
 

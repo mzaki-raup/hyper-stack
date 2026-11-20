@@ -38,15 +38,24 @@ impl Invocation {
             if !out.is_empty() {
                 out.push(' ');
             }
-            if part.is_empty() || part.contains([' ', '"', '\'', '\t']) {
-                out.push('\'');
-                out.push_str(&part.replace('\'', r"'\''"));
-                out.push('\'');
-            } else {
-                out.push_str(part);
-            }
+            out.push_str(&shell_quote(part));
         }
         out
+    }
+}
+
+/// One word for a POSIX shell: single-quoted when it is empty or holds
+/// anything the shell would read (spaces, quotes, `$`, `;`, `|` …), as is
+/// otherwise. An SSH host runs the line through its shell (BUG-0070).
+pub fn shell_quote(part: &str) -> String {
+    const SPECIAL: &[char] = &[
+        ' ', '\t', '\n', '"', '\'', '$', '`', '\\', ';', '&', '|', '<', '>', '(', ')', '*', '?',
+        '!', '#', '~',
+    ];
+    if part.is_empty() || part.contains(SPECIAL) {
+        format!("'{}'", part.replace('\'', r"'\''"))
+    } else {
+        part.to_string()
     }
 }
 

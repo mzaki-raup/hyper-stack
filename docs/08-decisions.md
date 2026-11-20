@@ -1173,3 +1173,56 @@ block the UI thread.
   `HS_LDAP`.
 - Kerberos / GSSAPI (Windows integrated sign-in) stays a later step: it
   would turn on `ldap3`'s `gssapi` feature and its own ADR.
+
+## ADR-034 · Analytics activity: one provider trait, Metabase's REST API drawn natively, charts with `egui_plot`
+
+**Date** 2026-11-20 · **Status** proposed (see `docs/tools/analytics.md`) ·
+**Owner's request** (2026-11-20): *"add Business Intelligent / Analytic as
+new Activity … For starter, i want to add metabase and tableau. If provide
+credentials, can the work pane resemble both the activity web interface
+(using APIs, etc)?"*, then *"Yes, Metabase first"*.
+
+**Context.** BI servers keep a team's saved questions and dashboards. The
+owner wants a tab per server that looks like the product's web interface,
+driven by its API with the user's credentials. Metabase's REST API returns
+a question's rows together with its chart type and settings, and a
+dashboard's grid, so its screens can be drawn natively. Tableau's REST API
+returns a view's rendered picture and its summary data; the interactive
+chart is drawn by Tableau's servers only. The workspace has no charting
+crate: the Logs time strip and Redis sparklines are hand-painted.
+
+**Options.**
+
+| Question | Option | For | Against |
+|---|---|---|---|
+| Shape | **one `tool-analytics` activity with a `BiProvider` trait**, Metabase and Tableau as modules | one rail entry, one Settings page, one UI; Superset or Power BI later as modules | the trait must stay general; Tableau offers fewer sections |
+| Shape | an activity per product | each mirrors its product | two rail entries for one job |
+| Shape | the Browser activity on the products' web pages | every feature at once | not the app's UI language; no guards, no Open in Database, no assistant context |
+| Metabase client | **its REST API through `hs_core::service_http`** | no new dependency; the web interface uses it | documented as internal: version-gated (§8.3) |
+| Charts | **`egui_plot`** (the egui project's plot crate, the release for egui 0.35) for line, area, bar, scatter; pie, gauge, progress and funnel hand-painted | MIT/Apache-2.0, pure Rust, no new rendering stack, follows the theme | its pie and funnel do not exist; a release per egui version to track |
+| Charts | `plotters` with an egui backend | many chart kinds | a second drawing model and font stack; the backend crate lags egui |
+| Charts | everything hand-painted | no dependency | axes, ticks, zoom and hover written again |
+| Tableau charts | **the view's PNG plus its data, and Open Interactive in the Browser activity** | what the API gives; honest | not interactive inside the tab |
+| Tableau charts | the Embedding API in a web view inside the tab | interactive | a second embedded browser inside a work pane; the user signs in there anyway |
+
+**Decision.**
+
+- `tool-analytics`, rail after Database, category Data; the provider trait
+  and `Caps` as Identity's (ADR-032). Metabase first (FEAT-0126 to
+  FEAT-0130), Tableau second (FEAT-0131).
+- Metabase through `/api/…` with an API key (`x-api-key`, v0.49+) or a
+  session from `/api/session`; supported v0.48 to current, gated from
+  `/api/session/properties`.
+- `egui_plot` in `[workspace.dependencies]`, used by `tool-analytics` only;
+  `cargo deny` before it lands.
+- Phase 1 is read-only; Tableau's Refresh Now is the only write planned.
+
+**Consequences.**
+
+- A Metabase dashboard is drawn on its own 24-column grid with its filters;
+  displays not drawn (map, pivot, sankey) show their table with Open in
+  Browser.
+- The bench gains a `metabase` service in a new `bi` profile with the
+  bundled Sample Database; live tests are gated on `HS_METABASE`. Tableau
+  has no container: a Developer Program site (`HS_TABLEAU`) and a mock.
+- Identity's audit log moves into `hs-core` when Tableau's write lands.

@@ -150,13 +150,90 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.8.1
-Features : FEAT-0125
+Version : v0.9.0
+Features : FEAT-0131
 Bugs : BUG-0075
 Change Request : CR-0103
 ```
 
 ---
+
+## v0.9.0 — Planned
+
+> **Analytics (BI)**, Metabase first. Spec `docs/tools/analytics.md`,
+> decision ADR-034, depth-programme phase Q. Specified 2026-11-20 at the
+> owner's request ("Yes, Metabase first"); §10 of the spec holds the
+> questions still open.
+
+### FEAT-0126 · Analytics activity: crate, provider trait, connections, Settings page, dashboard
+- **State:** Pending · **Spec:** docs/tools/analytics.md §3, §4.1, §5, §8 · **Phase:** Q
+- **Source:** owner, 2026-11-20: "I plan to add Business Intelligent / Analytic as new Activity … For starter, i want to add metabase and tableau. If provide credentials, can the work pane resemble both the activity web interface (using APIs, etc)?", then "Yes, Metabase first"
+- **Scope:** `crates/tools/tool-analytics/` with `AnalyticsFactory` (id `analytics`, category Data, rail after Database); the `BiProvider` trait and `Caps`; connection kind `metabase` (`is_bi_kind`, the `[bi]` table) with API Key or Username and Password in the vault and Use Saved Credential; Settings → Analytics (list left, form right, Test Connection, the limits); the dashboard (servers, dashboards, questions, open tabs; Start Here; Saved Servers; Recent with Clear History; Open Here); the sidebar; one tab per server with the header band, the toolbar (Browse toggle first, AI hard right), the hideable browse column and the item page; the Metabase mark; version gating v0.48+; the `metabase` service in the bench's `bi` profile, seeded; the palette commands and shortcuts of §9
+- **Depends on:** —
+- [ ] Crate, factory, rail entry, connection kind, profile table, Settings page
+- [ ] Provider trait, `Caps`, session runner (bounded channels), sign-in both ways, version gating
+- [ ] Dashboard, sidebar, tab shell, header band, mark
+- [ ] Bench: Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
+- [ ] Test: profile round trip, version gating; live sign-in both ways gated on `HS_METABASE`; the data-folder grep
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
+
+### FEAT-0127 · Analytics: the collection tree and search
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q
+- **Source:** owner, 2026-11-20 (as FEAT-0126)
+- **Scope:** collections a level at a time (folders first, then items, by name; each kind's coloured picture), personal collections, the Databases section, a filter field, Search over `/api/search` with kind filters and More
+- **Depends on:** FEAT-0126
+- [ ] Tree and search
+- [ ] Test: tree and search results from recorded answers; live walk
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk the bench collections, search, hide and resize the column
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0128 · Analytics: questions, models and metrics with tables and charts
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
+- **Source:** owner, 2026-11-20 (as FEAT-0126)
+- **Scope:** Run as a Job with cancel; Chart | Table | SQL; `DataTable` with Metabase's formatting; charts through `egui_plot` (ADR-034: line, area, bar, row, combo, scatter; pie, scalar, smart scalar, progress, gauge hand-painted; funnel and waterfall phase 1b; map, pivot, sankey as the table with Open in Browser); parameters as pick and date fields; CSV / JSON / XLSX export; the SQL view with Open in Database; the AI assistant's context
+- **Depends on:** FEAT-0127
+- [ ] ADR-034's `egui_plot` added; `cargo deny`
+- [ ] Run, table, charts, parameters, export, SQL view
+- [ ] Test: each chart kind's points from a recorded result; parameters into the request; formatting by `base_type`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — every bench question's chart beside Metabase's own; a template tag; an export
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0129 · Analytics: dashboards with their grid, tabs and filters
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
+- **Source:** owner, 2026-11-20 (as FEAT-0126)
+- **Scope:** the 24-column grid at the pane's width, each card a tile with its chart or table and its own states; text, heading and link cards; dashboard tabs; filters from the parameter values with Apply; cards run four at once, cancelled when the tab leaves; auto-refresh while on screen
+- **Depends on:** FEAT-0128
+- [ ] Grid, tabs, filters, card runs
+- [ ] Test: the grid's layout at two widths; parameter mappings into each card's request
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench dashboard beside Metabase's own, a filter applied, both tabs
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0130 · Analytics: databases and ad-hoc SQL through Metabase
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q
+- **Source:** owner, 2026-11-20 (as FEAT-0126)
+- **Scope:** the databases and their metadata; New SQL with completion from the metadata, Run through `/api/dataset`, a quick chart; refused without native access; disabled on a protected environment
+- **Depends on:** FEAT-0128
+- [ ] Databases, SQL page, protected-environment guard
+- [ ] Test: the native request body; the refusal
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a query against the Sample Database; a protected environment disables the page
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0131 · Analytics: the Tableau provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
+- **Source:** owner, 2026-11-20 (as FEAT-0126)
+- **Scope:** kind `tableau`; Personal Access Token or password into one site; projects, workbooks, views, data sources; a view's PNG with filter fields, its data in a `DataTable`, exports; extract refresh tasks and jobs, Refresh Now guarded and audited (Identity's audit log moved into `hs-core`); Open Interactive in the Browser activity; version gating from `/serverinfo`
+- **Depends on:** FEAT-0129; the owner's answers to the spec's §10 questions 1 and 4
+- [ ] Provider, screens, Refresh Now with its guard
+- [ ] Test: a mock from the API reference; live gated on `HS_TABLEAU` (a Developer Program site)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a Tableau site: browse, a view with a filter, its data, Refresh Now refused on a protected environment
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 
 ## v0.8.1 — In-Progress
 

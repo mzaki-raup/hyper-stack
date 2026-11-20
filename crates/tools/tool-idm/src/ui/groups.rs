@@ -834,7 +834,7 @@ fn save_row(ui: &mut egui::Ui, cx: &Cx<'_>, may: &Result<(), String>, change: &C
     )
 }
 
-fn rows_of(map: &BTreeMap<String, Vec<String>>) -> Vec<KvRow> {
+pub(super) fn rows_of(map: &BTreeMap<String, Vec<String>>) -> Vec<KvRow> {
     map.iter()
         .flat_map(|(k, vs)| {
             vs.iter().map(move |v| KvRow {
@@ -847,7 +847,7 @@ fn rows_of(map: &BTreeMap<String, Vec<String>>) -> Vec<KvRow> {
         .collect()
 }
 
-fn map_of(rows: &[KvRow]) -> BTreeMap<String, Vec<String>> {
+pub(super) fn map_of(rows: &[KvRow]) -> BTreeMap<String, Vec<String>> {
     let mut map: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for r in rows
         .iter()

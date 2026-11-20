@@ -1206,3 +1206,37 @@ the CA File). Checked against the bench's `hs-openldap` by
   on the user page the Credentials, Role Mapping and Sessions tabs say
   why they are empty, Enable / Disable and Log Out are disabled with the
   reason, and Open in Admin Console and Export Realm too.
+
+## What is implemented (2026-11-19): the Directory section (FEAT-0117, part two)
+
+§4.12's **Directory** section, offered only to a directory
+(`Caps::section`; a Keycloak tab draws it disabled with "only a directory
+(LDAP) has a tree"):
+
+- **The tree**: the realm's naming context at the top, always open; every
+  level read when its node opens (one-level search, `objectClass` and
+  `hasSubordinates`), containers first and then by name. An entry wears its
+  kind's mark - a folder for an OU, organisation or domain, the Users and
+  Groups marks for people and groups, a page for the rest. A server that
+  does not report `hasSubordinates` shows every entry with a caret, and an
+  opened leaf says "Nothing under this entry."
+- **The entry**: its RDN as the title, a facts table (DN, Object Classes,
+  Entries Under It), and every attribute but `objectClass`, `userPassword`
+  and the operational ones in the raw key/value editor. Save reads the
+  entry again and reviews each changed attribute old → new (stale when
+  the server's copy moved); the write replaces changed attributes and
+  deletes removed ones. The attribute that names the entry keeps its
+  value: a rename is refused in words.
+- **Move To**: a `pick_field` of the containers the tree has read (any DN
+  may be typed); a leaf is moved after a confirmation, a subtree after its
+  name is typed. Moving under itself or to a DN that does not exist is
+  refused before anything is sent. The moved entry is selected at its new
+  DN.
+- **Delete**: leaves only (an entry with children is disabled with the
+  reason, and refused by the provider too), behind a typed confirmation;
+  the entry is also taken out of every group that listed it.
+- The naming context itself is neither moved nor deleted here.
+- The provider methods (`dir_children`, `dir_entry`, `dir_modify`,
+  `dir_move`, `dir_delete`) have defaults that answer "unsupported", so
+  Keycloak needed no change; the three writes are guarded and audited as
+  `entry` (update, move, delete) like every other write.

@@ -20,10 +20,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::provider::{
     AdminEvent, AdminEventQuery, Caps, Change, Client, ClientSessionStats, CredentialInfo,
-    EventQuery, EventsConfig, ExportScope, Group, IdmError, IdmProvider, LoginEvent, LogoutAll,
-    NewClient, NewRole, NewUser, ObjRef, Page, Paged, Realm, RealmSettings, RequiredAction, Result,
-    Role, RoleMappings, RoleScope, Secret, Section, ServerInfo, Session, Subject, UnmanagedPolicy,
-    User, UserQuery, UserRow,
+    DirEntry, EventQuery, EventsConfig, ExportScope, Group, IdmError, IdmProvider, LoginEvent,
+    LogoutAll, NewClient, NewRole, NewUser, ObjRef, Page, Paged, Realm, RealmSettings,
+    RequiredAction, Result, Role, RoleMappings, RoleScope, Secret, Section, ServerInfo, Session,
+    Subject, UnmanagedPolicy, User, UserQuery, UserRow,
 };
 use map::{Entry, ModOp};
 
@@ -383,7 +383,11 @@ fn ldap_err_ref(e: &LdapError, what: &'static str) -> IdmError {
         )),
         53 => IdmError::Other(format!("the directory will not do that (53){said}")),
         68 => IdmError::Conflict(format!("an entry with that name exists{said}")),
-        16 | 17 | 18 | 19 | 20 | 21 | 64 | 65 | 66 | 67 => IdmError::Invalid {
+        66 => IdmError::Invalid {
+            message: format!("it has entries under it: move or delete them first{said}"),
+            field: None,
+        },
+        16 | 17 | 18 | 19 | 20 | 21 | 64 | 65 | 67 => IdmError::Invalid {
             message: format!("the directory refused the change ({}){said}", result.rc),
             field: None,
         },
@@ -1002,5 +1006,81 @@ impl IdmProvider for LdapProvider {
         Err(IdmError::Other(
             "a directory is exported as LDIF by its own tools (slapcat, ldapsearch)".into(),
         ))
+    }
+
+    async fn dir_children(&self, _realm: &str, dn: &str, page: Page) -> Result<Paged<DirEntry>> {
+        let want = page.first as usize + page.max as usize + 1;
+        let mut all: Vec<DirEntry> = self
+            .search(
+                dn,
+                Scope::OneLevel,
+                "(objectClass=*)",
+                &["objectClass", "hasSubordinates"],
+                want,
+            )
+            .await?
+            .iter()
+            .map(map::dir_entry)
+            .collect();
+        // Containers first, then by name, as every tree in the app reads.
+        all.sort_by_key(|e| (!e.has_children, e.rdn.to_lowercase()));
+        let rows: Vec<DirEntry> = all.into_iter().skip(page.first as usize).collect();
+        Ok(Paged::from_probe(rows, page, None))
+    }
+
+    async fn dir_entry(&self, _realm: &str, dn: &str) -> Result<DirEntry> {
+        Ok(map::dir_entry(&self.read(dn, "entry").await?))
+    }
+
+    async fn dir_modify(
+        &self,
+        _realm: &str,
+        entry: &ObjRef,
+        attributes: &std::collections::BTreeMap<String, Vec<String>>,
+    ) -> Result<()> {
+        let e = self.read(&entry.id, "entry").await?;
+        let mods = map::dir_mods(&e, attributes)?;
+        self.modify(&e.dn, mods).await
+    }
+
+    async fn dir_move(&self, _realm: &str, entry: &ObjRef, parent: &str) -> Result<String> {
+        let parent = parent.trim();
+        let e = self.read(&entry.id, "entry").await?;
+        if map::is_under(parent, &e.dn) {
+            return Err(IdmError::Invalid {
+                message: "an entry cannot move under itself".into(),
+                field: None,
+            });
+        }
+        if self.read(parent, "entry").await.is_err() {
+            return Err(IdmError::Invalid {
+                message: format!("“{parent}” is not an entry of this directory"),
+                field: None,
+            });
+        }
+        let rdn = map::components(&e.dn)
+            .into_iter()
+            .next()
+            .unwrap_or_default();
+        let mut ldap = self.handle().await?;
+        ldap.with_timeout(self.cfg.timeout)
+            .modifydn(&e.dn, &rdn, true, Some(parent))
+            .await
+            .map_err(|e| network(&e))?
+            .success()
+            .map_err(|e| ldap_err(e, "entry"))?;
+        Ok(format!("{rdn},{parent}"))
+    }
+
+    async fn dir_delete(&self, realm: &str, entry: &ObjRef) -> Result<()> {
+        let e = self.read(&entry.id, "entry").await?;
+        if e.first("hasSubordinates").eq_ignore_ascii_case("TRUE") {
+            return Err(IdmError::Invalid {
+                message: "it has entries under it: move or delete them first".into(),
+                field: None,
+            });
+        }
+        self.delete(&e.dn, "entry").await?;
+        self.drop_from_groups(realm, &e).await
     }
 }

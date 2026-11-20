@@ -260,4 +260,18 @@ impl IdmProvider for Fake {
     async fn export(&self, _: &str, _: ExportScope, _: CancellationToken) -> Result<String> {
         self.hit("export")
     }
+    async fn dir_modify(
+        &self,
+        _: &str,
+        _: &ObjRef,
+        _: &std::collections::BTreeMap<String, Vec<String>>,
+    ) -> Result<()> {
+        self.hit("dir_modify")
+    }
+    async fn dir_move(&self, _: &str, _: &ObjRef, _: &str) -> Result<String> {
+        self.hit("dir_move")
+    }
+    async fn dir_delete(&self, _: &str, _: &ObjRef) -> Result<()> {
+        self.hit("dir_delete")
+    }
 }

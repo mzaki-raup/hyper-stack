@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Identity: the Directory section for LDAP directories - the tree a level at a time, every attribute of an entry in the raw editor with a review before save, Move To and Delete (FEAT-0117)
 
 ## 0.137.0 — 2026-11-19
 

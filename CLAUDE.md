@@ -84,6 +84,12 @@ practice:
   owner should never be the one to find it. A new rule the owner gives is
   added to that standard in the same turn.
 
+**Model split:** the session runs on Sonnet with Opus on call as advisor
+(`claude --model sonnet --advisor opus`). Consult the advisor only before a
+plan locks, when the same error appears twice, and before calling it done —
+[.claude/rules/workflow.md](.claude/rules/workflow.md#the-opus-advisor).
+Repository search goes to Haiku subagents; code edits stay in the session.
+
 ## Project-specific instructions: HyperStack
 
 The guidelines above are general. HyperStack's own rules live in `.claude/`,

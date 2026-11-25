@@ -36,6 +36,11 @@ Then, in one report:
 
 Report only. Don't apply fixes unless I ask — then re-run the gate afterwards.
 
+If the three reports disagree, or the change is high-risk, consult the advisor
+with the reports and the diff before the final verdict — see
+[workflow.md](../rules/workflow.md#the-opus-advisor). Otherwise the
+`rust-reviewer` Opus pass is the "before done" check.
+
 ## With `--file`
 
 File the findings as ledger items so they can be scheduled: a defect becomes a

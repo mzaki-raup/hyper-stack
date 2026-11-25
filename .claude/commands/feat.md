@@ -32,6 +32,11 @@ existing functions and `hs_ui` pieces to reuse, and name what else could break.
 assumptions instead of inventing requirements. If a simpler approach exists,
 say so.
 
+Before the plan is final, consult the advisor with the restated plan, the files
+to change and the specs you read — see
+[workflow.md](../rules/workflow.md#the-opus-advisor). It critiques the plan;
+you still own it.
+
 ## 2. Spec before code where design moves
 
 The spec is the requirement. If this feature changes a design, change
@@ -74,6 +79,11 @@ Tick each of the item's steps as it genuinely passes.
 
 Never tick a box for a check that didn't run. A check impossible on this
 machine stays unticked, with the reason in the item's **Notes**.
+
+Before you mark the item `Completed`, consult the advisor with the diff, the
+gate result and what the app check showed — or rely on `/review`'s
+`rust-reviewer` pass if you ran it. See
+[workflow.md](../rules/workflow.md#the-opus-advisor).
 
 ## 6. Ship
 

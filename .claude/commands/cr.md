@@ -30,6 +30,10 @@ Say plainly what the current behaviour is, what it becomes, and who or what
 depended on the old one (other tools, saved workspace files, layout files,
 history rows, keyboard muscle memory).
 
+Before the spec edit locks, consult the advisor with the current and proposed
+behaviour, what depended on the old one, and the ADR position — see
+[workflow.md](../rules/workflow.md#the-opus-advisor).
+
 ## 2. Spec edit in the same commit
 
 This is the step that makes a `CR` different. The document moves **first**, so
@@ -56,6 +60,10 @@ ask: the change may be wrong.
 `README.md` if a documented behaviour or restriction changed, a `CHANGELOG.md`
 line — `feat:` if it adds, `refactor:`/`fix:`/`!` as the change warrants,
 `CHECKLIST.md` if a row's claim changed).
+
+Before the item is `Completed`, consult the advisor with the diff and the
+verification — or use `/review`'s `rust-reviewer` pass if you ran it. See
+[workflow.md](../rules/workflow.md#the-opus-advisor).
 
 ## 6. Ship and report
 

@@ -30,6 +30,10 @@ you will change, which existing functions you will reuse, and what else could
 break. If two readings of the symptom lead to different fixes, say so and ask
 rather than picking silently.
 
+Before you commit to the fix, consult the advisor with the restated symptom,
+the owning module and the prior art — see
+[workflow.md](../rules/workflow.md#the-opus-advisor).
+
 ## 3. Reproducing test first
 
 Write the test that fails for this bug, in the crate that owns the behaviour
@@ -41,6 +45,11 @@ test looks wrong, explain why and ask.
 
 The smallest change that makes the test pass. Surgical: no adjacent cleanup, no
 refactor of working code. Remove only what your change orphaned.
+
+If the same failure survives two attempts, stop and consult the advisor with
+both failures before a third — see
+[workflow.md](../rules/workflow.md#the-opus-advisor). Don't keep guessing at
+the same error.
 
 ## 5. Gate
 
@@ -64,6 +73,10 @@ box; a passing test does not tick it.
 - `CHANGELOG.md`: a `fix:` line under Unreleased.
 - The spec, `README.md` and `CHECKLIST.md` if the behaviour they describe
   changed.
+- Before ticking the last box, consult the advisor with the diff, the gate
+  result and what the app check showed — or use `/review`'s `rust-reviewer`
+  pass if you ran it. See
+  [workflow.md](../rules/workflow.md#the-opus-advisor).
 - Tick the item's boxes; `Completed` only when all of them are.
 
 ## 8. Ship and report

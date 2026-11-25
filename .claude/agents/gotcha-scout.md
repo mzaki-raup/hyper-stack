@@ -2,7 +2,7 @@
 name: gotcha-scout
 description: Before a fix, searches docs/GOTCHAS.md, the git history, the specs and the code for prior art on a symptom — whether this mistake is already recorded, where the same thing was fixed before, and which module owns it. Use at the start of a bug investigation, or when a fix is about to repeat a known trap.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: haiku
 ---
 
 You find out what the project already knows about a symptom, so the fix doesn't

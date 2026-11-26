@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.9.0
-Features : FEAT-0132
+Features : FEAT-0137
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
@@ -237,6 +237,65 @@ Change Request : CR-0103
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0133 · Analytics: the SAS Viya provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "For Analytic, if possible, add SAS BI"; answered *SAS Viya*, with the spec, the ledger item and a bench mock now
+- **Scope:** kind `sasviya` for **SAS Viya** (not SAS 9.4 BI: no REST surface); SAS Logon password grant with a registered client, or a pasted access token; folders and reports, search; a report's picture from the Report Images service, its details, Open Interactive in the Browser activity; CAS libraries and tables with columns and a row preview in a `DataTable`; recent jobs, read-only; per-service probing in place of one version call
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's Viya: browse, a report's picture, a table's rows, the jobs; Open Interactive
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is on `chore/bench-kit`.
+
+### FEAT-0134 · Analytics: the Apache Superset provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Add power bi, apache Superset and grafana to analytic activity"
+- **Scope:** kind `superset`; login with a username and password (db or ldap) or a pasted access token; dashboards, charts, datasets and databases as sections; a chart's rows from `/chart/{id}/data/` drawn through Metabase's chart code; a dashboard on Superset's 12-column grid with its native filters; read-only SQL Lab with Open in Database
+- **Depends on:** FEAT-0129
+- [ ] Provider and screens, read-only
+- [ ] Test: recorded answers per chart kind; the SELECT-only guard; live sign-in gated on `HS_SUPERSET`; the data-folder grep
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Superset: a chart of each kind, the dashboard with a filter, a SQL Lab query
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Superset (`bench/` profile `bi`).
+
+### FEAT-0135 · Analytics: the Grafana provider and `hs_core::grafana`
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.12, §5.6 · **Phase:** Q
+- **Source:** owner, 2026-11-26
+- **Scope:** the shared client `hs_core::grafana` (health, user, search, folders, dashboards by uid, data sources, `/api/ds/query`) so Logs can use it without a tool-to-tool dependency; kind `grafana` (service-account token or username and password, an organisation id, TLS); folders and dashboards with tags; a dashboard's panels on the 24-column grid drawn from data frames (time series, bar, stat, gauge, bar gauge, table, pie, logs), template variables as pick fields, a time-range picker and auto-refresh; Explore as read-only query; Open Picture where the Image Renderer exists
+- **Depends on:** FEAT-0129
+- [ ] Client in `hs-core`, provider and screens, read-only
+- [ ] Test: data frames from recorded answers into each panel kind; variables; the time range into the request; live sign-in gated on `HS_GRAFANA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana: a dashboard of each panel kind, a variable, the time range, Explore
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Grafana with Prometheus and Loki data (`bench/` profile `bi`).
+
+### FEAT-0136 · Logs: the Grafana source
+- **State:** Pending · **Spec:** docs/tools/logs.md §21 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Grafana can also be put in both analytic activity and log activity"; chosen as *query its log data sources*
+- **Scope:** a saved Logs source of kind Grafana: a `grafana` connection, a log data source from `/api/datasources` (Loki, Elasticsearch), a LogQL or Lucene query, Max Lines, Follow by polling with an interval; lines as records with labels as fields and the level from the labels or the shared parser; read-only, errors in the tab's error state; the source's mark and rotating colour; Test Connection
+- **Depends on:** FEAT-0135
+- [ ] `GrafanaSource` in `tool-logs`, the form, the sidebar mark
+- [ ] Test: a frame into records with labels and levels; the poll dedupe; a query error is shown
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana's Loki: a query, labels in the structured view, Follow picking up new lines, a bad query's message
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0137 · Analytics: the Power BI Report Server provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.10, §5.4 · **Phase:** Q
+- **Source:** owner, 2026-11-26; answered *Power BI Report Server* (the on-premises product)
+- **Scope:** kind `powerbi`; Basic or NTLM with a username and password, and on Windows the current user (SSPI); folders, Power BI reports, paginated reports, KPIs, data sources and datasets through REST API v2.0 with OData paging and search; a paginated report's picture and CSV; a .pbix as details with Open Interactive in the Browser activity; KPI tiles; data sources with secrets masked and refresh plans, read-only; version from `/System`
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/powerbirs`); the masking of a connection string; a read-only live test gated on `HS_POWERBIRS`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's server: browse, a paginated report's picture, KPIs, the refresh plans
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** NTLM needs a client that speaks it (to be chosen; an ADR and a `cargo deny` pass if a crate is added); Power BI Service is not covered.
 
 ## v0.8.2 — In-Progress
 

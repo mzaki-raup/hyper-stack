@@ -113,6 +113,19 @@ pub fn plan(key: &str, size: u64) -> Plan {
     }
 }
 
+/// The text a preview shows for an object: a `.json` object that parses is
+/// laid out (key order kept, only whitespace changed), so a minified
+/// payload is readable; anything else, including a JSON Lines file, is
+/// shown as stored.
+pub fn shown_text(key: &str, text: String) -> String {
+    if extension(key) == "json"
+        && let Some(pretty) = hs_core::fmt::pretty_json(&text)
+    {
+        return pretty;
+    }
+    text
+}
+
 /// The cache identity of one object's preview: the same key with a new
 /// ETag is a new object and is fetched again.
 pub fn cache_id(bucket: &str, key: &str, etag: &str) -> String {
@@ -177,6 +190,19 @@ pub fn looks_like_image(bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_json_object_previews_laid_out_and_the_rest_as_stored() {
+        let min = "{\"a\":1,\"b\":[1,2]}".to_string();
+        assert_eq!(
+            shown_text("data/x.JSON", min.clone()),
+            "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2\n  ]\n}"
+        );
+        // Not json, a JSON Lines file, and another extension: untouched.
+        assert_eq!(shown_text("x.json", "{\"a\":".into()), "{\"a\":");
+        assert_eq!(shown_text("x.jsonl", min.clone()), min);
+        assert_eq!(shown_text("x.txt", min.clone()), min);
+    }
 
     #[test]
     fn a_text_preview_is_split_into_lines_once() {

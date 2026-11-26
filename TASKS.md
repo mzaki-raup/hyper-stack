@@ -151,8 +151,8 @@ Refs: BUG-0003
 
 ```
 Version : v0.9.0
-Features : FEAT-0131
-Bugs : BUG-0075
+Features : FEAT-0132
+Bugs : BUG-0077
 Change Request : CR-0103
 ```
 
@@ -236,6 +236,38 @@ Change Request : CR-0103
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+## v0.8.2 — In-Progress
+
+> Two more from the owner, 2026-11-26: the Credentials page's cells on
+> one middle line, and JSON laid out wherever it is previewed.
+
+### BUG-0076 · Settings → Security → Credentials: the text, the Copy button and the masked value are not on one middle line
+- **State:** In-Progress · **Spec:** .claude/rules/ui.md (the layout standard: one middle line)
+- **Source:** owner, 2026-11-26: "In Settings -> Security -> Credentials; WHy in the text, button and masked value not verticle middle align?"
+- **Scope:** a row's plain labels (name, type, port) sat at the top of a row the Copy and eye buttons made taller; the Host/URL, Username, Password and Action cells are `form::centred_row`, as the plain cells are now, so every cell of a row shares the buttons' middle line
+- [x] Test: n/a beyond the gate (layout), checked on screen
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-26: fmt, clippy, deny, the touched crates' tests and the self-test pass; the whole workspace's run is blocked here by AdGuard resetting loopback connections (`tool-automation`'s mock tests fail 2-8 of 10 at random, on the unmodified tree too; GOTCHAS: Windows Environment and Build) until `Adguard Service` is stopped
+- [x] App: `--data-dir ./tmp-data` — Settings → Security → Credentials, rows with a host, a user and a masked password — 2026-11-26: the name, type, host, username and masked password of each row on the Copy and eye buttons' middle line (the text sat about 6 px high before)
+- [x] Docs: CHANGELOG
+
+### FEAT-0132 · JSON laid out in every preview, and Format Document for JSON
+- **State:** In-Progress · **Spec:** docs/04-ui-design.md
+- **Source:** owner, 2026-11-26: "In All Json Preview (Scratchpad, Editor, S3, etc), pretify the json or add pretify json button to pretify json preview"
+- **Scope:** the Markdown preview (Scratchpad, the Editor, S3's `.md`) lays out a ```` ```json ```` block that parses, and a note or file that is itself a JSON object or array, once at parse time; S3's text preview lays out a `.json` object that parses (JSON Lines and anything that does not parse are shown as stored); the Editor's Format Document lays out a JSON document with the built-in formatter, one undoable edit, so it works with no language server, and says so when it is already laid out or does not parse. Key order is kept; only whitespace changes (`hs_core::fmt::pretty_json`)
+- [x] Test: `json_in_a_preview_is_laid_out`, `a_json_object_previews_laid_out_and_the_rest_as_stored`, `format_document_lays_out_json_without_a_language_server`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — as BUG-0076's: all but the whole-workspace run, blocked by AdGuard
+- [ ] App: `--data-dir ./tmp-data` — a note with a minified json block and a note that is only JSON in Scratchpad; a minified `.json` in the Editor (Format Document); a `.json` object in S3's preview — 2026-11-26: both Scratchpad notes preview laid out and coloured; an unindented multi-line `.json` in the Editor was laid out by Shift+Alt+F with no language server (a one-line file was already laid out on open, as before). Not seen: S3's preview (the bench S3 is stopped), the Editor's "already formatted" and "does not parse" toasts
+- [ ] Docs: CHANGELOG · README — CHANGELOG only
+- **Notes:** `hs-editor` gains a direct `hs-core` dependency for `pretty_json` (hs-ui already brings hs-core in; no cycle).
+
+### BUG-0077 · cargo deny fails: cookie, url and kube-client have advisories
+- **State:** In-Progress · fixed 2026-11-26
+- **Source:** the gate for this batch, 2026-11-26: `cargo deny check` reported RUSTSEC-2026-0594 (`cookie` 0.18.2: private-cookie nonces can repeat in forked processes), RUSTSEC-2026-0592 (`url` 2.5.8: stack overflow in `Url::origin()` on nested `blob:` URLs) and RUSTSEC-2026-0600 (`kube-client` 4.2.0: the `openssl-tls` connector trusts OpenSSL's default CA store) - a result that does not depend on the branch (testing.md)
+- **Scope:** none is reached here. HyperStack builds `kube` with `rustls-tls` only and OpenSSL is not in the dependency tree; it uses no private cookies and forks no process; it calls `Url::origin()` on no `blob:` URL. The fixes are patch releases, so `Cargo.lock` moves `cookie` 0.18.3, `url` 2.5.9 (with `form_urlencoded` 1.2.3) and `kube` / `kube-client` / `kube-core` 4.2.1 (kube pins its siblings, so `kube` moves with them); no manifest and no call site changed
+- [x] Test: `cargo deny check` passes (advisories, bans, licenses, sources)
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — deny and the touched crates' tests pass; the workspace's loopback mock tests need AdGuard stopped (GOTCHAS: Windows Environment and Build)
+- [x] Docs: CHANGELOG
 
 ## v0.8.1 — In-Progress
 

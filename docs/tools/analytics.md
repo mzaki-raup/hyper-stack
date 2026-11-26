@@ -13,7 +13,9 @@ its REST API, drawn natively so a Metabase tab looks and reads like
 Metabase's own web interface. **Tableau second** (§4.8), where the API
 gives pictures and data rather than the interactive chart. **SAS Viya
 third** (§4.9), the same way: folders and reports as pictures, with the
-data tables behind them.
+data tables behind them. **Power BI Report Server** (§4.10), **Apache
+Superset** (§4.11, drawn natively like Metabase) and **Grafana** (§4.12,
+dashboards here and log queries in Logs) follow.
 
 It is **not** a BI authoring tool: it does not build or edit questions,
 dashboards, models or permissions, does not administer the server, and
@@ -336,11 +338,127 @@ interactive report.
   and a read-only live test may run against the owner's Viya when
   `HS_SASVIYA` names it.
 
-### 4.10 Later (not specified further now)
+### 4.10 Power BI Report Server (phase 3, specified, not built now)
 
-Apache Superset, Power BI (REST and the embed token), Looker, Redash,
-Grafana dashboards as pictures; Metabase alerts and subscriptions
-(read-only), and a question's revision history.
+Added at the owner's request, 2026-11-26 ("add Power BI"), narrowed by
+the answer to **Power BI Report Server** (the on-premises product, its
+REST API v2.0 at `/reports/api/v2.0`). **Power BI Service** (the cloud,
+Microsoft Entra sign-in) is not covered now (§10.8). As with Tableau and
+SAS, the interactive report belongs to the product: a Report Server tab is
+the catalogue, its data sources and KPIs, with **Open Interactive**.
+
+- **Sign-in**: Report Server accepts Windows authentication (NTLM or
+  Kerberos) or, over HTTPS, Basic. The profile offers **Username and
+  Password** (Basic, or NTLM with a domain `DOMAIN\user`) and, on
+  Windows only, **the current Windows user** (SSPI, nothing stored). On a
+  plain-HTTP server the form warns that a password travels in the clear
+  and asks to confirm.
+- **Browse**: folders, Power BI reports (`PowerBIReports`), paginated
+  reports (`Reports`), mobile reports, KPIs, data sources and datasets
+  (`CatalogItems`, `Folders({id})/CatalogItems`), with owner, modified
+  date and size; search by name; paged with `$top` / `$skip`, filtered
+  with `$filter` (OData).
+- **An item**: its details; a **paginated report's picture** and data
+  through `Reports({id})/Export/IMAGE` and `.../CSV` where the server's
+  rendering extensions allow it; a **Power BI report (.pbix) has no
+  server-side picture or data API**, so it shows its details, data
+  sources and refresh plan, and **Open Interactive** opens it in the
+  Browser activity (`/powerbi/<path>`).
+- **KPIs**: value, goal, status and trend (`Kpis`), read-only, drawn as
+  the dashboard's tiles.
+- **Data sources and refresh**: each data source's type, connection
+  string with the secret masked, and the cache refresh plans and their
+  last result (`CacheRefreshPlans`, read-only; no Refresh Now).
+- **Version gating**: `GET /reports/api/v2.0/System` names the product and
+  version; v2.0 calls a build lacks are drawn disabled with the reason.
+- Testing has no container: Report Server is a licensed Windows Server
+  product. The bench has a **mock** (`bench/mock/powerbirs`), and a
+  read-only live test may run against the owner's server when
+  `HS_POWERBIRS` names it.
+
+### 4.11 Apache Superset (phase 3, specified, not built now)
+
+**Apache Superset** has a public container, so the bench runs the real
+product, and it is the second provider whose charts can be drawn natively,
+as Metabase's are (REST API v1, `/api/v1`).
+
+- **Sign-in**: `POST /api/v1/security/login` with a username and password
+  (`provider: db`, or `ldap` where the server uses it), returning an
+  access token (sent as `Authorization: Bearer`) and a refresh token
+  (renewed in memory while the tab is open). Superset has no long-lived
+  API key; a **pasted access token** is accepted for a server that signs
+  in through OAuth or SSO. Reads need no CSRF token.
+- **Browse**: dashboards (`/dashboard/`), charts (`/chart/`), datasets
+  (`/dataset/`) and databases (`/database/`), as the flat lists Superset
+  keeps, with owners, changed-by and date, **tags** and **certified**
+  marks; search and filter by owner through its `q` (Rison) filters.
+  There is no folder tree: the tree shows the four lists as sections and
+  a dashboard's charts under it.
+- **A chart**: `GET /chart/{id}/data/` runs the chart's saved query
+  context and returns its rows with the chart's `viz_type` and params,
+  which pick the drawing: line, area, bar, scatter, pie, big number,
+  table, pivot (as a table), gauge, funnel and the rest as the table with
+  Open in Browser, through the same chart code as Metabase's (§4.4).
+- **A dashboard**: `/dashboard/{id}` gives `position_json` (the grid:
+  rows and columns of chart, markdown, header and tabs) and
+  `json_metadata` (native filters and their defaults); the tiles are laid
+  out on Superset's 12-column grid, each chart run as above, four at a
+  time (§4.5), the native filters as pick and date fields with Apply.
+- **SQL**: SQL Lab through `POST /sqllab/execute/` against a database the
+  account may query, capped by Rows per Run, **read-only** (§6): a
+  statement that is not a `SELECT`, `WITH` or `SHOW`/`DESCRIBE` is
+  refused before it is sent. Open in Database picks the matching saved
+  connection (§4.3).
+- **Version gating**: Superset names its version in the page footer and
+  in its bootstrap data only; the provider reads what it can and
+  otherwise shows the version as unknown and probes each endpoint once.
+  Superset 3.x and 4.x are the targets; the bench runs 4.1.
+
+### 4.12 Grafana (phase 3, specified, not built now)
+
+**Grafana** is dashboards over *other* systems' data (Prometheus, Loki,
+Elasticsearch, SQL, ...), so it appears in two activities from **one
+connection kind** (`grafana`): here as dashboards, and in **Logs** as a
+source of log lines (`docs/tools/logs.md` §21). Both use one client,
+`hs_core::grafana` (health, search, dashboards, data sources, the query
+API), because tools never depend on each other (ADR-034).
+
+- **Sign-in**: a **service-account token** (`glsa_...`, sent as
+  `Authorization: Bearer`; the way a server is meant to be read) or a
+  **username and password** (HTTP Basic); an optional **Organisation id**
+  (`X-Grafana-Org-Id`). `GET /api/health` is public and gives the version
+  and database state; `GET /api/user` names who signed in.
+- **Browse**: folders (`/api/folders`, nested folders where the server has
+  them) and dashboards (`/api/search?type=dash-db`), each with its tags and
+  starred mark; search by name and tag; the **data sources**
+  (`/api/datasources`) as a section, with their type.
+- **A dashboard**: `/api/dashboards/uid/{uid}` is the JSON model: panels
+  with their `gridPos` (24 columns), `type`, `targets` and field options,
+  rows that collapse, and **template variables**, drawn as pick fields
+  filled from their queries. Each panel runs its targets through the
+  unified query API (`POST /api/ds/query`, with `from`/`to` from the time
+  range and the `intervalMs` and `maxDataPoints` the panel width gives)
+  and draws the returned data frames natively: time series, bar chart,
+  stat, gauge, bar gauge, table, pie and logs as a list; panels of any
+  other type (heatmap, geomap, node graph, plugins) show their title with
+  **Open in Browser**. A time-range picker (Last 5 minutes ... Last 30
+  days, absolute) and an auto-refresh interval sit in the toolbar.
+- **Pictures**: where the server has the Image Renderer, a panel's PNG
+  (`/render/d-solo/{uid}/...`) is offered as **Open Picture** beside the
+  native drawing; it is never required.
+- **Explore**: **Query** (read-only) takes a data source, a query in that
+  source's language (PromQL, LogQL, SQL, ...) and a range and shows the data
+  frames as a table or a chart; a data source that can write is never
+  asked to.
+- **Version gating**: `/api/health` gives `version` (Grafana 9 to 11 are
+  the targets; the bench runs 11.3); the provider uses `/api/ds/query` on
+  9+ and says so on an older server.
+
+### 4.13 Later (not specified further now)
+
+Power BI Service (REST and the embed token, Microsoft Entra sign-in),
+Looker, Redash; Metabase alerts and subscriptions (read-only), and a
+question's revision history.
 
 ## 5. Connections and credentials
 
@@ -382,6 +500,26 @@ Kind `sasviya`: Server URL (the ingress root), Credential **Username and
 Password** with the OAuth **client id** and **client secret**, or an
 **Access Token**; Verify TLS and CA File. Secrets are `secret:<ulid>` in
 the vault.
+
+### 5.4 Power BI Report Server (phase 3)
+
+Kind `powerbi`: Server URL (the web portal root, e.g.
+`https://reports.example.com`), Credential **Username and Password**
+(Basic, or `DOMAIN\user` for NTLM) or, on Windows, **Current Windows
+user**; Verify TLS and CA File.
+
+### 5.5 Apache Superset (phase 3)
+
+Kind `superset`: Server URL, Credential **Username and Password** with
+the **provider** (`db` or `ldap`), or an **Access Token**; Verify TLS and
+CA File.
+
+### 5.6 Grafana (phase 3)
+
+Kind `grafana`: Server URL (with its sub-path where Grafana is served
+from one), Credential **Service Account Token** or **Username and
+Password**, an optional **Organisation id**; Verify TLS and CA File. The
+same profile serves the Analytics tab and Logs' Grafana sources (§4.12).
 
 ## 6. Guards
 
@@ -501,6 +639,15 @@ The questions this section held, answered:
    then *SAS Viya*; spec, ledger item and a bench mock, built after the
    Tableau step). SAS 9.4 BI is not covered: its stack has no REST
    surface for reports.
+8. **Power BI Report Server**, the on-premises product, is the fourth
+   provider (owner, 2026-11-26: "add Power BI", then *Report Server*).
+   Power BI Service (the cloud) is not covered now.
+9. **Apache Superset** (the real product runs on the bench) and
+   **Grafana** are the fifth and sixth (owner, 2026-11-26).
+10. **Grafana is in both Analytics and Logs** from one connection kind
+    and one client in `hs-core` (§4.12; `logs.md` §21): in Logs it is a
+    source whose lines come from a Loki or Elasticsearch data source
+    through Grafana's API (owner's choice, 2026-11-26).
 
 ## What is implemented (2026-11-20)
 

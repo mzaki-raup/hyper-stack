@@ -11,16 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-### Added
+- (nothing yet)
 
-- JSON is laid out wherever it is previewed: a json block or a note that is itself JSON in the Markdown preview (Scratchpad, Editor, S3), and a `.json` object in S3's preview; the Editor's Format Document formats JSON without a language server (FEAT-0132)
+## 0.138.2 — 2026-11-26
 
 ### Fixed
 
-- Settings → Security → Credentials: every cell of a row, the text, the Copy button and the masked value, sits on one middle line (BUG-0076)
-- Dependencies: `cookie` 0.18.3, `url` 2.5.9 and `kube` 4.2.1 clear RUSTSEC-2026-0594, -0592 and -0600; none was reachable from HyperStack (BUG-0077)
-
-- (nothing yet)
+- Credentials cells on one middle line, JSON laid out in previews (v0.8.2) (e3f8ca3c)
 
 ## 0.138.1 — 2026-11-20
 

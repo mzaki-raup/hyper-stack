@@ -387,7 +387,9 @@ as Metabase's are (REST API v1, `/api/v1`).
   access token (sent as `Authorization: Bearer`) and a refresh token
   (renewed in memory while the tab is open). Superset has no long-lived
   API key; a **pasted access token** is accepted for a server that signs
-  in through OAuth or SSO. Reads need no CSRF token.
+  in through OAuth or SSO. Reads need no CSRF token. Who is signed in is
+  the user name typed: `/api/v1/me/` answered *Not authorized* to an admin's
+  bearer token on the bench's 4.1.1, so the tab does not depend on it.
 - **Browse**: dashboards (`/dashboard/`), charts (`/chart/`), datasets
   (`/dataset/`) and databases (`/database/`), as the flat lists Superset
   keeps, with owners, changed-by and date, **tags** and **certified**
@@ -396,7 +398,10 @@ as Metabase's are (REST API v1, `/api/v1`).
   a dashboard's charts under it.
 - **A chart**: `GET /chart/{id}/data/` runs the chart's saved query
   context and returns its rows with the chart's `viz_type` and params,
-  which pick the drawing: line, area, bar, scatter, pie, big number,
+  which pick the drawing. A chart made over the API without a query
+  context answers *Chart has no query context saved*; the tab then builds
+  the context from the chart's params and posts it to `/chart/data` (a
+  read), and says so when it cannot. The drawing: line, area, bar, scatter, pie, big number,
   table, pivot (as a table), gauge, funnel and the rest as the table with
   Open in Browser, through the same chart code as Metabase's (§4.4).
 - **A dashboard**: `/dashboard/{id}` gives `position_json` (the grid:

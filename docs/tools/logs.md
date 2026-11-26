@@ -896,8 +896,9 @@ never depend on each other.
   5). Test Connection runs the query once and says how many lines came.
 - **Reading**: `POST /api/ds/query` with the data source's uid, the query
   (for Loki `queryType: range`, `direction: backward`, `maxLines`) and
-  `from`/`to` from the Logs time range. The returned data frame has the
-  line, its time (nanoseconds) and its labels: each becomes a record whose
+  `from`/`to` from the Logs time range. The returned data frame (on the
+  bench's Grafana 11.3 its fields are `labels`, `Time`, `Line`, `tsNs` and
+  `labelTypes`) has the line, its time (nanoseconds) and its labels: each becomes a record whose
   text is the line and whose **labels are its fields** in the structured
   view; the level comes from a `level` or `detected_level` label, else from
   the shared parser as for any line (`hs_ui::log_levels`).

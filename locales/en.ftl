@@ -1116,6 +1116,7 @@ editor-references-none = No references found.
 editor-definition-none = No definition found.
 editor-format-none = No language server formats this file. Install one for the language (Settings → Editor → Language Servers).
 editor-format-nothing = Already formatted.
+editor-format-json-invalid = This JSON does not parse, so it cannot be formatted.
 editor-rename-symbol = Rename Symbol
 editor-rename-symbol-hint = Every reference in the project is renamed; files that are not open are changed on disk.
 editor-rename-none = No language server can rename symbols in this file.

@@ -2316,7 +2316,9 @@ impl S3Tool {
                 Ok(bytes) => Load::Ready(match kind {
                     preview::Kind::Image => PreviewData::Image(bytes.into()),
                     preview::Kind::Text => {
-                        let text: Arc<str> = String::from_utf8_lossy(&bytes).into_owned().into();
+                        let text: Arc<str> =
+                            preview::shown_text(&key, String::from_utf8_lossy(&bytes).into_owned())
+                                .into();
                         let lines = preview::line_ranges(&text).into();
                         PreviewData::Text(text, lines)
                     }

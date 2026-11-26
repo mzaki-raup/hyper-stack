@@ -4121,12 +4121,32 @@ impl Tool for EditorTool {
                 }
             }
             "editor.format" => {
-                let ok = match Self::lsp_target(&self.projects, self.active) {
-                    Some((path, d)) => self.lsp.request_formatting(&path, &d.buf, &d.view),
-                    None => false,
+                let json = {
+                    let d = self.doc_mut();
+                    let is_json = d.view.language.syntax_token == "json" && !d.view.read_only;
+                    let out = json_format(is_json, &d.buf.text());
+                    if let JsonFormat::To(pretty) = &out {
+                        d.view.replace_all_text(&mut d.buf, &mut d.cursors, pretty);
+                    }
+                    out
                 };
-                if !ok {
-                    cx.toast(ToastLevel::Info, s.t("editor-format-none"));
+                match json {
+                    JsonFormat::To(_) => {}
+                    JsonFormat::Unchanged => {
+                        cx.toast(ToastLevel::Info, s.t("editor-format-nothing"));
+                    }
+                    JsonFormat::Invalid => {
+                        cx.toast(ToastLevel::Warning, s.t("editor-format-json-invalid"));
+                    }
+                    JsonFormat::NotJson => {
+                        let ok = match Self::lsp_target(&self.projects, self.active) {
+                            Some((path, d)) => self.lsp.request_formatting(&path, &d.buf, &d.view),
+                            None => false,
+                        };
+                        if !ok {
+                            cx.toast(ToastLevel::Info, s.t("editor-format-none"));
+                        }
+                    }
                 }
             }
             "editor.problems" => self.lsp.toggle_problems(),
@@ -4797,6 +4817,38 @@ impl EditorTool {
     }
 }
 
+/// What Format Document does to a document, before a language server is
+/// asked: a JSON document is laid out by the built-in formatter, so it
+/// needs no server (`hs_core::fmt::pretty_json`: key order kept, only
+/// whitespace changes).
+#[derive(Debug, PartialEq, Eq)]
+enum JsonFormat {
+    /// Not a JSON document: leave it to the language server.
+    NotJson,
+    /// JSON that does not parse.
+    Invalid,
+    /// Already laid out.
+    Unchanged,
+    /// The laid-out text, with the document's final line break kept.
+    To(String),
+}
+
+fn json_format(is_json: bool, text: &str) -> JsonFormat {
+    if !is_json {
+        return JsonFormat::NotJson;
+    }
+    match hs_core::fmt::pretty_json(text) {
+        None => JsonFormat::Invalid,
+        Some(p) if p.trim_end() == text.trim_end() => JsonFormat::Unchanged,
+        Some(mut p) => {
+            if text.ends_with('\n') {
+                p.push('\n');
+            }
+            JsonFormat::To(p)
+        }
+    }
+}
+
 /// The tallest a bottom panel (terminal, debug, problems) may grow: the
 /// space below the toolbar less 200 px, so the editor keeps room for its
 /// text whatever a panel's content does (BUG-0051).
@@ -4989,6 +5041,25 @@ mod minified_tests {
 
         let long_line = format!("{{\"k\":\"{}\"}}\n\n\n", "x".repeat(500));
         assert!(is_minified(&long_line), "one very long line counts too");
+    }
+
+    #[test]
+    fn format_document_lays_out_json_without_a_language_server() {
+        use super::{JsonFormat, json_format};
+        assert_eq!(
+            json_format(true, "{\"a\":1}\n"),
+            JsonFormat::To("{\n  \"a\": 1\n}\n".into())
+        );
+        assert_eq!(
+            json_format(true, "{\"a\":[1,2]}"),
+            JsonFormat::To("{\n  \"a\": [\n    1,\n    2\n  ]\n}".into())
+        );
+        assert_eq!(
+            json_format(true, "{\n  \"a\": 1\n}\n"),
+            JsonFormat::Unchanged
+        );
+        assert_eq!(json_format(true, "{\"a\":"), JsonFormat::Invalid);
+        assert_eq!(json_format(false, "{\"a\":1}"), JsonFormat::NotJson);
     }
 
     #[test]

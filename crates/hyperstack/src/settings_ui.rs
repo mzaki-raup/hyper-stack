@@ -5330,10 +5330,13 @@ fn credentials_section(
                             }
                             ui.end_row();
                             for r in &rows {
-                                ui.label(&r.name);
-                                ui.label(credential_type(s, r));
+                                // Every cell on the Copy buttons' middle
+                                // line: a plain label would sit at the top
+                                // of a row the buttons make taller.
+                                form::centred_row(ui, |ui| ui.label(&r.name));
+                                form::centred_row(ui, |ui| ui.label(credential_type(s, r)));
                                 cred_cell(ui, s, theme, &r.host, Some(host_width), effects);
-                                ui.label(&r.port);
+                                form::centred_row(ui, |ui| ui.label(&r.port));
                                 cred_cell(ui, s, theme, &r.user, Some(pair_width), effects);
                                 secret_cell(
                                     ui,
@@ -5477,7 +5480,7 @@ fn cred_cell(
     width: Option<f32>,
     effects: &mut Vec<SettingsEffect>,
 ) -> egui::Response {
-    ui.horizontal(|ui| {
+    form::centred_row(ui, |ui| {
         let show = |ui: &mut egui::Ui| {
             if value.is_empty() {
                 ui.label(egui::RichText::new("—").color(theme.text_muted));
@@ -5549,7 +5552,7 @@ fn secret_cell(
         Password::Plain(p) => Ok(p.clone()),
         _ => Ok(String::new()),
     });
-    ui.horizontal(|ui| {
+    form::centred_row(ui, |ui| {
         ui.scope(|ui| {
             ui.set_min_width(width);
             ui.set_max_width(width);
@@ -5611,7 +5614,7 @@ fn actions_cell(
         .reveal
         .as_ref()
         .is_some_and(|(id, until)| id == &row.id && now < *until);
-    ui.horizontal(|ui| {
+    form::centred_row(ui, |ui| {
         let eye = if revealed {
             hs_ui::icons::EYE_SLASH
         } else {

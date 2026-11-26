@@ -492,7 +492,26 @@ fn autolink(text: &str) -> Vec<(String, Option<String>)> {
     out
 }
 
+/// The text laid out as JSON, when it is a JSON object or array: key order
+/// kept, only whitespace changed (`hs_core::fmt::pretty_json`). Scalars are
+/// left out so a bare number or word is still prose.
+fn json_pretty(text: &str) -> Option<String> {
+    let t = text.trim();
+    if !(t.starts_with('{') || t.starts_with('[')) {
+        return None;
+    }
+    hs_core::fmt::pretty_json(t)
+}
+
 fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
+    // A note or file that is itself JSON previews as a laid-out json block,
+    // not as one run of minified text.
+    if let Some(pretty) = json_pretty(text) {
+        return vec![Block::Code {
+            lang: "json".into(),
+            text: pretty,
+        }];
+    }
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
@@ -576,6 +595,13 @@ fn parse(text: &str, style: &MarkdownStyle, _width: f32) -> Vec<Block> {
                 }
                 TagEnd::CodeBlock => {
                     if let Some((lang, text)) = code.take() {
+                        // A json block that parses is laid out; one that
+                        // does not is shown as written.
+                        let text = if lang.trim().eq_ignore_ascii_case("json") {
+                            json_pretty(&text).unwrap_or(text)
+                        } else {
+                            text
+                        };
                         blocks.push(Block::Code { lang, text });
                     }
                 }
@@ -804,6 +830,27 @@ mod tests {
             assert_eq!(lang, "rust");
             assert_eq!(text, "fn x() {}\n");
         }
+    }
+
+    #[test]
+    fn json_in_a_preview_is_laid_out() {
+        // A fenced json block that is compact comes out indented.
+        let md = "```json\n{\"a\":1,\"b\":[1,2]}\n```\n";
+        let blocks = parse(md, &style(), 600.0);
+        let Block::Code { lang, text } = &blocks[0] else {
+            panic!("not a code block");
+        };
+        assert_eq!(lang, "json");
+        assert_eq!(text, "{\n  \"a\": 1,\n  \"b\": [\n    1,\n    2\n  ]\n}");
+        // A note that is itself JSON is one json block, not a paragraph.
+        let blocks = parse("{\"a\":1}", &style(), 600.0);
+        assert_eq!(blocks.len(), 1);
+        assert!(matches!(&blocks[0], Block::Code { lang, .. } if lang == "json"));
+        // Broken JSON in a fence, and prose with braces, are left alone.
+        let broken = parse("```json\n{\"a\":\n```\n", &style(), 600.0);
+        assert!(matches!(&broken[0], Block::Code { text, .. } if text == "{\"a\":\n"));
+        let prose = parse("{not json} at all", &style(), 600.0);
+        assert!(matches!(&prose[0], Block::Paragraph(_)));
     }
 
     #[test]

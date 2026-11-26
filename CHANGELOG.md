@@ -13,6 +13,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 - (nothing yet)
 
+## 0.138.3 — 2026-11-26
+
+### Changed
+
+- Update Claude Advisor (36e1f63f)
+
 ## 0.138.2 — 2026-11-26
 
 ### Fixed

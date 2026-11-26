@@ -32,6 +32,7 @@ pub enum Page {
     Automation,
     Tracker,
     Identity,
+    Analytics,
     Security,
     Terminal,
     Editor,
@@ -56,6 +57,8 @@ pub fn page_for_kind(kind: &str) -> Page {
         Page::Tracker
     } else if c::is_idm_kind(kind) {
         Page::Identity
+    } else if c::is_analytics_kind(kind) {
+        Page::Analytics
     } else {
         Page::Connections
     }
@@ -79,7 +82,7 @@ fn take_named_focus(ui: &egui::Ui, state: &mut SettingsState, which: FocusSectio
 }
 
 impl Page {
-    pub fn all() -> [(Page, &'static str); 19] {
+    pub fn all() -> [(Page, &'static str); 20] {
         [
             (Page::General, "settings-general"),
             (Page::Appearance, "settings-appearance"),
@@ -94,6 +97,7 @@ impl Page {
             (Page::Automation, "settings-automation"),
             (Page::Tracker, "settings-tracker"),
             (Page::Identity, "settings-identity"),
+            (Page::Analytics, "settings-analytics"),
             (Page::Editor, "settings-editor"),
             (Page::Git, "settings-git"),
             (Page::Browser, "settings-browser"),
@@ -118,6 +122,7 @@ impl Page {
             Page::Automation => ph::FLOW_ARROW,
             Page::Tracker => ph::KANBAN,
             Page::Identity => ph::IDENTIFICATION_BADGE,
+            Page::Analytics => ph::CHART_BAR,
             Page::Security => ph::LOCK_KEY,
             Page::Terminal => ph::TERMINAL_WINDOW,
             Page::Editor => ph::CODE,
@@ -332,6 +337,8 @@ pub(crate) fn kind_family(kind: &str) -> (&'static [&'static str], bool) {
         (c::TRACKER_KINDS, true)
     } else if c::is_idm_kind(kind) {
         (c::IDM_KINDS, true)
+    } else if c::is_analytics_kind(kind) {
+        (c::ANALYTICS_KINDS, true)
     } else {
         (c::KINDS, false)
     }
@@ -360,6 +367,9 @@ pub fn new_kind_draft(kind: &str) -> ConnectionProfile {
             .write_into(&mut draft.fields);
     } else if c::is_idm_kind(kind) {
         tool_idm::profile::IdmFields::from_table(kind, &draft.fields).write_into(&mut draft.fields);
+    } else if c::is_analytics_kind(kind) {
+        tool_analytics::profile::AnalyticsFields::from_table(kind, &draft.fields)
+            .write_into(&mut draft.fields);
     }
     draft
 }
@@ -593,6 +603,7 @@ fn page_inner(
         Page::Automation => automation(ui, theme, services, state, effects),
         Page::Tracker => tracker(ui, theme, services, state, effects),
         Page::Identity => identity(ui, theme, services, state, effects),
+        Page::Analytics => analytics(ui, theme, services, state, effects),
         Page::Security => security(ui, theme, services, state, effects),
         Page::Terminal => terminal(ui, theme, services, state, effects),
         Page::Editor => editor(ui, theme, services, state, effects),
@@ -4437,6 +4448,145 @@ fn identity(
     }
 }
 
+/// Settings -> Analytics (docs/tools/analytics.md §5): the BI servers
+/// listed left and the chosen one's form right, then the activity's
+/// limits.
+fn analytics(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    state: &mut SettingsState,
+    effects: &mut Vec<SettingsEffect>,
+) {
+    use hs_core::connections::ANALYTICS_KINDS;
+    form::page_title(
+        ui,
+        theme,
+        &s.t("settings-analytics"),
+        Some(&s.t("settings-analytics-sub")),
+    );
+    form::section(ui, theme, &s.t("settings-analytics-servers"), |ui| {
+        let list_width = 260.0;
+        let right_width = (ui.available_width() - list_width - 16.0).max(340.0);
+        if form::primary_button(
+            ui,
+            theme,
+            &format!("{} {}", hs_ui::icons::TAB_NEW, s.t("analytics-add")),
+        )
+        .clicked()
+        {
+            state.open_kind_draft(ANALYTICS_KINDS[0]);
+            state.focus_form = true;
+        }
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(list_width);
+                let servers: Vec<(String, String, String, String)> = s
+                    .connections
+                    .read()
+                    .of_analytics_kinds()
+                    .map(|c| {
+                        let f = tool_analytics::profile::AnalyticsFields::from_table(
+                            &c.kind, &c.fields,
+                        );
+                        (
+                            c.id.clone(),
+                            c.kind.clone(),
+                            c.name.clone(),
+                            f.label_for(&c.kind),
+                        )
+                    })
+                    .collect();
+                if servers.is_empty() {
+                    form::hint(ui, theme, &s.t("settings-analytics-none"));
+                }
+                let mut reorder = hs_ui::reorder::Reorder::new("analytics-settings-reorder");
+                let mut pick: Option<String> = None;
+                for (i, (id, kind, name, subtitle)) in servers.iter().enumerate() {
+                    let selected = state.conn_selected.as_deref() == Some(id.as_str());
+                    reorder.row(ui, i, |ui| {
+                        if form::conn_list_row(
+                            ui,
+                            theme,
+                            selected,
+                            hs_ui::icons::conn_icon(kind, ""),
+                            name,
+                            Some(subtitle),
+                        )
+                        .clicked()
+                        {
+                            pick = Some(id.clone());
+                        }
+                    });
+                }
+                if let Some((from, to)) = reorder.finish(ui, theme.accent)
+                    && let Err(e) = s.connections.write().reorder(ANALYTICS_KINDS, from, to)
+                {
+                    effects.push(SettingsEffect::Toast(
+                        hs_core::tool::ToastLevel::Error,
+                        e.to_string(),
+                    ));
+                }
+                if let Some(id) = pick
+                    && let Some(p) = s.connections.read().by_id(&id).cloned()
+                {
+                    state.conn_selected = Some(id);
+                    let text = toml::to_string_pretty(&p.fields).unwrap_or_default();
+                    state.conn_draft = Some((p, text));
+                }
+            });
+            ui.add_space(12.0);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                let is_bi = state
+                    .conn_draft
+                    .as_ref()
+                    .is_some_and(|(d, _)| hs_core::connections::is_analytics_kind(&d.kind));
+                if !is_bi {
+                    form::note(
+                        ui,
+                        theme,
+                        hs_ui::icons::INFO,
+                        &s.t("settings-analytics-select-hint"),
+                    );
+                    return;
+                }
+                conn_detail(ui, theme, s, state, effects);
+            });
+        });
+    });
+    let mut changed = false;
+    form::section(ui, theme, &s.t("settings-analytics-limits"), |ui| {
+        let mut st = s.settings.write();
+        let d = &mut st.analytics;
+        form::field_grid(ui, "analytics-limits", |ui| {
+            form::label(ui, &s.t("settings-analytics-rows"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut d.rows_per_run).range(100..=50_000))
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-analytics-timeout"));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(&mut d.timeout_secs)
+                        .range(5..=300)
+                        .suffix("s"),
+                )
+                .changed();
+            ui.end_row();
+            form::label(ui, &s.t("settings-analytics-cards"));
+            changed |= ui
+                .add(egui::DragValue::new(&mut d.cards_at_once).range(1..=8))
+                .changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("settings-analytics-limits-hint"));
+        });
+    });
+    if changed {
+        effects.push(SettingsEffect::SettingsChanged);
+    }
+}
+
 fn connections(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -4571,6 +4721,7 @@ fn save_draft(
     let is_automation = hs_core::connections::is_automation_kind(&draft.kind);
     let is_tracker = hs_core::connections::is_tracker_kind(&draft.kind);
     let is_idm = hs_core::connections::is_idm_kind(&draft.kind);
+    let is_analytics = hs_core::connections::is_analytics_kind(&draft.kind);
     let parsed = if is_ssh
         || is_s3
         || is_db
@@ -4582,6 +4733,7 @@ fn save_draft(
         || is_automation
         || is_tracker
         || is_idm
+        || is_analytics
     {
         // These forms write into `draft.fields` directly,
         // so the text box is a view rather than the truth.
@@ -4680,6 +4832,13 @@ fn save_draft(
                     ],
                     effects,
                 );
+                f.write_into(&mut table);
+                draft.fields = table.clone();
+            } else if is_analytics {
+                let mut f =
+                    tool_analytics::profile::AnalyticsFields::from_table(&draft.kind, &table);
+                secrets_ok =
+                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             } else if is_queue {
@@ -4979,6 +5138,8 @@ fn conn_detail(
             .map(|t| t.realms())
             .unwrap_or_default();
         idm_form(ui, theme, s, &realms, draft, fields_text);
+    } else if hs_core::connections::is_analytics_kind(&draft.kind) {
+        analytics_form(ui, theme, s, draft, fields_text);
     } else {
         form::section(ui, theme, &s.t("conn-fields"), |ui| {
             form::code_field(ui, fields_text, 8);
@@ -5145,6 +5306,7 @@ fn conn_detail(
             && !hs_core::connections::is_automation_kind(&probe.kind)
             && !hs_core::connections::is_tracker_kind(&probe.kind)
             && !hs_core::connections::is_idm_kind(&probe.kind)
+            && !hs_core::connections::is_analytics_kind(&probe.kind)
             && let Ok(table) = toml::from_str::<toml::Table>(fields_text)
         {
             probe.fields = table;
@@ -5986,6 +6148,13 @@ fn apply_secret_edit(
         }
         kind if hs_core::connections::is_idm_kind(kind) => {
             let mut f = tool_idm::profile::IdmFields::from_table(kind, &table);
+            f.credential.secret = std::mem::take(password);
+            let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
+            f.write_into(&mut table);
+            ok
+        }
+        kind if hs_core::connections::is_analytics_kind(kind) => {
+            let mut f = tool_analytics::profile::AnalyticsFields::from_table(kind, &table);
             f.credential.secret = std::mem::take(password);
             let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
             f.write_into(&mut table);
@@ -10864,6 +11033,113 @@ fn tracker_form(
                 _ => "conn-ssh-secret-hint",
             };
             form::row_hint(ui, theme, &s.t(hint));
+        });
+    });
+    if changed {
+        f.write_into(&mut draft.fields);
+    }
+}
+
+/// A BI server's form (docs/tools/analytics.md §5.1): where it is, how to
+/// sign in (a password or an API key), and TLS. The secret goes into the
+/// vault on save.
+fn analytics_form(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    s: &Services,
+    draft: &mut ConnectionProfile,
+    scratch: &mut String,
+) {
+    use tool_analytics::profile::{AUTH_KINDS, AnalyticsFields};
+    let mut f = AnalyticsFields::from_table(&draft.kind, &draft.fields);
+    let mut changed = false;
+    form::section(ui, theme, &s.t("conn-analytics-section"), |ui| {
+        form::field_grid(ui, "analytics-server", |ui| {
+            form::label(ui, &s.t("conn-analytics-url"));
+            changed |= form::text_field(
+                ui,
+                &mut f.url,
+                tool_analytics::profile::default_url(&draft.kind),
+            )
+            .changed();
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-analytics-url-hint"));
+        });
+    });
+    form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
+        form::field_grid(ui, "analytics-auth", |ui| {
+            let auth_key = |a: &str| match a {
+                "api-key" => "conn-analytics-auth-key",
+                _ => "conn-analytics-auth-password",
+            };
+            let c = &mut f.credential;
+            form::label(ui, &s.t("conn-idm-auth"));
+            egui::ComboBox::from_id_salt("analytics-auth-kind")
+                .width(form::FIELD_MIN_WIDTH)
+                .selected_text(s.t(auth_key(&c.auth)))
+                .show_ui(ui, |ui| {
+                    for a in AUTH_KINDS {
+                        if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
+                            .clicked()
+                        {
+                            c.auth = (*a).to_string();
+                            changed = true;
+                        }
+                    }
+                });
+            ui.end_row();
+            if c.auth == "password" {
+                form::label(ui, &s.t("conn-analytics-user"));
+                changed |= form::text_field(ui, &mut c.user, "admin@example.com").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-queue-password"));
+            } else {
+                form::label(ui, &s.t("conn-analytics-api-key"));
+            }
+            changed |= secret_field(ui, theme, s, "analytics-secret", &mut c.secret, scratch, 0);
+            ui.end_row();
+            let hint = if c.auth == "password" {
+                "conn-analytics-hint-password"
+            } else {
+                "conn-analytics-hint-key"
+            };
+            form::row_hint(ui, theme, &s.t(hint));
+        });
+    });
+    form::section(ui, theme, &s.t("conn-idm-section-tls"), |ui| {
+        form::field_grid(ui, "analytics-tls", |ui| {
+            form::label(ui, &s.t("conn-idm-verify-tls"));
+            changed |= ui.checkbox(&mut f.tls_verify, "").changed();
+            ui.end_row();
+            if !f.tls_verify {
+                form::row_hint(ui, theme, &s.t("conn-idm-verify-tls-off"));
+            }
+            form::label(ui, &s.t("conn-idm-ca-file"));
+            form::centred_row(ui, |ui| {
+                changed |= form::text_field_width(
+                    ui,
+                    &mut f.ca_file,
+                    "company-ca.pem",
+                    form::FIELD_MIN_WIDTH,
+                )
+                .changed();
+                if form::button(
+                    ui,
+                    theme,
+                    hs_ui::icons::ph::FOLDER_OPEN,
+                    &s.t("conn-ssh-browse"),
+                )
+                .clicked()
+                    && let Some(p) = rfd::FileDialog::new()
+                        .add_filter("PEM", &["pem", "crt", "cer"])
+                        .pick_file()
+                {
+                    f.ca_file = p.to_string_lossy().to_string();
+                    changed = true;
+                }
+            });
+            ui.end_row();
+            form::row_hint(ui, theme, &s.t("conn-idm-ca-file-hint"));
         });
     });
     if changed {

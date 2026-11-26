@@ -41,6 +41,8 @@ pub fn factories(
         // (docs/tools/idm.md §8.1).
         Box::new(tool_idm::IdmFactory),
         Box::new(tool_db::DbFactory),
+        // After Database (owner, 2026-11-20; docs/tools/analytics.md §8.1).
+        Box::new(tool_analytics::AnalyticsFactory),
         Box::new(tool_redis::RedisFactory),
         Box::new(tool_nosql::NoSqlFactory),
         Box::new(tool_logs::LogsFactory),

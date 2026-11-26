@@ -243,6 +243,8 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         // The identity servers (docs/tools/idm.md §3.6): the logo is
         // what is drawn; the shield is the fallback glyph.
         "keycloak" => ph::SHIELD_CHECK,
+        // The BI servers (docs/tools/analytics.md §3.2).
+        "metabase" => ph::CHART_BAR,
         // A directory: no product logo for LDAP itself, so its tree in
         // OpenLDAP's blue (§3.6).
         "ldap" => ph::TREE_STRUCTURE,
@@ -453,6 +455,10 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
     (
         "bytes://product/keycloak.svg",
         include_bytes!("../../../assets/icons/simple/keycloak.svg"),
+    ),
+    (
+        "bytes://product/metabase.svg",
+        include_bytes!("../../../assets/icons/simple/metabase.svg"),
     ),
     (
         "bytes://product/amazons3.svg",
@@ -835,6 +841,7 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "mqtt" => "mqtt",
         "redmine" => "redmine",
         "keycloak" => "keycloak",
+        "metabase" => "metabase",
         "s3" => "amazons3",
         "jira" => "jira",
         "confluence" => "confluence",
@@ -1631,6 +1638,7 @@ mod tests {
             ("mqtt", "mqtt"),
             ("redmine", "redmine"),
             ("keycloak", "keycloak"),
+            ("metabase", "metabase"),
         ] {
             assert_eq!(
                 conn_icon(k, "").image.map(str::to_owned),

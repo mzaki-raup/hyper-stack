@@ -107,6 +107,18 @@ fn idm_error(e: tool_idm::profile::ProfileError) -> Outcome {
     }
 }
 
+fn analytics_error(e: tool_analytics::profile::ProfileError) -> Outcome {
+    use hs_core::service_auth::AuthError;
+    use tool_analytics::profile::ProfileError as E;
+    match e {
+        E::Auth(AuthError::VaultLocked) => Outcome::VaultLocked,
+        E::MissingVariables(v) | E::Auth(AuthError::MissingVariables(v)) => {
+            Outcome::MissingVariables(v.join(", "))
+        }
+        other => Outcome::Failed(other.to_string()),
+    }
+}
+
 fn nosql_error(e: tool_nosql::profile::ProfileError) -> Outcome {
     use tool_nosql::profile::ProfileError as E;
     match e {
@@ -348,6 +360,30 @@ fn probe(
                     .to_string();
                 if !info.signed_in_as.is_empty() {
                     detail = format!("{detail} · {} ({})", info.signed_in_as, info.auth_realm);
+                }
+                Outcome::Ok(detail)
+            }))
+        }
+        kind if hs_core::connections::is_analytics_kind(kind) => {
+            let cfg = tool_analytics::profile::AnalyticsFields::from_table(kind, fields)
+                .resolve(secrets, &lookup)
+                .map_err(analytics_error)?;
+            Ok(Box::pin(async move {
+                use tool_analytics::provider::BiProvider;
+                let provider = match tool_analytics::provider::metabase::Metabase::new(cfg) {
+                    Ok(p) => p,
+                    Err(e) => return Outcome::Failed(e),
+                };
+                let info = match provider.connect().await {
+                    Ok(i) => i,
+                    Err(e) => return Outcome::Failed(e),
+                };
+                provider.disconnect().await;
+                let mut detail = format!("{} {}", info.product, info.version_text)
+                    .trim()
+                    .to_string();
+                if !info.signed_in_as.is_empty() {
+                    detail = format!("{detail} · {}", info.signed_in_as);
                 }
                 Outcome::Ok(detail)
             }))

@@ -132,6 +132,12 @@ pub fn row(profile: &ConnectionProfile) -> Option<Row> {
             r.user = v.credential.user;
             r.password = Password::read(&v.credential.secret);
         }
+        kind if hs_core::connections::is_analytics_kind(kind) => {
+            let v = tool_analytics::profile::AnalyticsFields::from_table(kind, f);
+            r.host = v.url;
+            r.user = v.credential.user;
+            r.password = Password::read(&v.credential.secret);
+        }
         kind if hs_core::connections::is_queue_kind(kind) => {
             let v = tool_queue::profile::QueueFields::from_table(kind, f);
             r.host = v.address;
@@ -314,6 +320,11 @@ pub fn apply(profile: &mut ConnectionProfile, user: &str, secret: &str) -> bool 
         }
         kind if hs_core::connections::is_idm_kind(kind) => {
             let mut v = tool_idm::profile::IdmFields::from_table(kind, f);
+            set(&mut v.credential);
+            v.write_into(f);
+        }
+        kind if hs_core::connections::is_analytics_kind(kind) => {
+            let mut v = tool_analytics::profile::AnalyticsFields::from_table(kind, f);
             set(&mut v.credential);
             v.write_into(f);
         }

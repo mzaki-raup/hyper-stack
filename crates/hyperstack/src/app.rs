@@ -1385,6 +1385,7 @@ impl HyperStackApp {
             "settings:automation" => self.open_settings(Some(settings_ui::Page::Automation)),
             "settings:tracker" => self.open_settings(Some(settings_ui::Page::Tracker)),
             "settings:identity" => self.open_settings(Some(settings_ui::Page::Identity)),
+            "settings:analytics" => self.open_settings(Some(settings_ui::Page::Analytics)),
             "settings:editor" => self.open_settings(Some(settings_ui::Page::Editor)),
             // Add, from an activity whose kinds each have their own form:
             // an empty form of the page's first kind, Name focused; the
@@ -1394,7 +1395,8 @@ impl HyperStackApp {
             | "settings:queue:new"
             | "settings:automation:new"
             | "settings:tracker:new"
-            | "settings:identity:new" => {
+            | "settings:identity:new"
+            | "settings:analytics:new" => {
                 use hs_core::connections as c;
                 let (page, kind) = match action {
                     "settings:containers:new" => {
@@ -1405,6 +1407,9 @@ impl HyperStackApp {
                         (settings_ui::Page::Automation, c::AUTOMATION_KINDS[0])
                     }
                     "settings:identity:new" => (settings_ui::Page::Identity, c::IDM_KINDS[0]),
+                    "settings:analytics:new" => {
+                        (settings_ui::Page::Analytics, c::ANALYTICS_KINDS[0])
+                    }
                     _ => (settings_ui::Page::Tracker, c::TRACKER_KINDS[0]),
                 };
                 self.open_settings(Some(page));
@@ -5153,6 +5158,8 @@ fn shows_new_tab(group: Option<&str>) -> bool {
                 | "queue"
                 | "automation"
                 | "tracker"
+                // A BI tab is a saved server, like a broker's.
+                | "analytics"
                 // A container tab is a host, picked on the dashboard or
                 // in the sidebar; a tab with no host in it is not a new
                 // document, it is the dashboard in a closable tab
@@ -5375,6 +5382,8 @@ pub(crate) fn activity_colour(id: &str) -> egui::Color32 {
         "automation" => egui::Color32::from_rgb(0x4a, 0xde, 0x80),
         // Jira's blue.
         "tracker" => egui::Color32::from_rgb(0x4c, 0x9a, 0xff),
+        // Metabase's blue, a shade deeper than the tracker's.
+        "analytics" => egui::Color32::from_rgb(0x50, 0x9e, 0xe3),
         "settings" => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
         _ => egui::Color32::from_rgb(0x9c, 0xa3, 0xaf),
     }
@@ -5498,6 +5507,7 @@ mod tests {
             "queue",
             "automation",
             "tracker",
+            "analytics",
             // Settings is one tab, always open, so a + beside it could
             // only open a second of the same thing (owner's report,
             // CR-0029). It used to keep the button.

@@ -51,6 +51,7 @@ pub const KINDS: &[&str] = &[
     "confluence",
     "keycloak",
     "ldap",
+    "metabase",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -132,6 +133,15 @@ pub fn is_idm_kind(kind: &str) -> bool {
     IDM_KINDS.contains(&kind)
 }
 
+/// The kinds the **Analytics** activity opens (`docs/tools/analytics.md`
+/// §5.1): Metabase first, Tableau Server next.
+pub const ANALYTICS_KINDS: &[&str] = &["metabase"];
+
+/// Whether a kind is opened by the Analytics (BI) activity.
+pub fn is_analytics_kind(kind: &str) -> bool {
+    ANALYTICS_KINDS.contains(&kind)
+}
+
 /// Whether a kind is opened by the Tracker activity.
 pub fn is_tracker_kind(kind: &str) -> bool {
     TRACKER_KINDS.contains(&kind)
@@ -201,6 +211,7 @@ pub fn kind_label(kind: &str) -> &str {
         "confluence" => "Confluence",
         "keycloak" => "Keycloak",
         "ldap" => "LDAP",
+        "metabase" => "Metabase",
         other => other,
     }
 }
@@ -330,6 +341,11 @@ impl Connections {
     /// Every identity server the Identity activity opens, in order.
     pub fn of_idm_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
         self.profiles.iter().filter(|c| is_idm_kind(&c.kind))
+    }
+
+    /// Every BI server the Analytics activity opens, in order.
+    pub fn of_analytics_kinds(&self) -> impl Iterator<Item = &ConnectionProfile> + '_ {
+        self.profiles.iter().filter(|c| is_analytics_kind(&c.kind))
     }
 
     /// Every broker the Queue activity opens, in order.
@@ -533,6 +549,7 @@ mod tests {
             .chain(AUTOMATION_KINDS)
             .chain(TRACKER_KINDS)
             .chain(IDM_KINDS)
+            .chain(ANALYTICS_KINDS)
         {
             assert!(KINDS.contains(k), "{k} is claimed but not offered");
             assert_ne!(kind_label(k), *k, "{k} has no label of its own");

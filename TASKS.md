@@ -168,18 +168,19 @@ Change Request : CR-0103
 > the matching connection, the rail after Database.
 
 ### FEAT-0126 · Analytics activity: crate, provider trait, connections, Settings page, dashboard
-- **State:** Pending · **Spec:** docs/tools/analytics.md §3, §4.1, §5, §8 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §3, §4.1, §5, §8 · **Phase:** Q
 - **Source:** owner, 2026-11-20: "I plan to add Business Intelligent / Analytic as new Activity … For starter, i want to add metabase and tableau. If provide credentials, can the work pane resemble both the activity web interface (using APIs, etc)?", then "Yes, Metabase first"
 - **Scope:** `crates/tools/tool-analytics/` with `AnalyticsFactory` (id `analytics`, category Data, rail after Database); the `BiProvider` trait and `Caps`; connection kind `metabase` (`is_bi_kind`, the `[bi]` table) with API Key or Username and Password in the vault and Use Saved Credential; Settings → Analytics (list left, form right, Test Connection, the limits); the dashboard (servers, dashboards, questions, open tabs; Start Here; Saved Servers; Recent with Clear History; Open Here); the sidebar; one tab per server with the header band, the toolbar (Browse toggle first, AI hard right), the hideable browse column and the item page; the Metabase mark; version gating v0.48+; the `metabase` service in the bench's `bi` profile, seeded; the palette commands and shortcuts of §9
 - **Depends on:** —
-- [ ] Crate, factory, rail entry, connection kind, profile table, Settings page
-- [ ] Provider trait, `Caps`, session runner (bounded channels), sign-in both ways, version gating
-- [ ] Dashboard, sidebar, tab shell, header band, mark
-- [ ] Bench: Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
+- [x] Crate, factory, rail entry, connection kind, profile table, Settings page
+- [x] Provider trait, `Caps`, session runner (bounded channels), sign-in both ways, version gating
+- [x] Dashboard, sidebar, tab shell, header band, mark
+- [ ] Bench (service added to the `bi` profile; the seed is not written): Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
 - [ ] Test: profile round trip, version gating; live sign-in both ways gated on `HS_METABASE`; the data-folder grep
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
+- **Notes:** built and clippy-clean, 6 unit tests pass; sign-in not yet tried against a live Metabase; the Metabase mark is a drawn placeholder, not the official logo; the mock-server test is still to write; the gate ran (fmt, clippy, 1574 tests, deny, self-test) but the screen check was declined, so the App box stays open.
 
 ### FEAT-0127 · Analytics: the collection tree and search
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q

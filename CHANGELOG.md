@@ -11,10 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.139.0 — 2026-11-26
+
 ### Added
 
-- Analytics activity, first step: BI servers (Metabase, by password or API key) with a provider trait, Settings → Analytics, a dashboard, a sidebar and a server tab that signs in and shows the server's version and support (FEAT-0126)
-- The bench has a `metabase` service in its `bi` profile
+- Analytics activity with Metabase sign-in, Settings page and dashboard (bc9be664)
 
 ## 0.138.3 — 2026-11-26
 

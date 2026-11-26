@@ -1235,3 +1235,101 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
   Server has no container: a mock, and a read-only live test against the
   owner's Server when `HS_TABLEAU` names it.
 - With no write, the activity keeps no audit log.
+
+## ADR-035 · ETL activity: Apache Hop alone, its design files drawn as the canvas, and no provider trait
+
+**Date** 2026-11-26 · **Status** proposed (see `docs/tools/etl.md`) ·
+**Owner's request** (2026-11-26): *"I plan to add ETL as new Activity …
+For starter, i want to add apache airflow, talend, etc. If provide
+credentials, can the work pane resemble both the activity web interface
+(using APIs, etc)?"*, narrowed over that conversation to *"ditch all,
+except hop and nifi"* and then *"ditch nifi, only hop remain"*.
+
+**Context.** The owner asked for an ETL activity whose work pane
+resembles each product's own interface. Five products were assessed
+against two tests: can the pane be drawn from what the product exposes,
+and can it be tested here.
+
+- **Talend** — Open Studio was retired on 31 January 2024 and never had a
+  server API; Talend Administration Center and Qlik Talend Cloud are
+  licensed with no container, and the Studio design canvas is not
+  reachable from any API.
+- **Pentaho** — its community edition has been withdrawn, leaving no
+  testable path.
+- **Airbyte** — its public API returns only aggregate job figures;
+  per-stream statistics, attempt logs and stream configuration need the
+  internal Config API, and its OSS deployment left Docker Compose for a
+  `kind` cluster, which the bench is not built for.
+- **NiFi** — the best API of the five: `PositionDTO` gives each node's
+  `x`/`y`, `ConnectionDTO` gives `source`, `destination`,
+  `selectedRelationships` and `bends`, the status snapshots give live
+  per-component figures, and `DtoFactory.SENSITIVE_VALUE_MASK` masks
+  sensitive properties. Dropped for scope; its model — continuous flow
+  with no runs — also shares least with any other product.
+- **Airflow** — a good API, but DAG → runs → log → trigger → cancel maps
+  almost one-to-one onto `tool-automation`'s `Driver` trait, so it
+  belongs there rather than in a new activity.
+- **Apache Hop** — Apache-2.0, actively released (2.20.0 on 2 November
+  2026), an official container, and the one product of the five whose
+  **design format is open and carries each node's own coordinates**.
+
+**Decision.**
+
+- **Apache Hop alone**, as an activity (`tool-etl`, id `etl`, category
+  Data, rail after Analytics), depth-programme phase R.
+- **No provider trait.** One product needs no abstraction (CLAUDE.md §2,
+  `.claude/rules/rust.md`): the parsers, the graph and the pages are
+  Hop's. `BiProvider` and `IdmProvider` each span two backends that are
+  asked the same questions; a single product spans nothing. If a second
+  ETL product is ever added, the trait is extracted then, from two
+  working implementations. The crate keeps the domain name `tool-etl`
+  (as `tool-redis` does for one product) so adding one later is
+  additive.
+- **The canvas is rebuilt from the file**, not laid out and not fetched:
+  `.hpl` carries `<transform>` with `<GUI><xloc>`/`<yloc>` and `<order>`
+  hops; `.hwf` carries `<actions><action>` with the coordinates on the
+  action and `<hops><hop>` with `enabled`, `evaluation` and
+  `unconditional`. One `FlowGraph` model and one renderer; each file kind
+  converts into it.
+- **`hs-diagram` and `roxmltree` as dependencies.** `hs-diagram`'s
+  `model` (its `Edge::via` is already a waypoint list), `layout_approx`
+  for files with missing coordinates, `export::svg` for Export SVG, and
+  its kind colours. `hs-diagram` is not on `.claude/rules/rust.md`'s
+  list of crates a tool may depend on; `tool-db` and `tool-graphics`
+  already depend on it, and this ADR records the dependency and amends
+  that list. It has **no egui painter** — `tool-db`'s ERD goes
+  `model` → `layout_approx` → `export::svg` — so the interactive
+  canvas's painting, hit-testing, pan, zoom and keyboard navigation are
+  new code in `tool-etl`.
+- **Files only in phase 1**, with no server and no credential (owner).
+  Hop Server is phase 2. This keeps phase 1 off Hop's weakest surface:
+  the released manual documents the older `/hop/...` web services, which
+  a Hop developer has said were never designed to be used without Hop
+  GUI or Hop Run, while the `/hop/api/v1/` JSON API appears only in the
+  pre-release manual.
+- **Read-only, entirely** (owner). Nothing is ever written to a `.hpl`,
+  a `.hwf`, a metadata file or `project-config.json`.
+- **Hop's stored passwords are never decoded.** `metadata/rdbms/*.json`
+  holds the prefix `Encrypted ` followed by hex, produced by
+  `HopTwoWayPasswordEncoder` and reversible by design. The value is
+  never decoded, never shown, never cached, and is redacted from logs
+  and errors on the pattern `Encrypted\s+[0-9a-fA-F]{8,}` — the same one
+  Hop's own `CredentialRedactor` uses. **Open in Database** passes
+  engine, host, port and database to match a saved `db` connection and
+  an `OpenRequest` carrying that connection's id, never a credential.
+
+**Consequences.**
+
+- Phase 1 needs **no bench container**: the fixtures are Hop's own
+  sample `.hpl`/`.hwf` files, vendored with their ASF headers. Phase 2
+  adds `apache/hop` to a new `etl` profile, started on demand, with
+  `HS_HOP` gating the live test.
+- The activity's value rests on the file formats, which are stable and
+  open, rather than on Hop Server's older web services.
+- Hop's own environments map onto HyperStack's environment tiers in
+  phase 2, so a Hop `prod` environment takes the protected-environment
+  guard before any run verb exists.
+- `hop-import` converts Pentaho / Kettle `.ktr` and `.kjb` into Hop's
+  format, so a PDI shop gets partial coverage if they run the import
+  themselves; reading those formats directly is not planned.
+- With no write, the activity keeps no audit log.

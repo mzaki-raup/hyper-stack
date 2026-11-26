@@ -28,9 +28,11 @@
 ## Architecture
 
 - One crate per tool, one `Tool` trait (`crates/hs-core/src/tool.rs`).
-- A tool depends on `hs-core` / `hs-ui` (and `hs-editor` / `hs-term` where the
-  spec says so) — **never on another tool crate**. Cross-tool features go
-  through `Services`, `OpenRequest` and events.
+- A tool depends on `hs-core` / `hs-ui` (and `hs-editor` / `hs-term` /
+  `hs-diagram` where the spec says so) — **never on another tool crate**.
+  Cross-tool features go through `Services`, `OpenRequest` and events.
+  (`hs-diagram` added by ADR-035; `tool-db` and `tool-graphics` already
+  depended on it for the ERD and the diagram editor.)
 - `../eden-explorer` is a reference only: don't copy code, don't depend on it.
 
 ## Reuse before writing

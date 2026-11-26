@@ -11,7 +11,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- ETL activity specified: Apache Hop alone, read-only, its pipelines and
+  workflows drawn as their real canvas from the design files; phase R,
+  spec `docs/tools/etl.md`, decision ADR-035, ledger FEAT-0134 to
+  FEAT-0138 (v0.10.0)
 
 ## 0.139.1 — 2026-11-26
 

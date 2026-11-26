@@ -652,6 +652,82 @@ services:
     volumes: ["./mock/sasviya:/app:ro"]
     mem_limit: 64m
 
+  # Grafana, Loki and Apache Superset for the Analytics activity (FEAT-0134 to
+  # FEAT-0136), the real products. Grafana is provisioned with a TestData and a
+  # Loki data source and a dashboard (config/grafana); seed/seed-grafana.sh
+  # creates a service account and pushes log lines to Loki. Superset keeps its
+  # metadata in the embedded SQLite file in its volume (fine for a bench) and
+  # runs with config/superset/superset_config.py (CSRF off: bench only);
+  # seed/seed-superset.sh loads a database, a dataset, charts and a dashboard.
+  loki:
+    <<: *defaults
+    image: grafana/loki:3.2.0
+    profiles: [bi]
+    ports: ["${LOKI_PORT:-3131}:3100"]
+    volumes: [loki-data:/loki]
+    mem_limit: 384m
+
+  grafana:
+    <<: *defaults
+    image: grafana/grafana:11.3.0
+    profiles: [bi]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    ports: ["${GRAFANA_PORT:-3130}:3000"]
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on: [loki]
+    mem_limit: 384m
+
+  superset:
+    <<: *defaults
+    image: apache/superset:4.1.1
+    profiles: [bi]
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_ADMIN_USER: ${SUPERSET_ADMIN_USER:-admin}
+      SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD}
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        superset db upgrade &&
+        (superset fab create-admin --username "$$SUPERSET_ADMIN_USER" --firstname Bench
+        --lastname Admin --email admin@hyperstack.test --password "$$SUPERSET_ADMIN_PASSWORD" || true) &&
+        superset init && exec /usr/bin/run-server.sh
+    ports: ["${SUPERSET_PORT:-8188}:8088"]
+    volumes:
+      - superset-data:/app/superset_home
+      - ./config/superset/superset_config.py:/app/pythonpath/superset_config.py:ro
+    mem_limit: 1500m
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8088/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  # A mock of Power BI Report Server's REST API v2.0 (FEAT-0137): the product is
+  # a licensed Windows Server one. See mock/powerbirs/server.py.
+  powerbirs-mock:
+    <<: *defaults
+    image: python:3.12-alpine
+    profiles: [bi]
+    command: ["python", "/app/server.py"]
+    environment:
+      PORT: "8080"
+      POWERBIRS_MOCK_USER: ${POWERBIRS_MOCK_USER:-dev}
+      POWERBIRS_MOCK_PASSWORD: ${POWERBIRS_MOCK_PASSWORD}
+    ports: ["${POWERBIRS_MOCK_PORT:-8480}:8080"]
+    volumes: ["./mock/powerbirs:/app:ro"]
+    mem_limit: 64m
+
   # OpenLDAP for the IDM activity's LDAP provider (FEAT-0117). The base DN
   # comes from LDAP_DOMAIN (hyperstack.test -> dc=hyperstack,dc=test); the
   # admin is cn=admin under it. 636 serves LDAPS with the image's own
@@ -710,5 +786,8 @@ volumes:
   k3s-data:
   keycloak-data:
   metabase-data:
+  loki-data:
+  grafana-data:
+  superset-data:
   ldap-data:
   ldap-config:

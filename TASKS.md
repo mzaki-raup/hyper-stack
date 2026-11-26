@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.10.0
-Features : FEAT-0138
+Features : FEAT-0142
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
@@ -170,11 +170,13 @@ Change Request : CR-0103
 > Analytics. Talend, Pentaho, Airbyte, NiFi and Airflow were each
 > assessed and dropped, with the reason recorded per product.
 >
-> This batch starts at **FEAT-0134**: `FEAT-0133` was already allocated
-> by the in-flight `docs/analytics-sas` branch (SAS Viya as Analytics'
-> third provider), so the id is left to it rather than reused.
+> This batch starts at **FEAT-0138**: while it was specified and waiting
+> for CI, `FEAT-0133` to `FEAT-0137` were allocated by Analytics' further
+> provider specs (SAS Viya, Power BI Report Server, Apache Superset and
+> Grafana) and landed on `main` first, so those ids are left to them
+> rather than reused.
 
-### FEAT-0134 · ETL activity: crate, project entries, Settings page, dashboard, sidebar, tab shell
+### FEAT-0138 · ETL activity: crate, project entries, Settings page, dashboard, sidebar, tab shell
 - **State:** Pending · **Spec:** docs/tools/etl.md §3, §4.1, §5, §8 · **Phase:** R
 - **Source:** owner, 2026-11-26: "I plan to add ETL as new Activity … For starter, i want to add apache airflow, talend, etc. If provide credentials, can the work pane resemble both the activity web interface (using APIs, etc)?", then "ditch talend", "ditch all, except hop and nifi", "ditch nifi, only hop remain", and the five answers of §10
 - **Scope:** `crates/tools/tool-etl/` with `EtlFactory` (id `etl`, category Data, rail after Analytics); the project list reusing the `hs_core::projects::Projects` type from the activity's **own** `etl-projects.toml`, not the shared `Services.projects` the Editor and Git read (name, path, optional environment — **no connection and no vault entry in phase 1**, §5); `project-config.json` read with `${PROJECT_HOME}` resolved and a folder with none still opened; Settings → ETL (list left, form right, the path field leaving its Browse button room per BUG-0069, the limits of §7); the dashboard (projects, pipelines, workflows, open tabs; Start Here; Saved Projects; Recent with Clear History and Remove; Open Here); the sidebar with the Hop mark and the reorder grip; one tab per project with the header band wearing the same mark, the toolbar (Browse toggle first, AI hard right) and the hideable, resizable browse column; `hs-diagram` and `roxmltree` added as dependencies per ADR-035; the palette commands and shortcuts of §9
@@ -188,11 +190,11 @@ Change Request : CR-0103
 - [ ] App: `--data-dir ./tmp-data` — add a Hop project, open its tab, hide and resize the column; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
 
-### FEAT-0135 · ETL: the project tree and search
+### FEAT-0139 · ETL: the project tree and search
 - **State:** Pending · **Spec:** docs/tools/etl.md §4.2 · **Phase:** R
-- **Source:** owner, 2026-11-26 (as FEAT-0134)
+- **Source:** owner, 2026-11-26 (as FEAT-0138)
 - **Scope:** Pipelines and Workflows as two sections with the project's folders beneath, folders first then items by name (CR-0038); Metadata's children per kind with counts; Variables with its count; each row its kind's coloured picture from `hs_ui::fileicons` when Material icons are on, else a coloured glyph (CR-0065, CR-0068), a pipeline and a workflow distinct; keyboard navigation; a filter field; Search over file names **and** transform and action names, the index built once per Refresh, results with their path
-- **Depends on:** FEAT-0134
+- **Depends on:** FEAT-0138
 - [ ] Tree, filter, keyboard navigation, pictures
 - [ ] Search index on Refresh, results in the column
 - [ ] Test: ordering (folders first, then by name); the index from a fixture project; the filter
@@ -200,11 +202,11 @@ Change Request : CR-0103
 - [ ] App: `--data-dir ./tmp-data` — walk a fixture project, filter, search for a transform name
 - [ ] Docs: spec · README · CHANGELOG
 
-### FEAT-0136 · ETL: the pipeline and workflow canvas
+### FEAT-0140 · ETL: the pipeline and workflow canvas
 - **State:** Pending · **Spec:** docs/tools/etl.md §4.3, §7, §8.2, §8.3 · **Phase:** R
-- **Source:** owner, 2026-11-26 (as FEAT-0134)
+- **Source:** owner, 2026-11-26 (as FEAT-0138)
 - **Scope:** the `FlowGraph` model (nodes with kind, label, position; edges with `via`, label and style) and one renderer; `.hpl` parsed from `<pipeline>`/`<transform>`/`<GUI><xloc>`/`<order><hop>`; `.hwf` from `<workflow>`/`<actions><action>` with coordinates on the action and `<hops><hop>` with `enabled`, `evaluation` and `unconditional`, mapped to plain, success and failure styles with the raw flags kept on the edge and an unexpected combination drawn unconditional with a tooltip; dashed for a disabled hop; error-handling hops apart; `<notepads>` as labels; node pictures per known type and the generic picture named for an unknown one; pan, zoom, click to select, arrow keys, Enter, `Home` to fit; hover never grows a node; Export SVG through `hs_diagram::export::svg`; missing coordinates fall back to `layout_approx` with a hint; tolerant reading per §8.3; the graph converted and laid out once per file change, keyed on a hash of the bytes, never inside `ui()`; the largest-file and most-nodes limits with their states. **The egui painter is new code here** — `hs-diagram` has no painter (§8.2)
-- **Depends on:** FEAT-0135
+- **Depends on:** FEAT-0139
 - [ ] `.hpl` and `.hwf` parsers, tolerant per §8.3
 - [ ] `FlowGraph`, the conversion, the cache keyed on the file's bytes
 - [ ] The canvas: painting, hit-testing, pan, zoom, selection, keyboard, fit
@@ -214,11 +216,11 @@ Change Request : CR-0103
 - [ ] App: `--data-dir ./tmp-data` — a fixture pipeline and workflow beside Hop GUI's own canvas; zoom and pan; keyboard between nodes; Export SVG; a large file's limit
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 
-### FEAT-0137 · ETL: transform and action detail, metadata, variables, and the secret rules
+### FEAT-0141 · ETL: transform and action detail, metadata, variables, and the secret rules
 - **State:** Pending · **Spec:** docs/tools/etl.md §4.4, §4.5, §4.6, §4.7, §6 · **Phase:** R
-- **Source:** owner, 2026-11-26 (as FEAT-0134); the secret rules from `.claude/rules/security.md` and the owner's whole-word rule, 2026-11-07
+- **Source:** owner, 2026-11-26 (as FEAT-0138); the secret rules from `.claude/rules/security.md` and the owner's whole-word rule, 2026-11-07
 - **Scope:** the selected node's facts in `form::detail_table`, the type's own fields read generically so an unknown type still shows everything; `${variable}` values on hover through `varfield`, an unset one saying so; long values in a `form::well`, SQL through the read-only editor engine; Metadata as `DataTable`s with the clicked row's detail — Connections (name, engine, host, port, database, username) with **Open in Database** matching a saved `db` connection on engine, host, port and database (host without case, `localhost` equal to `127.0.0.1`; no match or several opens the picker with the reason) through an `OpenRequest` carrying the connection's id and **never a credential**; Run Configurations, Datasets, Unit Tests **listed**; empty kinds with a sentence-case hint (CR-0061); Variables with their source; **Hop's `Encrypted <hex>` password never decoded, never shown, never cached, and redacted from every log line and error on Hop's own `CredentialRedactor` pattern**; the whole-word secret mask over keys; the AI context carrying no masked value and no encoded password; Open in Editor, Copy Path, the item's facts under a disclosure
-- **Depends on:** FEAT-0136
+- **Depends on:** FEAT-0140
 - [ ] Node detail, generic fields, variable hovers, long values and SQL
 - [ ] Metadata tables and detail; Open in Database with its match and picker
 - [ ] Variables; the whole-word mask; Hop's `Encrypted` redaction
@@ -227,11 +229,11 @@ Change Request : CR-0103
 - [ ] App: `--data-dir ./tmp-data` — a transform's fields; a connection opened in the Database activity; the masked variables; the encoded password shown nowhere
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 
-### FEAT-0138 · ETL: Hop Server — status, runs and logs (phase 2)
+### FEAT-0142 · ETL: Hop Server — status, runs and logs (phase 2)
 - **State:** Pending · **Spec:** docs/tools/etl.md §4.9, §5, §6, §8.4 · **Phase:** R
 - **Source:** owner, 2026-11-26: files only in phase 1, so the server is its own item
 - **Scope:** connection kind `hop-server` in `hs_core::connections` (URL, Username and Password through `hs_core::service_auth` as a `secret:<ulid>`, Use Saved Credential, Verify TLS and CA File), Test Connection; the server's registered and running pipelines and workflows with their status; **Run** a pipeline or workflow with its run configuration and parameters, and run a unit test, each a Job with progress and cancel; the run's log with the shared log-level colours (CR-0077); version gating — the released `/hop/...` web services with `&json=Y`, the `/hop/api/v1/` JSON API where the server has it, an unavailable call drawn disabled with the reason, a differently-shaped answer treated as a version fact; Hop's environments mapped onto HyperStack's tiers (FEAT-0106) so a Hop `prod` environment takes the **protected-environment guard** and refuses runs until Allow Writes; `apache/hop` in a new `etl` bench profile, memory-capped and started on demand, with `HS_HOP` and a `bench/README.md` row
-- **Depends on:** FEAT-0137
+- **Depends on:** FEAT-0141
 - [ ] Connection kind, credential, Test Connection, version gating
 - [ ] Status, runs, logs, unit-test runs as Jobs with cancel
 - [ ] The protected-environment guard on every run verb
@@ -320,6 +322,65 @@ Change Request : CR-0103
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0133 · Analytics: the SAS Viya provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "For Analytic, if possible, add SAS BI"; answered *SAS Viya*, with the spec, the ledger item and a bench mock now
+- **Scope:** kind `sasviya` for **SAS Viya** (not SAS 9.4 BI: no REST surface); SAS Logon password grant with a registered client, or a pasted access token; folders and reports, search; a report's picture from the Report Images service, its details, Open Interactive in the Browser activity; CAS libraries and tables with columns and a row preview in a `DataTable`; recent jobs, read-only; per-service probing in place of one version call
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's Viya: browse, a report's picture, a table's rows, the jobs; Open Interactive
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is on `chore/bench-kit`.
+
+### FEAT-0134 · Analytics: the Apache Superset provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Add power bi, apache Superset and grafana to analytic activity"
+- **Scope:** kind `superset`; login with a username and password (db or ldap) or a pasted access token; dashboards, charts, datasets and databases as sections; a chart's rows from `/chart/{id}/data/` drawn through Metabase's chart code; a dashboard on Superset's 12-column grid with its native filters; read-only SQL Lab with Open in Database
+- **Depends on:** FEAT-0129
+- [ ] Provider and screens, read-only
+- [ ] Test: recorded answers per chart kind; the SELECT-only guard; live sign-in gated on `HS_SUPERSET`; the data-folder grep
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Superset: a chart of each kind, the dashboard with a filter, a SQL Lab query
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Superset (`bench/` profile `bi`).
+
+### FEAT-0135 · Analytics: the Grafana provider and `hs_core::grafana`
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.12, §5.6 · **Phase:** Q
+- **Source:** owner, 2026-11-26
+- **Scope:** the shared client `hs_core::grafana` (health, user, search, folders, dashboards by uid, data sources, `/api/ds/query`) so Logs can use it without a tool-to-tool dependency; kind `grafana` (service-account token or username and password, an organisation id, TLS); folders and dashboards with tags; a dashboard's panels on the 24-column grid drawn from data frames (time series, bar, stat, gauge, bar gauge, table, pie, logs), template variables as pick fields, a time-range picker and auto-refresh; Explore as read-only query; Open Picture where the Image Renderer exists
+- **Depends on:** FEAT-0129
+- [ ] Client in `hs-core`, provider and screens, read-only
+- [ ] Test: data frames from recorded answers into each panel kind; variables; the time range into the request; live sign-in gated on `HS_GRAFANA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana: a dashboard of each panel kind, a variable, the time range, Explore
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Grafana with Prometheus and Loki data (`bench/` profile `bi`).
+
+### FEAT-0136 · Logs: the Grafana source
+- **State:** Pending · **Spec:** docs/tools/logs.md §21 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Grafana can also be put in both analytic activity and log activity"; chosen as *query its log data sources*
+- **Scope:** a saved Logs source of kind Grafana: a `grafana` connection, a log data source from `/api/datasources` (Loki, Elasticsearch), a LogQL or Lucene query, Max Lines, Follow by polling with an interval; lines as records with labels as fields and the level from the labels or the shared parser; read-only, errors in the tab's error state; the source's mark and rotating colour; Test Connection
+- **Depends on:** FEAT-0135
+- [ ] `GrafanaSource` in `tool-logs`, the form, the sidebar mark
+- [ ] Test: a frame into records with labels and levels; the poll dedupe; a query error is shown
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana's Loki: a query, labels in the structured view, Follow picking up new lines, a bad query's message
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0137 · Analytics: the Power BI Report Server provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.10, §5.4 · **Phase:** Q
+- **Source:** owner, 2026-11-26; answered *Power BI Report Server* (the on-premises product)
+- **Scope:** kind `powerbi`; Basic or NTLM with a username and password, and on Windows the current user (SSPI); folders, Power BI reports, paginated reports, KPIs, data sources and datasets through REST API v2.0 with OData paging and search; a paginated report's picture and CSV; a .pbix as details with Open Interactive in the Browser activity; KPI tiles; data sources with secrets masked and refresh plans, read-only; version from `/System`
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/powerbirs`); the masking of a connection string; a read-only live test gated on `HS_POWERBIRS`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's server: browse, a paginated report's picture, KPIs, the refresh plans
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** NTLM needs a client that speaks it (to be chosen; an ADR and a `cargo deny` pass if a crate is added); Power BI Service is not covered.
 
 ## v0.8.2 — In-Progress
 

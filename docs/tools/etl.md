@@ -579,4 +579,4 @@ What the research and the owner's answers settled:
 ## What is implemented (2026-11-26)
 
 Nothing yet: this document is the specification, written before the code
-at the owner's request. The work is FEAT-0134 to FEAT-0138 in `TASKS.md`.
+at the owner's request. The work is FEAT-0138 to FEAT-0142 in `TASKS.md`.

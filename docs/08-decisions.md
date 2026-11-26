@@ -1204,6 +1204,8 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
 | Charts | everything hand-painted | no dependency | axes, ticks, zoom and hover written again |
 | Tableau charts | **the view's PNG plus its data, and Open Interactive in the Browser activity** (owner, 2026-11-20) | what the API gives; honest | not interactive inside the tab |
 | Tableau charts | the Embedding API in a web view inside the tab | interactive | a second embedded browser inside a work pane; the user signs in there anyway |
+| More providers | **Power BI Report Server (on-premises), Apache Superset and Grafana** as the fourth to sixth (owner, 2026-11-26); Superset and Grafana run for real on the bench, Power BI Report Server is a mock; **Grafana also feeds Logs** from one connection kind, the client living in `hs-core::grafana` so no tool depends on another | one rail entry; Superset's charts reuse Metabase's drawing; Grafana's data frames serve dashboards and log lines | Power BI Service (cloud) not covered; a .pbix has no server-side picture or data API |
+| SAS | **SAS Viya as a third provider** (owner, 2026-11-26): folders and reports as pictures from the Report Images service, CAS tables and a row preview, jobs; read-only | the same trait and screens; Viya's services are REST | licensed, no container: a bench mock; SAS 9.4 BI has no REST surface and is not covered |
 
 **Decision.**
 

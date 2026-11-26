@@ -5134,6 +5134,67 @@ settings-identity-page-size = Rows per Page
 settings-identity-timeout = Request Timeout
 settings-identity-limits-hint = Every list is read a page at a time, never whole; a read that takes longer than the timeout is reported rather than waited on.
 
+## Analytics activity (docs/tools/analytics.md)
+tool-analytics = Analytics
+analytics-servers = BI Servers
+analytics-add = Add BI Server
+analytics-none = No BI servers yet. Add one with Add BI Server.
+analytics-open = Open this server
+analytics-saved = Saved Servers
+analytics-dashboard-sub = Business intelligence servers (Metabase), read-only: browse their collections, questions and dashboards.
+analytics-stat-servers = Servers
+analytics-stat-dashboards = Dashboards
+analytics-stat-questions = Questions
+analytics-pick-hint = Choose a BI server on the left, or add one.
+analytics-no-profile = This server's profile no longer exists.
+analytics-vault-locked = The vault is locked. Unlock it to sign in to this server.
+analytics-missing-vars = The profile uses variables the active environment does not define: { $names }.
+analytics-connecting = Connecting to { $server }…
+analytics-retry = Retry
+analytics-edit-connection = Edit Connection
+analytics-browse = Browse
+analytics-browse-tip = Show or hide the browse column
+analytics-section-collections = Collections
+analytics-section-databases = Databases
+analytics-section-soon = Arrives in a later step of the Analytics activity.
+analytics-facts = Server
+analytics-fact-product = Product
+analytics-fact-version = Version
+analytics-fact-signed-in = Signed in as
+analytics-fact-support = Support
+analytics-fact-url = Address
+analytics-support-ok = Tested version.
+analytics-support-old = Older than the oldest tested version; some views may not work.
+analytics-support-newer = Newer than the newest tested version; read-only views should still work.
+analytics-support-unknown = Version not recognised.
+analytics-refresh = Refresh
+analytics-refresh-tip = Connect again and reload
+analytics-open-browser = Open in Browser
+analytics-open-browser-tip = Open this server's web page in the Browser activity
+
+## Settings → Analytics
+settings-analytics = Analytics
+settings-analytics-sub = BI servers (Metabase) and how their tabs read them.
+settings-analytics-servers = BI Servers
+settings-analytics-none = No BI servers yet. Add one with Add BI Server.
+settings-analytics-select-hint = Choose a BI server on the left, or add one.
+settings-analytics-limits = Limits
+settings-analytics-rows = Rows per Run
+settings-analytics-timeout = Request Timeout
+settings-analytics-cards = Cards at Once
+settings-analytics-limits-hint = A question shows at most this many rows; a dashboard loads this many cards at a time; a read that takes longer than the timeout is reported rather than waited on.
+
+## BI server connection form
+conn-analytics-section = Server
+conn-analytics-url = Address
+conn-analytics-url-hint = The site's root, for example https://metabase.example.com, without /api.
+conn-analytics-auth-password = Password
+conn-analytics-auth-key = API Key
+conn-analytics-user = Email
+conn-analytics-api-key = API Key
+conn-analytics-hint-password = The account's email and password; a session is opened for the tab and closed with it.
+conn-analytics-hint-key = A Metabase API key (Metabase 0.49 or newer), kept in the vault. Create it under Admin → Settings → Authentication → API Keys.
+
 ## Identity server connection form
 conn-idm-section = Identity Server
 conn-idm-url = Base URL

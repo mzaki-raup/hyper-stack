@@ -27,6 +27,7 @@ pub struct Settings {
     pub automation: Automation,
     pub tracker: Tracker,
     pub idm: Idm,
+    pub analytics: Analytics,
 }
 
 /// A container registry and how to sign in to it.
@@ -134,6 +135,31 @@ impl Default for Idm {
         Self {
             page_size: 50,
             timeout_secs: 15,
+        }
+    }
+}
+
+/// Settings → Analytics: the bounds a BI tab works within
+/// (`docs/tools/analytics.md` §3.4, §7). The servers are connection
+/// profiles, not settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Analytics {
+    /// The most rows one run reads; Metabase's own cap for a normal run is
+    /// 2,000, so a higher number buys nothing there.
+    pub rows_per_run: u32,
+    /// How long one request may take before it is reported, in seconds.
+    pub timeout_secs: u32,
+    /// How many dashboard cards run at once.
+    pub cards_at_once: u32,
+}
+
+impl Default for Analytics {
+    fn default() -> Self {
+        Self {
+            rows_per_run: 2000,
+            timeout_secs: 60,
+            cards_at_once: 4,
         }
     }
 }
@@ -604,6 +630,7 @@ impl Default for Settings {
             automation: Automation::default(),
             tracker: Tracker::default(),
             idm: Idm::default(),
+            analytics: Analytics::default(),
         }
     }
 }

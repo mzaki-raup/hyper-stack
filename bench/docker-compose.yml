@@ -596,6 +596,20 @@ services:
       retries: 20
       start_period: 60s
 
+  # Metabase for the Analytics activity (FEAT-0126). Its application database
+  # is the embedded H2 in the volume: fine for a bench. The first start shows
+  # the setup wizard; the seed (admin, API key, sample questions) is a later
+  # step of the ledger item.
+  metabase:
+    <<: *defaults
+    image: metabase/metabase:v0.52.4
+    profiles: [bi]
+    ports: ["${METABASE_PORT:-3030}:3000"]
+    volumes: [metabase-data:/metabase-data]
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+    mem_limit: 1500m
+
   # OpenLDAP for the IDM activity's LDAP provider (FEAT-0117). The base DN
   # comes from LDAP_DOMAIN (hyperstack.test -> dc=hyperstack,dc=test); the
   # admin is cn=admin under it. 636 serves LDAPS with the image's own
@@ -653,5 +667,6 @@ volumes:
   nexus-data:
   k3s-data:
   keycloak-data:
+  metabase-data:
   ldap-data:
   ldap-config:

@@ -175,12 +175,12 @@ Change Request : CR-0103
 - [x] Crate, factory, rail entry, connection kind, profile table, Settings page
 - [x] Provider trait, `Caps`, session runner (bounded channels), sign-in both ways, version gating
 - [x] Dashboard, sidebar, tab shell, header band, mark
-- [ ] Bench (service added to the `bi` profile; the seed is not written): Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
+- [x] Bench: Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
 - [ ] Test: profile round trip, version gating; live sign-in both ways gated on `HS_METABASE`; the data-folder grep
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
-- **Notes:** built and clippy-clean, 6 unit tests pass; sign-in not yet tried against a live Metabase; the Metabase mark is a drawn placeholder, not the official logo; the mock-server test is still to write; the gate ran (fmt, clippy, 1574 tests, deny, self-test) but the screen check was declined, so the App box stays open.
+- **Notes:** 2026-11-26 screen check on the bench Metabase v0.52.4, scratch data folder: Settings → Analytics (list, form, vault-stored secret, limits), the tab signed in by **API key** and by **password** ("Tested version."), Test Connection ("Connected. Metabase v0.52.4 · …"), the dashboard, the vault-locked and "nothing answered" states and the reconnect on unlock. It found one bug: Test Connection stayed disabled because `conn_test::testable` did not list `metabase` (fixed, in the test list). Not done: the mock-server test and the live `HS_METABASE` sign-in test; the Metabase mark is a drawn placeholder, not the official logo. The bench's Metabase seed and the Tableau REST mock are on `chore/bench-kit`.
 
 ### FEAT-0127 · Analytics: the collection tree and search
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q

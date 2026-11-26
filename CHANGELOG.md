@@ -11,7 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- The bench has a `metabase` service seeded with mock data, and a Tableau Server REST mock, in its `bi` profile (FEAT-0126, FEAT-0131)
+
+### Fixed
+
+- Test Connection is offered for a Metabase server; it was greyed out (FEAT-0126)
 
 ## 0.139.0 — 2026-11-26
 

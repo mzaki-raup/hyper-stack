@@ -42,14 +42,44 @@ not the app's release number.
 
 ## Agents (subagents, spawned by the commands or by name)
 
-| Agent | Does | Writes code? |
-|---|---|---|
-| [`rust-reviewer`](agents/rust-reviewer.md) | Reviews a diff against the project's rules, most severe first | no |
-| [`ui-auditor`](agents/ui-auditor.md) | Audits UI code for one-off controls, Fluent, casing, guards, states | no |
-| [`spec-guard`](agents/spec-guard.md) | Spec agreement plus `TASKS`/`CHANGELOG`/`CHECKLIST`/`README`/`GOTCHAS`/ADR upkeep | no |
-| [`task-auditor`](agents/task-auditor.md) | Hunts unsupported ticks, id drift and version placement in `TASKS.md` | no |
-| [`gate-runner`](agents/gate-runner.md) | Runs the gate and reports the failure with its output | no |
-| [`gotcha-scout`](agents/gotcha-scout.md) | Finds prior art for a symptom before the fix is written | no |
+| Agent | Does | Writes code? | Model |
+|---|---|---|---|
+| [`rust-reviewer`](agents/rust-reviewer.md) | Reviews a diff against the project's rules, most severe first | no | `opus` |
+| [`ui-auditor`](agents/ui-auditor.md) | Audits UI code for one-off controls, Fluent, casing, guards, states | no | `sonnet` |
+| [`spec-guard`](agents/spec-guard.md) | Spec agreement plus `TASKS`/`CHANGELOG`/`CHECKLIST`/`README`/`GOTCHAS`/ADR upkeep | no | `sonnet` |
+| [`task-auditor`](agents/task-auditor.md) | Hunts unsupported ticks, id drift and version placement in `TASKS.md` | no | `sonnet` |
+| [`gate-runner`](agents/gate-runner.md) | Runs the gate and reports the failure with its output | no | `sonnet` |
+| [`gotcha-scout`](agents/gotcha-scout.md) | Finds prior art for a symptom before the fix is written | no | `haiku` |
+| [`Explore`](agents/Explore.md) (override) | Fast read-only repository and documentation search; the built-in agent, overridden to run on Haiku | no | `haiku` |
+
+## Models
+
+The session runs on Sonnet with Opus on call:
+
+```bash
+claude --model sonnet --advisor opus
+```
+
+On the Anthropic API those aliases resolve to Sonnet 5.5 and Opus 5.5; pin
+`claude-sonnet-5-5` / `claude-opus-5-5` if you need fixed versions. `--advisor`
+is deliberately absent from `claude --help`; it is valid. `/advisor opus` once
+saves it in your user settings, so later sessions need only `--model sonnet`.
+
+Requires Claude Code 2.1.293+ for Haiku 5.5 (Sonnet 5.5 needs 2.1.284+, Opus
+5.5 needs 2.1.280+); `claude update` if older. The advisor is experimental and
+needs the Anthropic API, not Amazon Bedrock, Google Cloud's Agent Platform, or
+Microsoft Foundry; a variable such as `DISABLE_TELEMETRY` also turns off the
+feature flag it needs.
+
+Opus is consulted at three moments only: before a plan locks, when the same
+error appears twice, and before calling it done — the wording is in
+[workflow.md](rules/workflow.md#the-opus-advisor). `rust-reviewer` runs on Opus
+as the deterministic "before done" review; the advisor adds the full-transcript
+check.
+
+Search goes to Haiku: `gotcha-scout` and the project `Explore` override.
+`Grep` is a tool, not a model — a `Grep` call in the main session still runs on
+Sonnet. The built-in `web-fetch` already runs on Haiku.
 
 ## Rules (read the one for the area you are touching)
 
@@ -97,3 +127,5 @@ not the app's release number.
 
 No `settings.json` and no hooks: permissions and automation are the owner's
 choice, and a committed allowlist would apply to everyone who clones the repo.
+The model split is a launch flag (`--model sonnet --advisor opus`) or your
+user-level settings; the subagent models live in the agent frontmatter above.

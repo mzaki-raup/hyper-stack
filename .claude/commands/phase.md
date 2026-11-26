@@ -22,6 +22,9 @@ print a short plan from the phase's own row in
    (`git log --oneline main..HEAD`), the row's state in `CHECKLIST.md`, and
    anything uncommitted.
 
+Before the plan is final, consult the advisor with this plan and the phase's
+scope — see [workflow.md](../rules/workflow.md#the-opus-advisor).
+
 ## The ledger
 
 A phase is several items, not one. Split its scope into `FEAT` (and `CR` where
@@ -40,6 +43,10 @@ number.
 - `finish` — every item `Completed`, gate green, exercised in the running app
   against a real service where one is on this machine, then spec / README /
   CHANGELOG / CHECKLIST / GOTCHAS, then `hs-ship`.
+
+Before `finish` calls the phase done, consult the advisor with the diff and the
+gate/app results — or use `/review`'s `rust-reviewer` pass if you ran it. See
+[workflow.md](../rules/workflow.md#the-opus-advisor).
 
 Phase order is the table's order, not alphabetical. Don't begin a later phase
 while an earlier one is open unless I say so. A check that cannot be made on

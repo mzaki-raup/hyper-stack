@@ -11,6 +11,25 @@
 4. **Ask before implementing** when requirements are unclear. State your
    assumptions, and present alternatives instead of picking one silently.
 
+## The Opus advisor
+
+The session runs on Sonnet with Opus on call (`--advisor opus`). The advisor
+sees the whole transcript, so it is worth its cost only at three moments:
+
+1. **Before a plan locks** — after the restate and the spec read, before the
+   first edit. Ask it to critique the plan, not to write code.
+2. **When the same error appears twice** — before a third attempt. Give it both
+   failures and ask what the evidence actually supports.
+3. **Before calling it done** — after the gate and the running-app check, before
+   marking `Completed` or shipping. Ask it to check the diff against the item
+   and the rules. If `/review` already ran, its `rust-reviewer` pass is the
+   deterministic Opus check; consult the advisor only when the change is
+   high-risk or the review left something unresolved.
+
+Don't consult it on routine turns or trivial changes. If it is unavailable, say
+so and continue; never block the task on it. Each consultation re-reads the
+transcript uncached, so the late one is the expensive one.
+
 ## While coding
 
 - **Smallest change that works.** No speculative features, no "flexibility"
@@ -80,3 +99,21 @@ Text Editing"):
   that never appeared.
 - Insert new Rust functions **before** the `#[cfg(test)] mod tests` block;
   never append with `cat >>`.
+
+
+## The Opus advisor
+
+The session runs on Sonnet with Opus on call (`--advisor opus`). The advisor
+sees the whole transcript, so it is worth its cost only at three moments:
+
+1. **Before a plan locks** — after the restate and the spec read, before the
+   first edit. Ask it to critique the plan, not to write code.
+2. **When the same error appears twice** — before a third attempt. Give it both
+   failures and ask what the evidence actually supports.
+3. **Before calling it done** — after the gate and the running-app check, before
+   marking `Completed` or shipping. Ask it to check the diff against the item
+   and the rules.
+
+Don't consult it on routine turns or trivial changes. If it is unavailable, say
+so and continue; never block the task on it. Each consultation re-reads the
+transcript uncached, so the late one is the expensive one.

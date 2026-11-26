@@ -1204,6 +1204,7 @@ crate: the Logs time strip and Redis sparklines are hand-painted.
 | Charts | everything hand-painted | no dependency | axes, ticks, zoom and hover written again |
 | Tableau charts | **the view's PNG plus its data, and Open Interactive in the Browser activity** (owner, 2026-11-20) | what the API gives; honest | not interactive inside the tab |
 | Tableau charts | the Embedding API in a web view inside the tab | interactive | a second embedded browser inside a work pane; the user signs in there anyway |
+| SAS | **SAS Viya as a third provider** (owner, 2026-11-26): folders and reports as pictures from the Report Images service, CAS tables and a row preview, jobs; read-only | the same trait and screens; Viya's services are REST | licensed, no container: a bench mock; SAS 9.4 BI has no REST surface and is not covered |
 
 **Decision.**
 

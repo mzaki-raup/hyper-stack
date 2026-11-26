@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.9.0
-Features : FEAT-0132
+Features : FEAT-0133
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
@@ -237,6 +237,18 @@ Change Request : CR-0103
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0133 · Analytics: the SAS Viya provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "For Analytic, if possible, add SAS BI"; answered *SAS Viya*, with the spec, the ledger item and a bench mock now
+- **Scope:** kind `sasviya` for **SAS Viya** (not SAS 9.4 BI: no REST surface); SAS Logon password grant with a registered client, or a pasted access token; folders and reports, search; a report's picture from the Report Images service, its details, Open Interactive in the Browser activity; CAS libraries and tables with columns and a row preview in a `DataTable`; recent jobs, read-only; per-service probing in place of one version call
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's Viya: browse, a report's picture, a table's rows, the jobs; Open Interactive
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is on `chore/bench-kit`.
 
 ## v0.8.2 — In-Progress
 

@@ -1,6 +1,6 @@
 # Tool spec — Analytics
 
-**Status:** draft, decisions recorded (§10) · **Last updated:** 2026-11-20 · **Phase:** Q
+**Status:** draft, decisions recorded (§10) · **Last updated:** 2026-11-26 · **Phase:** Q
 (`docs/10-depth-programme.md`) · **Decisions:** ADR-034
 
 ## 1. Purpose
@@ -11,7 +11,9 @@ its result as a table or a chart, open a dashboard with its filters, and
 try a query against the server's databases. **Metabase first**, through
 its REST API, drawn natively so a Metabase tab looks and reads like
 Metabase's own web interface. **Tableau second** (§4.8), where the API
-gives pictures and data rather than the interactive chart.
+gives pictures and data rather than the interactive chart. **SAS Viya
+third** (§4.9), the same way: folders and reports as pictures, with the
+data tables behind them.
 
 It is **not** a BI authoring tool: it does not build or edit questions,
 dashboards, models or permissions, does not administer the server, and
@@ -292,7 +294,49 @@ What Tableau's REST API allows, and so what a Tableau tab is:
   when `HS_TABLEAU` names it; everything else runs against a mock written
   from the REST API reference.
 
-### 4.9 Later (not specified further now)
+### 4.9 SAS Viya (phase 3, specified, not built now)
+
+Added at the owner's request, 2026-11-26 ("add SAS BI"), and narrowed by
+the answer: **SAS Viya**, whose services are REST. **SAS 9.4 BI** (Web
+Report Studio, the BI Server and its metadata server) has no equivalent
+and is not covered (§10.7). The endpoints below are from SAS's REST API
+reference and are to be confirmed against a real Viya on the first
+build; like Tableau, a Viya tab is pictures and data, not the
+interactive report.
+
+- **Sign-in**: SAS Logon, `POST /SASLogon/oauth/token` with
+  `grant_type=password` (username and password) for a registered OAuth
+  **client** (id and secret; the site's own, or `sas.cli` with an empty
+  secret where the site allows it), or a pasted **access token** where
+  the site signs people in through SSO. The token lives in memory only,
+  is sent as `Authorization: Bearer`, and is renewed with the refresh
+  token while the tab is open.
+- **Browse**: folders and their members (`/folders/folders/@myFolder`,
+  `…/{id}/members`: folders, reports, data flows, files, each with its
+  type and `uri`), paged with `start` and `limit`; search over
+  `/reports/reports?filter=contains(name,'…')`.
+- **A report**: its **picture** from the Report Images service
+  (`POST /reportImages/jobs` for a report's section, polled until the
+  job completes, then the image fetched), shown at the pane's width;
+  its **details** (`/reports/reports/{id}`: owner, modified, sections).
+  The interactive report is **not** drawn here: **Open Interactive**
+  opens it in SAS Visual Analytics (`/SASVisualAnalyticsViewer/…`) in
+  the Browser activity, where the user signs in as usual.
+- **Data**: the caslibs and their tables (`/casManagement/servers/…/
+  caslibs/…/tables`) with their columns, and a **row preview**
+  (`/casRowSets/…/rows?limit=…`, capped by Rows per Run) in a
+  `DataTable`.
+- **Jobs**: recent jobs (`/jobExecution/jobs`) with their state and
+  messages, read-only.
+- **Version gating**: Viya has no one version call; the provider reads
+  what the server states about itself and probes each service once,
+  and a service that answers 404 is drawn disabled with that reason.
+- Testing has no container: Viya is licensed. The bench has a **mock**
+  written from the reference (`bench/mock/sasviya`), as for Tableau,
+  and a read-only live test may run against the owner's Viya when
+  `HS_SASVIYA` names it.
+
+### 4.10 Later (not specified further now)
 
 Apache Superset, Power BI (REST and the embed token), Looker, Redash,
 Grafana dashboards as pictures; Metabase alerts and subscriptions
@@ -331,6 +375,13 @@ for the default site), Credential **Username and Password** or
 **Personal Access Token** (name + secret), the API version (detected;
 overridable), Verify TLS and CA File (a company CA is usual on an
 internal Server).
+
+### 5.3 SAS Viya (phase 3)
+
+Kind `sasviya`: Server URL (the ingress root), Credential **Username and
+Password** with the OAuth **client id** and **client secret**, or an
+**Access Token**; Verify TLS and CA File. Secrets are `secret:<ulid>` in
+the vault.
 
 ## 6. Guards
 
@@ -446,6 +497,10 @@ The questions this section held, answered:
    Tableau's charts.
 5. **Open in Database picks the matching saved connection** (§4.3).
 6. **Rail after Database**, as proposed.
+7. **SAS Viya** is the third provider (owner, 2026-11-26, "add SAS BI",
+   then *SAS Viya*; spec, ledger item and a bench mock, built after the
+   Tableau step). SAS 9.4 BI is not covered: its stack has no REST
+   surface for reports.
 
 ## What is implemented (2026-11-20)
 

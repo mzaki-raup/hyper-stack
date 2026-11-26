@@ -221,6 +221,7 @@ pub fn testable(kind: &str) -> bool {
             | "confluence"
             | "keycloak"
             | "ldap"
+            | "metabase"
     )
 }
 
@@ -595,6 +596,7 @@ mod tests {
             "gitlab-issues",
             "forgejo-issues",
             "confluence",
+            "metabase",
         ] {
             assert!(testable(k), "{k}");
         }

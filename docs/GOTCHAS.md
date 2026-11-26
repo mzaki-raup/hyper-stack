@@ -592,6 +592,13 @@ Known mistakes and their fixes. Read the section for your area before starting w
 - **Two dialogs sharing one `Modal` id share a size.** Create User, Group, Role and Client were one `egui::Modal::new("idm-create")` with one grid id, and a modal and a grid both remember their last size: Create Group opened as tall as the Create Client before it, one field in a large empty box. Each kind has its own modal and grid id (2026-11-15).
 - **A dialog title taken from a button's label keeps its "…".** "Regenerate Secret…" and "Log Out All Sessions…" are right on the button (more input follows) and wrong as the dialog's heading; the title trims the ellipsis (2026-11-15).
 
+## Tool-Specific: Analytics (tool-analytics)
+
+- **A new connection kind must be listed in `conn_test::testable`, or Test Connection is greyed out.** `start` can handle the kind and the button still never lights: `testable` is a separate allow-list, and its test lists the kinds by name. Found on the screen check of the Metabase kind (FEAT-0126); add the kind to both the function and its test.
+- **Metabase keeps `setup-token` in `/api/session/properties` after setup.** Use `has-user-setup` to tell whether first-run setup is done; a seed that tests the token alone gets a 403 from `/api/setup` on its second run.
+- **A Metabase API key is shown once**, at creation (`unmasked_key`). The bench seed writes it to `.state/metabase-api-key`; losing it means creating another.
+- **The bench's containers come back after the WSL VM restarts, but not at once.** Metabase needs 60-90 s to answer after a restart; a tab opened meanwhile says "Nothing answered", and Retry (or Refresh) works once `/api/health` says ok.
+
 ## Tool-Specific: Git activity (tool-git + hs-git)
 
 - **"Unset the key so it inherits" does not hold for `remote.origin.url`.** Every other key the project form writes (`user.name`, `user.email`, `user.signingkey`, `commit.gpgsign`, `init.defaultBranch`) has a global value behind it, so clearing the box and unsetting the key hands the repository back to git's own setting. A remote URL has nothing behind it: `git config --local --unset remote.origin.url` leaves the rest of the `[remote "origin"]` section in place, and `git fetch --all --prune` then reads "origin" as a URL and dies with `fatal: 'origin' does not appear to be a git repository` plus `Could not read from remote repository`. A freshly cloned repository broke this way the first time its settings were saved with the URL box empty. An empty URL field must leave the remote alone; removing a remote belongs to the Remotes tree, which runs `git remote remove` and drops the whole section (BUG-0037).

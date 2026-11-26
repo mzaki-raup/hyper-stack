@@ -87,6 +87,7 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
 | `idm` | keycloak (dev mode, embedded H2), openldap | 1.25 GB | about 0.65 GB |
+| `bi` | metabase (v0.52.4, embedded H2), tableau-mock (a stand-in, see below) | 1.6 GB | about 0.9 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -140,6 +141,8 @@ defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 | Nexus | `http://<host>:8081` | `admin` | `$NEXUS_ADMIN_PASSWORD` | repository `hs-raw` | same (stopped) |
 | Keycloak (profile `idm`) | `http://<host>:8180` (`KEYCLOAK_PORT`) | admin `$KEYCLOAK_ADMIN_USER` (`admin`, realm `master`); service account client `hs-admin`; demo users | `$KEYCLOAK_ADMIN_PASSWORD`; `$KEYCLOAK_HS_ADMIN_SECRET`; `$KEYCLOAK_DEMO_PASSWORD` | realms `hs-demo`, `hs-other` - see [Keycloak](#keycloak-profile-idm) | `hs-keycloak`, same image, port and values |
 | OpenLDAP (profile `idm`) | `ldap://<host>:1389` (`LDAP_PORT`), LDAPS `1636` (`LDAPS_PORT`, the image's self-signed certificate) | `cn=admin,dc=hyperstack,dc=test`; demo users `uid=<name>,ou=<team>,ou=people,…` | `$LDAP_ADMIN_PASSWORD`; `$LDAP_DEMO_PASSWORD` | `dc=hyperstack,dc=test` - see [OpenLDAP](#openldap-profile-idm) | `hs-openldap`, same image, ports and values |
+| Metabase (profile `bi`) | `http://<host>:3030` (`METABASE_PORT`) | admin `$METABASE_ADMIN_EMAIL` | `$METABASE_ADMIN_PASSWORD`; an API key in `.state/metabase-api-key` | Sample Database; collection `HyperStack Demo` - see [Metabase](#metabase-profile-bi) | not on the Windows/WSL bench |
+| Tableau mock (profile `bi`) | `http://<host>:8280` (`TABLEAU_MOCK_PORT`), REST API `3.23` | `$TABLEAU_MOCK_USER` (`dev`), or the token named `$TABLEAU_MOCK_PAT_NAME` | `$TABLEAU_MOCK_PASSWORD`; `$TABLEAU_MOCK_PAT_SECRET` | sites: the default and `$TABLEAU_MOCK_SITE` (`hs-demo`) - see [Tableau mock](#tableau-mock-profile-bi) | not on the Windows/WSL bench |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -338,6 +341,69 @@ inside the container, `{SSHA}`, before it is loaded):
 | `ou=people` | `ou=engineering` (ada, alan, grace, linus, margaret, ken, dennis), `ou=support` (barbara, edsger, frances), and tim directly under `ou=people`; `inetOrgPerson` with mail, given name, surname and some titles |
 | `ou=service` | `ci-bot`, outside the users base on purpose |
 | `ou=groups` | `backend` and `frontend` (`groupOfNames`); `engineering` nesting both plus grace; `support`; `admins` (`groupOfUniqueNames`: grace, barbara); `developers` (`posixGroup`, `memberUid` ada and linus) |
+
+## Metabase (profile `bi`)
+
+Metabase `v0.52.4` (`metabase/metabase`) for the Analytics activity, with its
+application database in the embedded H2 file in the `metabase-data` volume:
+fine for a bench, wrong for anything else. It needs about 0.8 GB (limit
+1.5 GB) and 60-90 seconds to start.
+
+```bash
+docker compose --profile bi up -d metabase
+./seed/seed-all.sh metabase     # or just ./seed/seed-all.sh
+```
+
+The seed (`seed/seed-metabase.sh`, needs `python3` beside `curl`) finishes
+the first-run setup, creates an **API key** for the Administrators group and
+loads mock data over Metabase's built-in **Sample Database**. A re-run skips
+what exists; to start over, remove just Metabase's own container and volume
+(`docker compose rm -sf metabase`, then `docker volume rm
+<project>_metabase-data`), never `down -v`, which would drop every volume of
+the project.
+
+- **Sign in:** `http://<host>:3030` as `$METABASE_ADMIN_EMAIL`
+  (`admin@hyperstack.test`) / `$METABASE_ADMIN_PASSWORD`. In HyperStack:
+  Settings → Analytics → Add BI Server, **Password** with those, or
+  **API Key** with the contents of `.state/metabase-api-key` (Metabase shows
+  a key only once; the seed saves it there).
+- **Mock data**, collection **HyperStack Demo**: *Orders table*, *Orders per
+  month* (line), *Orders per month (area)*, *Orders by category* (bar),
+  *Orders by category (row)*, *Share of orders by category* (pie), *Orders in
+  total* (scalar), *Revenue per month* (combo), *Big orders (native)* (a SQL
+  question with a `min_total` template tag), and the dashboard **HyperStack
+  Overview** with two tabs (Overview, Detail) and a Category filter.
+- **Version:** v0.52.4 is the newest the Analytics activity is tested
+  against (v0.48 is the oldest); to try another, change the image tag in
+  `docker-compose.yml` and start with a fresh volume (as above).
+
+## Tableau mock (profile `bi`)
+
+Tableau Server is licensed and has no public container, so the kit ships a
+**mock of its REST API** (`mock/tableau/server.py`, plain Python on
+`python:3.12-alpine`, 64 MB): enough for a read-only client to be built and
+tested against, not the product. It answers `serverinfo` (version
+`2024.2.0`, REST API `3.23`), `auth/signin` and `signout`, and under
+`/api/3.23/sites/<site>/`: projects, workbooks (with their views), views (a
+PNG picture and CSV data per view), data sources, extract refresh tasks and
+jobs, with `pageSize` / `pageNumber`.
+
+```bash
+docker compose --profile bi up -d tableau-mock
+```
+
+Nothing to seed: the data is in the script (projects Sales and Operations,
+workbooks Regional Sales and Order Fulfilment, three views, two data
+sources, one failing extract job).
+
+- **Sign in** with the user `$TABLEAU_MOCK_USER` and
+  `$TABLEAU_MOCK_PASSWORD`, or with a **personal access token**: name
+  `$TABLEAU_MOCK_PAT_NAME`, secret `$TABLEAU_MOCK_PAT_SECRET`. The site is
+  `$TABLEAU_MOCK_SITE` (`hs-demo`) or empty for the default site; any other
+  site, and any wrong credential, answers 401 in Tableau's error shape.
+- Ask for JSON (`Accept: application/json`); the mock does not speak XML.
+- It checks only the credentials and the `X-Tableau-Auth` token. A real
+  Server's permissions, filters (`vf_`), and `Refresh Now` are not modelled.
 
 ## Fixtures (`fixtures/`)
 

@@ -90,11 +90,81 @@ pub struct Caps {
     pub native_sql: bool,
 }
 
+/// What a node of the browse tree or a search result is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Kind {
+    Collection,
+    Question,
+    Model,
+    Metric,
+    Dashboard,
+}
+
+impl Kind {
+    /// The kinds a search can be narrowed to, in the order the chips show.
+    pub const ALL: [Kind; 5] = [
+        Kind::Question,
+        Kind::Model,
+        Kind::Metric,
+        Kind::Dashboard,
+        Kind::Collection,
+    ];
+
+    /// A stable word for ids and Fluent keys.
+    pub fn tag(self) -> &'static str {
+        match self {
+            Kind::Collection => "collection",
+            Kind::Question => "question",
+            Kind::Model => "model",
+            Kind::Metric => "metric",
+            Kind::Dashboard => "dashboard",
+        }
+    }
+
+    pub fn from_tag(tag: &str) -> Option<Kind> {
+        Kind::ALL.into_iter().find(|k| k.tag() == tag)
+    }
+}
+
+/// One entry of a collection, or one search result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Node {
+    pub kind: Kind,
+    /// The server's id (a number as text, or `root`).
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    /// The collection it sits in, where the server says (search results).
+    pub collection: String,
+    /// When it was last changed and by whom, as the server wrote them.
+    pub edited: String,
+    pub editor: String,
+}
+
+/// One page of search results.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Found {
+    pub nodes: Vec<Node>,
+    /// How many the server has in all, so the screens can offer More.
+    pub total: usize,
+}
+
+/// Search results a page holds.
+pub const SEARCH_PAGE: usize = 50;
+
 #[async_trait]
 pub trait BiProvider: Send + Sync {
     /// Sign in and read the server's facts. Called once per session.
     async fn connect(&self) -> Result<ServerInfo>;
     fn capabilities(&self) -> Caps;
+    /// The entries of one collection (`root` for the top): collections
+    /// first, then the rest, each by name; archived items left out.
+    async fn children(&self, collection: &str) -> Result<Vec<Node>>;
+    /// Search the server for `query` among `kinds` (all when empty),
+    /// `SEARCH_PAGE` results from `offset`.
+    async fn search(&self, query: &str, kinds: &[Kind], offset: usize) -> Result<Found>;
+    /// The item's page in the server's own interface.
+    fn item_url(&self, kind: Kind, id: &str) -> String;
     /// The server's own web interface, for Open in Browser.
     fn web_url(&self) -> String;
     /// End the server-side session, where there is one.

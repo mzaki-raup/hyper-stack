@@ -268,15 +268,16 @@ Change Request : CR-0103
 - **Notes:** 2026-11-26 screen check on the bench Metabase v0.52.4, scratch data folder: Settings → Analytics (list, form, vault-stored secret, limits), the tab signed in by **API key** and by **password** ("Tested version."), Test Connection ("Connected. Metabase v0.52.4 · …"), the dashboard, the vault-locked and "nothing answered" states and the reconnect on unlock. It found one bug: Test Connection stayed disabled because `conn_test::testable` did not list `metabase` (fixed, in the test list). Not done: the mock-server test and the live `HS_METABASE` sign-in test; the Metabase mark is a drawn placeholder, not the official logo. The bench's Metabase seed and the Tableau REST mock are on `chore/bench-kit`.
 
 ### FEAT-0127 · Analytics: the collection tree and search
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** collections a level at a time (folders first, then items, by name; each kind's coloured picture), personal collections, the Databases section, a filter field, Search over `/api/search` with kind filters and More
 - **Depends on:** FEAT-0126
-- [ ] Tree and search
-- [ ] Test: tree and search results from recorded answers; live walk
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk the bench collections, search, hide and resize the column
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Tree and search
+- [x] Test: tree and search results from recorded answers; live walk (`tests/metabase_live.rs`, both ways, against the bench)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk the bench collections, filter, search with kinds, pick an item (hiding and resizing the column not looked at: see Notes)
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4 (scratch data folder): the tree, the filter, Search with kind chips, the item page; it found the Search button wrapping its label and long result names clipped mid-glyph (both fixed). More (over 50 results) is covered by a unit test, not seen on screen: the bench has 22 results. Hiding and resizing the column, and the empty and error states of a collection, were not looked at on screen. Gate 2026-11-27: fmt, clippy, 1587 tests, deny, self-test.
 
 ### FEAT-0128 · Analytics: questions, models and metrics with tables and charts
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q

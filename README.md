@@ -125,7 +125,7 @@ the fixtures behind them.
 | [Automation](#automation) | Jenkins, TeamCity, GitHub Actions, GitLab CI, Forgejo Actions, AWX and Puppet: jobs and runs, run with parameters, follow the log, guarded cancel |
 | [Tracker](#tracker) | Jira, Redmine, GitHub, GitLab and Forgejo issues and Confluence pages: queries, read, change status, edit with a review, comment, file new items |
 | [Identity](#identity) | Keycloak: users, groups, realm and client roles, clients, sessions, login and admin events, realm settings, realm export; LDAP directories: users and groups; every write guarded and audited |
-| [Analytics](#analytics) | Business intelligence servers, read-only: **Metabase** (password or API key) signs in and shows its version and support; collections, questions and dashboards follow in later steps |
+| [Analytics](#analytics) | Business intelligence servers, read-only: **Metabase** (password or API key) signs in, browses its collections and searches it; questions with charts and dashboards follow in later steps |
 | [API client](#api-client) | Requests, scripts, assistant |
 | [Devtools](#devtools) | JWT, hashes, Jasypt, PKI, regex, diff, Base64, URL, YAML, generators, cron, units, network checks, listening ports, snippets, .env editor; the utility toolbar row |
 | [Graphics](#graphics) | Activity dashboard, image and icon tabs, operations, crop |
@@ -436,7 +436,14 @@ One tab per issue tracker or wiki: **Jira** (Cloud and Data Center), **Redmine**
 
 ### Analytics
 
-One tab per BI server, **Metabase** first (v0.48 and newer), through its REST API and read-only everywhere. The home tab is a dashboard of the saved servers; Settings → Analytics holds the servers (a password or an API key kept in the vault, Verify TLS or a CA file, Test Connection) and the limits. A server's tab signs in, shows the product, version, who is signed in and whether the version is a tested one, and can open the server's own page in the Browser. The collection tree, questions with charts and dashboards arrive in the next steps (`docs/tools/analytics.md`).
+One tab per BI server, **Metabase** first (v0.48 and newer), through its REST API and read-only everywhere. The home tab is a dashboard of the saved servers; Settings → Analytics holds the servers (a password or an API key kept in the vault, Verify TLS or a CA file, Test Connection) and the limits. A server's tab signs in, shows the product, version, who is signed in and whether the version is a tested one, and can open the server's own page in the Browser. The **browse column** is Metabase's collection tree, a level at a time (collections first, each item in its kind's picture), with a filter over what is loaded and **Search** (`Ctrl+Alt+B`) over the whole server: kind filters for questions, models, metrics, dashboards and collections, and More for long result lists. Picking an item shows its page with Open in Browser and Copy Link. Questions with charts and dashboards arrive in the next steps (`docs/tools/analytics.md`).
+
+| | |
+|---|---|
+| ![Analytics dashboard](docs/screenshots/analytics.png) | ![A collection tree and an item](docs/screenshots/analytics-tree.png) |
+| **Dashboard** - the saved servers, the open tabs and Start Here | **Browse** - Metabase's collections a level at a time, the picked item's page with Open in Browser and Copy Link |
+| ![Search with kind filters](docs/screenshots/analytics-search.png) | ![Settings → Analytics](docs/screenshots/analytics-settings.png) |
+| **Search** - the whole server, narrowed by kind, each result with its collection | **Settings → Analytics** - an API key or a password kept in the vault, Verify TLS or a CA file, Test Connection |
 
 ### Identity
 

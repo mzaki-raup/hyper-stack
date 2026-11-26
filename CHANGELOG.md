@@ -17,6 +17,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
   workflows drawn as their real canvas from the design files; phase R,
   spec `docs/tools/etl.md`, decision ADR-035, ledger FEAT-0134 to
   FEAT-0138 (v0.10.0)
+- Analytics: a Metabase server's collection tree (a level at a time, folders first), a filter, Search over the whole server with kind filters and More, and an item page with Open in Browser and Copy Link (FEAT-0127)
 
 ## 0.139.1 — 2026-11-26
 

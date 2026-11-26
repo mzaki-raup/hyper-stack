@@ -631,6 +631,27 @@ services:
     volumes: ["./mock/tableau:/app:ro"]
     mem_limit: 64m
 
+  # A mock of SAS Viya's REST API for the Analytics activity (FEAT-0133). SAS
+  # Viya is licensed and has no public container; this answers a read-only
+  # client from canned data (mock/sasviya/server.py): SAS Logon's OAuth token,
+  # folders and reports, the Report Images service, CAS libraries, tables and a
+  # row preview, and recent jobs.
+  sasviya-mock:
+    <<: *defaults
+    image: python:3.12-alpine
+    profiles: [bi]
+    command: ["python", "/app/server.py"]
+    environment:
+      PORT: "8080"
+      SASVIYA_MOCK_USER: ${SASVIYA_MOCK_USER:-sasdemo}
+      SASVIYA_MOCK_PASSWORD: ${SASVIYA_MOCK_PASSWORD}
+      SASVIYA_MOCK_CLIENT: ${SASVIYA_MOCK_CLIENT:-sas.cli}
+      SASVIYA_MOCK_CLIENT_SECRET: ${SASVIYA_MOCK_CLIENT_SECRET:-}
+      SASVIYA_MOCK_TOKEN: ${SASVIYA_MOCK_TOKEN}
+    ports: ["${SASVIYA_MOCK_PORT:-8380}:8080"]
+    volumes: ["./mock/sasviya:/app:ro"]
+    mem_limit: 64m
+
   # OpenLDAP for the IDM activity's LDAP provider (FEAT-0117). The base DN
   # comes from LDAP_DOMAIN (hyperstack.test -> dc=hyperstack,dc=test); the
   # admin is cn=admin under it. 636 serves LDAPS with the image's own

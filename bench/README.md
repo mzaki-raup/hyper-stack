@@ -87,7 +87,7 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
 | `idm` | keycloak (dev mode, embedded H2), openldap | 1.25 GB | about 0.65 GB |
-| `bi` | metabase (v0.52.4, embedded H2), tableau-mock (a stand-in, see below) | 1.6 GB | about 0.9 GB |
+| `bi` | metabase (v0.52.4, embedded H2), tableau-mock and sasviya-mock (stand-ins, see below) | 1.7 GB | about 0.9 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -143,6 +143,7 @@ defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 | OpenLDAP (profile `idm`) | `ldap://<host>:1389` (`LDAP_PORT`), LDAPS `1636` (`LDAPS_PORT`, the image's self-signed certificate) | `cn=admin,dc=hyperstack,dc=test`; demo users `uid=<name>,ou=<team>,ou=people,…` | `$LDAP_ADMIN_PASSWORD`; `$LDAP_DEMO_PASSWORD` | `dc=hyperstack,dc=test` - see [OpenLDAP](#openldap-profile-idm) | `hs-openldap`, same image, ports and values |
 | Metabase (profile `bi`) | `http://<host>:3030` (`METABASE_PORT`) | admin `$METABASE_ADMIN_EMAIL` | `$METABASE_ADMIN_PASSWORD`; an API key in `.state/metabase-api-key` | Sample Database; collection `HyperStack Demo` - see [Metabase](#metabase-profile-bi) | not on the Windows/WSL bench |
 | Tableau mock (profile `bi`) | `http://<host>:8280` (`TABLEAU_MOCK_PORT`), REST API `3.23` | `$TABLEAU_MOCK_USER` (`dev`), or the token named `$TABLEAU_MOCK_PAT_NAME` | `$TABLEAU_MOCK_PASSWORD`; `$TABLEAU_MOCK_PAT_SECRET` | sites: the default and `$TABLEAU_MOCK_SITE` (`hs-demo`) - see [Tableau mock](#tableau-mock-profile-bi) | not on the Windows/WSL bench |
+| SAS Viya mock (profile `bi`) | `http://<host>:8380` (`SASVIYA_MOCK_PORT`) | `$SASVIYA_MOCK_USER` (`sasdemo`) via OAuth client `$SASVIYA_MOCK_CLIENT` (`sas.cli`, empty secret), or the access token `$SASVIYA_MOCK_TOKEN` | `$SASVIYA_MOCK_PASSWORD` | folders under SAS Content, 3 reports, CAS server `cas-shared-default` - see [SAS Viya mock](#sas-viya-mock-profile-bi) | not on the Windows/WSL bench |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -404,6 +405,39 @@ sources, one failing extract job).
 - Ask for JSON (`Accept: application/json`); the mock does not speak XML.
 - It checks only the credentials and the `X-Tableau-Auth` token. A real
   Server's permissions, filters (`vf_`), and `Refresh Now` are not modelled.
+
+## SAS Viya mock (profile `bi`)
+
+SAS Viya is licensed and has no public container, so the kit ships a **mock
+of its REST API** (`mock/sasviya/server.py`, plain Python on
+`python:3.12-alpine`, 64 MB), for the Analytics activity's SAS Viya provider
+to be built and tested against; it is not the product. It answers SAS Logon's
+`POST /SASLogon/oauth/token` (the `password` and `refresh_token` grants, for
+the OAuth client in `.env`), `/identities/users/@currentUser`, folders and
+their members (`/folders/folders/@rootFolder/members`), reports and a name
+search (`/reports/reports?filter=contains(name,'…')`), the Report Images
+service (`POST /reportImages/jobs` answers `running` on the first read and
+`completed` on the next, then `…/images/0` is a PNG), CAS libraries, tables,
+columns and a row preview (`/casManagement/…`, `/casRowSets/…`), and
+`/jobExecution/jobs` with one failed job.
+
+```bash
+docker compose --profile bi up -d sasviya-mock
+```
+
+Nothing to seed: the data is in the script (folders `Public` > `Sales` and
+`My Folder`, the reports Revenue by Region, Customer Churn and Scratch
+Report, caslibs `Public` and `Samples` with the tables ORDERS, CUSTOMERS
+and CARS).
+
+- **Sign in** as `$SASVIYA_MOCK_USER` with `$SASVIYA_MOCK_PASSWORD` through
+  the client `$SASVIYA_MOCK_CLIENT` (secret empty), or paste
+  `$SASVIYA_MOCK_TOKEN` as an access token.
+- It checks only the client, the credentials and the bearer token; the real
+  product's permissions, report sections and CAS sessions are not modelled.
+- The endpoint shapes follow SAS's REST API reference and are unconfirmed
+  against a real Viya; a difference found on the first real server is
+  fixed in the provider and here.
 
 ## Fixtures (`fixtures/`)
 

@@ -76,58 +76,135 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
         }
         Status::Ready => {}
     }
-    // The browse column: the collection tree and the databases arrive with
-    // their steps (FEAT-0127, FEAT-0130); until then each is drawn
-    // disabled, with the reason, never left out.
+    let Some(provider) = tool.session.as_ref().map(|x| x.provider().clone()) else {
+        return;
+    };
+    // The browse column (§4.2, §3.3): the collection tree and Search; the
+    // databases arrive with FEAT-0130 and are drawn disabled until then.
     if tool.state.browse {
         egui::Panel::left(ui.id().with("analytics-browse"))
             .resizable(true)
-            .default_size(240.0)
-            .size_range(200.0..=420.0)
+            .default_size(280.0)
+            .size_range(220.0..=520.0)
             .show(ui, |ui| {
                 form::pane(ui, |ui| {
                     form::subsection(ui, &theme, &s.t("analytics-browse"));
                     ui.add_space(form::PANE_GAP);
-                    for (icon, key) in [
-                        (ph::FOLDERS, "analytics-section-collections"),
-                        (ph::DATABASE, "analytics-section-databases"),
-                    ] {
-                        ui.add_enabled_ui(false, |ui| {
-                            form::selectable_label(ui, false, format!("{icon}  {}", s.t(key)))
-                        })
-                        .inner
-                        .tip_disabled(s.t("analytics-section-soon"));
-                        ui.add_space(2.0);
+                    if provider.capabilities().browse {
+                        tool.browse.show(ui, s, &theme, &provider);
                     }
+                    ui.add_space(form::ROW_GAP);
+                    ui.add_enabled_ui(false, |ui| {
+                        form::selectable_label(
+                            ui,
+                            false,
+                            format!("{}  {}", ph::DATABASE, s.t("analytics-section-databases")),
+                        )
+                    })
+                    .inner
+                    .tip_disabled(s.t("analytics-section-soon"));
                 });
             });
     }
     let Some(info) = tool.session.as_ref().map(|x| x.info()) else {
         return;
     };
-    form::pane(ui, |ui| {
-        form::subsection(ui, &theme, &s.t("analytics-facts"));
-        ui.add_space(form::PANE_GAP);
-        let support = match info.support {
-            Support::Supported => s.t("analytics-support-ok"),
-            Support::TooOld => s.t("analytics-support-old"),
-            Support::Newer => s.t("analytics-support-newer"),
-            Support::Unknown => s.t("analytics-support-unknown"),
-        };
-        let facts = [
-            (s.t("analytics-fact-product"), info.product.clone()),
-            (s.t("analytics-fact-version"), info.version_text.clone()),
-            (s.t("analytics-fact-signed-in"), info.signed_in_as.clone()),
-            (s.t("analytics-fact-support"), support),
-            (s.t("analytics-fact-url"), tool.url.clone()),
-        ];
-        form::detail_table(
-            ui,
-            &theme,
-            "analytics-facts",
-            facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
-        );
+    form::pane(ui, |ui| match tool.browse.selected.clone() {
+        Some(node) => item_page(ui, cx, &theme, &provider, &node),
+        None => server_facts(ui, s, &theme, tool, &info),
     });
+}
+
+/// The server's facts, shown while no item is picked.
+fn server_facts(
+    ui: &mut egui::Ui,
+    s: &hs_core::Services,
+    theme: &Theme,
+    tool: &AnalyticsTool,
+    info: &crate::provider::ServerInfo,
+) {
+    form::subsection(ui, theme, &s.t("analytics-facts"));
+    ui.add_space(form::PANE_GAP);
+    let support = match info.support {
+        Support::Supported => s.t("analytics-support-ok"),
+        Support::TooOld => s.t("analytics-support-old"),
+        Support::Newer => s.t("analytics-support-newer"),
+        Support::Unknown => s.t("analytics-support-unknown"),
+    };
+    let facts = [
+        (s.t("analytics-fact-product"), info.product.clone()),
+        (s.t("analytics-fact-version"), info.version_text.clone()),
+        (s.t("analytics-fact-signed-in"), info.signed_in_as.clone()),
+        (s.t("analytics-fact-support"), support),
+        (s.t("analytics-fact-url"), tool.url.clone()),
+    ];
+    form::detail_table(
+        ui,
+        theme,
+        "analytics-facts",
+        facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+    );
+}
+
+/// The picked item (§4.7): its facts, Open in Browser and Copy Link. The
+/// question, dashboard and collection pages arrive with FEAT-0128 to
+/// FEAT-0129; until then every kind shows this.
+fn item_page(
+    ui: &mut egui::Ui,
+    cx: &mut ToolContext,
+    theme: &Theme,
+    provider: &std::sync::Arc<dyn crate::provider::BiProvider>,
+    node: &crate::provider::Node,
+) {
+    let s = cx.services;
+    let url = provider.item_url(node.kind, &node.id);
+    form::page_title(
+        ui,
+        theme,
+        &node.name,
+        Some(&s.t(&format!("analytics-kind-{}", node.kind.tag()))),
+    );
+    form::centred_row_wrapped(ui, |ui| {
+        if form::button(
+            ui,
+            theme,
+            ph::ARROW_SQUARE_OUT,
+            &s.t("analytics-open-browser"),
+        )
+        .clicked()
+        {
+            cx.open("browser", Some(OpenRequest::Url { url: url.clone() }));
+        }
+        if form::button(ui, theme, ph::COPY, &s.t("analytics-copy-link")).clicked() {
+            ui.ctx().copy_text(url.clone());
+        }
+    });
+    ui.add_space(form::ROW_GAP);
+    let mut facts = vec![
+        (
+            s.t("analytics-fact-kind"),
+            s.t(&format!("analytics-kind-{}", node.kind.tag())),
+        ),
+        (s.t("analytics-fact-id"), node.id.clone()),
+    ];
+    if !node.collection.is_empty() {
+        facts.push((s.t("analytics-fact-collection"), node.collection.clone()));
+    }
+    if !node.editor.is_empty() {
+        facts.push((s.t("analytics-fact-edited-by"), node.editor.clone()));
+    }
+    if !node.edited.is_empty() {
+        facts.push((s.t("analytics-fact-edited"), node.edited.clone()));
+    }
+    if !node.description.is_empty() {
+        facts.push((s.t("analytics-fact-description"), node.description.clone()));
+    }
+    form::detail_table(
+        ui,
+        theme,
+        "analytics-item-facts",
+        facts.iter().map(|(k, v)| (k.as_str(), v.as_str())),
+    );
 }
 
 /// The review-only assistant (ADR-019): told about the server, never able
@@ -188,6 +265,19 @@ pub fn toolbar(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext
         &s.t("analytics-browse"),
     )
     .tip(s.t("analytics-browse-tip"));
+    let was_searching = tool.browse.searching;
+    hs_ui::toolbar::toggle(
+        ui,
+        &theme,
+        &mut tool.browse.searching,
+        ph::MAGNIFYING_GLASS,
+        &s.t("analytics-search"),
+    )
+    .tip(s.t("analytics-search-tip"));
+    if !was_searching && tool.browse.searching {
+        tool.state.browse = true;
+        tool.browse.open_search();
+    }
     if hs_ui::toolbar::btn_enabled(
         ui,
         &theme,
@@ -223,6 +313,11 @@ pub fn commands() -> Vec<CommandDescriptor> {
     vec![
         c("analytics.refresh", "Analytics: Refresh", Some("run.alt")),
         c(
+            "analytics.search",
+            "Analytics: Search…",
+            Some("analytics.search"),
+        ),
+        c(
             "analytics.browse",
             "Analytics: Show or Hide Browse",
             Some("analytics.browse"),
@@ -237,6 +332,11 @@ pub fn run_command(tool: &mut AnalyticsTool, id: &str, cx: &mut ToolContext) -> 
     match id {
         "analytics.refresh" | "run.alt" => {
             tool.connect(cx.services);
+            true
+        }
+        "analytics.search" => {
+            tool.state.browse = true;
+            tool.browse.open_search();
             true
         }
         "analytics.browse" => {

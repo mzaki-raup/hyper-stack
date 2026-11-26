@@ -37,6 +37,23 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-27: the Analytics activity (FEAT-0126, FEAT-0127)
+
+Taken from the `feat/analytics-tree` debug build with `scripts/gui-smoke.ps1`
+on the scratch data folder at 1736 x 900, against the bench Metabase 0.52.4
+(`bench/`, profile `bi`, seeded by `seed/seed-metabase.sh`). The API key was
+typed into the form from `bench/.state/metabase-api-key` and is kept in the
+vault: no capture shows it, only *Stored in the vault*.
+
+- `analytics.png` - the home dashboard with the saved server and its open tab.
+- `analytics-tree.png` - a server's tab: the collection tree open on the demo
+  collection, the question picked, its page with Open in Browser and Copy
+  Link.
+- `analytics-search.png` - Search for *orders*, 22 results with their
+  collections, the kind chips above them.
+- `analytics-settings.png` - Settings -> Analytics scrolled to the server and
+  authentication cards.
+
 ## 2026-11-15: Identity with the server's version (CR-0099)
 
 The header band of a Keycloak tab now shows the version, so the two

@@ -140,13 +140,27 @@ disabled with the reason, never hidden). The trait's questions:
 
 ### 4.2 Browsing and search
 
-- The tree loads a level at a time (`/api/collection/tree` for the
-  collections, `/api/collection/:id/items` for a collection's items;
-  `root` for the top). Archived items are left out; a collection the
-  account cannot read is not listed by the server.
+- The tree loads a level at a time (`/api/collection/:id/items`, `root`
+  for the top; each collection is read once, when it is opened).
+  Collections come first, then the items, each by name, each wearing its
+  kind's picture (Material when on, a glyph when off). Archived items are
+  left out; a collection the account cannot read is not listed by the
+  server. A person's own **personal collection** is added to the root
+  (it is not among the root's items); an **API key's user has none**.
+- A **filter field** above the tree narrows what is loaded by name and
+  opens the way to each match; a collection not yet opened is not
+  searched (the empty state says so - use Search for the whole server).
 - **Search** (toolbar, `Ctrl+Alt+B`): a field over `/api/search?q=…`,
-  results in the left column with their collection path, kind filters
-  (Questions, Models, Metrics, Dashboards, Collections).
+  Enter or the Search button runs it; results in the left column, 50 a
+  page with **More**, each with its kind's picture and its collection;
+  **kind filters** (Questions, Models, Metrics, Dashboards, Collections)
+  combine, none chosen meaning all. An empty result says so; an older
+  search's late answer is dropped.
+- **Picking an item** (tree or result) shows its page on the right: name,
+  kind, Open in Browser, Copy Link and its facts (id, collection, editor,
+  last edited, description, where the server gives them). The question,
+  dashboard and collection pages themselves come with FEAT-0128 and
+  FEAT-0129.
 - **Recent** on the home dashboard records what was opened here, not
   Metabase's own recent views.
 
@@ -654,8 +668,13 @@ The questions this section held, answered:
     source whose lines come from a Loki or Elasticsearch data source
     through Grafana's API (owner's choice, 2026-11-26).
 
-## What is implemented (2026-11-20)
+## What is implemented (2026-11-27)
 
-Nothing yet: this document is the specification, written before the
-code at the owner's request ("Yes, Metabase first", 2026-11-20). The
-work is FEAT-0126 to FEAT-0131 in `TASKS.md`.
+FEAT-0126 (v0.139.0): the crate, the provider trait, the Metabase
+sign-in by password or API key, connections and Settings → Analytics,
+the dashboard, the sidebar and a server's tab with its facts.
+FEAT-0127: the collection tree, the filter and Search (§4.2), the item
+page's facts, Open in Browser and Copy Link (§4.7), live-tested against
+the bench Metabase (`tests/metabase_live.rs`). Questions with charts,
+dashboards, databases and the other providers are FEAT-0128 onward in
+`TASKS.md`.

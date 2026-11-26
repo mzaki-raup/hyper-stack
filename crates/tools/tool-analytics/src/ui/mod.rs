@@ -2,6 +2,7 @@
 //! dashboard on the home tab, the saved servers in the sidebar, and one tab
 //! per server with its header band, toolbar, browse column and item page.
 
+mod browse;
 mod dashboard;
 mod sidebar;
 mod tab;
@@ -83,6 +84,8 @@ pub struct AnalyticsTool {
     env_id: Option<String>,
     tls_off: bool,
     session: Option<Session>,
+    /// The browse column's tree, filter and search.
+    browse: browse::Browse,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -90,6 +93,7 @@ impl AnalyticsTool {
     /// Open (or reopen) the tab's session from its profile.
     fn connect(&mut self, s: &Services) {
         self.session = None;
+        self.browse.reset();
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

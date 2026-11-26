@@ -150,13 +150,96 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.9.0
-Features : FEAT-0132
+Version : v0.10.0
+Features : FEAT-0138
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
 
 ---
+
+## v0.10.0 — Planned
+
+> **ETL**, Apache Hop alone. Spec `docs/tools/etl.md`, decision ADR-035,
+> depth-programme phase R. Specified 2026-11-26 at the owner's request
+> ("I plan to add ETL as new Activity"), narrowed across that
+> conversation to Hop alone ("ditch all, except hop and nifi", then
+> "ditch nifi, only hop remain"); the owner's answers are the spec's
+> §10: an activity, files only in phase 1, both pipelines and workflows,
+> metadata listed with secrets masked, phase R with the rail after
+> Analytics. Talend, Pentaho, Airbyte, NiFi and Airflow were each
+> assessed and dropped, with the reason recorded per product.
+>
+> This batch starts at **FEAT-0134**: `FEAT-0133` was already allocated
+> by the in-flight `docs/analytics-sas` branch (SAS Viya as Analytics'
+> third provider), so the id is left to it rather than reused.
+
+### FEAT-0134 · ETL activity: crate, project entries, Settings page, dashboard, sidebar, tab shell
+- **State:** Pending · **Spec:** docs/tools/etl.md §3, §4.1, §5, §8 · **Phase:** R
+- **Source:** owner, 2026-11-26: "I plan to add ETL as new Activity … For starter, i want to add apache airflow, talend, etc. If provide credentials, can the work pane resemble both the activity web interface (using APIs, etc)?", then "ditch talend", "ditch all, except hop and nifi", "ditch nifi, only hop remain", and the five answers of §10
+- **Scope:** `crates/tools/tool-etl/` with `EtlFactory` (id `etl`, category Data, rail after Analytics); the project list reusing the `hs_core::projects::Projects` type from the activity's **own** `etl-projects.toml`, not the shared `Services.projects` the Editor and Git read (name, path, optional environment — **no connection and no vault entry in phase 1**, §5); `project-config.json` read with `${PROJECT_HOME}` resolved and a folder with none still opened; Settings → ETL (list left, form right, the path field leaving its Browse button room per BUG-0069, the limits of §7); the dashboard (projects, pipelines, workflows, open tabs; Start Here; Saved Projects; Recent with Clear History and Remove; Open Here); the sidebar with the Hop mark and the reorder grip; one tab per project with the header band wearing the same mark, the toolbar (Browse toggle first, AI hard right) and the hideable, resizable browse column; `hs-diagram` and `roxmltree` added as dependencies per ADR-035; the palette commands and shortcuts of §9
+- **Depends on:** —
+- [ ] Crate, factory, rail entry, project list, Settings page
+- [ ] `project-config.json` and the folder walk as a Job with cancel, bounded channels
+- [ ] Dashboard, sidebar, tab shell, header band, the Hop mark
+- [ ] ADR-035's `hs-diagram` and `roxmltree` dependencies; `cargo deny`
+- [ ] Test: the project entry round trip; `metadataBaseFolder` with `${PROJECT_HOME}`; a folder with no `project-config.json`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add a Hop project, open its tab, hide and resize the column; the *Checking a screen* list
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0135 · ETL: the project tree and search
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.2 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0134)
+- **Scope:** Pipelines and Workflows as two sections with the project's folders beneath, folders first then items by name (CR-0038); Metadata's children per kind with counts; Variables with its count; each row its kind's coloured picture from `hs_ui::fileicons` when Material icons are on, else a coloured glyph (CR-0065, CR-0068), a pipeline and a workflow distinct; keyboard navigation; a filter field; Search over file names **and** transform and action names, the index built once per Refresh, results with their path
+- **Depends on:** FEAT-0134
+- [ ] Tree, filter, keyboard navigation, pictures
+- [ ] Search index on Refresh, results in the column
+- [ ] Test: ordering (folders first, then by name); the index from a fixture project; the filter
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk a fixture project, filter, search for a transform name
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0136 · ETL: the pipeline and workflow canvas
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.3, §7, §8.2, §8.3 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0134)
+- **Scope:** the `FlowGraph` model (nodes with kind, label, position; edges with `via`, label and style) and one renderer; `.hpl` parsed from `<pipeline>`/`<transform>`/`<GUI><xloc>`/`<order><hop>`; `.hwf` from `<workflow>`/`<actions><action>` with coordinates on the action and `<hops><hop>` with `enabled`, `evaluation` and `unconditional`, mapped to plain, success and failure styles with the raw flags kept on the edge and an unexpected combination drawn unconditional with a tooltip; dashed for a disabled hop; error-handling hops apart; `<notepads>` as labels; node pictures per known type and the generic picture named for an unknown one; pan, zoom, click to select, arrow keys, Enter, `Home` to fit; hover never grows a node; Export SVG through `hs_diagram::export::svg`; missing coordinates fall back to `layout_approx` with a hint; tolerant reading per §8.3; the graph converted and laid out once per file change, keyed on a hash of the bytes, never inside `ui()`; the largest-file and most-nodes limits with their states. **The egui painter is new code here** — `hs-diagram` has no painter (§8.2)
+- **Depends on:** FEAT-0135
+- [ ] `.hpl` and `.hwf` parsers, tolerant per §8.3
+- [ ] `FlowGraph`, the conversion, the cache keyed on the file's bytes
+- [ ] The canvas: painting, hit-testing, pan, zoom, selection, keyboard, fit
+- [ ] Edge styles, node pictures, notepads, Export SVG
+- [ ] Test: each sample parses; both kinds into `FlowGraph`; every `.hwf` flag combination including an unexpected one; a disabled and an error-handling hop; no coordinates falls back to `layout_approx`; an unknown type survives; a hop to a missing transform dropped and counted; `egui_kittest` snapshots at two widths plus the empty, too-many-nodes and parse-error states
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a fixture pipeline and workflow beside Hop GUI's own canvas; zoom and pan; keyboard between nodes; Export SVG; a large file's limit
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0137 · ETL: transform and action detail, metadata, variables, and the secret rules
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.4, §4.5, §4.6, §4.7, §6 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0134); the secret rules from `.claude/rules/security.md` and the owner's whole-word rule, 2026-11-07
+- **Scope:** the selected node's facts in `form::detail_table`, the type's own fields read generically so an unknown type still shows everything; `${variable}` values on hover through `varfield`, an unset one saying so; long values in a `form::well`, SQL through the read-only editor engine; Metadata as `DataTable`s with the clicked row's detail — Connections (name, engine, host, port, database, username) with **Open in Database** matching a saved `db` connection on engine, host, port and database (host without case, `localhost` equal to `127.0.0.1`; no match or several opens the picker with the reason) through an `OpenRequest` carrying the connection's id and **never a credential**; Run Configurations, Datasets, Unit Tests **listed**; empty kinds with a sentence-case hint (CR-0061); Variables with their source; **Hop's `Encrypted <hex>` password never decoded, never shown, never cached, and redacted from every log line and error on Hop's own `CredentialRedactor` pattern**; the whole-word secret mask over keys; the AI context carrying no masked value and no encoded password; Open in Editor, Copy Path, the item's facts under a disclosure
+- **Depends on:** FEAT-0136
+- [ ] Node detail, generic fields, variable hovers, long values and SQL
+- [ ] Metadata tables and detail; Open in Database with its match and picker
+- [ ] Variables; the whole-word mask; Hop's `Encrypted` redaction
+- [ ] Test: the metadata kinds and variables from a fixture; the Open in Database match (host case, loopback equality, none, several); the whole-word mask over `SMTP_PASS`, `dbPassword`, `AUTH_LOCKOUT_THRESHOLD`; **a fixture holding a real `Encrypted <hex>` never reaches the model, the AI context, an error or a log, and the data folder is grepped afterwards**
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a transform's fields; a connection opened in the Database activity; the masked variables; the encoded password shown nowhere
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0138 · ETL: Hop Server — status, runs and logs (phase 2)
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.9, §5, §6, §8.4 · **Phase:** R
+- **Source:** owner, 2026-11-26: files only in phase 1, so the server is its own item
+- **Scope:** connection kind `hop-server` in `hs_core::connections` (URL, Username and Password through `hs_core::service_auth` as a `secret:<ulid>`, Use Saved Credential, Verify TLS and CA File), Test Connection; the server's registered and running pipelines and workflows with their status; **Run** a pipeline or workflow with its run configuration and parameters, and run a unit test, each a Job with progress and cancel; the run's log with the shared log-level colours (CR-0077); version gating — the released `/hop/...` web services with `&json=Y`, the `/hop/api/v1/` JSON API where the server has it, an unavailable call drawn disabled with the reason, a differently-shaped answer treated as a version fact; Hop's environments mapped onto HyperStack's tiers (FEAT-0106) so a Hop `prod` environment takes the **protected-environment guard** and refuses runs until Allow Writes; `apache/hop` in a new `etl` bench profile, memory-capped and started on demand, with `HS_HOP` and a `bench/README.md` row
+- **Depends on:** FEAT-0137
+- [ ] Connection kind, credential, Test Connection, version gating
+- [ ] Status, runs, logs, unit-test runs as Jobs with cancel
+- [ ] The protected-environment guard on every run verb
+- [ ] Bench: `apache/hop` in the `etl` profile; `HS_HOP`
+- [ ] Test: version gating from recorded answers; the guard refuses a run on a protected environment; a live test gated on `HS_HOP`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Hop Server: status, run a fixture pipeline, read its log, cancel one; a protected environment refuses the run
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
 
 ## v0.9.0 — Planned
 

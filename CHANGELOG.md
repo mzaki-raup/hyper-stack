@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.143.0 — 2026-11-27
+
 ### Added
 
-- Analytics: a Databases section in the browse tree (databases, tables, columns) and an SQL page that runs a statement on a database as the signed-in account, with a table or a quick chart of the result, refused on a protected environment and where the account has no native rights (FEAT-0130)
+- The Databases section and an SQL page for a Metabase server (babadbbd)
 
 ## 0.142.0 — 2026-11-27
 

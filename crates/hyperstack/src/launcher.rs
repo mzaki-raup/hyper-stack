@@ -40,7 +40,7 @@ pub fn tool_for_kind(kind: &str) -> Option<&'static str> {
         | "puppet" => Some("automation"),
         "jira" | "redmine" | "github-issues" | "gitlab-issues" | "forgejo-issues"
         | "confluence" => Some("tracker"),
-        "metabase" => Some("analytics"),
+        "metabase" | "tableau" => Some("analytics"),
         _ => None,
     }
 }

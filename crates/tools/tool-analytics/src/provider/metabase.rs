@@ -121,6 +121,9 @@ impl BiProvider for Metabase {
         Caps {
             browse: true,
             native_sql: true,
+            views: false,
+            extracts: false,
+            search_kinds: &Kind::ALL,
         }
     }
 
@@ -317,6 +320,8 @@ impl BiProvider for Metabase {
                 let (db, table) = id.split_once('/').unwrap_or((id, id));
                 return format!("{base}/browse/databases/{db}#table-{table}");
             }
+            // Tableau's kinds are never this server's.
+            Kind::Workbook | Kind::View | Kind::DataSource | Kind::Extracts => return base.into(),
         };
         format!("{base}/{page}/{id}")
     }
@@ -359,6 +364,7 @@ fn model_of(k: Kind) -> &'static str {
         Kind::Dashboard => "dashboard",
         // Not items of a collection: never asked of the search.
         Kind::Database | Kind::Table => "",
+        Kind::Workbook | Kind::View | Kind::DataSource | Kind::Extracts => "",
     }
 }
 

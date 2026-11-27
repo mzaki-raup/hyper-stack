@@ -6,13 +6,13 @@ mod board;
 mod browse;
 mod dashboard;
 mod editor;
+mod extracts;
 mod open_db;
 mod question;
 mod sidebar;
 mod sql;
 mod tab;
-
-use std::sync::Arc;
+mod view;
 
 use hs_core::Services;
 use hs_core::tool::{
@@ -23,8 +23,7 @@ use hs_ui::icons::ph;
 use serde::{Deserialize, Serialize};
 
 use crate::profile::{AnalyticsFields, ProfileError};
-use crate::provider::metabase::Metabase;
-use crate::provider::{BiProvider, Support};
+use crate::provider::Support;
 use crate::session::Session;
 
 pub static DESCRIPTOR: ToolDescriptor = ToolDescriptor {
@@ -97,6 +96,10 @@ pub struct AnalyticsTool {
     board: Option<board::Board>,
     /// The picked database's SQL page: its text and its result.
     sql: Option<sql::Sql>,
+    /// The picked Tableau view's page: its picture and its data.
+    view: Option<view::ViewPage>,
+    /// The Extracts and Jobs page.
+    extracts: Option<extracts::Extracts>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -108,6 +111,8 @@ impl AnalyticsTool {
         self.question = None;
         self.board = None;
         self.sql = None;
+        self.view = None;
+        self.extracts = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {
@@ -137,33 +142,27 @@ impl AnalyticsTool {
             let envs = s.environments.read().clone();
             move |v: &str| envs.substitute(v, env_id.as_deref(), &[])
         };
-        let mut cfg = match fields.resolve(s.secrets.as_ref(), &lookup) {
-            Ok(c) => c,
-            Err(e) => {
-                self.waiting_for_vault =
-                    e == ProfileError::Auth(hs_core::service_auth::AuthError::VaultLocked);
-                self.conn_error = Some(match e {
-                    ProfileError::Auth(hs_core::service_auth::AuthError::VaultLocked) => {
-                        s.t("analytics-vault-locked")
-                    }
-                    ProfileError::MissingVariables(v) => s
-                        .i18n
-                        .t_args("analytics-missing-vars", &[("names", &v.join(", "))]),
-                    other => other.to_string(),
-                });
-                return;
-            }
-        };
-        cfg.timeout = std::time::Duration::from_secs(u64::from(
+        let timeout = std::time::Duration::from_secs(u64::from(
             s.settings.read().analytics.timeout_secs.max(5),
         ));
-        let provider: Arc<dyn BiProvider> = match Metabase::new(cfg) {
-            Ok(p) => Arc::new(p),
-            Err(e) => {
-                self.conn_error = Some(e);
-                return;
-            }
-        };
+        let provider =
+            match crate::provider::open(&kind, &fields, s.secrets.as_ref(), &lookup, timeout) {
+                Ok(p) => p,
+                Err(e) => {
+                    self.waiting_for_vault =
+                        e == ProfileError::Auth(hs_core::service_auth::AuthError::VaultLocked);
+                    self.conn_error = Some(match e {
+                        ProfileError::Auth(hs_core::service_auth::AuthError::VaultLocked) => {
+                            s.t("analytics-vault-locked")
+                        }
+                        ProfileError::MissingVariables(v) => s
+                            .i18n
+                            .t_args("analytics-missing-vars", &[("names", &v.join(", "))]),
+                        other => other.to_string(),
+                    });
+                    return;
+                }
+            };
         tracing::info!(
             "analytics: connecting {} to {}",
             self.conn_name,

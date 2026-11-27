@@ -14,6 +14,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Analytics: the SQL page's editor has SQL colours and completion from the database's tables and columns, and Open in Database opens the SQL in a Database tab on the saved connection that is the same server (FEAT-0144)
+- Analytics: a Tableau Server provider: projects, workbooks, views and data sources, a view's picture and data with filter fields and saves as PNG, CSV or PDF, Open Interactive in the Browser, and the extract refresh tasks and jobs, read-only (FEAT-0131)
 - A new `OpenRequest::Sql` hands a query, and the connection to run it on, to the Database activity (FEAT-0144)
 
 ## 0.143.0 — 2026-11-27

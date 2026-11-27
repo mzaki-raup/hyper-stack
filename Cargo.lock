@@ -9509,6 +9509,7 @@ name = "tool-analytics"
 version = "0.143.0"
 dependencies = [
  "async-trait",
+ "csv",
  "egui",
  "egui_plot",
  "hs-core",

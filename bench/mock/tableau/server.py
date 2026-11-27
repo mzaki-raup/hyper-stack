@@ -218,6 +218,14 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             mine = [v for v in VIEWS if v["workbook"]["id"] == m.group(1)]
             return self.send(200, {"views": {"view": mine}})
+        m = re.fullmatch(r"views/([^/]+)", rest)
+        if m:
+            # Get View: the view with its workbook's and project's names.
+            for v in VIEWS:
+                if v["id"] == m.group(1):
+                    wb = next(w for w in WORKBOOKS if w["id"] == v["workbook"]["id"])
+                    return self.send(200, {"view": dict(
+                        v, workbook={"id": wb["id"], "name": wb["name"]}, project=wb["project"])})
         m = re.fullmatch(r"views/([^/]+)/(image|data)", rest)
         if m and any(v["id"] == m.group(1) for v in VIEWS):
             if m.group(2) == "image":

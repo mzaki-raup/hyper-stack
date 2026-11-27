@@ -399,7 +399,10 @@ docker compose --profile bi up -d tableau-mock
 
 Nothing to seed: the data is in the script (projects Sales and Operations,
 workbooks Regional Sales and Order Fulfilment, three views, two data
-sources, one failing extract job).
+sources, two extract tasks, one failing extract job). HyperStack's Tableau
+provider (FEAT-0131) is built against it: `tool-analytics`'s `tableau_live`
+test walks projects, workbooks, views, a picture, the data, the tasks and the
+jobs by password and by token.
 
 - **Sign in** with the user `$TABLEAU_MOCK_USER` and
   `$TABLEAU_MOCK_PASSWORD`, or with a **personal access token**: name
@@ -407,7 +410,7 @@ sources, one failing extract job).
   `$TABLEAU_MOCK_SITE` (`hs-demo`) or empty for the default site; any other
   site, and any wrong credential, answers 401 in Tableau's error shape.
 - Ask for JSON (`Accept: application/json`); the mock does not speak XML.
-- It checks only the credentials and the `X-Tableau-Auth` token. A real
+- It checks only the credentials and the `X-Tableau-Auth` token; `Get View` (`views/<id>`) is answered too. A real
   Server's permissions, filters (`vf_`), and `Refresh Now` are not modelled.
 
 ## SAS Viya mock (profile `bi`)
@@ -598,7 +601,18 @@ export HS_REDMINE=$H:$REDMINE_PORT:$(cat .state/redmine-api-key)
 export HS_REDMINE_ADMIN=$H:$REDMINE_PORT:admin:$REDMINE_ADMIN_PASSWORD
 export HS_KEYCLOAK=http://$H:$KEYCLOAK_PORT   # realm hs-demo, client hs-admin, secret $KEYCLOAK_HS_ADMIN_SECRET
 export HS_LDAP=ldap://$H:$LDAP_PORT HS_LDAP_PASSWORD=$LDAP_ADMIN_PASSWORD   # bind cn=admin,dc=hyperstack,dc=test
+# The Analytics activity (profile bi). Metabase by API key and by session; Tableau by
+# password and by personal access token (the default site has an empty site name).
+export HS_METABASE=http://$H:${METABASE_PORT:-3030}\|$(cat .state/metabase-api-key)
+export HS_METABASE_USER=$METABASE_ADMIN_EMAIL\|$METABASE_ADMIN_PASSWORD
+export HS_TABLEAU=http://$H:$TABLEAU_MOCK_PORT\|$TABLEAU_MOCK_SITE\|$TABLEAU_MOCK_USER\|$TABLEAU_MOCK_PASSWORD
+export HS_TABLEAU_PAT=http://$H:$TABLEAU_MOCK_PORT\|\|$TABLEAU_MOCK_PAT_NAME\|$TABLEAU_MOCK_PAT_SECRET
 ```
+
+The Analytics values hold `|`, so they are quoted or escaped as above. Run
+them with `cargo test -p tool-analytics --test metabase_live` and
+`--test tableau_live`; the SAS Viya, Superset, Grafana and Power BI Report
+Server services have no test until their providers are built.
 
 (The `.state/` files live on the Linux box; copy the values across.) Note
 the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
@@ -608,7 +622,7 @@ the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
 On **your Linux box** only:
 
 ```bash
-docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy down -v
+docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy --profile bi down -v
 rm -rf .state
 ```
 

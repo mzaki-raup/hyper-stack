@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::AnalyticsTool;
+use super::{AnalyticsTool, question};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -110,6 +110,9 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
         return;
     };
     form::pane(ui, |ui| match tool.browse.selected.clone() {
+        Some(node) if question::is_card(&node) => {
+            question::page(&mut tool.question, ui, cx, &theme, &provider, &node)
+        }
         Some(node) => item_page(ui, cx, &theme, &provider, &node),
         None => server_facts(ui, s, &theme, tool, &info),
     });
@@ -312,6 +315,7 @@ pub fn commands() -> Vec<CommandDescriptor> {
     };
     vec![
         c("analytics.refresh", "Analytics: Refresh", Some("run.alt")),
+        c("analytics.run", "Analytics: Run", Some("run")),
         c(
             "analytics.search",
             "Analytics: Search…",
@@ -332,6 +336,12 @@ pub fn run_command(tool: &mut AnalyticsTool, id: &str, cx: &mut ToolContext) -> 
     match id {
         "analytics.refresh" | "run.alt" => {
             tool.connect(cx.services);
+            true
+        }
+        "analytics.run" => {
+            if let (Some(q), Some(sess)) = (tool.question.as_mut(), tool.session.as_ref()) {
+                q.run(cx.services, &sess.provider().clone());
+            }
             true
         }
         "analytics.search" => {

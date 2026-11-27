@@ -204,6 +204,18 @@ disabled with the reason, never hidden). The trait's questions:
   `POST /api/card/:id/query/:format`, saved with the shared download
   dialog; Metabase's export limit applies, not the run limit.
 - A **model** and a **metric** run and show like a question.
+- **As built (FEAT-0128)**: opening a question runs it at once, as Metabase
+  does; **Run** (`Ctrl+Enter`) reruns and **Cancel** stops the job (the
+  request is dropped; a late answer is ignored). A result keeps at most
+  *Rows per Run* rows (Settings -> Analytics) and says when it was cut.
+  The SQL view shows a native question's own SQL, or the SQL Metabase
+  compiled a query-builder question to (`data.native_form.query` of the
+  result, marked as generated); **Open in Database** is drawn disabled
+  until FEAT-0130, which owns the connection match. Parameters are text,
+  number and date fields prefilled with the card's defaults; filling a
+  field from the server's value list (`pick_field`) is not built yet.
+  Numbers show without a thousands separator, so a column still sorts as
+  numbers; decimals show up to two places.
 
 ### 4.4 Charts
 
@@ -228,6 +240,18 @@ tooltip does; the legend is clickable to hide a series.
 
 Charts are laid out once per result and redrawn from the cached points,
 never recomputed per frame (`.claude/rules/rust.md`).
+
+**As built (FEAT-0128)**: `chart::plan` turns a result and the card's
+`graph.dimensions`, `graph.metrics`, `stackable.stack_type`, `series_settings`
+and `scalar.field` / `progress.goal` / `gauge.segments` into a plan, tested
+per kind from recorded results; a second dimension with one metric splits
+into a series per value; a row chart lists the first category at the top;
+a gauge is drawn as a progress bar against its last segment, or as a number
+where it has no goal. Series colours follow the shared palette of eight, not
+the card's own colours yet. A combo draws lines and bars on **one** axis (a
+count beside a sum shows as a flat line: Metabase's second axis is not
+built). Funnel and waterfall (phase 1b), map, pivot, sankey and object are
+the table with the hint and Open in Browser.
 
 ### 4.5 Dashboards
 
@@ -675,6 +699,9 @@ sign-in by password or API key, connections and Settings → Analytics,
 the dashboard, the sidebar and a server's tab with its facts.
 FEAT-0127: the collection tree, the filter and Search (§4.2), the item
 page's facts, Open in Browser and Copy Link (§4.7), live-tested against
-the bench Metabase (`tests/metabase_live.rs`). Questions with charts,
-dashboards, databases and the other providers are FEAT-0128 onward in
-`TASKS.md`.
+the bench Metabase (`tests/metabase_live.rs`).
+FEAT-0128: a question, model or metric opens and runs, as a table, a chart
+(`egui_plot`: line, area, bar, row, combo, scatter; hand-drawn pie, scalar,
+smart scalar, progress and gauge) or its SQL, with parameters and an export
+(§4.3, §4.4), live-tested against every seeded question. Dashboards,
+databases and the other providers are FEAT-0129 onward in `TASKS.md`.

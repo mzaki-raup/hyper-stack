@@ -1176,7 +1176,7 @@ block the UI thread.
 
 ## ADR-034 · Analytics activity: one provider trait, Metabase's REST API drawn natively, charts with `egui_plot`
 
-**Date** 2026-11-20 · **Status** proposed (see `docs/tools/analytics.md`) ·
+**Date** 2026-11-20 · **Status** accepted, built from FEAT-0126; `egui_plot` 0.36 added by FEAT-0128 (the release for egui 0.35; `cargo deny` passes) (see `docs/tools/analytics.md`) ·
 **Owner's request** (2026-11-20): *"add Business Intelligent / Analytic as
 new Activity … For starter, i want to add metabase and tableau. If provide
 credentials, can the work pane resemble both the activity web interface

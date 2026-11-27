@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.10.0
-Features : FEAT-0142
+Features : FEAT-0143
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
@@ -280,16 +280,17 @@ Change Request : CR-0103
 - **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4 (scratch data folder): the tree, the filter, Search with kind chips, the item page; it found the Search button wrapping its label and long result names clipped mid-glyph (both fixed). More (over 50 results) is covered by a unit test, not seen on screen: the bench has 22 results. Hiding and resizing the column, and the empty and error states of a collection, were not looked at on screen. Gate 2026-11-27: fmt, clippy, 1587 tests, deny, self-test.
 
 ### FEAT-0128 · Analytics: questions, models and metrics with tables and charts
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** Run as a Job with cancel; Chart | Table | SQL; `DataTable` with Metabase's formatting; charts through `egui_plot` (ADR-034: line, area, bar, row, combo, scatter; pie, scalar, smart scalar, progress, gauge hand-painted; funnel and waterfall phase 1b; map, pivot, sankey as the table with Open in Browser); parameters as pick and date fields; CSV / JSON / XLSX export; the SQL view with Open in Database; the AI assistant's context
 - **Depends on:** FEAT-0127
-- [ ] ADR-034's `egui_plot` added; `cargo deny`
-- [ ] Run, table, charts, parameters, export, SQL view
-- [ ] Test: each chart kind's points from a recorded result; parameters into the request; formatting by `base_type`
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every bench question's chart beside Metabase's own; a template tag; an export
-- [ ] Docs: spec · README · CHANGELOG
+- [x] ADR-034's `egui_plot` added (0.36, for egui 0.35); `cargo deny`
+- [x] Run, table, charts, parameters, export, SQL view
+- [x] Test: each chart kind's points from a recorded result; parameters into the request; formatting by `base_type`; live: every seeded question, a parameter, the row limit, a CSV export
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench questions' charts, a template tag, the Table and SQL views, the Export menu (not beside Metabase's own pages, and the save dialog not driven: see Notes)
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS · screenshots
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the line, bar, row, pie, scalar and combo charts, the native question with its parameter (400 gives an empty result with its message), the Table and SQL views and the Export menu. It found a stray axis label and a row chart listing its categories bottom-up (both fixed). The area chart was seen on screen too. Not done: the save dialog of an export was not driven (the bytes are tested live); the scatter chart was not seen (planned and tested only; the bench has no scatter question); Open in Database stays with FEAT-0130; the combo's second axis, the card's own series colours and parameter value lists as pick fields are FEAT-0143; funnel and waterfall are phase 1b. Gate 2026-11-27: fmt, clippy, 1604 tests, deny, self-test; the bench drive ran out of disk once (the full D: made the test link fail), cleared by deleting `target/debug/incremental`.
 
 ### FEAT-0129 · Analytics: dashboards with their grid, tabs and filters
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
@@ -382,6 +383,17 @@ Change Request : CR-0103
 - [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's server: browse, a paginated report's picture, KPIs, the refresh plans
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 - **Notes:** NTLM needs a client that speaks it (to be chosen; an ADR and a `cargo deny` pass if a crate is added); Power BI Service is not covered.
+
+### FEAT-0143 · Analytics: chart polish for questions
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
+- **Source:** the unbuilt parts of FEAT-0128, found on its screen check (2026-11-27)
+- **Scope:** a combo chart's second y-axis when its series differ in scale (a count beside a sum is now a flat line); the card's own series colours (`series_settings` colour) before the shared palette; a parameter's value list from `/api/card/:id/params/:param-key/values` as a `form::pick_field`; the question's value formatting from the column settings (currency, thousands separators with a numeric sort that still works)
+- **Depends on:** FEAT-0128
+- [ ] The second axis, the card's colours, parameter value lists, column formatting
+- [ ] Test: the axis choice per series, the colour read from settings, the value list into the field
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench combo question beside Metabase's own, a filter with a value list
+- [ ] Docs: spec · README · CHANGELOG
 
 ## v0.8.2 — In-Progress
 

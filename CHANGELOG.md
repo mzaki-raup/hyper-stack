@@ -11,10 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.144.0 — 2026-11-27
+
 ### Added
 
-- Analytics: the SQL page's editor has SQL colours and completion from the database's tables and columns, and Open in Database opens the SQL in a Database tab on the saved connection that is the same server (FEAT-0144)
-- A new `OpenRequest::Sql` hands a query, and the connection to run it on, to the Database activity (FEAT-0144)
+- SQL colours and completion, and Open in Database (8bb6c6fb)
 
 ## 0.143.0 — 2026-11-27
 

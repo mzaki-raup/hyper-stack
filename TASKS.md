@@ -151,7 +151,7 @@ Refs: BUG-0003
 
 ```
 Version : v0.10.0
-Features : FEAT-0143
+Features : FEAT-0144
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
@@ -305,15 +305,16 @@ Change Request : CR-0103
 - **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the Overview tab (a number, a line, a bar and a pie tile), the Detail tab (the table), the Category filter listing the server's four values, and Apply narrowing the bar and pie to Gadget while the unmapped line stayed whole. It found the charts sharing one plot id (a red warning box) and the second tab opening at the first one's scroll offset (both fixed). Not done: the heading, text and link tiles were tested from recorded JSON only (the bench dashboard has none); a date filter and Auto-Refresh were not run on screen; the narrow single-column layout is tested as arithmetic, not seen; cancelling a dashboard's runs on leaving it was not observed.
 
 ### FEAT-0130 · Analytics: databases and ad-hoc SQL through Metabase
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
-- **Scope:** the databases and their metadata; New SQL with completion from the metadata, Run through `/api/dataset`, a quick chart; refused without native access; disabled on a protected environment
+- **Scope:** the databases and their metadata; New SQL with completion from the metadata (not built: FEAT-0144), Run through `/api/dataset`, a quick chart; refused without native access; disabled on a protected environment
 - **Depends on:** FEAT-0128
-- [ ] Databases, SQL page, protected-environment guard
-- [ ] Test: the native request body; the refusal
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a query against the Sample Database; a protected environment disables the page
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Databases, SQL page, protected-environment guard
+- [x] Test: the native request body; the refusal; live: the databases, the tables, a count, a server error, the row limit
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — a query against the Sample Database; a protected environment disables the page (see Notes for what was seen)
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** the SQL colours and completion from the metadata are not built (a plain text editor), and **Open in Database** (the matching saved connection and a way to hand the SQL to the Database activity, which today opens only a connection or a `.sql` file) is FEAT-0144. The no-native-access refusal is read from `native_permissions` and worded here, not by the server; the bench has only an admin, so that path is a unit-tested reading, not seen against a restricted account. 2026-11-27 screen check on the bench Metabase v0.52.4: the Databases section down to a table's typed columns, a table pick filling the starter query, Run (100 rows in 87 ms), an aggregate with the Bar view, the server's error sentence for a missing table, and a protected environment (a `Production` environment tied to the server in Settings) leaving only its message with no editor and no Run. It found the old rows staying under a failed run's error and Metabase's `-- Metabase::` comment line in the message (both fixed). Not seen: Cancel on a long statement, the Line, Pie and Number views, and `Ctrl+Enter` Run.
 
 ### FEAT-0131 · Analytics: the Tableau provider
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
@@ -394,6 +395,18 @@ Change Request : CR-0103
 - [ ] Test: the axis choice per series, the colour read from settings, the value list into the field
 - [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
 - [ ] App: `--data-dir ./tmp-data` — the bench combo question beside Metabase's own, a filter with a value list
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0144 · Analytics: SQL colours, completion and Open in Database
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.6 · **Phase:** Q
+- **Source:** the unbuilt parts of FEAT-0130 and the owner's decision of 2026-11-20 ("Open in Database picks the matching saved connection")
+- **Scope:** the SQL page and the SQL view in the editor engine (`hs-editor`) with SQL colours and completion from the database's tables and columns; **Open in Database**: match Metabase's database (`engine`, `details.host`, `details.port`, `details.dbname`) to a saved `db` connection (host without case, `localhost` equal to `127.0.0.1`), one match opens on it, none or several opens with the connection picker on the candidates and a hint; the SQL travels in an `OpenRequest` that carries the connection id (a new variant or a Text body the Database activity takes), never a password
+- **Depends on:** FEAT-0130
+- [ ] Editor engine and completion
+- [ ] Open in Database with the matching rule and the new request
+- [ ] Test: the match (one, none, several; case and localhost); the request reaches the Database activity
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a bench Metabase database matching a saved Database connection opens its SQL there; one with no match opens the picker
 - [ ] Docs: spec · README · CHANGELOG
 
 ## v0.8.2 — In-Progress

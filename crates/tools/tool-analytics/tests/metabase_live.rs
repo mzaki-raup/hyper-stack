@@ -372,3 +372,69 @@ fn a_dashboard_runs_its_tiles_and_its_filter_narrows_them() {
     );
     runtime().block_on(dashboards(&p));
 }
+
+/// The server's databases, a database's tables, and ad-hoc SQL: a result, a
+/// refusal in the server's words, and the row limit.
+async fn sql(p: &Metabase) {
+    p.connect().await.expect("connect");
+    let dbs = p.databases().await.expect("the databases");
+    let sample = dbs
+        .iter()
+        .find(|d| d.name == "Sample Database")
+        .expect("the built-in sample database");
+    assert!(sample.native, "an admin may run SQL on it");
+    assert_eq!(sample.engine, "h2");
+
+    let tables = p.tables(&sample.id).await.expect("its tables");
+    let orders = tables
+        .iter()
+        .find(|t| t.name == "ORDERS")
+        .expect("the ORDERS table");
+    assert!(orders.fields.iter().any(|f| f.name == "TOTAL"));
+    assert!(tables.len() >= 4, "{} tables", tables.len());
+
+    let count = p
+        .run_sql(&sample.id, "SELECT COUNT(*) AS n FROM ORDERS", 2000)
+        .await
+        .expect("a count");
+    assert_eq!(count.rows.len(), 1);
+    assert_eq!(count.columns[0].name.to_lowercase(), "n");
+    assert!(
+        count.rows[0][0].as_i64().is_some_and(|n| n > 1000),
+        "{:?}",
+        count.rows
+    );
+
+    // A wrong statement comes back as the server's sentence, not an empty table.
+    let bad = p
+        .run_sql(&sample.id, "SELECT * FROM NO_SUCH_TABLE", 2000)
+        .await
+        .expect_err("a table that does not exist");
+    assert!(bad.to_uppercase().contains("NO_SUCH_TABLE"), "{bad}");
+    // Nothing to run is said before anything is sent.
+    assert!(p.run_sql(&sample.id, "  ", 10).await.is_err());
+
+    let cut = p
+        .run_sql(&sample.id, "SELECT ID FROM ORDERS", 7)
+        .await
+        .expect("a short read");
+    assert_eq!(cut.rows.len(), 7);
+    assert!(cut.truncated);
+    p.disconnect().await;
+}
+
+#[test]
+fn databases_tables_and_ad_hoc_sql_run_on_the_sample_database() {
+    let Ok(spec) = std::env::var("HS_METABASE") else {
+        return;
+    };
+    let (url, key) = spec.split_once('|').expect("HS_METABASE=<url>|<api-key>");
+    let p = provider(
+        url,
+        Auth::ApiKey {
+            header: tool_analytics::profile::API_KEY_HEADER.into(),
+            key: key.into(),
+        },
+    );
+    runtime().block_on(sql(&p));
+}

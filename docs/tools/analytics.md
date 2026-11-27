@@ -306,6 +306,22 @@ the table with the hint and Open in Browser.
   server (§6.3).
 - The SQL page refuses a database the account has no native access to,
   with the server's words.
+- **As built (FEAT-0130)**: the **Databases** section is the second branch
+  of the browse tree, below the collections: each database (from
+  `/api/database`) opens its tables (from `/api/database/:id/metadata`;
+  hidden tables and sensitive fields left out), each table its columns with
+  their types. Picking a database or a table opens its **SQL page**: a text
+  editor (a table pre-fills `SELECT * FROM "schema"."table" LIMIT 100`,
+  quoted as the engine quotes, never over what was typed), **Run**
+  (`Ctrl+Enter`) as a cancellable job through `POST /api/dataset`, and the
+  result as a table or, through the **View** picker, a quick line, bar, pie
+  or number chart. A database the account may not query natively says so
+  (from `native_permissions`) and a run that fails shows the server's own
+  sentence. On a **protected environment** the page is disabled outright:
+  Run never reaches the server (the unlock the other activities offer is
+  not built here). Not built yet: completion from the metadata, and the
+  editor engine's SQL colours (a plain text editor for now); **Open in
+  Database** (§4.3) stays disabled and is FEAT-0144.
 
 ### 4.7 What every page has
 
@@ -723,4 +739,6 @@ smart scalar, progress and gauge) or its SQL, with parameters and an export
 FEAT-0129: a dashboard opens on its grid with its tabs, filters and Apply,
 and its tiles run four at a time (§4.5), live-tested against the bench
 dashboard (a filter narrows the tiles it is mapped to and no others).
-Databases and the other providers are FEAT-0130 onward in `TASKS.md`.
+FEAT-0130: the Databases section and ad-hoc SQL (§4.6), live-tested on the
+bench's Sample Database. The Tableau provider and the other providers are
+FEAT-0131 onward in `TASKS.md`.

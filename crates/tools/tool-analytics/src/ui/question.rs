@@ -19,7 +19,7 @@ use parking_lot::Mutex;
 
 use crate::chart::{self, Plan, Reason, Series, SeriesKind, SeriesPlan};
 use crate::provider::{
-    BiProvider, Card, ExportFormat, Kind, Node, Param, ParamKind, Result, Table,
+    BiProvider, Card, Database, ExportFormat, Kind, Node, Param, ParamKind, Result, Table,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -305,6 +305,7 @@ pub fn page(
     theme: &Theme,
     provider: &Arc<dyn BiProvider>,
     node: &Node,
+    browse: &mut super::browse::Browse,
 ) {
     if !slot
         .as_ref()
@@ -342,7 +343,14 @@ pub fn page(
     ui.add_space(form::ROW_GAP);
     params(q, ui, cx, theme);
     ui.add_space(form::PANE_GAP);
-    views(q, ui, cx, theme);
+    // The question's database, for Open in Database: read once, with the
+    // list the Databases section shows.
+    browse.ensure_databases(s, provider);
+    let db = match &q.card {
+        Loaded::Ready(card) => browse.database(&card.database).cloned(),
+        _ => None,
+    };
+    views(q, ui, cx, theme, db.as_ref());
 }
 
 fn actions(
@@ -456,7 +464,13 @@ fn params(q: &mut Question, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &The
     });
 }
 
-fn views(q: &mut Question, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme) {
+fn views(
+    q: &mut Question,
+    ui: &mut egui::Ui,
+    cx: &mut ToolContext,
+    theme: &Theme,
+    db: Option<&Database>,
+) {
     let s = cx.services;
     let labels = [
         s.t("analytics-view-chart"),
@@ -521,7 +535,7 @@ fn views(q: &mut Question, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Them
     match q.view {
         View::Table => table_view(ui, cx, theme, done, &mut q.table),
         View::Chart => chart_view(ui, cx, theme, done),
-        View::Sql => sql_view(ui, cx, theme, q.sql()),
+        View::Sql => sql_view(ui, cx, theme, q.sql(), db),
     }
 }
 
@@ -550,7 +564,13 @@ pub(super) fn table_view(
     });
 }
 
-fn sql_view(ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, sql: Option<(String, bool)>) {
+fn sql_view(
+    ui: &mut egui::Ui,
+    cx: &mut ToolContext,
+    theme: &Theme,
+    sql: Option<(String, bool)>,
+    db: Option<&Database>,
+) {
     let s = cx.services;
     let Some((text, generated)) = sql else {
         form::note(ui, theme, ph::LIGHTBULB, &s.t("analytics-sql-none"));
@@ -564,11 +584,7 @@ fn sql_view(ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, sql: Option<
         if form::button(ui, theme, ph::COPY, &s.t("analytics-sql-copy")).clicked() {
             ui.ctx().copy_text(text.clone());
         }
-        ui.add_enabled_ui(false, |ui| {
-            form::button(ui, theme, ph::DATABASE, &s.t("analytics-sql-open-db"))
-        })
-        .inner
-        .tip_disabled(s.t("analytics-section-soon"));
+        super::open_db::button(ui, cx, theme, db, &text);
     });
     ui.add_space(form::PANE_GAP);
     egui::ScrollArea::both()

@@ -518,6 +518,12 @@ fn card_from(v: &Value) -> Option<Card> {
         description: s(v, "description"),
         display: s(v, "display"),
         native_sql,
+        database: id_text(
+            v.get("database_id")
+                .filter(|d| !d.is_null())
+                .or_else(|| v.pointer("/dataset_query/database")),
+        )
+        .unwrap_or_default(),
         params,
         viz: v
             .get("visualization_settings")
@@ -828,6 +834,14 @@ fn values_from(v: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// One of a database's connection details (`details.host`, ...), as text,
+/// from the first of `keys` the server gave.
+fn detail(d: &Value, keys: &[&str]) -> String {
+    keys.iter()
+        .find_map(|k| id_text(d.pointer(&format!("/details/{k}"))))
+        .unwrap_or_default()
+}
+
 /// `GET /api/database`: `{ "data": [..] }` (0.40 and later) or a bare list.
 /// A database the account has no native rights on says so.
 fn databases_from(v: &Value) -> Vec<Database> {
@@ -843,6 +857,9 @@ fn databases_from(v: &Value) -> Vec<Database> {
                         engine: s(d, "engine"),
                         native: d.get("native_permissions").and_then(Value::as_str)
                             == Some("write"),
+                        host: detail(d, &["host"]),
+                        port: detail(d, &["port"]),
+                        dbname: detail(d, &["dbname", "db", "database"]),
                     })
                 })
                 .collect()
@@ -1217,6 +1234,25 @@ mod tests {
         let v = json!({ "values": [["Doohickey"], ["Gadget"], [7]], "has_more_values": false });
         assert_eq!(values_from(&v), ["Doohickey", "Gadget", "7"]);
         assert!(values_from(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn a_database_carries_the_details_an_admin_sees_and_a_card_its_database() {
+        let v = json!([{ "id": 3, "name": "w", "engine": "postgres",
+            "details": { "host": "db.example.com", "port": 5432, "dbname": "sales" } },
+            { "id": 4, "name": "x", "engine": "h2", "details": { "db": "file:/data/x" } },
+            { "id": 5, "name": "y", "engine": "postgres" }]);
+        let d = databases_from(&v);
+        assert_eq!(
+            (d[0].host.as_str(), d[0].port.as_str(), d[0].dbname.as_str()),
+            ("db.example.com", "5432", "sales")
+        );
+        assert_eq!(d[1].dbname, "file:/data/x", "H2 names its file `db`");
+        assert!(d[2].host.is_empty(), "no details for a non-admin");
+        let c = card_from(&json!({ "id": 9, "database_id": 3, "dataset_query": {} }));
+        assert_eq!(c.expect("a card").database, "3");
+        let c = card_from(&json!({ "id": 9, "dataset_query": { "database": 4 } }));
+        assert_eq!(c.expect("a card").database, "4");
     }
 
     #[test]

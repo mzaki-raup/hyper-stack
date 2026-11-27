@@ -12,6 +12,7 @@ publish.workspace = true
 [dependencies]
 hs-core = { workspace = true }
 hs-ui = { workspace = true }
+hs-editor = { workspace = true }
 egui = { workspace = true }
 egui_plot = { workspace = true }
 serde = { workspace = true }

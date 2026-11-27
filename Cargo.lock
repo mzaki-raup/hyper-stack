@@ -9512,6 +9512,7 @@ dependencies = [
  "egui",
  "egui_plot",
  "hs-core",
+ "hs-editor",
  "hs-ui",
  "parking_lot",
  "reqwest",

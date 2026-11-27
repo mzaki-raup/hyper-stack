@@ -210,8 +210,8 @@ disabled with the reason, never hidden). The trait's questions:
   *Rows per Run* rows (Settings -> Analytics) and says when it was cut.
   The SQL view shows a native question's own SQL, or the SQL Metabase
   compiled a query-builder question to (`data.native_form.query` of the
-  result, marked as generated); **Open in Database** is drawn disabled
-  until FEAT-0130, which owns the connection match. Parameters are text,
+  result, marked as generated); **Open in Database** opens the SQL in a new
+  Database tab (FEAT-0144, §4.6). Parameters are text,
   number and date fields prefilled with the card's defaults; filling a
   field from the server's value list (`pick_field`) is not built yet.
   Numbers show without a thousands separator, so a column still sorts as
@@ -319,9 +319,18 @@ the table with the hint and Open in Browser.
   (from `native_permissions`) and a run that fails shows the server's own
   sentence. On a **protected environment** the page is disabled outright:
   Run never reaches the server (the unlock the other activities offer is
-  not built here). Not built yet: completion from the metadata, and the
-  editor engine's SQL colours (a plain text editor for now); **Open in
-  Database** (§4.3) stays disabled and is FEAT-0144.
+  not built here). The editor is the shared code editor with SQL colours;
+  typing two characters of a word, or a dot after a table, offers the
+  database's tables, the columns of the tables the statement names, and
+  SQL keywords (`Ctrl+Space` forces the list; Up/Down, Enter or Tab,
+  Escape). **Open in Database** (FEAT-0144) sends the SQL in
+  `OpenRequest::Sql` to a new Database tab, on the saved connection whose
+  engine, host (case-insensitive, `localhost` = `127.0.0.1`), port and
+  database name equal the server's `details`; with none or several it
+  opens with the connection picker and a hint. Only admins see a
+  database's `details`, so for anyone else it never matches and the
+  picker opens; SQLite and H2 files are not matched. The request carries
+  the connection id, never a password.
 
 ### 4.7 What every page has
 
@@ -638,8 +647,7 @@ trait, `Caps`, `Item`, `Grid`, `Result`), `provider/metabase/{mod,
 api, chart}.rs`, `ui/{mod, tab, dashboard, sidebar, tree, question,
 board, sql, chart}.rs`, `profile.rs`. Depends on `hs-core`, `hs-ui`,
 `hs-editor` (SQL view and editor), `egui_plot` (ADR-034); no other tool
-crate. **Open in Database** goes through `OpenRequest::Text` with the
-`sql` language.
+crate. **Open in Database** goes through `OpenRequest::Sql`.
 
 ### 8.2 Shared pieces reused
 

@@ -123,14 +123,21 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                             provider: &provider,
                             protected: protected.as_deref(),
                         },
+                        &mut tool.browse,
                     );
                 }
                 None => form::note(ui, &theme, ph::LIGHTBULB, &s.t("analytics-loading")),
             }
         }
-        Some(node) if question::is_card(&node) => {
-            question::page(&mut tool.question, ui, cx, &theme, &provider, &node)
-        }
+        Some(node) if question::is_card(&node) => question::page(
+            &mut tool.question,
+            ui,
+            cx,
+            &theme,
+            &provider,
+            &node,
+            &mut tool.browse,
+        ),
         Some(node) => item_page(ui, cx, &theme, &provider, &node),
         None => server_facts(ui, s, &theme, tool, &info),
     });

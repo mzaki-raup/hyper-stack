@@ -458,6 +458,7 @@ mod tests {
             description: String::new(),
             display: display.into(),
             native_sql: None,
+            database: String::new(),
             params: Vec::new(),
             viz,
         }

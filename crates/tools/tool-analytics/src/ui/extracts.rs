@@ -27,6 +27,9 @@ enum Part<T> {
 }
 
 pub struct Extracts {
+    /// Which of the two lists this server has.
+    show_tasks: bool,
+    show_jobs: bool,
     tasks: Part<Vec<Vec<String>>>,
     jobs: Part<Vec<Vec<String>>>,
     task_table: TableState,
@@ -67,23 +70,30 @@ fn job_row(j: &JobInfo) -> Vec<String> {
 
 impl Extracts {
     pub fn open(s: &hs_core::Services, provider: &Arc<dyn BiProvider>) -> Extracts {
+        let caps = provider.capabilities();
         let page = Extracts {
+            show_tasks: caps.extracts,
+            show_jobs: caps.jobs,
             tasks: Part::Loading,
             jobs: Part::Loading,
             task_table: TableState::default(),
             job_table: TableState::default(),
             inbox: Arc::new(Mutex::new(Inbox::default())),
         };
-        let (p, inbox) = (provider.clone(), page.inbox.clone());
-        s.runtime.spawn(async move {
-            let r = p.extracts().await;
-            inbox.lock().tasks = Some(r);
-        });
-        let (p, inbox) = (provider.clone(), page.inbox.clone());
-        s.runtime.spawn(async move {
-            let r = p.jobs().await;
-            inbox.lock().jobs = Some(r);
-        });
+        if page.show_tasks {
+            let (p, inbox) = (provider.clone(), page.inbox.clone());
+            s.runtime.spawn(async move {
+                let r = p.extracts().await;
+                inbox.lock().tasks = Some(r);
+            });
+        }
+        if page.show_jobs {
+            let (p, inbox) = (provider.clone(), page.inbox.clone());
+            s.runtime.spawn(async move {
+                let r = p.jobs().await;
+                inbox.lock().jobs = Some(r);
+            });
+        }
         page
     }
 
@@ -174,8 +184,16 @@ pub fn page(
     form::page_title(
         ui,
         theme,
-        &s.t("analytics-kind-extracts"),
-        Some(&s.t("analytics-extracts-sub")),
+        &s.t(if x.show_tasks {
+            "analytics-kind-extracts"
+        } else {
+            "analytics-kind-jobs"
+        }),
+        Some(&s.t(if x.show_tasks {
+            "analytics-extracts-sub"
+        } else {
+            "analytics-jobs-sub"
+        })),
     );
     form::centred_row_wrapped(ui, |ui| {
         if form::button(ui, theme, ph::ARROWS_CLOCKWISE, &s.t("analytics-refresh")).clicked() {
@@ -205,39 +223,45 @@ pub fn page(
         .id_salt("analytics-extracts")
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let tasks = Section {
-                title: s.t("analytics-extracts-tasks"),
-                part: &x.tasks,
-                columns: vec![
-                    ColumnSpec::new(s.t("analytics-col-target-kind"), 120.0),
-                    ColumnSpec::new(s.t("analytics-col-target"), 220.0),
-                    ColumnSpec::new(s.t("analytics-col-type"), 160.0),
-                    ColumnSpec::new(s.t("analytics-col-schedule"), 140.0),
-                    ColumnSpec::new(s.t("analytics-col-frequency"), 110.0),
-                    ColumnSpec::new(s.t("analytics-col-failed"), 100.0).numeric(),
-                ],
-                empty: s.t("analytics-extracts-tasks-empty"),
-                id: "analytics-extract-tasks",
-            };
-            section(ui, s, theme, &tasks, &mut x.task_table);
-            ui.add_space(form::PANE_GAP);
-            ui.separator();
-            ui.add_space(form::PANE_GAP);
-            let jobs = Section {
-                title: s.t("analytics-extracts-jobs"),
-                part: &x.jobs,
-                columns: vec![
-                    ColumnSpec::new(s.t("analytics-col-type"), 160.0),
-                    ColumnSpec::new(s.t("analytics-col-started"), 180.0),
-                    ColumnSpec::new(s.t("analytics-col-completed"), 180.0),
-                    ColumnSpec::new(s.t("analytics-col-progress"), 100.0).numeric(),
-                    ColumnSpec::new(s.t("analytics-col-result"), 110.0),
-                    ColumnSpec::new(s.t("analytics-col-notes"), 260.0),
-                ],
-                empty: s.t("analytics-extracts-jobs-empty"),
-                id: "analytics-extract-jobs",
-            };
-            section(ui, s, theme, &jobs, &mut x.job_table);
+            if x.show_tasks {
+                let tasks = Section {
+                    title: s.t("analytics-extracts-tasks"),
+                    part: &x.tasks,
+                    columns: vec![
+                        ColumnSpec::new(s.t("analytics-col-target-kind"), 120.0),
+                        ColumnSpec::new(s.t("analytics-col-target"), 220.0),
+                        ColumnSpec::new(s.t("analytics-col-type"), 160.0),
+                        ColumnSpec::new(s.t("analytics-col-schedule"), 140.0),
+                        ColumnSpec::new(s.t("analytics-col-frequency"), 110.0),
+                        ColumnSpec::new(s.t("analytics-col-failed"), 100.0).numeric(),
+                    ],
+                    empty: s.t("analytics-extracts-tasks-empty"),
+                    id: "analytics-extract-tasks",
+                };
+                section(ui, s, theme, &tasks, &mut x.task_table);
+                if x.show_jobs {
+                    ui.add_space(form::PANE_GAP);
+                    ui.separator();
+                    ui.add_space(form::PANE_GAP);
+                }
+            }
+            if x.show_jobs {
+                let jobs = Section {
+                    title: s.t("analytics-extracts-jobs"),
+                    part: &x.jobs,
+                    columns: vec![
+                        ColumnSpec::new(s.t("analytics-col-type"), 160.0),
+                        ColumnSpec::new(s.t("analytics-col-started"), 180.0),
+                        ColumnSpec::new(s.t("analytics-col-completed"), 180.0),
+                        ColumnSpec::new(s.t("analytics-col-progress"), 100.0).numeric(),
+                        ColumnSpec::new(s.t("analytics-col-result"), 110.0),
+                        ColumnSpec::new(s.t("analytics-col-notes"), 260.0),
+                    ],
+                    empty: s.t("analytics-extracts-jobs-empty"),
+                    id: "analytics-extract-jobs",
+                };
+                section(ui, s, theme, &jobs, &mut x.job_table);
+            }
         });
 }
 

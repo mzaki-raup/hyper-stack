@@ -329,16 +329,16 @@ Change Request : CR-0103
 - **Notes:** the App box is open: the owner declined screen access on 2026-11-27 (twice), so the Tableau tab has not been looked at in the running app, and no real Tableau Server was available: only the bench mock.
 
 ### FEAT-0133 · Analytics: the SAS Viya provider
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
 - **Source:** owner, 2026-11-26: "For Analytic, if possible, add SAS BI"; answered *SAS Viya*, with the spec, the ledger item and a bench mock now
 - **Scope:** kind `sasviya` for **SAS Viya** (not SAS 9.4 BI: no REST surface); SAS Logon password grant with a registered client, or a pasted access token; folders and reports, search; a report's picture from the Report Images service, its details, Open Interactive in the Browser activity; CAS libraries and tables with columns and a row preview in a `DataTable`; recent jobs, read-only; per-service probing in place of one version call
 - **Depends on:** FEAT-0131
-- [ ] Provider and screens, read-only
-- [ ] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA`
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Provider and screens, read-only
+- [x] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA` — 2026-11-28: unit tests for the profile and parsers; `sasviya_live` passes against the bench mock by password through the client and by token (the mock only)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-28: all pass
 - [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's Viya: browse, a report's picture, a table's rows, the jobs; Open Interactive
-- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
-- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is on `chore/bench-kit`.
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS (no new mistake to record)
+- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is in `bench/mock/sasviya`. The App box is open: the owner has declined screen access.
 
 ### FEAT-0134 · Analytics: the Apache Superset provider
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q

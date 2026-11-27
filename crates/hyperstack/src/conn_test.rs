@@ -223,6 +223,7 @@ pub fn testable(kind: &str) -> bool {
             | "ldap"
             | "metabase"
             | "tableau"
+            | "sasviya"
     )
 }
 
@@ -599,6 +600,7 @@ mod tests {
             "confluence",
             "metabase",
             "tableau",
+            "sasviya",
         ] {
             assert!(testable(k), "{k}");
         }

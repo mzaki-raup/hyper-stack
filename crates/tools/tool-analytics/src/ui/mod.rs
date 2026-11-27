@@ -8,6 +8,7 @@ mod dashboard;
 mod editor;
 mod extracts;
 mod open_db;
+mod preview;
 mod question;
 mod sidebar;
 mod sql;
@@ -100,6 +101,8 @@ pub struct AnalyticsTool {
     view: Option<view::ViewPage>,
     /// The Extracts and Jobs page.
     extracts: Option<extracts::Extracts>,
+    /// The picked CAS table's row preview.
+    preview: Option<preview::Preview>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -113,6 +116,7 @@ impl AnalyticsTool {
         self.sql = None;
         self.view = None;
         self.extracts = None;
+        self.preview = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

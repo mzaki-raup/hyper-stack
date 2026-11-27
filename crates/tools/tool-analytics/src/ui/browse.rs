@@ -56,6 +56,8 @@ struct Inbox {
 #[derive(Default)]
 pub struct Browse {
     inbox: Arc<Mutex<Inbox>>,
+    /// The heading of the data section (Databases, CAS Libraries).
+    data_label: String,
     loaded: HashMap<String, Loaded>,
     /// Bumped whenever `loaded` changes, so the tree is rebuilt only then.
     version: u64,
@@ -99,6 +101,7 @@ fn glyph(k: Kind) -> &'static str {
         Kind::View => ph::CHART_BAR,
         Kind::DataSource => ph::DATABASE,
         Kind::Extracts => ph::ARROWS_CLOCKWISE,
+        Kind::Report => ph::CHART_BAR,
     }
 }
 
@@ -116,6 +119,7 @@ fn picture_word(k: Kind) -> &'static str {
         Kind::View => "view",
         Kind::DataSource => "database",
         Kind::Extracts => "history",
+        Kind::Report => "view",
     }
 }
 
@@ -437,7 +441,11 @@ impl Browse {
     fn databases_node(&self, material: bool) -> TreeNode {
         let mut node = TreeNode::branch(
             DATABASES,
-            "Databases".to_string(),
+            if self.data_label.is_empty() {
+                "Databases".to_string()
+            } else {
+                self.data_label.clone()
+            },
             icon(material, Kind::Database),
             Vec::new(),
         );
@@ -564,11 +572,19 @@ impl Browse {
             // The Databases section goes below the collections, unless a
             // filter is narrowing what is loaded; so does Extracts and Jobs.
             let caps = provider.capabilities();
-            if needle.is_empty() && caps.native_sql {
+            if !caps.data_section.is_empty() {
+                self.data_label = s.t(caps.data_section);
+            }
+            if needle.is_empty() && caps.tables {
                 nodes.push(self.databases_node(material));
             }
-            if needle.is_empty() && caps.extracts {
-                let n = extracts_node(s.t("analytics-kind-extracts"));
+            if needle.is_empty() && (caps.extracts || caps.jobs) {
+                let key = if caps.extracts {
+                    "analytics-kind-extracts"
+                } else {
+                    "analytics-kind-jobs"
+                };
+                let n = extracts_node(s.t(key));
                 nodes.push(TreeNode::leaf(
                     node_key(&n),
                     n.name.clone(),

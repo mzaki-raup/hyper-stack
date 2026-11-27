@@ -53,6 +53,7 @@ pub const KINDS: &[&str] = &[
     "ldap",
     "metabase",
     "tableau",
+    "sasviya",
 ];
 
 /// The kinds the Container activity owns (ADR-026,
@@ -136,7 +137,7 @@ pub fn is_idm_kind(kind: &str) -> bool {
 
 /// The kinds the **Analytics** activity opens (`docs/tools/analytics.md`
 /// §5.1): Metabase first, Tableau Server next.
-pub const ANALYTICS_KINDS: &[&str] = &["metabase", "tableau"];
+pub const ANALYTICS_KINDS: &[&str] = &["metabase", "tableau", "sasviya"];
 
 /// Whether a kind is opened by the Analytics (BI) activity.
 pub fn is_analytics_kind(kind: &str) -> bool {
@@ -214,6 +215,7 @@ pub fn kind_label(kind: &str) -> &str {
         "ldap" => "LDAP",
         "metabase" => "Metabase",
         "tableau" => "Tableau",
+        "sasviya" => "SAS Viya",
         other => other,
     }
 }

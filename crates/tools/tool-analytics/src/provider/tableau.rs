@@ -225,6 +225,11 @@ impl BiProvider for Tableau {
             views: true,
             extracts: true,
             search_kinds: &[Kind::View, Kind::Workbook, Kind::DataSource],
+            tables: false,
+            data_section: "",
+            jobs: true,
+            view_data: true,
+            view_files: &ViewFile::ALL,
         }
     }
 

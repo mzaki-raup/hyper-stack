@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::{AnalyticsTool, board, extracts, question, sql, view};
+use super::{AnalyticsTool, board, extracts, preview, question, sql, view};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -107,7 +107,12 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                 tool.browse.select(q);
             }
         }
-        Some(node) if sql::database_of(&node).is_some() => {
+        Some(node)
+            if node.kind == crate::provider::Kind::Table && !provider.capabilities().native_sql =>
+        {
+            preview::page(&mut tool.preview, ui, cx, &theme, &provider, &node)
+        }
+        Some(node) if provider.capabilities().native_sql && sql::database_of(&node).is_some() => {
             let id = sql::database_of(&node).unwrap_or_default().to_string();
             match tool.browse.database(&id).cloned() {
                 Some(db) => {
@@ -129,7 +134,12 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                 None => form::note(ui, &theme, ph::LIGHTBULB, &s.t("analytics-loading")),
             }
         }
-        Some(node) if node.kind == crate::provider::Kind::View => {
+        Some(node)
+            if matches!(
+                node.kind,
+                crate::provider::Kind::View | crate::provider::Kind::Report
+            ) =>
+        {
             view::page(&mut tool.view, ui, cx, &theme, &provider, &node)
         }
         Some(node) if node.kind == crate::provider::Kind::Extracts => {

@@ -24,9 +24,15 @@ pub const TABLEAU_AUTH_KINDS: &[&str] = &["password", "api-key"];
 pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
     match kind {
         "tableau" => TABLEAU_AUTH_KINDS,
+        "sasviya" => SASVIYA_AUTH_KINDS,
         _ => AUTH_KINDS,
     }
 }
+
+/// The credential kinds SAS Viya takes: a username and password through a
+/// registered OAuth client (SAS Logon), or an access token pasted in where
+/// the site signs people in through single sign-on.
+pub const SASVIYA_AUTH_KINDS: &[&str] = &["password", "token"];
 
 /// The header Metabase reads an API key from.
 pub const API_KEY_HEADER: &str = "x-api-key";
@@ -34,10 +40,19 @@ pub const API_KEY_HEADER: &str = "x-api-key";
 /// The request timeout when Settings gives none (§7).
 pub const TIMEOUT: Duration = Duration::from_secs(60);
 
+/// The OAuth client a product's form starts with.
+pub fn default_client(kind: &str) -> &'static str {
+    match kind {
+        "sasviya" => "sas.cli",
+        _ => "",
+    }
+}
+
 pub fn default_url(kind: &str) -> &'static str {
     match kind {
         "metabase" => "http://127.0.0.1:3030",
         "tableau" => "http://127.0.0.1:8280",
+        "sasviya" => "http://127.0.0.1:8380",
         _ => "",
     }
 }
@@ -48,6 +63,10 @@ pub struct AnalyticsFields {
     pub url: String,
     /// Tableau: the site's content URL; empty for the default site.
     pub site: String,
+    /// SAS Viya: the registered OAuth client. `sas.cli` has an empty secret.
+    pub client_id: String,
+    /// `secret:<id>`, `{{var}}`, or typed text until the form saves it.
+    pub client_secret: String,
     pub tls_verify: bool,
     /// A PEM file of extra roots (a company CA); empty for none.
     pub ca_file: String,
@@ -59,6 +78,8 @@ impl Default for AnalyticsFields {
         AnalyticsFields {
             url: String::new(),
             site: String::new(),
+            client_id: String::new(),
+            client_secret: String::new(),
             tls_verify: true,
             ca_file: String::new(),
             credential: Credential {
@@ -84,6 +105,19 @@ impl std::fmt::Display for ProfileError {
             ProfileError::Invalid(e) => f.write_str(e),
         }
     }
+}
+
+/// A profile resolved for SAS Viya.
+#[derive(Debug, Clone)]
+pub struct SasViyaConfig {
+    pub url: String,
+    /// `Auth::Password` (with the OAuth client below) or `Auth::Token`.
+    pub auth: Auth,
+    pub client_id: String,
+    /// Empty for a client with no secret.
+    pub client_secret: String,
+    pub tls: Tls,
+    pub timeout: Duration,
 }
 
 /// A profile resolved for Tableau Server.
@@ -135,9 +169,20 @@ impl AnalyticsFields {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true),
             site: s("site"),
+            client_id: Some(s("client_id"))
+                .filter(|c| !c.is_empty())
+                .unwrap_or_else(|| default_client(kind).to_string()),
+            client_secret: s("client_secret"),
             ca_file: s("ca_file"),
             credential,
         }
+    }
+
+    /// Every secret of the form, with the label the vault files it under,
+    /// for the form's save to move into the vault.
+    pub fn secret_fields(&mut self) -> [(&'static str, &mut String); 2] {
+        let [main] = self.credential.secret_fields();
+        [main, ("client secret", &mut self.client_secret)]
     }
 
     pub fn write_into(&self, fields: &mut toml::Table) {
@@ -145,6 +190,8 @@ impl AnalyticsFields {
         for (k, v) in [
             ("url", &self.url),
             ("site", &self.site),
+            ("client_id", &self.client_id),
+            ("client_secret", &self.client_secret),
             ("ca_file", &self.ca_file),
         ] {
             t.insert(k.into(), toml::Value::String(v.clone()));
@@ -161,6 +208,65 @@ impl AnalyticsFields {
             hs_core::connections::kind_label(kind),
             short(&self.url)
         )
+    }
+
+    /// Resolve variables and the vault secrets into SAS Viya's config.
+    pub fn resolve_sasviya(
+        &self,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<SasViyaConfig, ProfileError> {
+        let url = self.resolve_url(lookup)?;
+        let auth = self
+            .credential
+            .clone()
+            .allowed(SASVIYA_AUTH_KINDS)
+            .resolve(secrets, lookup)
+            .map_err(|e| match e {
+                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+                other => ProfileError::Auth(other),
+            })?;
+        if !matches!(auth, Auth::Password { .. } | Auth::Token { .. }) {
+            return Err(ProfileError::Invalid(
+                "Choose how to sign in: a username and password, or an access token.".into(),
+            ));
+        }
+        // The client secret is a vault secret too; none is a valid answer.
+        let client_secret = if self.client_secret.trim().is_empty() {
+            String::new()
+        } else {
+            let as_key = Credential {
+                auth: "api-key".into(),
+                secret: self.client_secret.clone(),
+                header: "x".into(),
+                ..Default::default()
+            };
+            match as_key.resolve(secrets, lookup) {
+                Ok(Auth::ApiKey { key, .. }) => key,
+                Ok(_) => String::new(),
+                Err(AuthError::MissingVariables(v)) => {
+                    return Err(ProfileError::MissingVariables(v));
+                }
+                Err(other) => return Err(ProfileError::Auth(other)),
+            }
+        };
+        let client_id = lookup(self.client_id.trim())
+            .map_err(ProfileError::MissingVariables)?
+            .trim()
+            .to_string();
+        if matches!(auth, Auth::Password { .. }) && client_id.is_empty() {
+            return Err(ProfileError::Invalid(
+                "Enter the OAuth client's id (sas.cli is the usual one).".into(),
+            ));
+        }
+        Ok(SasViyaConfig {
+            url,
+            auth,
+            client_id,
+            client_secret,
+            tls: self.tls(),
+            timeout: TIMEOUT,
+        })
     }
 
     /// Resolve variables and the vault secret into Tableau Server's config.
@@ -423,6 +529,65 @@ mod tests {
         assert!(matches!(
             nameless.resolve_tableau(&NoVault, &no_vars),
             Err(ProfileError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn a_sas_viya_profile_keeps_its_client_and_resolves_a_password_or_a_token() {
+        let mut table = toml::Table::new();
+        let f = AnalyticsFields::from_table("sasviya", &table);
+        assert_eq!(f.url, "http://127.0.0.1:8380");
+        assert_eq!(f.client_id, "sas.cli", "the usual client");
+        assert_eq!(f.credential.auth, "password");
+        let mut set = f.clone();
+        set.credential = Credential {
+            auth: "password".into(),
+            user: "sasdemo".into(),
+            secret: "pw".into(),
+            ..Default::default()
+        };
+        set.client_id = "hs.client".into();
+        set.client_secret = "{{cs}}".into();
+        set.write_into(&mut table);
+        let back = AnalyticsFields::from_table("sasviya", &table);
+        assert_eq!(back, set);
+        let cfg = back.resolve_sasviya(&NoVault, &no_vars).expect("resolves");
+        assert_eq!(
+            (cfg.client_id.as_str(), cfg.client_secret.as_str()),
+            ("hs.client", "{{cs}}")
+        );
+        // An empty client secret is valid; an empty client id is not for a password.
+        let bare = AnalyticsFields {
+            client_secret: String::new(),
+            ..back.clone()
+        };
+        assert_eq!(
+            bare.resolve_sasviya(&NoVault, &no_vars)
+                .unwrap()
+                .client_secret,
+            ""
+        );
+        let nameless = AnalyticsFields {
+            client_id: String::new(),
+            ..bare.clone()
+        };
+        assert!(matches!(
+            nameless.resolve_sasviya(&NoVault, &|v: &str| Ok(v.to_string())),
+            Err(ProfileError::Invalid(_))
+        ));
+        // A pasted token needs no client.
+        let token = AnalyticsFields {
+            client_id: String::new(),
+            credential: Credential {
+                auth: "token".into(),
+                secret: "tok".into(),
+                ..Default::default()
+            },
+            ..bare
+        };
+        assert!(matches!(
+            token.resolve_sasviya(&NoVault, &no_vars).unwrap().auth,
+            Auth::Token { .. }
         ));
     }
 

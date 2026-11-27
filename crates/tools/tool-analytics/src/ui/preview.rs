@@ -15,6 +15,9 @@ use parking_lot::Mutex;
 use super::question::{Done, table_view};
 use crate::provider::{BiProvider, Card, Kind, Node, Result, Table};
 
+/// A run's answer, with the number of the run it answers.
+type Inbox = Arc<Mutex<Option<(u64, Result<Table>)>>>;
+
 enum Load {
     Running(JobId),
     Ready(Box<Done>),
@@ -27,7 +30,7 @@ pub struct Preview {
     run_no: u64,
     load: Load,
     table: TableState,
-    inbox: Arc<Mutex<Option<(u64, Result<Table>)>>>,
+    inbox: Inbox,
 }
 
 /// `<database>/<table>`, as the browse tree names a table's node.
@@ -56,7 +59,7 @@ impl Preview {
         provider: &Arc<dyn BiProvider>,
         node: &Node,
         run_no: u64,
-        inbox: Arc<Mutex<Option<(u64, Result<Table>)>>>,
+        inbox: Inbox,
     ) -> Load {
         let (db, table) = split(&node.id);
         let (db, table) = (db.to_string(), table.to_string());

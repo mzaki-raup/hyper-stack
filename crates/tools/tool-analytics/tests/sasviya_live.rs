@@ -93,7 +93,13 @@ async fn walk(p: &SasViya) {
     let found = p.search("revenue", &[], 0).await.expect("search");
     assert_eq!(found.total, 1);
     assert_eq!(found.nodes[0].name, "Revenue by Region");
-    assert!(p.search("no such report", &[], 0).await.unwrap().nodes.is_empty());
+    assert!(
+        p.search("no such report", &[], 0)
+            .await
+            .unwrap()
+            .nodes
+            .is_empty()
+    );
 
     // A report's picture: a job polled until it completes, then a PNG.
     let facts = p.view(&revenue.id).await.expect("details");
@@ -103,7 +109,11 @@ async fn walk(p: &SasViya) {
         .await
         .expect("picture");
     assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
-    assert!(p.view_file(&revenue.id, ViewFile::Csv, 0, &[]).await.is_err());
+    assert!(
+        p.view_file(&revenue.id, ViewFile::Csv, 0, &[])
+            .await
+            .is_err()
+    );
 
     // CAS: libraries, tables with their columns, a row preview.
     let libs = p.databases().await.expect("caslibs");
@@ -115,7 +125,11 @@ async fn walk(p: &SasViya) {
     let tables = p.tables("Public").await.expect("tables");
     let orders = tables.iter().find(|t| t.name == "ORDERS").expect("ORDERS");
     assert_eq!(
-        orders.fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
+        orders
+            .fields
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect::<Vec<_>>(),
         ["OrderID", "Region", "Amount"]
     );
     let rows = p.preview("Public", "ORDERS", 100).await.expect("rows");

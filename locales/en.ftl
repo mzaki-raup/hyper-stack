@@ -5196,6 +5196,12 @@ analytics-kind-collection = Collection
 analytics-kind-database = Database
 analytics-kind-table = Table
 analytics-kind-workbook = Workbook
+analytics-kind-report = Report
+analytics-kind-jobs = Jobs
+analytics-kinds-report = Reports
+analytics-section-cas = CAS Libraries
+analytics-jobs-sub = Recent background jobs on the server; read-only.
+analytics-preview-sub = The first rows of the table; Rows per Run in Settings sets how many.
 analytics-kind-view = View
 analytics-kind-datasource = Data Source
 analytics-kind-extracts = Extracts and Jobs
@@ -5211,6 +5217,7 @@ analytics-view-filters-hint = Field=Value; Field=Value
 analytics-view-save-picture = Save Picture
 analytics-view-save-data = Save Data
 analytics-view-save-pdf = Save PDF
+analytics-cancelled = Cancelled. Refresh to read the rows again.
 analytics-view-picture = Picture
 analytics-view-data = Data
 analytics-extracts-sub = Extract refresh tasks and recent background jobs on the server; read-only.
@@ -5311,6 +5318,14 @@ conn-analytics-token-name = Token Name
 conn-analytics-token-secret = Token Secret
 conn-analytics-hint-password-tableau = A username and password of the Server (local or Active Directory); the token it returns lives in memory and is ended with the tab.
 conn-analytics-hint-token = A Personal Access Token: its name and its secret, kept in the vault. Create it under My Account Settings → Personal Access Tokens; it expires after a period of not being used.
+conn-analytics-url-hint-sas = The ingress root of SAS Viya, for example https://viya.example.com, without a service path.
+conn-analytics-auth-access-token = Access Token
+conn-analytics-access-token = Access Token
+conn-analytics-client-id = OAuth Client
+conn-analytics-client-secret = Client Secret
+conn-analytics-client-hint = The registered client SAS Logon signs you in through. sas.cli is the usual one, with an empty secret where the site allows it.
+conn-analytics-hint-password-sas = A username and password of the Viya site, signed in through SAS Logon; the token lives in memory and is renewed while the tab is open.
+conn-analytics-hint-access-token = An access token pasted in where the site signs people in through single sign-on, kept in the vault. It is not renewed.
 conn-analytics-hint-key = A Metabase API key (Metabase 0.49 or newer), kept in the vault. Create it under Admin → Settings → Authentication → API Keys.
 
 ## Identity server connection form

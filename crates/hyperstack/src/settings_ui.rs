@@ -4837,8 +4837,7 @@ fn save_draft(
             } else if is_analytics {
                 let mut f =
                     tool_analytics::profile::AnalyticsFields::from_table(&draft.kind, &table);
-                secrets_ok =
-                    store_typed_secrets(s, &draft.name, f.credential.secret_fields(), effects);
+                secrets_ok = store_typed_secrets(s, &draft.name, f.secret_fields(), effects);
                 f.write_into(&mut table);
                 draft.fields = table.clone();
             } else if is_queue {
@@ -6156,7 +6155,7 @@ fn apply_secret_edit(
         kind if hs_core::connections::is_analytics_kind(kind) => {
             let mut f = tool_analytics::profile::AnalyticsFields::from_table(kind, &table);
             f.credential.secret = std::mem::take(password);
-            let ok = store_typed_secrets(s, &profile.name, f.credential.secret_fields(), effects);
+            let ok = store_typed_secrets(s, &profile.name, f.secret_fields(), effects);
             f.write_into(&mut table);
             ok
         }
@@ -11053,6 +11052,7 @@ fn analytics_form(
     use tool_analytics::profile::{AnalyticsFields, auth_kinds};
     let mut f = AnalyticsFields::from_table(&draft.kind, &draft.fields);
     let tableau = draft.kind == "tableau";
+    let sas = draft.kind == "sasviya";
     let mut changed = false;
     form::section(ui, theme, &s.t("conn-analytics-section"), |ui| {
         form::field_grid(ui, "analytics-server", |ui| {
@@ -11069,6 +11069,8 @@ fn analytics_form(
                 theme,
                 &s.t(if tableau {
                     "conn-analytics-url-hint-tableau"
+                } else if sas {
+                    "conn-analytics-url-hint-sas"
                 } else {
                     "conn-analytics-url-hint"
                 }),
@@ -11086,6 +11088,7 @@ fn analytics_form(
             let auth_key = |a: &str| match (a, tableau) {
                 ("api-key", true) => "conn-analytics-auth-token",
                 ("api-key", false) => "conn-analytics-auth-key",
+                ("token", _) => "conn-analytics-auth-access-token",
                 _ => "conn-analytics-auth-password",
             };
             let c = &mut f.credential;
@@ -11109,6 +11112,8 @@ fn analytics_form(
                 changed |= form::text_field(ui, &mut c.user, "admin@example.com").changed();
                 ui.end_row();
                 form::label(ui, &s.t("conn-queue-password"));
+            } else if sas {
+                form::label(ui, &s.t("conn-analytics-access-token"));
             } else if tableau {
                 // A Personal Access Token is a name and a secret: the
                 // name rides the credential's header field.
@@ -11121,13 +11126,34 @@ fn analytics_form(
             }
             changed |= secret_field(ui, theme, s, "analytics-secret", &mut c.secret, scratch, 0);
             ui.end_row();
-            let hint = match (c.auth == "password", tableau) {
-                (true, true) => "conn-analytics-hint-password-tableau",
-                (true, false) => "conn-analytics-hint-password",
-                (false, true) => "conn-analytics-hint-token",
-                (false, false) => "conn-analytics-hint-key",
+            let is_password = c.auth == "password";
+            let hint = match (is_password, tableau, sas) {
+                (true, _, true) => "conn-analytics-hint-password-sas",
+                (false, _, true) => "conn-analytics-hint-access-token",
+                (true, true, _) => "conn-analytics-hint-password-tableau",
+                (true, false, _) => "conn-analytics-hint-password",
+                (false, true, _) => "conn-analytics-hint-token",
+                (false, false, _) => "conn-analytics-hint-key",
             };
             form::row_hint(ui, theme, &s.t(hint));
+            if sas && is_password {
+                // The registered OAuth client the password grant goes through.
+                form::label(ui, &s.t("conn-analytics-client-id"));
+                changed |= form::text_field(ui, &mut f.client_id, "sas.cli").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-analytics-client-secret"));
+                changed |= secret_field(
+                    ui,
+                    theme,
+                    s,
+                    "analytics-client-secret",
+                    &mut f.client_secret,
+                    scratch,
+                    1,
+                );
+                ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-analytics-client-hint"));
+            }
         });
     });
     form::section(ui, theme, &s.t("conn-idm-section-tls"), |ui| {

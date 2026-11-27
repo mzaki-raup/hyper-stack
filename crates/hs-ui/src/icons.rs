@@ -246,6 +246,7 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         // The BI servers (docs/tools/analytics.md §3.2).
         "metabase" => ph::CHART_BAR,
         "tableau" => ph::CHART_BAR,
+        "sasviya" => ph::CHART_BAR,
         // A directory: no product logo for LDAP itself, so its tree in
         // OpenLDAP's blue (§3.6).
         "ldap" => ph::TREE_STRUCTURE,
@@ -464,6 +465,10 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
     (
         "bytes://product/tableau.svg",
         include_bytes!("../../../assets/icons/simple/tableau.svg"),
+    ),
+    (
+        "bytes://product/sasviya.svg",
+        include_bytes!("../../../assets/icons/simple/sasviya.svg"),
     ),
     (
         "bytes://product/amazons3.svg",
@@ -848,6 +853,7 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "keycloak" => "keycloak",
         "metabase" => "metabase",
         "tableau" => "tableau",
+        "sasviya" => "sasviya",
         "s3" => "amazons3",
         "jira" => "jira",
         "confluence" => "confluence",
@@ -1646,6 +1652,7 @@ mod tests {
             ("keycloak", "keycloak"),
             ("metabase", "metabase"),
             ("tableau", "tableau"),
+            ("sasviya", "sasviya"),
         ] {
             assert_eq!(
                 conn_icon(k, "").image.map(str::to_owned),

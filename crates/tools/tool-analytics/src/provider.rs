@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 
 pub mod metabase;
+pub mod sasviya;
 pub mod tableau;
 
 use std::sync::Arc;
@@ -28,6 +29,13 @@ pub fn open(
             let mut cfg = fields.resolve_tableau(secrets, lookup)?;
             cfg.timeout = timeout;
             tableau::Tableau::new(cfg)
+                .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
+                .map_err(ProfileError::Invalid)
+        }
+        "sasviya" => {
+            let mut cfg = fields.resolve_sasviya(secrets, lookup)?;
+            cfg.timeout = timeout;
+            sasviya::SasViya::new(cfg)
                 .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
                 .map_err(ProfileError::Invalid)
         }
@@ -129,6 +137,17 @@ pub struct Caps {
     pub extracts: bool,
     /// The kinds Search can be narrowed to, in the order the chips show.
     pub search_kinds: &'static [Kind],
+    /// Tables can be browsed under a section of their own: a Metabase
+    /// database's, a SAS Viya CAS library's.
+    pub tables: bool,
+    /// The Fluent key of that section's heading.
+    pub data_section: &'static str,
+    /// Background jobs can be read.
+    pub jobs: bool,
+    /// A view has data as well as a picture.
+    pub view_data: bool,
+    /// The files a view can be saved as.
+    pub view_files: &'static [ViewFile],
 }
 
 /// What a node of the browse tree or a search result is.
@@ -149,6 +168,8 @@ pub enum Kind {
     View,
     DataSource,
     Extracts,
+    /// SAS Viya: a report.
+    Report,
 }
 
 impl Kind {
@@ -175,13 +196,14 @@ impl Kind {
             Kind::View => "view",
             Kind::DataSource => "datasource",
             Kind::Extracts => "extracts",
+            Kind::Report => "report",
         }
     }
 
     pub fn from_tag(tag: &str) -> Option<Kind> {
         Kind::ALL
             .into_iter()
-            .chain([Kind::Workbook, Kind::View, Kind::DataSource])
+            .chain([Kind::Workbook, Kind::View, Kind::DataSource, Kind::Report])
             .find(|k| k.tag() == tag)
     }
 
@@ -573,6 +595,11 @@ pub trait BiProvider: Send + Sync {
         _values: &[(String, String)],
         _limit: usize,
     ) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
+    /// The first rows of a table of a database (a CAS library's table), at
+    /// most `limit`.
+    async fn preview(&self, _database: &str, _table: &str, _limit: usize) -> Result<Table> {
         Err(NOT_OFFERED.into())
     }
     /// The extract refresh tasks.

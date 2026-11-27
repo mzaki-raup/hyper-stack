@@ -433,6 +433,28 @@ interactive report.
 - **Version gating**: Viya has no one version call; the provider reads
   what the server states about itself and probes each service once,
   and a service that answers 404 is drawn disabled with that reason.
+- **As built (FEAT-0133).** Kind `sasviya`; Settings has the ingress
+  root, a username and password with the **OAuth client** (id, `sas.cli`
+  by default, and its secret in the vault, empty where the client has
+  none) or an **access token**, TLS and a CA file. The password grant
+  goes through SAS Logon with the client as HTTP Basic; the access token
+  is renewed with the refresh token a minute before it ends. `connect`
+  signs in, reads the user, and **probes** folders, reports, CAS and jobs
+  once each: a service that answers 404 is left out of the capabilities
+  and named in the header ("Services: Folders, Reports, CAS (no Jobs)").
+  The tree is the root folders (`/folders/rootFolders`, else the
+  `@rootFolder` members) and the account's own folder, folders opening to
+  folders and reports (data flows and files are not listed yet), and a
+  **CAS Libraries** section: libraries, their tables, each table's
+  columns. A report's page is the view page without data: its picture
+  (the Report Images job polled for up to 30 s, then the PNG), Save
+  Picture, Open Interactive (`/SASVisualAnalyticsViewer/`) and Copy Link.
+  A table's page shows its first rows (Rows per Run) in a table, as a job
+  that can be cancelled. **Jobs** lists the recent jobs with their
+  state and message. Search is by report name, with More. Not built: a
+  report's sections beyond the first, the Viya version, and a refresh of
+  an expired pasted token. The endpoints are unconfirmed against a real
+  Viya (the mock is written from the reference).
 - Testing has no container: Viya is licensed. The bench has a **mock**
   written from the reference (`bench/mock/sasviya`), as for Tableau,
   and a read-only live test may run against the owner's Viya when

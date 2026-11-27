@@ -156,23 +156,25 @@ impl ViewPage {
             },
         );
         let (p, id, inbox) = (provider.clone(), self.node.id.clone(), self.inbox.clone());
-        let data = s.jobs.spawn(
-            format!("Data of {}", self.node.name),
-            "analytics",
-            move |h| async move {
-                let token = h.cancel_token();
-                tokio::select! {
-                    _ = token.cancelled() => Err("Cancelled".to_string()),
-                    r = p.view_data(&id, &values, limit) => {
-                        let outcome = r.as_ref().map(|_| ()).map_err(Clone::clone);
-                        inbox.lock().data = Some((no, r));
-                        outcome
+        if provider.capabilities().view_data {
+            let data = s.jobs.spawn(
+                format!("Data of {}", self.node.name),
+                "analytics",
+                move |h| async move {
+                    let token = h.cancel_token();
+                    tokio::select! {
+                        _ = token.cancelled() => Err("Cancelled".to_string()),
+                        r = p.view_data(&id, &values, limit) => {
+                            let outcome = r.as_ref().map(|_| ()).map_err(Clone::clone);
+                            inbox.lock().data = Some((no, r));
+                            outcome
+                        }
                     }
-                }
-            },
-        );
+                },
+            );
+            self.data = Load::Running(data.id());
+        }
         self.image = Load::Running(picture.id());
-        self.data = Load::Running(data.id());
     }
 
     fn cancel(&mut self, s: &hs_core::Services) {
@@ -275,8 +277,14 @@ pub fn page(
     };
     v.drain(cx, provider);
     let s = cx.services;
-    let url = provider.item_url(Kind::View, &node.id);
-    form::page_title(ui, theme, &node.name, Some(&s.t("analytics-kind-view")));
+    let url = provider.item_url(node.kind, &node.id);
+    let caps = provider.capabilities();
+    form::page_title(
+        ui,
+        theme,
+        &node.name,
+        Some(&s.t(&format!("analytics-kind-{}", node.kind.tag()))),
+    );
     match &v.info {
         None => {
             form::centred_row(ui, |ui| {
@@ -337,24 +345,30 @@ pub fn page(
         }
     });
     ui.add_space(form::ROW_GAP);
-    form::centred_row_wrapped(ui, |ui| {
-        ui.label(s.t("analytics-view-filters"));
-        let w = ui
-            .available_width()
-            .clamp(form::FIELD_MIN_WIDTH, form::FIELD_MAX_WIDTH);
-        let r = form::text_field_width(ui, &mut v.filters, &s.t("analytics-view-filters-hint"), w);
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !v.busy() {
-            v.run(s, provider);
-        }
-    });
-    ui.add_space(form::ROW_GAP);
+    if caps.view_data {
+        form::centred_row_wrapped(ui, |ui| {
+            ui.label(s.t("analytics-view-filters"));
+            let w = ui
+                .available_width()
+                .clamp(form::FIELD_MIN_WIDTH, form::FIELD_MAX_WIDTH);
+            let r =
+                form::text_field_width(ui, &mut v.filters, &s.t("analytics-view-filters-hint"), w);
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !v.busy() {
+                v.run(s, provider);
+            }
+        });
+        ui.add_space(form::ROW_GAP);
+    }
     form::centred_row_wrapped(ui, |ui| {
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
         for (file, icon, key) in [
             (ViewFile::Image, ph::IMAGE, "analytics-view-save-picture"),
             (ViewFile::Csv, ph::FILE_CSV, "analytics-view-save-data"),
             (ViewFile::Pdf, ph::FILE_PDF, "analytics-view-save-pdf"),
-        ] {
+        ]
+        .into_iter()
+        .filter(|(f, ..)| caps.view_files.contains(f))
+        {
             ui.add_enabled_ui(!v.saving, |ui| {
                 if form::button(ui, theme, icon, &s.t(key)).clicked() {
                     v.save(s, provider, file);
@@ -371,12 +385,16 @@ pub fn page(
         Some((ph::TABLE, theme.text_muted)),
     ];
     let current = usize::from(v.tab == Tab::Data);
-    ui.allocate_ui(egui::vec2(ui.available_width().min(320.0), 30.0), |ui| {
-        if let Some(i) = hs_ui::tabs::segmented(ui, theme, &names, &none, &glyphs, current) {
-            v.tab = [Tab::Picture, Tab::Data][i];
-        }
-    });
-    ui.add_space(form::PANE_GAP);
+    if caps.view_data {
+        ui.allocate_ui(egui::vec2(ui.available_width().min(320.0), 30.0), |ui| {
+            if let Some(i) = hs_ui::tabs::segmented(ui, theme, &names, &none, &glyphs, current) {
+                v.tab = [Tab::Picture, Tab::Data][i];
+            }
+        });
+        ui.add_space(form::PANE_GAP);
+    } else {
+        v.tab = Tab::Picture;
+    }
     match v.tab {
         Tab::Picture => match &v.image {
             Load::Running(_) | Load::Idle => {

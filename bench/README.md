@@ -662,13 +662,15 @@ export HS_METABASE=http://$H:${METABASE_PORT:-3030}\|$(cat .state/metabase-api-k
 export HS_METABASE_USER=$METABASE_ADMIN_EMAIL\|$METABASE_ADMIN_PASSWORD
 export HS_TABLEAU=http://$H:$TABLEAU_MOCK_PORT\|$TABLEAU_MOCK_SITE\|$TABLEAU_MOCK_USER\|$TABLEAU_MOCK_PASSWORD
 export HS_ELASTIC=http://$H:$ELASTIC_PORT\|elastic\|$ELASTIC_PASSWORD   # the ELK phase's live test, once written
+export HS_SASVIYA=http://$H:$SASVIYA_MOCK_PORT\|$SASVIYA_MOCK_CLIENT\|$SASVIYA_MOCK_CLIENT_SECRET\|$SASVIYA_MOCK_USER\|$SASVIYA_MOCK_PASSWORD
+export HS_SASVIYA_TOKEN=http://$H:$SASVIYA_MOCK_PORT\|$SASVIYA_MOCK_TOKEN
 export HS_TABLEAU_PAT=http://$H:$TABLEAU_MOCK_PORT\|\|$TABLEAU_MOCK_PAT_NAME\|$TABLEAU_MOCK_PAT_SECRET
 ```
 
 The Analytics values hold `|`, so they are quoted or escaped as above. Run
 them with `cargo test -p tool-analytics --test metabase_live` and
-`--test tableau_live`; the SAS Viya, Superset, Grafana and Power BI Report
-Server services have no test until their providers are built.
+`--test tableau_live` and `--test sasviya_live`; the Superset, Grafana and
+Power BI Report Server services have no test until their providers are built.
 
 (The `.state/` files live on the Linux box; copy the values across.) Note
 the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.

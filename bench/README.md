@@ -87,6 +87,7 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `k8s` | k3s (single-node Kubernetes) with the demo workloads | 2 GB | about 0.8-1 GB |
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
 | `idm` | keycloak (dev mode, embedded H2), openldap | 1.25 GB | about 0.65 GB |
+| `bi` | metabase (v0.52.4, embedded H2), grafana, loki, superset (the real products), tableau-mock, sasviya-mock and powerbirs-mock (stand-ins, see below) | 4.4 GB | about 2.6 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -140,6 +141,13 @@ defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 | Nexus | `http://<host>:8081` | `admin` | `$NEXUS_ADMIN_PASSWORD` | repository `hs-raw` | same (stopped) |
 | Keycloak (profile `idm`) | `http://<host>:8180` (`KEYCLOAK_PORT`) | admin `$KEYCLOAK_ADMIN_USER` (`admin`, realm `master`); service account client `hs-admin`; demo users | `$KEYCLOAK_ADMIN_PASSWORD`; `$KEYCLOAK_HS_ADMIN_SECRET`; `$KEYCLOAK_DEMO_PASSWORD` | realms `hs-demo`, `hs-other` - see [Keycloak](#keycloak-profile-idm) | `hs-keycloak`, same image, port and values |
 | OpenLDAP (profile `idm`) | `ldap://<host>:1389` (`LDAP_PORT`), LDAPS `1636` (`LDAPS_PORT`, the image's self-signed certificate) | `cn=admin,dc=hyperstack,dc=test`; demo users `uid=<name>,ou=<team>,ou=people,…` | `$LDAP_ADMIN_PASSWORD`; `$LDAP_DEMO_PASSWORD` | `dc=hyperstack,dc=test` - see [OpenLDAP](#openldap-profile-idm) | `hs-openldap`, same image, ports and values |
+| Metabase (profile `bi`) | `http://<host>:3030` (`METABASE_PORT`) | admin `$METABASE_ADMIN_EMAIL` | `$METABASE_ADMIN_PASSWORD`; an API key in `.state/metabase-api-key` | Sample Database; collection `HyperStack Demo` - see [Metabase](#metabase-profile-bi) | not on the Windows/WSL bench |
+| Tableau mock (profile `bi`) | `http://<host>:8280` (`TABLEAU_MOCK_PORT`), REST API `3.23` | `$TABLEAU_MOCK_USER` (`dev`), or the token named `$TABLEAU_MOCK_PAT_NAME` | `$TABLEAU_MOCK_PASSWORD`; `$TABLEAU_MOCK_PAT_SECRET` | sites: the default and `$TABLEAU_MOCK_SITE` (`hs-demo`) - see [Tableau mock](#tableau-mock-profile-bi) | not on the Windows/WSL bench |
+| SAS Viya mock (profile `bi`) | `http://<host>:8380` (`SASVIYA_MOCK_PORT`) | `$SASVIYA_MOCK_USER` (`sasdemo`) via OAuth client `$SASVIYA_MOCK_CLIENT` (`sas.cli`, empty secret), or the access token `$SASVIYA_MOCK_TOKEN` | `$SASVIYA_MOCK_PASSWORD` | folders under SAS Content, 3 reports, CAS server `cas-shared-default` - see [SAS Viya mock](#sas-viya-mock-profile-bi) | not on the Windows/WSL bench |
+| Grafana (profile `bi`) | `http://<host>:3130` (`GRAFANA_PORT`) | admin `$GRAFANA_ADMIN_USER` (`admin`); service account `hyperstack` (Viewer), token in `.state/grafana-token` | `$GRAFANA_ADMIN_PASSWORD` | data sources TestData and Loki; dashboard `HyperStack Overview` (uid `hs-overview`) - see [Grafana and Loki](#grafana-and-loki-profile-bi) | not on the Windows/WSL bench |
+| Loki (profile `bi`) | `http://<host>:3131` (`LOKI_PORT`) | - | no auth | 360 log lines, apps `orders`, `payments`, `shipping` | not on the Windows/WSL bench |
+| Apache Superset (profile `bi`) | `http://<host>:8188` (`SUPERSET_PORT`) | admin `$SUPERSET_ADMIN_USER` (`admin`) | `$SUPERSET_ADMIN_PASSWORD` | database `Bench Sales`, dashboard `HyperStack Overview` - see [Apache Superset](#apache-superset-profile-bi) | not on the Windows/WSL bench |
+| Power BI Report Server mock (profile `bi`) | `http://<host>:8480` (`POWERBIRS_MOCK_PORT`), REST API `/reports/api/v2.0` | `$POWERBIRS_MOCK_USER` (`dev`), HTTP Basic | `$POWERBIRS_MOCK_PASSWORD` | folders Sales and Operations - see [Power BI Report Server mock](#power-bi-report-server-mock-profile-bi) | not on the Windows/WSL bench |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -339,6 +347,202 @@ inside the container, `{SSHA}`, before it is loaded):
 | `ou=service` | `ci-bot`, outside the users base on purpose |
 | `ou=groups` | `backend` and `frontend` (`groupOfNames`); `engineering` nesting both plus grace; `support`; `admins` (`groupOfUniqueNames`: grace, barbara); `developers` (`posixGroup`, `memberUid` ada and linus) |
 
+## Metabase (profile `bi`)
+
+Metabase `v0.52.4` (`metabase/metabase`) for the Analytics activity, with its
+application database in the embedded H2 file in the `metabase-data` volume:
+fine for a bench, wrong for anything else. It needs about 0.8 GB (limit
+1.5 GB) and 60-90 seconds to start.
+
+```bash
+docker compose --profile bi up -d metabase
+./seed/seed-all.sh metabase     # or just ./seed/seed-all.sh
+```
+
+The seed (`seed/seed-metabase.sh`, needs `python3` beside `curl`) finishes
+the first-run setup, creates an **API key** for the Administrators group and
+loads mock data over Metabase's built-in **Sample Database**. A re-run skips
+what exists; to start over, remove just Metabase's own container and volume
+(`docker compose rm -sf metabase`, then `docker volume rm
+<project>_metabase-data`), never `down -v`, which would drop every volume of
+the project.
+
+- **Sign in:** `http://<host>:3030` as `$METABASE_ADMIN_EMAIL`
+  (`admin@hyperstack.test`) / `$METABASE_ADMIN_PASSWORD`. In HyperStack:
+  Settings → Analytics → Add BI Server, **Password** with those, or
+  **API Key** with the contents of `.state/metabase-api-key` (Metabase shows
+  a key only once; the seed saves it there).
+- **Mock data**, collection **HyperStack Demo**: *Orders table*, *Orders per
+  month* (line), *Orders per month (area)*, *Orders by category* (bar),
+  *Orders by category (row)*, *Share of orders by category* (pie), *Orders in
+  total* (scalar), *Revenue per month* (combo), *Big orders (native)* (a SQL
+  question with a `min_total` template tag), and the dashboard **HyperStack
+  Overview** with two tabs (Overview, Detail) and a Category filter.
+- **Version:** v0.52.4 is the newest the Analytics activity is tested
+  against (v0.48 is the oldest); to try another, change the image tag in
+  `docker-compose.yml` and start with a fresh volume (as above).
+
+## Tableau mock (profile `bi`)
+
+Tableau Server is licensed and has no public container, so the kit ships a
+**mock of its REST API** (`mock/tableau/server.py`, plain Python on
+`python:3.12-alpine`, 64 MB): enough for a read-only client to be built and
+tested against, not the product. It answers `serverinfo` (version
+`2024.2.0`, REST API `3.23`), `auth/signin` and `signout`, and under
+`/api/3.23/sites/<site>/`: projects, workbooks (with their views), views (a
+PNG picture and CSV data per view), data sources, extract refresh tasks and
+jobs, with `pageSize` / `pageNumber`.
+
+```bash
+docker compose --profile bi up -d tableau-mock
+```
+
+Nothing to load: the data is in the script, and `./seed/seed-all.sh tableau` signs in by password and by token and prints what it holds (projects Sales and Operations,
+workbooks Regional Sales and Order Fulfilment, three views, two data
+sources, two extract tasks, one failing extract job). HyperStack's Tableau
+provider (FEAT-0131) is built against it: `tool-analytics`'s `tableau_live`
+test walks projects, workbooks, views, a picture, the data, the tasks and the
+jobs by password and by token.
+
+- **Sign in** with the user `$TABLEAU_MOCK_USER` and
+  `$TABLEAU_MOCK_PASSWORD`, or with a **personal access token**: name
+  `$TABLEAU_MOCK_PAT_NAME`, secret `$TABLEAU_MOCK_PAT_SECRET`. The site is
+  `$TABLEAU_MOCK_SITE` (`hs-demo`) or empty for the default site; any other
+  site, and any wrong credential, answers 401 in Tableau's error shape.
+- Ask for JSON (`Accept: application/json`); the mock does not speak XML.
+- It checks only the credentials and the `X-Tableau-Auth` token; `Get View` (`views/<id>`) is answered too. A real
+  Server's permissions, filters (`vf_`), and `Refresh Now` are not modelled.
+
+## SAS Viya mock (profile `bi`)
+
+SAS Viya is licensed and has no public container, so the kit ships a **mock
+of its REST API** (`mock/sasviya/server.py`, plain Python on
+`python:3.12-alpine`, 64 MB), for the Analytics activity's SAS Viya provider
+to be built and tested against; it is not the product. It answers SAS Logon's
+`POST /SASLogon/oauth/token` (the `password` and `refresh_token` grants, for
+the OAuth client in `.env`), `/identities/users/@currentUser`, folders and
+their members (`/folders/folders/@rootFolder/members`), reports and a name
+search (`/reports/reports?filter=contains(name,'…')`), the Report Images
+service (`POST /reportImages/jobs` answers `running` on the first read and
+`completed` on the next, then `…/images/0` is a PNG), CAS libraries, tables,
+columns and a row preview (`/casManagement/…`, `/casRowSets/…`), and
+`/jobExecution/jobs` with one failed job.
+
+```bash
+docker compose --profile bi up -d sasviya-mock
+```
+
+Nothing to load: the data is in the script, and `./seed/seed-all.sh sasviya` signs in through the client and prints what it holds (folders `Public` > `Sales` and
+`My Folder`, the reports Revenue by Region, Customer Churn and Scratch
+Report, caslibs `Public` and `Samples` with the tables ORDERS, CUSTOMERS
+and CARS).
+
+- **Sign in** as `$SASVIYA_MOCK_USER` with `$SASVIYA_MOCK_PASSWORD` through
+  the client `$SASVIYA_MOCK_CLIENT` (secret empty), or paste
+  `$SASVIYA_MOCK_TOKEN` as an access token.
+- It checks only the client, the credentials and the bearer token; the real
+  product's permissions, report sections and CAS sessions are not modelled.
+- The endpoint shapes follow SAS's REST API reference and are unconfirmed
+  against a real Viya; a difference found on the first real server is
+  fixed in the provider and here.
+
+## Grafana and Loki (profile `bi`)
+
+The real **Grafana** `11.3.0` and **Loki** `3.2.0` for the Analytics activity's
+Grafana provider and the Logs activity's Grafana source (FEAT-0135,
+FEAT-0136). Grafana needs about 0.2 GB (limit 384 MB), Loki about 0.15 GB.
+
+```bash
+docker compose --profile bi up -d loki grafana
+./seed/seed-all.sh grafana      # or just ./seed/seed-all.sh
+```
+
+Grafana is **provisioned** from `config/grafana/`: the data sources
+**TestData** (Grafana's built-in series generator, no metrics server needed)
+and **Loki**, and the dashboard **HyperStack Overview** in the folder
+*HyperStack Demo*, with a panel of each kind the Analytics activity draws:
+time series, stat, gauge, bar gauge, bar chart, table, pie chart, logs, and a
+heatmap (a kind the activity opens in the browser instead), plus two template
+variables (`series`, `app`). The seed (`seed/seed-grafana.sh`, needs `python3`)
+creates the service account **hyperstack** (role Viewer) with a token saved in
+`.state/grafana-token` (Grafana shows a token only once) and pushes 360 log
+lines to Loki over the last hour: apps `orders`, `payments` and `shipping`,
+levels `info`, `warn` and `error`, label `env=bench`. A re-run skips what
+exists.
+
+- **Sign in** at `http://<host>:3130` as `$GRAFANA_ADMIN_USER` /
+  `$GRAFANA_ADMIN_PASSWORD`. In HyperStack: a `grafana` connection with the
+  token in `.state/grafana-token` (Service Account Token), or the admin
+  username and password.
+- **Logs**: the Loki data source's uid is `loki`; `{app="orders"} |= "ERROR"`
+  is a query that returns lines. Through Grafana's query API the lines come
+  back as a data frame with the fields `labels`, `Time`, `Line`, `tsNs` and
+  `labelTypes`.
+- Loki is also reachable directly on `$LOKI_PORT` for checking what Grafana
+  returns; HyperStack reads it through Grafana.
+
+## Apache Superset (profile `bi`)
+
+The real **Apache Superset** `4.1.1` (`apache/superset`) for the Analytics
+activity's Superset provider (FEAT-0134), with its metadata in the embedded
+SQLite file in the `superset-data` volume: fine for a bench, wrong for
+anything else. It needs about 1 GB (limit 1.5 GB) and 1-2 minutes to start the
+first time (the container runs `db upgrade`, creates the admin and runs
+`superset init`). `config/superset/superset_config.py` is **bench-only**: CSRF
+is off, so the seed can use the API with a bearer token alone, and the secret
+key is `$SUPERSET_SECRET_KEY`.
+
+```bash
+docker compose --profile bi up -d superset
+./seed/seed-all.sh superset     # or just ./seed/seed-all.sh
+```
+
+The seed (`seed/seed-superset.sh`, needs `python3`) makes a SQLite file inside
+the container with a `sales` table (400 rows: day, region, category, amount,
+qty), adds it as the database **Bench Sales** with a dataset, five charts and
+the dashboard **HyperStack Overview**:
+
+| Chart | Kind (`viz_type`) |
+|---|---|
+| Sales table | `table` |
+| Revenue by month | `echarts_timeseries_line` |
+| Revenue by category | `echarts_timeseries_bar` |
+| Orders by region | `pie` |
+| Orders in total | `big_number_total` |
+
+Charts are saved the way the UI saves them, **with a query context**: a chart
+created over the API without one answers `GET /api/v1/chart/{id}/data/` with
+"Chart has no query context saved". A re-run skips what exists; to start over
+remove the Superset container and its volume (`docker compose rm -sf
+superset`, then `docker volume rm <project>_superset-data`), never `down -v`.
+
+- **Sign in** at `http://<host>:8188` as `$SUPERSET_ADMIN_USER` /
+  `$SUPERSET_ADMIN_PASSWORD`; in HyperStack a `superset` connection with those
+  (provider `db`).
+
+## Power BI Report Server mock (profile `bi`)
+
+Power BI Report Server is a licensed Windows Server product with no container,
+so the kit ships a **mock of its REST API v2.0** (`mock/powerbirs/server.py`,
+Python on `python:3.12-alpine`, 64 MB) for the Analytics activity's provider
+(FEAT-0137) to be built against; it is not the product. It answers, under
+`/reports/api/v2.0`, `System` (`Microsoft Power BI Report Server`
+`15.0.1115.172`), `Folders`, `CatalogItems`, `Folders({id})/CatalogItems`,
+`PowerBIReports`, `Reports`, `Kpis`, `DataSources` (a connection string with a
+password in it, for the client to mask) and `CacheRefreshPlans` in OData's
+`{"value": [...]}` shape with `$top`, `$skip`, `$filter=contains(Name,'x')` and
+`$count`, and `Reports({id})/Export/IMAGE` (a PNG) and `.../CSV` for the two
+paginated reports; a `.pbix` has no export and answers 400, as the spec says.
+
+```bash
+docker compose --profile bi up -d powerbirs-mock
+```
+
+Nothing to load: the data is in the script, and `./seed/seed-all.sh powerbirs` signs in and prints what it holds. **Sign in** with HTTP Basic as `$POWERBIRS_MOCK_USER` /
+`$POWERBIRS_MOCK_PASSWORD`. It speaks no NTLM and checks only the credentials;
+the shapes follow the REST API reference and are unconfirmed against a real
+server.
+
 ## Fixtures (`fixtures/`)
 
 | File | Used for |
@@ -397,7 +601,18 @@ export HS_REDMINE=$H:$REDMINE_PORT:$(cat .state/redmine-api-key)
 export HS_REDMINE_ADMIN=$H:$REDMINE_PORT:admin:$REDMINE_ADMIN_PASSWORD
 export HS_KEYCLOAK=http://$H:$KEYCLOAK_PORT   # realm hs-demo, client hs-admin, secret $KEYCLOAK_HS_ADMIN_SECRET
 export HS_LDAP=ldap://$H:$LDAP_PORT HS_LDAP_PASSWORD=$LDAP_ADMIN_PASSWORD   # bind cn=admin,dc=hyperstack,dc=test
+# The Analytics activity (profile bi). Metabase by API key and by session; Tableau by
+# password and by personal access token (the default site has an empty site name).
+export HS_METABASE=http://$H:${METABASE_PORT:-3030}\|$(cat .state/metabase-api-key)
+export HS_METABASE_USER=$METABASE_ADMIN_EMAIL\|$METABASE_ADMIN_PASSWORD
+export HS_TABLEAU=http://$H:$TABLEAU_MOCK_PORT\|$TABLEAU_MOCK_SITE\|$TABLEAU_MOCK_USER\|$TABLEAU_MOCK_PASSWORD
+export HS_TABLEAU_PAT=http://$H:$TABLEAU_MOCK_PORT\|\|$TABLEAU_MOCK_PAT_NAME\|$TABLEAU_MOCK_PAT_SECRET
 ```
+
+The Analytics values hold `|`, so they are quoted or escaped as above. Run
+them with `cargo test -p tool-analytics --test metabase_live` and
+`--test tableau_live`; the SAS Viya, Superset, Grafana and Power BI Report
+Server services have no test until their providers are built.
 
 (The `.state/` files live on the Linux box; copy the values across.) Note
 the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
@@ -407,7 +622,7 @@ the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
 On **your Linux box** only:
 
 ```bash
-docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy down -v
+docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy --profile bi down -v
 rm -rf .state
 ```
 

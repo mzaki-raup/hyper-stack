@@ -1,0 +1,125 @@
+{
+  "uid": "hs-overview",
+  "title": "HyperStack Overview",
+  "tags": ["bench", "demo"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "series",
+        "label": "Series",
+        "type": "custom",
+        "query": "orders,payments,shipping",
+        "current": { "text": "orders", "value": "orders" },
+        "options": [
+          { "text": "orders", "value": "orders", "selected": true },
+          { "text": "payments", "value": "payments", "selected": false },
+          { "text": "shipping", "value": "shipping", "selected": false }
+        ]
+      },
+      {
+        "name": "app",
+        "label": "App",
+        "type": "custom",
+        "query": "orders,payments",
+        "current": { "text": "orders", "value": "orders" },
+        "options": [
+          { "text": "orders", "value": "orders", "selected": true },
+          { "text": "payments", "value": "payments", "selected": false }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Requests ($series)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "random_walk", "alias": "$series", "seriesCount": 2,
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Errors in the hour",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "random_walk", "seriesCount": 1,
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3, "type": "gauge", "title": "CPU",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "random_walk", "seriesCount": 1, "min": 0, "max": 100,
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 100, "unit": "percent" }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "bargauge", "title": "Queue depth",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "random_walk", "seriesCount": 3,
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 5, "type": "barchart", "title": "Orders by day",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 4 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "csv_content",
+          "csvContent": "day,orders,returns\nMon,120,8\nTue,98,5\nWed,141,9\nThu,133,6\nFri,160,12",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 6, "type": "table", "title": "Warehouses",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 7 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "csv_content",
+          "csvContent": "warehouse,open orders,oldest days\nAmsterdam,41,3\nSingapore,17,1\nDallas,63,6",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 7, "type": "piechart", "title": "Share by category",
+      "gridPos": { "x": 8, "y": 8, "w": 6, "h": 7 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "csv_content",
+          "csvContent": "category,share\nWidget,42\nGadget,31\nGizmo,18\nDoohickey,9",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 8, "type": "heatmap", "title": "Latency (opens in the browser)",
+      "gridPos": { "x": 14, "y": 8, "w": 10, "h": 7 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        { "refId": "A", "scenarioId": "random_walk", "seriesCount": 5,
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" } }
+      ]
+    },
+    {
+      "id": 9, "type": "logs", "title": "Logs ($app)",
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [
+        { "refId": "A", "expr": "{app=\"$app\"}", "queryType": "range",
+          "datasource": { "type": "loki", "uid": "loki" } }
+      ]
+    }
+  ]
+}

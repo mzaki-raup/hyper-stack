@@ -247,6 +247,70 @@ impl ExportFormat {
     }
 }
 
+/// A dashboard's tab.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DashTab {
+    pub id: String,
+    pub name: String,
+}
+
+/// A dashboard filter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DashParam {
+    pub id: String,
+    pub name: String,
+    /// The server's type word (`string/=`, `date/single`, `number/=`).
+    pub ty: String,
+    pub kind: ParamKind,
+    pub default: String,
+}
+
+/// Which of a card's own fields a dashboard filter writes to.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Mapping {
+    pub param_id: String,
+    pub target: serde_json::Value,
+}
+
+/// What a dashboard tile holds.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Content {
+    /// A saved question, with the dashboard's overrides of its settings
+    /// merged in, and the filters that reach it.
+    Card {
+        card: Box<Card>,
+        mappings: Vec<Mapping>,
+    },
+    /// A text card's Markdown, or a heading.
+    Text { text: String, heading: bool },
+    /// A link card.
+    Link { title: String, url: String },
+}
+
+/// One tile on the 24-column grid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DashCard {
+    /// The dashboard card's own id (not the question's).
+    pub id: String,
+    pub tab: Option<String>,
+    pub row: u32,
+    pub col: u32,
+    pub size_x: u32,
+    pub size_y: u32,
+    pub content: Content,
+}
+
+/// A dashboard: its grid, tabs and filters.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Dashboard {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub tabs: Vec<DashTab>,
+    pub params: Vec<DashParam>,
+    pub cards: Vec<DashCard>,
+}
+
 /// Search results a page holds.
 pub const SEARCH_PAGE: usize = 50;
 
@@ -268,6 +332,18 @@ pub trait BiProvider: Send + Sync {
     /// Run it with the parameter `values` (by parameter id; an empty value
     /// is left out), reading at most `limit` rows.
     async fn run(&self, card: &Card, values: &[(String, String)], limit: usize) -> Result<Table>;
+    /// A dashboard with its grid, tabs, filters and cards.
+    async fn dashboard(&self, id: &str) -> Result<Dashboard>;
+    /// Run one tile of a dashboard with the filter `values` (by filter id).
+    async fn run_dashcard(
+        &self,
+        dashboard: &Dashboard,
+        card: &DashCard,
+        values: &[(String, String)],
+        limit: usize,
+    ) -> Result<Table>;
+    /// The values a filter offers, where the server lists them.
+    async fn filter_values(&self, dashboard: &str, param: &str) -> Result<Vec<String>>;
     /// The result as a file, through the server's own export (its limit
     /// applies, not the run limit).
     async fn export(

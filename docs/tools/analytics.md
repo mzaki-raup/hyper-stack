@@ -276,6 +276,22 @@ the table with the hint and Open in Browser.
   run.
 - Auto-refresh is offered as Metabase does (1, 5, 10, 15, 30, 60
   minutes), off by default, and only while the tab is on screen.
+- **As built (FEAT-0129)**: `grid::place` puts each tile at its column and
+  row on the 24-column grid at the pane's width (a row is 56 points, a gap 8)
+  and stacks the tiles in reading order in one column below 720 points, as
+  Metabase does on a phone; both are tested without a screen. A dashboard
+  page is a toolbar (Refresh, Open in Browser, Copy Link, Auto-Refresh), the
+  filters with **Apply**, the tab strip and the scrolling grid, each tab
+  keeping its own scroll position. A text filter offers what
+  `/api/dashboard/:id/params/:key/values` lists; a date filter is a date
+  field; the typed values reach only the tiles the filter is mapped to
+  (`parameter_mappings`), each with its target as the server gave it. Tiles
+  run through a queue, at most *Cards at Once* as Jobs together; only the
+  shown tab's tiles run, picking another dashboard or item cancels the
+  runs, and an answer to a run since replaced is dropped. A tile's title
+  opens its question; a heading, a text card (Markdown, through the shared
+  renderer) and a link card are drawn from the dashboard itself, and the
+  dashboard's own chart settings for a tile win over the question's.
 
 ### 4.6 Databases and SQL
 
@@ -703,5 +719,8 @@ the bench Metabase (`tests/metabase_live.rs`).
 FEAT-0128: a question, model or metric opens and runs, as a table, a chart
 (`egui_plot`: line, area, bar, row, combo, scatter; hand-drawn pie, scalar,
 smart scalar, progress and gauge) or its SQL, with parameters and an export
-(§4.3, §4.4), live-tested against every seeded question. Dashboards,
-databases and the other providers are FEAT-0129 onward in `TASKS.md`.
+(§4.3, §4.4), live-tested against every seeded question.
+FEAT-0129: a dashboard opens on its grid with its tabs, filters and Apply,
+and its tiles run four at a time (§4.5), live-tested against the bench
+dashboard (a filter narrows the tiles it is mapped to and no others).
+Databases and the other providers are FEAT-0130 onward in `TASKS.md`.

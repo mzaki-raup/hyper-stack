@@ -108,6 +108,13 @@ impl Browse {
         };
     }
 
+    /// Show `n` as the picked item, in the tree as well: a tile's title on a
+    /// dashboard opens its question and the tree follows.
+    pub fn select(&mut self, n: Node) {
+        self.tree.selected = Some(node_key(&n));
+        self.selected = Some(n);
+    }
+
     /// Open search mode with the keyboard in its field.
     pub fn open_search(&mut self) {
         self.searching = true;
@@ -605,6 +612,15 @@ mod tests {
             t[0].children.as_ref().map(|c| c[0].label.as_str()),
             Some("no access")
         );
+    }
+
+    #[test]
+    fn selecting_an_item_moves_the_trees_highlight_with_it() {
+        let mut b = sample();
+        b.tree.selected = Some("dashboard:9".into());
+        b.select(node(Kind::Question, "7", "Revenue"));
+        assert_eq!(b.tree.selected.as_deref(), Some("question:7"));
+        assert_eq!(b.selected.as_ref().map(|n| n.id.as_str()), Some("7"));
     }
 
     #[test]

@@ -43,15 +43,15 @@ enum Run {
 }
 
 /// A result made ready to draw: formatted once, planned once.
-struct Done {
-    table: Table,
+pub(super) struct Done {
+    pub(super) table: Table,
     rows: Vec<Vec<String>>,
     specs: Vec<ColumnSpec>,
-    plan: Plan,
+    pub(super) plan: Plan,
 }
 
 impl Done {
-    fn new(card: &Card, table: Table) -> Done {
+    pub(super) fn new(card: &Card, table: Table) -> Done {
         let rows = table
             .rows
             .iter()
@@ -525,7 +525,7 @@ fn views(q: &mut Question, ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Them
     }
 }
 
-fn table_view(
+pub(super) fn table_view(
     ui: &mut egui::Ui,
     cx: &mut ToolContext,
     theme: &Theme,
@@ -583,7 +583,7 @@ fn sql_view(ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, sql: Option<
         });
 }
 
-fn chart_view(ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, done: &Done) {
+pub(super) fn chart_view(ui: &mut egui::Ui, cx: &mut ToolContext, theme: &Theme, done: &Done) {
     let s = cx.services;
     match &done.plan {
         Plan::Table(reason) => {
@@ -654,7 +654,7 @@ fn fmt_num(v: f64) -> String {
 }
 
 fn pie(ui: &mut egui::Ui, theme: &Theme, slices: &[chart::Slice]) {
-    let side = ui.available_height().clamp(180.0, 360.0);
+    let side = ui.available_height().clamp(90.0, 360.0);
     ui.horizontal_top(|ui| {
         let (rect, _) = ui.allocate_exact_size(egui::vec2(side, side), egui::Sense::hover());
         let centre = rect.center();
@@ -701,7 +701,7 @@ fn pie(ui: &mut egui::Ui, theme: &Theme, slices: &[chart::Slice]) {
 }
 
 fn series(ui: &mut egui::Ui, _theme: &Theme, p: &SeriesPlan) {
-    let height = ui.available_height().max(240.0);
+    let height = ui.available_height().max(120.0);
     let labels = p.x_labels.clone();
     let at = |v: f64| -> String {
         let r = v.round();
@@ -715,7 +715,7 @@ fn series(ui: &mut egui::Ui, _theme: &Theme, p: &SeriesPlan) {
         }
     };
     let horizontal = p.horizontal;
-    let mut plot = Plot::new("analytics-chart")
+    let mut plot = Plot::new(ui.id().with("analytics-chart"))
         .height(height)
         .legend(Legend::default())
         .allow_scroll(false)

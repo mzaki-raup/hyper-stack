@@ -4,6 +4,7 @@
 
 mod browse;
 mod dashboard;
+mod question;
 mod sidebar;
 mod tab;
 
@@ -86,6 +87,8 @@ pub struct AnalyticsTool {
     session: Option<Session>,
     /// The browse column's tree, filter and search.
     browse: browse::Browse,
+    /// The picked question's page: its card, its run and its result.
+    question: Option<question::Question>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -94,6 +97,7 @@ impl AnalyticsTool {
     fn connect(&mut self, s: &Services) {
         self.session = None;
         self.browse.reset();
+        self.question = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

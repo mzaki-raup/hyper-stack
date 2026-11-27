@@ -436,7 +436,7 @@ One tab per issue tracker or wiki: **Jira** (Cloud and Data Center), **Redmine**
 
 ### Analytics
 
-One tab per BI server, **Metabase** first (v0.48 and newer), through its REST API and read-only everywhere. The home tab is a dashboard of the saved servers; Settings → Analytics holds the servers (a password or an API key kept in the vault, Verify TLS or a CA file, Test Connection) and the limits. A server's tab signs in, shows the product, version, who is signed in and whether the version is a tested one, and can open the server's own page in the Browser. The **browse column** is Metabase's collection tree, a level at a time (collections first, each item in its kind's picture), with a filter over what is loaded and **Search** (`Ctrl+Alt+B`) over the whole server: kind filters for questions, models, metrics, dashboards and collections, and More for long result lists. Picking an item shows its page with Open in Browser and Copy Link. Questions with charts and dashboards arrive in the next steps (`docs/tools/analytics.md`).
+One tab per BI server, **Metabase** first (v0.48 and newer), through its REST API and read-only everywhere. The home tab is a dashboard of the saved servers; Settings → Analytics holds the servers (a password or an API key kept in the vault, Verify TLS or a CA file, Test Connection) and the limits. A server's tab signs in, shows the product, version, who is signed in and whether the version is a tested one, and can open the server's own page in the Browser. The **browse column** is Metabase's collection tree, a level at a time (collections first, each item in its kind's picture), with a filter over what is loaded and **Search** (`Ctrl+Alt+B`) over the whole server: kind filters for questions, models, metrics, dashboards and collections, and More for long result lists. Picking an item shows its page with Open in Browser and Copy Link. Picking a **question, model or metric** runs it (a job you can cancel) and shows it as a chart drawn natively with `egui_plot` (line, area, bar, row, combo, scatter, pie, number, progress), as a table that sorts and filters, or as the SQL behind it; its parameters are fields above the result, and Export saves CSV, JSON or Excel. Dashboards arrive in the next step (`docs/tools/analytics.md`).
 
 | | |
 |---|---|
@@ -444,6 +444,8 @@ One tab per BI server, **Metabase** first (v0.48 and newer), through its REST AP
 | **Dashboard** - the saved servers, the open tabs and Start Here | **Browse** - Metabase's collections a level at a time, the picked item's page with Open in Browser and Copy Link |
 | ![Search with kind filters](docs/screenshots/analytics-search.png) | ![Settings → Analytics](docs/screenshots/analytics-settings.png) |
 | **Search** - the whole server, narrowed by kind, each result with its collection | **Settings → Analytics** - an API key or a password kept in the vault, Verify TLS or a CA file, Test Connection |
+| ![A question as a chart](docs/screenshots/analytics-question.png) | ![A native question with its parameter](docs/screenshots/analytics-parameters.png) |
+| **Chart** - a question runs when opened and is drawn natively (here a line over months); Run, Open in Browser, Copy Link and Export sit above it | **Parameters** - a native question's template tag as a field above its table; Chart, Table and SQL views |
 
 ### Identity
 

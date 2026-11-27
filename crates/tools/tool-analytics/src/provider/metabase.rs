@@ -11,8 +11,8 @@ use reqwest::Method;
 use serde_json::{Value, json};
 
 use super::{
-    API_KEYS_FROM_MINOR, BiProvider, Caps, Found, Kind, Node, Result, SEARCH_PAGE, ServerInfo,
-    Support, Version,
+    API_KEYS_FROM_MINOR, BiProvider, Caps, Card, Column, ColumnKind, ExportFormat, Found, Kind,
+    Node, Param, ParamKind, Result, SEARCH_PAGE, ServerInfo, Support, Table, Version,
 };
 use crate::profile::MetabaseConfig;
 
@@ -165,6 +165,64 @@ impl BiProvider for Metabase {
         Ok(found_from_search(&self.get(&path).await?))
     }
 
+    async fn card(&self, id: &str) -> Result<Card> {
+        let v = self
+            .get(&format!("/api/card/{}", hs_core::service_http::seg(id)))
+            .await?;
+        card_from(&v)
+            .ok_or_else(|| "Metabase answered with something that is not a question.".into())
+    }
+
+    async fn run(&self, card: &Card, values: &[(String, String)], limit: usize) -> Result<Table> {
+        let body = json!({ "parameters": param_values(card, values)?, "ignore_cache": false });
+        let rb = self
+            .http
+            .request_as(
+                Method::POST,
+                &format!("/api/card/{}/query", hs_core::service_http::seg(&card.id)),
+                &self.auth(),
+            )
+            .json(&body);
+        let started = std::time::Instant::now();
+        let v = self.http.json(rb).await?;
+        let mut table = table_from(&v, limit)?;
+        table.millis = started.elapsed().as_millis() as u64;
+        Ok(table)
+    }
+
+    async fn export(
+        &self,
+        card: &Card,
+        values: &[(String, String)],
+        format: ExportFormat,
+    ) -> Result<Vec<u8>> {
+        let parameters = param_values(card, values)?.to_string();
+        let rb = self
+            .http
+            .request_as(
+                Method::POST,
+                &format!(
+                    "/api/card/{}/query/{}",
+                    hs_core::service_http::seg(&card.id),
+                    format.ext()
+                ),
+                &self.auth(),
+            )
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(format!(
+                "parameters={}",
+                hs_core::service_http::seg(&parameters)
+            ));
+        let bytes = self
+            .http
+            .send(rb)
+            .await?
+            .bytes()
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(bytes.to_vec())
+    }
+
     fn item_url(&self, kind: Kind, id: &str) -> String {
         let base = self.cfg.url.trim_end_matches('/');
         let page = match kind {
@@ -305,6 +363,181 @@ fn found_from_search(v: &Value) -> Found {
     Found { nodes, total }
 }
 
+/// The kind of a card: Metabase 0.50 names it in `type`; older servers
+/// mark a model with `dataset: true`.
+fn card_kind(v: &Value) -> Kind {
+    match v.get("type").and_then(Value::as_str) {
+        Some("model") => Kind::Model,
+        Some("metric") => Kind::Metric,
+        Some(_) => Kind::Question,
+        None if v.get("dataset").and_then(Value::as_bool) == Some(true) => Kind::Model,
+        None => Kind::Question,
+    }
+}
+
+fn param_kind(ty: &str) -> ParamKind {
+    if ty.starts_with("number") {
+        ParamKind::Number
+    } else if ty.starts_with("date") {
+        ParamKind::Date
+    } else {
+        ParamKind::Text
+    }
+}
+
+/// A default the server wrote as text, a number or a list.
+fn default_text(v: Option<&Value>) -> String {
+    match v {
+        Some(Value::String(t)) => t.clone(),
+        Some(Value::Number(n)) => n.to_string(),
+        Some(Value::Array(a)) => a.first().map(|x| default_text(Some(x))).unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
+/// `GET /api/card/:id`.
+fn card_from(v: &Value) -> Option<Card> {
+    let id = id_of(v);
+    if id.is_empty() {
+        return None;
+    }
+    let native = v.pointer("/dataset_query/native/query");
+    let native_sql = native.and_then(Value::as_str).map(str::to_string);
+    let mut params: Vec<Param> = Vec::new();
+    for p in v
+        .get("parameters")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+    {
+        let ty = s(p, "type");
+        params.push(Param {
+            id: s(p, "id"),
+            name: [s(p, "name"), s(p, "slug")]
+                .into_iter()
+                .find(|n| !n.is_empty())
+                .unwrap_or_default(),
+            kind: param_kind(&ty),
+            ty,
+            default: default_text(p.get("default")),
+            target: p.get("target").cloned().unwrap_or(Value::Null),
+        });
+    }
+    Some(Card {
+        id,
+        kind: card_kind(v),
+        name: s(v, "name"),
+        description: s(v, "description"),
+        display: s(v, "display"),
+        native_sql,
+        params,
+        viz: v
+            .get("visualization_settings")
+            .cloned()
+            .unwrap_or(Value::Null),
+    })
+}
+
+/// The request's `parameters`: each parameter that has a value, in the
+/// shape its type takes (a list for most, a string for a single date).
+fn param_values(card: &Card, values: &[(String, String)]) -> Result<Value> {
+    let mut out = Vec::new();
+    for p in &card.params {
+        let text = values
+            .iter()
+            .find(|(id, _)| *id == p.id)
+            .map(|(_, v)| v.trim())
+            .unwrap_or_default();
+        if text.is_empty() {
+            continue;
+        }
+        let value = match p.kind {
+            ParamKind::Date if p.ty == "date/single" => json!(text),
+            ParamKind::Date => json!([text]),
+            ParamKind::Number => {
+                let n: f64 = text
+                    .parse()
+                    .map_err(|_| format!("{} must be a number.", p.name))?;
+                if n.fract() == 0.0 && n.abs() < 9e15 {
+                    json!([n as i64])
+                } else {
+                    json!([n])
+                }
+            }
+            ParamKind::Text => json!([text]),
+        };
+        out.push(json!({ "id": p.id, "type": p.ty, "target": p.target, "value": value }));
+    }
+    Ok(Value::Array(out))
+}
+
+fn column_kind(base: &str) -> ColumnKind {
+    match base {
+        "type/Integer" | "type/BigInteger" => ColumnKind::Integer,
+        "type/Float" | "type/Decimal" | "type/Number" => ColumnKind::Decimal,
+        "type/Text" | "type/UUID" | "type/URL" | "type/Email" => ColumnKind::Text,
+        "type/Date"
+        | "type/DateTime"
+        | "type/DateTimeWithTZ"
+        | "type/DateTimeWithLocalTZ"
+        | "type/DateTimeWithZoneOffset"
+        | "type/Time"
+        | "type/TimeWithTZ" => ColumnKind::Time,
+        "type/Boolean" => ColumnKind::Bool,
+        other if other.starts_with("type/Text") => ColumnKind::Text,
+        _ => ColumnKind::Other,
+    }
+}
+
+/// `POST /api/card/:id/query`: `{ "data": { "cols": [..], "rows": [..] } }`,
+/// or an error as a sentence. At most `limit` rows are kept.
+fn table_from(v: &Value, limit: usize) -> Result<Table> {
+    if let Some(e) = v.get("error").and_then(Value::as_str)
+        && !e.is_empty()
+    {
+        return Err(e.to_string());
+    }
+    let data = v.get("data").ok_or("Metabase answered without any data.")?;
+    let columns: Vec<Column> = data
+        .get("cols")
+        .and_then(Value::as_array)
+        .map(|cols| {
+            cols.iter()
+                .map(|c| Column {
+                    name: s(c, "name"),
+                    title: [s(c, "display_name"), s(c, "name")]
+                        .into_iter()
+                        .find(|t| !t.is_empty())
+                        .unwrap_or_default(),
+                    kind: column_kind(&s(c, "base_type")),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut rows: Vec<Vec<Value>> = data
+        .get("rows")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .map(|r| r.as_array().cloned().unwrap_or_default())
+                .collect()
+        })
+        .unwrap_or_default();
+    let truncated = rows.len() > limit;
+    rows.truncate(limit);
+    let sql = data
+        .pointer("/native_form/query")
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    Ok(Table {
+        columns,
+        rows,
+        sql,
+        millis: 0,
+        truncated,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,5 +623,113 @@ mod tests {
             assert_eq!(kind_of(model_of(k)), Some(k));
             assert_eq!(Kind::from_tag(k.tag()), Some(k));
         }
+    }
+
+    /// A native question as `GET /api/card/:id` answers it (trimmed).
+    fn native_card() -> Value {
+        json!({
+            "id": 39, "name": "Big orders (native)", "description": "Totals over a minimum",
+            "display": "table", "type": "question",
+            "visualization_settings": { "table.pivot": false },
+            "dataset_query": { "type": "native", "database": 1, "native": {
+                "query": "SELECT ID, TOTAL FROM ORDERS WHERE TOTAL > {{min_total}}",
+                "template-tags": { "min_total": { "name": "min_total", "type": "number" } } } },
+            "parameters": [ { "id": "abc-1", "name": "Min total", "slug": "min_total",
+                "type": "number/=", "target": ["variable", ["template-tag", "min_total"]],
+                "default": 100 } ]
+        })
+    }
+
+    #[test]
+    fn a_card_keeps_its_display_sql_and_parameters() {
+        let c = card_from(&native_card()).expect("a card");
+        assert_eq!((c.id.as_str(), c.kind), ("39", Kind::Question));
+        assert_eq!(c.display, "table");
+        assert!(
+            c.native_sql
+                .as_deref()
+                .is_some_and(|q| q.contains("{{min_total}}"))
+        );
+        assert_eq!(c.params.len(), 1);
+        assert_eq!(c.params[0].kind, ParamKind::Number);
+        assert_eq!(c.params[0].default, "100");
+        assert_eq!(c.params[0].name, "Min total");
+    }
+
+    #[test]
+    fn a_model_and_an_older_models_flag_are_models() {
+        assert_eq!(card_kind(&json!({ "type": "model" })), Kind::Model);
+        assert_eq!(card_kind(&json!({ "type": "metric" })), Kind::Metric);
+        assert_eq!(card_kind(&json!({ "dataset": true })), Kind::Model);
+        assert_eq!(card_kind(&json!({})), Kind::Question);
+    }
+
+    #[test]
+    fn parameter_values_go_into_the_request_in_their_types_shape() {
+        let mut c = card_from(&native_card()).expect("a card");
+        let v = param_values(&c, &[("abc-1".into(), " 250 ".into())]).expect("values");
+        assert_eq!(v[0]["value"], json!([250]));
+        assert_eq!(v[0]["type"], "number/=");
+        assert_eq!(
+            v[0]["target"],
+            json!(["variable", ["template-tag", "min_total"]])
+        );
+        let half = param_values(&c, &[("abc-1".into(), "2.5".into())]).expect("values");
+        assert_eq!(half[0]["value"], json!([2.5]));
+        // An empty field is left out; a word where a number belongs is said.
+        assert_eq!(
+            param_values(&c, &[("abc-1".into(), String::new())]).expect("values"),
+            json!([])
+        );
+        let err = param_values(&c, &[("abc-1".into(), "lots".into())]).expect_err("not a number");
+        assert!(err.contains("Min total"), "{err}");
+        // A single date is a string, a date range a list.
+        c.params[0].kind = ParamKind::Date;
+        c.params[0].ty = "date/single".into();
+        let d = param_values(&c, &[("abc-1".into(), "2026-01-31".into())]).expect("values");
+        assert_eq!(d[0]["value"], json!("2026-01-31"));
+    }
+
+    /// A result as the server answers it (trimmed).
+    fn result() -> Value {
+        json!({ "status": "completed", "data": {
+            "cols": [
+                { "name": "CREATED_AT", "display_name": "Created At", "base_type": "type/DateTime" },
+                { "name": "count", "display_name": "Count", "base_type": "type/BigInteger" },
+                { "name": "avg", "display_name": "Average", "base_type": "type/Float" } ],
+            "rows": [ ["2026-01-01T00:00:00Z", 12, 3.5], ["2026-02-01T00:00:00Z", 15, null],
+                      ["2026-03-01T00:00:00Z", 9, 2.0] ],
+            "native_form": { "query": "SELECT 1" } } })
+    }
+
+    #[test]
+    fn a_result_has_titled_typed_columns_and_its_rows() {
+        let t = table_from(&result(), 100).expect("a table");
+        let titles: Vec<&str> = t.columns.iter().map(|c| c.title.as_str()).collect();
+        assert_eq!(titles, ["Created At", "Count", "Average"]);
+        assert_eq!(
+            t.columns.iter().map(|c| c.kind).collect::<Vec<_>>(),
+            [ColumnKind::Time, ColumnKind::Integer, ColumnKind::Decimal]
+        );
+        assert_eq!(t.rows.len(), 3);
+        assert!(!t.truncated);
+        assert_eq!(t.sql.as_deref(), Some("SELECT 1"));
+    }
+
+    #[test]
+    fn rows_over_the_limit_are_cut_and_said() {
+        let t = table_from(&result(), 2).expect("a table");
+        assert_eq!(t.rows.len(), 2);
+        assert!(t.truncated);
+    }
+
+    #[test]
+    fn an_error_answer_is_a_sentence_not_an_empty_table() {
+        let v = json!({ "status": "failed", "error": "Column \"X\" not found" });
+        assert_eq!(
+            table_from(&v, 10),
+            Err("Column \"X\" not found".to_string())
+        );
+        assert!(table_from(&json!({}), 10).is_err());
     }
 }

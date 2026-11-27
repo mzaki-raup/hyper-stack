@@ -149,6 +149,104 @@ pub struct Found {
     pub total: usize,
 }
 
+/// What a column holds, as far as the screens format and align it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColumnKind {
+    Integer,
+    Decimal,
+    Text,
+    /// A date or a date and time, as the server wrote it.
+    Time,
+    Bool,
+    Other,
+}
+
+impl ColumnKind {
+    pub fn is_number(self) -> bool {
+        matches!(self, ColumnKind::Integer | ColumnKind::Decimal)
+    }
+}
+
+/// One column of a result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Column {
+    /// The name the query gave it (what a chart's settings refer to).
+    pub name: String,
+    /// The title the server shows.
+    pub title: String,
+    pub kind: ColumnKind,
+}
+
+/// A question's result: its columns and rows, read once and kept.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Table {
+    pub columns: Vec<Column>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+    /// The SQL the server ran, where it says (a native question's own, or
+    /// what a query-builder question compiles to).
+    pub sql: Option<String>,
+    pub millis: u64,
+    /// More rows existed than the run limit let through.
+    pub truncated: bool,
+}
+
+/// What a parameter's field is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamKind {
+    Text,
+    Number,
+    Date,
+}
+
+/// A question's parameter: a native question's template tag or a filter.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub id: String,
+    pub name: String,
+    /// The server's type word (`number/=`, `date/single`, `category`).
+    pub ty: String,
+    pub kind: ParamKind,
+    pub default: String,
+    /// Where the value goes in the query, handed back as the server gave it.
+    pub target: serde_json::Value,
+}
+
+/// A saved question, model or metric.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Card {
+    pub id: String,
+    pub kind: Kind,
+    pub name: String,
+    pub description: String,
+    /// The server's chart word (`table`, `line`, `pie`, ...).
+    pub display: String,
+    /// The question's own SQL when it is a native question.
+    pub native_sql: Option<String>,
+    pub params: Vec<Param>,
+    /// The server's `visualization_settings`, read by the chart code.
+    pub viz: serde_json::Value,
+}
+
+/// What an export is saved as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    Csv,
+    Json,
+    Xlsx,
+}
+
+impl ExportFormat {
+    pub const ALL: [ExportFormat; 3] = [ExportFormat::Csv, ExportFormat::Json, ExportFormat::Xlsx];
+
+    pub fn ext(self) -> &'static str {
+        match self {
+            ExportFormat::Csv => "csv",
+            ExportFormat::Json => "json",
+            ExportFormat::Xlsx => "xlsx",
+        }
+    }
+}
+
 /// Search results a page holds.
 pub const SEARCH_PAGE: usize = 50;
 
@@ -165,6 +263,19 @@ pub trait BiProvider: Send + Sync {
     async fn search(&self, query: &str, kinds: &[Kind], offset: usize) -> Result<Found>;
     /// The item's page in the server's own interface.
     fn item_url(&self, kind: Kind, id: &str) -> String;
+    /// A question, model or metric with its parameters and chart settings.
+    async fn card(&self, id: &str) -> Result<Card>;
+    /// Run it with the parameter `values` (by parameter id; an empty value
+    /// is left out), reading at most `limit` rows.
+    async fn run(&self, card: &Card, values: &[(String, String)], limit: usize) -> Result<Table>;
+    /// The result as a file, through the server's own export (its limit
+    /// applies, not the run limit).
+    async fn export(
+        &self,
+        card: &Card,
+        values: &[(String, String)],
+        format: ExportFormat,
+    ) -> Result<Vec<u8>>;
     /// The server's own web interface, for Open in Browser.
     fn web_url(&self) -> String;
     /// End the server-side session, where there is one.

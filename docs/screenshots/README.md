@@ -53,6 +53,12 @@ vault: no capture shows it, only *Stored in the vault*.
   collections, the kind chips above them.
 - `analytics-settings.png` - Settings -> Analytics scrolled to the server and
   authentication cards.
+- `analytics-question.png` - FEAT-0128: the seeded question *Orders per month*
+  run and drawn as a line over 49 months, the Chart | Table | SQL strip and
+  the Run, Open in Browser, Copy Link and Export buttons above it.
+- `analytics-parameters.png` - the native question *Big orders (native)*: its
+  `min_total` parameter as a field (100, the card's default) above the table
+  of 100 rows.
 
 ## 2026-11-15: Identity with the server's version (CR-0099)
 

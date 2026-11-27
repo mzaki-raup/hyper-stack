@@ -3,6 +3,7 @@
 //! natively from the server's REST API with the signed-in account's own
 //! permissions; read-only.
 
+pub mod chart;
 pub mod profile;
 pub mod provider;
 pub mod session;

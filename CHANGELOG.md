@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Analytics: a Metabase question, model or metric opens and runs as a cancellable job, shown as a table, a chart (line, area, bar, row, combo, scatter, pie, number, progress) or its SQL, with its parameters, Rows per Run and CSV, JSON and Excel export (FEAT-0128)
 
 ## 0.140.0 — 2026-11-26
 

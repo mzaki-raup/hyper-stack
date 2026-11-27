@@ -13,9 +13,10 @@ use std::time::Duration;
 
 use hs_core::service_auth::Auth;
 use hs_core::service_http::Tls;
+use tool_analytics::chart::{self, Plan, SeriesKind};
 use tool_analytics::profile::MetabaseConfig;
 use tool_analytics::provider::metabase::Metabase;
-use tool_analytics::provider::{BiProvider, Kind, Support};
+use tool_analytics::provider::{BiProvider, ExportFormat, Kind, Support};
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_multi_thread()
@@ -147,4 +148,139 @@ fn a_wrong_key_is_refused_in_words() {
     );
     let err = runtime().block_on(p.connect()).expect_err("a bad key");
     assert!(!err.is_empty());
+}
+
+/// Every seeded question runs, and each kind of chart gets the plan it
+/// should; the native question takes its parameter; the export is a file.
+async fn questions(p: &Metabase) {
+    p.connect().await.expect("connect");
+    let root = p.children("root").await.expect("root");
+    let demo = root
+        .iter()
+        .find(|n| n.name == "HyperStack Demo")
+        .expect("the seeded collection");
+    let inside = p.children(&demo.id).await.expect("the demo collection");
+    let id_of = |name: &str| {
+        inside
+            .iter()
+            .find(|n| n.name == name)
+            .unwrap_or_else(|| panic!("{name} is seeded"))
+            .id
+            .clone()
+    };
+    let run = |name: &'static str| {
+        let id = id_of(name);
+        async move {
+            let card = p.card(&id).await.expect("the card");
+            let table = p.run(&card, &[], 2000).await.expect("a result");
+            let plan = chart::plan(&card, &table);
+            (card, table, plan)
+        }
+    };
+
+    let (card, table, plan) = run("Orders table").await;
+    assert_eq!(card.display, "table");
+    assert_eq!(plan, Plan::Table(chart::Reason::IsTable));
+    assert!(table.rows.len() > 10 && table.columns.len() > 3);
+    assert!(
+        table
+            .sql
+            .as_deref()
+            .is_some_and(|q| q.to_lowercase().contains("select"))
+    );
+
+    let (_, table, plan) = run("Orders per month").await;
+    let Plan::Series(sp) = plan else {
+        panic!("a line is a series");
+    };
+    assert_eq!(sp.series[0].kind, SeriesKind::Line);
+    assert_eq!(sp.series[0].points.len(), table.rows.len());
+    assert!(
+        sp.x_labels
+            .as_ref()
+            .is_some_and(|l| l.len() == table.rows.len())
+    );
+
+    let (_, _, plan) = run("Orders per month (area)").await;
+    assert!(matches!(&plan, Plan::Series(sp) if sp.series[0].kind == SeriesKind::Area));
+    let (_, _, plan) = run("Orders by category").await;
+    assert!(
+        matches!(&plan, Plan::Series(sp) if sp.series[0].kind == SeriesKind::Bar && !sp.horizontal)
+    );
+    let (_, _, plan) = run("Orders by category (row)").await;
+    assert!(matches!(&plan, Plan::Series(sp) if sp.horizontal));
+    let (_, _, plan) = run("Share of orders by category").await;
+    let Plan::Pie(slices) = plan else {
+        panic!("a pie");
+    };
+    assert!((slices.iter().map(|s| s.percent).sum::<f64>() - 100.0).abs() < 1e-6);
+    let (_, _, plan) = run("Orders in total").await;
+    let Plan::Scalar(sc) = plan else {
+        panic!("a scalar");
+    };
+    assert!(
+        sc.value.parse::<i64>().is_ok_and(|n| n > 1000),
+        "{}",
+        sc.value
+    );
+    let (_, _, plan) = run("Revenue per month").await;
+    assert!(matches!(&plan, Plan::Series(sp) if sp.series.len() == 2));
+
+    // The native question: a parameter with a default, and a bigger minimum
+    // leaves fewer rows.
+    let (card, default_run, _) = run("Big orders (native)").await;
+    assert_eq!(card.params.len(), 1);
+    assert_eq!(card.params[0].default, "100");
+    assert!(
+        card.native_sql
+            .as_deref()
+            .is_some_and(|q| q.contains("min_total"))
+    );
+    let id = card.params[0].id.clone();
+    let strict = p
+        .run(&card, &[(id.clone(), "400".into())], 2000)
+        .await
+        .expect("with a parameter");
+    assert!(
+        strict.rows.len() < default_run.rows.len(),
+        "{} vs {}",
+        strict.rows.len(),
+        default_run.rows.len()
+    );
+    let err = p
+        .run(&card, &[(id, "lots".into())], 2000)
+        .await
+        .expect_err("a word is not a number");
+    assert!(err.contains("number"), "{err}");
+
+    // A limit cuts and says so.
+    let card = p.card(&id_of("Orders table")).await.expect("the card");
+    let cut = p.run(&card, &[], 5).await.expect("a short run");
+    assert_eq!(cut.rows.len(), 5);
+    assert!(cut.truncated);
+
+    // The export is the server's own file.
+    let csv = p
+        .export(&card, &[], ExportFormat::Csv)
+        .await
+        .expect("a CSV");
+    let text = String::from_utf8_lossy(&csv);
+    assert!(text.lines().count() > 10, "{} lines", text.lines().count());
+    p.disconnect().await;
+}
+
+#[test]
+fn questions_run_and_draw_by_api_key() {
+    let Ok(spec) = std::env::var("HS_METABASE") else {
+        return;
+    };
+    let (url, key) = spec.split_once('|').expect("HS_METABASE=<url>|<api-key>");
+    let p = provider(
+        url,
+        Auth::ApiKey {
+            header: tool_analytics::profile::API_KEY_HEADER.into(),
+            key: key.into(),
+        },
+    );
+    runtime().block_on(questions(&p));
 }

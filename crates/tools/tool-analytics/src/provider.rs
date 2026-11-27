@@ -98,6 +98,10 @@ pub enum Kind {
     Model,
     Metric,
     Dashboard,
+    /// A database the server queries, and one of its tables: the Databases
+    /// section's entries, never search results.
+    Database,
+    Table,
 }
 
 impl Kind {
@@ -118,6 +122,8 @@ impl Kind {
             Kind::Model => "model",
             Kind::Metric => "metric",
             Kind::Dashboard => "dashboard",
+            Kind::Database => "database",
+            Kind::Table => "table",
         }
     }
 
@@ -247,6 +253,34 @@ impl ExportFormat {
     }
 }
 
+/// A database the server queries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Database {
+    pub id: String,
+    pub name: String,
+    /// The driver (`postgres`, `h2`, ...).
+    pub engine: String,
+    /// Whether this account may run SQL on it.
+    pub native: bool,
+}
+
+/// One column of a table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldMeta {
+    pub name: String,
+    /// The type as the server states it (`type/Integer`), or the database's.
+    pub ty: String,
+}
+
+/// A table of a database with its columns.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableMeta {
+    pub id: String,
+    pub schema: String,
+    pub name: String,
+    pub fields: Vec<FieldMeta>,
+}
+
 /// A dashboard's tab.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DashTab {
@@ -332,6 +366,13 @@ pub trait BiProvider: Send + Sync {
     /// Run it with the parameter `values` (by parameter id; an empty value
     /// is left out), reading at most `limit` rows.
     async fn run(&self, card: &Card, values: &[(String, String)], limit: usize) -> Result<Table>;
+    /// The databases the server queries.
+    async fn databases(&self) -> Result<Vec<Database>>;
+    /// A database's tables with their columns.
+    async fn tables(&self, database: &str) -> Result<Vec<TableMeta>>;
+    /// Run `sql` on a database as the signed-in account, reading at most
+    /// `limit` rows. Nothing is saved on the server.
+    async fn run_sql(&self, database: &str, sql: &str, limit: usize) -> Result<Table>;
     /// A dashboard with its grid, tabs, filters and cards.
     async fn dashboard(&self, id: &str) -> Result<Dashboard>;
     /// Run one tile of a dashboard with the filter `values` (by filter id).

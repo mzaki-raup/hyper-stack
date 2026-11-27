@@ -66,6 +66,10 @@ vault: no capture shows it, only *Stored in the vault*.
   and applied, scrolled to the bar and pie tiles that the filter reaches.
   Taken with the scratch window made always-on-top, as `docs/GOTCHAS.md`
   (Headless and GUI Testing) says.
+- `analytics-sql.png` - FEAT-0130: the browse tree's Databases section open on
+  the Sample Database down to ORDERS and its typed columns, the SQL page with
+  an aggregate statement, and its 12 rows as a bar chart through the View
+  picker.
 
 ## 2026-11-15: Identity with the server's version (CR-0099)
 

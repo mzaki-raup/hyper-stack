@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::{AnalyticsTool, board, question};
+use super::{AnalyticsTool, board, question, sql};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -93,16 +93,6 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                     if provider.capabilities().browse {
                         tool.browse.show(ui, s, &theme, &provider);
                     }
-                    ui.add_space(form::ROW_GAP);
-                    ui.add_enabled_ui(false, |ui| {
-                        form::selectable_label(
-                            ui,
-                            false,
-                            format!("{}  {}", ph::DATABASE, s.t("analytics-section-databases")),
-                        )
-                    })
-                    .inner
-                    .tip_disabled(s.t("analytics-section-soon"));
                 });
             });
     }
@@ -117,12 +107,45 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                 tool.browse.select(q);
             }
         }
+        Some(node) if sql::database_of(&node).is_some() => {
+            let id = sql::database_of(&node).unwrap_or_default().to_string();
+            match tool.browse.database(&id).cloned() {
+                Some(db) => {
+                    let protected = protected_env(tool, s);
+                    sql::page(
+                        &mut tool.sql,
+                        ui,
+                        cx,
+                        &theme,
+                        &sql::Target {
+                            node: &node,
+                            db: &db,
+                            provider: &provider,
+                            protected: protected.as_deref(),
+                        },
+                    );
+                }
+                None => form::note(ui, &theme, ph::LIGHTBULB, &s.t("analytics-loading")),
+            }
+        }
         Some(node) if question::is_card(&node) => {
             question::page(&mut tool.question, ui, cx, &theme, &provider, &node)
         }
         Some(node) => item_page(ui, cx, &theme, &provider, &node),
         None => server_facts(ui, s, &theme, tool, &info),
     });
+}
+
+/// The name of the protected environment this connection is in, if it is in
+/// one: its own, else the active one, as the other activities' guards read it.
+fn protected_env(tool: &AnalyticsTool, s: &hs_core::Services) -> Option<String> {
+    let envs = s.environments.read();
+    let env = tool
+        .env_id
+        .as_deref()
+        .or(envs.active.as_deref())
+        .and_then(|e| envs.by_id(e));
+    env.filter(|e| e.protected).map(|e| e.name.clone())
 }
 
 /// The server's facts, shown while no item is picked.
@@ -346,8 +369,30 @@ pub fn run_command(tool: &mut AnalyticsTool, id: &str, cx: &mut ToolContext) -> 
             true
         }
         "analytics.run" => {
-            if let (Some(q), Some(sess)) = (tool.question.as_mut(), tool.session.as_ref()) {
-                q.run(cx.services, &sess.provider().clone());
+            let Some(provider) = tool.session.as_ref().map(|x| x.provider().clone()) else {
+                return true;
+            };
+            let on_sql = tool
+                .browse
+                .selected
+                .as_ref()
+                .and_then(sql::database_of)
+                .map(str::to_string);
+            match on_sql {
+                // A database or table is picked: run its SQL, unless the
+                // environment is protected.
+                Some(id) => {
+                    if protected_env(tool, cx.services).is_none()
+                        && let Some(name) = tool.browse.database(&id).map(|d| d.name.clone())
+                    {
+                        sql::run_open(&mut tool.sql, cx.services, &provider, &name);
+                    }
+                }
+                None => {
+                    if let Some(q) = tool.question.as_mut() {
+                        q.run(cx.services, &provider);
+                    }
+                }
             }
             true
         }

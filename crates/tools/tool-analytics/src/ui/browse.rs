@@ -13,10 +13,16 @@ use hs_ui::theme::Theme;
 use hs_ui::tree::{self, TreeIcon, TreeNode, TreeState};
 use parking_lot::Mutex;
 
-use crate::provider::{BiProvider, Found, Kind, Node, Result, SEARCH_PAGE};
+use crate::provider::{
+    BiProvider, Database, FieldMeta, Found, Kind, Node, Result, SEARCH_PAGE, TableMeta,
+};
 
 /// The root collection's id, as the server spells it.
 const ROOT: &str = "root";
+
+/// The key of the databases read, in the same map as the collections (a
+/// collection's id is a number or `root`, so it cannot collide).
+const DATABASES: &str = "databases";
 
 /// What one read of a collection has come to.
 enum Loaded {
@@ -42,6 +48,9 @@ struct Inbox {
     /// A search's answer, with the number of the search it answers (an
     /// older one is dropped) and the offset it began at.
     search: Option<(u64, usize, Result<Found>)>,
+    /// The databases, and a database's tables (by the database's id).
+    dbs: Option<Result<Vec<Database>>>,
+    tables: Vec<(String, Result<Vec<TableMeta>>)>,
 }
 
 #[derive(Default)]
@@ -67,6 +76,9 @@ pub struct Browse {
     pub selected: Option<Node>,
     /// Every node seen, by its tree id, so a click finds its node.
     seen: HashMap<String, Node>,
+    /// The databases read, by id, and each table's columns by its node id.
+    dbs: HashMap<String, Database>,
+    fields: HashMap<String, Vec<FieldMeta>>,
 }
 
 /// The tree id of a node.
@@ -81,6 +93,8 @@ fn glyph(k: Kind) -> &'static str {
         Kind::Model => ph::CUBE,
         Kind::Metric => ph::GAUGE,
         Kind::Dashboard => ph::SQUARES_FOUR,
+        Kind::Database => ph::DATABASE,
+        Kind::Table => ph::TABLE,
     }
 }
 
@@ -92,7 +106,25 @@ fn picture_word(k: Kind) -> &'static str {
         Kind::Model => "table",
         Kind::Metric => "field",
         Kind::Dashboard => "view",
+        Kind::Database => "database",
+        Kind::Table => "table",
     }
+}
+
+fn placeholder(key: &str) -> TreeNode {
+    TreeNode::leaf(
+        format!("loading:{key}"),
+        "…".to_string(),
+        TreeIcon::Glyph(ph::SPINNER.to_string()),
+    )
+}
+
+fn failure(key: &str, e: &str) -> TreeNode {
+    TreeNode::leaf(
+        format!("failed:{key}"),
+        e.to_string(),
+        TreeIcon::Glyph(ph::WARNING.to_string()),
+    )
 }
 
 fn icon(material: bool, k: Kind) -> TreeIcon {
@@ -136,6 +168,38 @@ impl Browse {
         });
     }
 
+    /// The database with this id, once the list has been read.
+    pub fn database(&self, id: &str) -> Option<&Database> {
+        self.dbs.get(id)
+    }
+
+    fn request_databases(&mut self, s: &Services, provider: &Arc<dyn BiProvider>) {
+        if self.loaded.contains_key(DATABASES) {
+            return;
+        }
+        self.loaded.insert(DATABASES.to_string(), Loaded::Loading);
+        self.version += 1;
+        let (p, inbox) = (provider.clone(), self.inbox.clone());
+        s.runtime.spawn(async move {
+            let r = p.databases().await;
+            inbox.lock().dbs = Some(r);
+        });
+    }
+
+    fn request_tables(&mut self, s: &Services, provider: &Arc<dyn BiProvider>, db: &str) {
+        let key = format!("db:{db}");
+        if self.loaded.contains_key(&key) {
+            return;
+        }
+        self.loaded.insert(key, Loaded::Loading);
+        self.version += 1;
+        let (p, inbox, id) = (provider.clone(), self.inbox.clone(), db.to_string());
+        s.runtime.spawn(async move {
+            let r = p.tables(&id).await;
+            inbox.lock().tables.push((id, r));
+        });
+    }
+
     fn run_search(&mut self, s: &Services, provider: &Arc<dyn BiProvider>, offset: usize) {
         let query = self.query.trim().to_string();
         if query.is_empty() {
@@ -163,10 +227,75 @@ impl Browse {
 
     /// Apply what the runtime has delivered since the last frame.
     fn drain(&mut self) {
-        let (children, search) = {
+        let (children, search, dbs, tables) = {
             let mut g = self.inbox.lock();
-            (std::mem::take(&mut g.children), g.search.take())
+            (
+                std::mem::take(&mut g.children),
+                g.search.take(),
+                g.dbs.take(),
+                std::mem::take(&mut g.tables),
+            )
         };
+        if let Some(r) = dbs {
+            self.loaded.insert(
+                DATABASES.to_string(),
+                match r {
+                    Ok(list) => {
+                        let nodes = list
+                            .iter()
+                            .map(|d| Node {
+                                kind: Kind::Database,
+                                id: d.id.clone(),
+                                name: d.name.clone(),
+                                description: d.engine.clone(),
+                                collection: String::new(),
+                                edited: String::new(),
+                                editor: String::new(),
+                            })
+                            .collect::<Vec<_>>();
+                        for n in &nodes {
+                            self.seen.insert(node_key(n), n.clone());
+                        }
+                        for d in list {
+                            self.dbs.insert(d.id.clone(), d);
+                        }
+                        Loaded::Ready(nodes)
+                    }
+                    Err(e) => Loaded::Failed(e),
+                },
+            );
+            self.version += 1;
+        }
+        for (db, r) in tables {
+            let db_name = self
+                .dbs
+                .get(&db)
+                .map(|d| d.name.clone())
+                .unwrap_or_default();
+            let loaded = match r {
+                Ok(list) => {
+                    let mut nodes = Vec::with_capacity(list.len());
+                    for t in list {
+                        let n = Node {
+                            kind: Kind::Table,
+                            id: format!("{db}/{}", t.id),
+                            name: t.name,
+                            description: db_name.clone(),
+                            collection: t.schema,
+                            edited: String::new(),
+                            editor: String::new(),
+                        };
+                        self.seen.insert(node_key(&n), n.clone());
+                        self.fields.insert(n.id.clone(), t.fields);
+                        nodes.push(n);
+                    }
+                    Loaded::Ready(nodes)
+                }
+                Err(e) => Loaded::Failed(e),
+            };
+            self.loaded.insert(format!("db:{db}"), loaded);
+            self.version += 1;
+        }
         for (parent, r) in children {
             if let Ok(nodes) = &r {
                 for n in nodes {
@@ -251,6 +380,79 @@ impl Browse {
         out
     }
 
+    /// The Databases section: each database a level down, its tables a level
+    /// below, each table's columns its leaves.
+    fn databases_node(&self, material: bool) -> TreeNode {
+        let mut node = TreeNode::branch(
+            DATABASES,
+            "Databases".to_string(),
+            icon(material, Kind::Database),
+            Vec::new(),
+        );
+        node.children = match self.loaded.get(DATABASES) {
+            None => None,
+            Some(Loaded::Loading) => Some(vec![placeholder("databases")]),
+            Some(Loaded::Failed(e)) => Some(vec![failure("databases", e)]),
+            Some(Loaded::Ready(dbs)) => Some(
+                dbs.iter()
+                    .map(|d| {
+                        let mut db = TreeNode::branch(
+                            node_key(d),
+                            d.name.clone(),
+                            icon(material, Kind::Database),
+                            Vec::new(),
+                        );
+                        db.children = match self.loaded.get(&format!("db:{}", d.id)) {
+                            None => None,
+                            Some(Loaded::Loading) => Some(vec![placeholder(&d.id)]),
+                            Some(Loaded::Failed(e)) => Some(vec![failure(&d.id, e)]),
+                            Some(Loaded::Ready(tables)) => Some(
+                                tables
+                                    .iter()
+                                    .map(|t| self.table_node(t, material))
+                                    .collect(),
+                            ),
+                        };
+                        db
+                    })
+                    .collect(),
+            ),
+        };
+        node
+    }
+
+    fn table_node(&self, t: &Node, material: bool) -> TreeNode {
+        let label = if t.collection.is_empty() {
+            t.name.clone()
+        } else {
+            format!("{}.{}", t.collection, t.name)
+        };
+        let fields = self
+            .fields
+            .get(&t.id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let mut node = TreeNode::branch(
+            node_key(t),
+            label,
+            icon(material, Kind::Table),
+            fields
+                .iter()
+                .map(|f| {
+                    let mut leaf = TreeNode::leaf(
+                        format!("field:{}:{}", t.id, f.name),
+                        f.name.clone(),
+                        TreeIcon::Glyph(ph::COLUMNS.to_string()),
+                    );
+                    leaf.badge = Some(f.ty.trim_start_matches("type/").to_string());
+                    leaf
+                })
+                .collect(),
+        );
+        node.children = Some(node.children.take().unwrap_or_default());
+        node
+    }
+
     /// Draw the column's body. Returns the node picked this frame.
     pub fn show(
         &mut self,
@@ -306,7 +508,12 @@ impl Browse {
         let stale = !matches!(&self.built,
             Some((v, f, _)) if *v == self.version && *f == needle);
         if stale {
-            let nodes = self.build(ROOT, material, &needle);
+            let mut nodes = self.build(ROOT, material, &needle);
+            // The Databases section goes below the collections, unless a
+            // filter is narrowing what is loaded.
+            if needle.is_empty() {
+                nodes.push(self.databases_node(material));
+            }
             if !needle.is_empty() {
                 // A match inside a collection is shown, so open its way.
                 open_branches(&nodes, &mut self.tree.expanded);
@@ -325,6 +532,10 @@ impl Browse {
         for id in resp.load {
             if let Some(coll) = id.strip_prefix("collection:") {
                 self.request(s, provider, coll);
+            } else if id == DATABASES {
+                self.request_databases(s, provider);
+            } else if let Some(db) = id.strip_prefix("database:") {
+                self.request_tables(s, provider, db);
             }
         }
         if let Some(key) = resp.clicked
@@ -612,6 +823,67 @@ mod tests {
             t[0].children.as_ref().map(|c| c[0].label.as_str()),
             Some("no access")
         );
+    }
+
+    #[test]
+    fn the_databases_section_loads_a_level_at_a_time() {
+        let mut b = Browse::default();
+        // Nothing read: a caret, children on expand.
+        assert!(b.databases_node(false).children.is_none());
+        let db = Node {
+            kind: Kind::Database,
+            id: "1".into(),
+            name: "Sample".into(),
+            description: "h2".into(),
+            collection: String::new(),
+            edited: String::new(),
+            editor: String::new(),
+        };
+        b.loaded.insert(DATABASES.into(), Loaded::Ready(vec![db]));
+        let section = b.databases_node(false);
+        let dbs = section.children.as_ref().expect("the databases");
+        assert_eq!(dbs[0].id, "database:1");
+        assert!(dbs[0].children.is_none(), "its tables are not read yet");
+        // Tables read: each a branch of its columns, typed.
+        let table = Node {
+            kind: Kind::Table,
+            id: "1/9".into(),
+            name: "ORDERS".into(),
+            description: "Sample".into(),
+            collection: "PUBLIC".into(),
+            edited: String::new(),
+            editor: String::new(),
+        };
+        b.fields.insert(
+            "1/9".into(),
+            vec![FieldMeta {
+                name: "TOTAL".into(),
+                ty: "type/Float".into(),
+            }],
+        );
+        b.loaded.insert("db:1".into(), Loaded::Ready(vec![table]));
+        let section = b.databases_node(false);
+        let t = &section.children.as_ref().expect("dbs")[0]
+            .children
+            .as_ref()
+            .expect("tables")[0];
+        assert_eq!(
+            (t.id.as_str(), t.label.as_str()),
+            ("table:1/9", "PUBLIC.ORDERS")
+        );
+        let column = &t.children.as_ref().expect("columns")[0];
+        assert_eq!(column.label, "TOTAL");
+        assert_eq!(column.badge.as_deref(), Some("Float"), "type/ is not shown");
+    }
+
+    #[test]
+    fn a_database_that_failed_to_read_says_so_in_its_place() {
+        let mut b = Browse::default();
+        b.loaded
+            .insert(DATABASES.into(), Loaded::Failed("no access".into()));
+        let section = b.databases_node(false);
+        let kids = section.children.as_ref().expect("a placeholder");
+        assert_eq!(kids[0].label, "no access");
     }
 
     #[test]

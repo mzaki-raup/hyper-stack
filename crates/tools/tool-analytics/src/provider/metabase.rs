@@ -12,8 +12,8 @@ use serde_json::{Value, json};
 
 use super::{
     API_KEYS_FROM_MINOR, BiProvider, Caps, Card, Column, ColumnKind, Content, DashCard, DashParam,
-    DashTab, Dashboard, ExportFormat, Found, Kind, Mapping, Node, Param, ParamKind, Result,
-    SEARCH_PAGE, ServerInfo, Support, Table, Version,
+    DashTab, Dashboard, Database, ExportFormat, FieldMeta, Found, Kind, Mapping, Node, Param,
+    ParamKind, Result, SEARCH_PAGE, ServerInfo, Support, Table, TableMeta, Version,
 };
 use crate::profile::MetabaseConfig;
 
@@ -118,10 +118,9 @@ impl BiProvider for Metabase {
     }
 
     fn capabilities(&self) -> Caps {
-        // SQL arrives with FEAT-0130.
         Caps {
             browse: true,
-            native_sql: false,
+            native_sql: true,
         }
     }
 
@@ -183,6 +182,33 @@ impl BiProvider for Metabase {
                 &format!("/api/card/{}/query", hs_core::service_http::seg(&card.id)),
                 &self.auth(),
             )
+            .json(&body);
+        let started = std::time::Instant::now();
+        let v = self.http.json(rb).await?;
+        let mut table = table_from(&v, limit)?;
+        table.millis = started.elapsed().as_millis() as u64;
+        Ok(table)
+    }
+
+    async fn databases(&self) -> Result<Vec<Database>> {
+        Ok(databases_from(&self.get("/api/database").await?))
+    }
+
+    async fn tables(&self, database: &str) -> Result<Vec<TableMeta>> {
+        let v = self
+            .get(&format!(
+                "/api/database/{}/metadata",
+                hs_core::service_http::seg(database)
+            ))
+            .await?;
+        Ok(tables_from(&v))
+    }
+
+    async fn run_sql(&self, database: &str, sql: &str, limit: usize) -> Result<Table> {
+        let body = native_body(database, sql)?;
+        let rb = self
+            .http
+            .request_as(Method::POST, "/api/dataset", &self.auth())
             .json(&body);
         let started = std::time::Instant::now();
         let v = self.http.json(rb).await?;
@@ -285,6 +311,12 @@ impl BiProvider for Metabase {
             Kind::Model => "model",
             Kind::Metric => "metric",
             Kind::Dashboard => "dashboard",
+            // A database's page; a table is `<database>/<table>`.
+            Kind::Database => return format!("{base}/browse/databases/{id}"),
+            Kind::Table => {
+                let (db, table) = id.split_once('/').unwrap_or((id, id));
+                return format!("{base}/browse/databases/{db}#table-{table}");
+            }
         };
         format!("{base}/{page}/{id}")
     }
@@ -325,6 +357,8 @@ fn model_of(k: Kind) -> &'static str {
         Kind::Model => "dataset",
         Kind::Metric => "metric",
         Kind::Dashboard => "dashboard",
+        // Not items of a collection: never asked of the search.
+        Kind::Database | Kind::Table => "",
     }
 }
 
@@ -794,6 +828,84 @@ fn values_from(v: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// `GET /api/database`: `{ "data": [..] }` (0.40 and later) or a bare list.
+/// A database the account has no native rights on says so.
+fn databases_from(v: &Value) -> Vec<Database> {
+    let list = v.get("data").unwrap_or(v);
+    let mut out: Vec<Database> = list
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|d| {
+                    Some(Database {
+                        id: id_text(d.get("id"))?,
+                        name: s(d, "name"),
+                        engine: s(d, "engine"),
+                        native: d.get("native_permissions").and_then(Value::as_str)
+                            == Some("write"),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    out.sort_by_key(|d| d.name.to_lowercase());
+    out
+}
+
+/// `GET /api/database/:id/metadata`: the tables and their fields. A hidden
+/// table (`visibility_type` set) is left out, as Metabase's own browser does.
+fn tables_from(v: &Value) -> Vec<TableMeta> {
+    let mut out: Vec<TableMeta> = v
+        .get("tables")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter(|t| t.get("visibility_type").is_none_or(Value::is_null))
+                .filter_map(|t| {
+                    Some(TableMeta {
+                        id: id_text(t.get("id"))?,
+                        schema: s(t, "schema"),
+                        name: s(t, "name"),
+                        fields: t
+                            .get("fields")
+                            .and_then(Value::as_array)
+                            .map(|f| {
+                                f.iter()
+                                    .filter(|x| {
+                                        x.get("visibility_type").and_then(Value::as_str)
+                                            != Some("sensitive")
+                                    })
+                                    .map(|x| FieldMeta {
+                                        name: s(x, "name"),
+                                        ty: [s(x, "base_type"), s(x, "database_type")]
+                                            .into_iter()
+                                            .find(|t| !t.is_empty())
+                                            .unwrap_or_default(),
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    out.sort_by_key(|t| (t.schema.to_lowercase(), t.name.to_lowercase()));
+    out
+}
+
+/// The body of `POST /api/dataset` for ad-hoc SQL. An empty statement is
+/// refused here, in words, rather than sent.
+fn native_body(database: &str, sql: &str) -> Result<Value> {
+    if sql.trim().is_empty() {
+        return Err("Type a SQL statement first.".into());
+    }
+    let id: u64 = database
+        .parse()
+        .map_err(|_| "That is not a database of this server.".to_string())?;
+    Ok(json!({ "database": id, "type": "native", "native": { "query": sql } }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1105,5 +1217,66 @@ mod tests {
         let v = json!({ "values": [["Doohickey"], ["Gadget"], [7]], "has_more_values": false });
         assert_eq!(values_from(&v), ["Doohickey", "Gadget", "7"]);
         assert!(values_from(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn databases_say_whether_the_account_may_run_sql_and_sort_by_name() {
+        let v = json!({ "data": [
+            { "id": 3, "name": "warehouse", "engine": "postgres", "native_permissions": "none" },
+            { "id": 1, "name": "Sample Database", "engine": "h2", "native_permissions": "write" } ] });
+        let d = databases_from(&v);
+        assert_eq!(
+            d.iter()
+                .map(|x| (x.name.as_str(), x.native))
+                .collect::<Vec<_>>(),
+            [("Sample Database", true), ("warehouse", false)]
+        );
+        assert_eq!(d[0].id, "1");
+        // The older shape: a bare list.
+        assert_eq!(databases_from(&json!([{ "id": 2, "name": "x" }])).len(), 1);
+        assert!(databases_from(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn tables_come_with_their_fields_hidden_ones_left_out() {
+        let v = json!({ "tables": [
+            { "id": 9, "schema": "PUBLIC", "name": "ORDERS", "visibility_type": null,
+              "fields": [ { "name": "ID", "base_type": "type/BigInteger" },
+                          { "name": "SECRET", "base_type": "type/Text", "visibility_type": "sensitive" },
+                          { "name": "TOTAL", "database_type": "DOUBLE PRECISION" } ] },
+            { "id": 4, "schema": "PUBLIC", "name": "HIDDEN", "visibility_type": "hidden", "fields": [] },
+            { "id": 2, "schema": "PUBLIC", "name": "ACCOUNTS", "fields": [] } ] });
+        let t = tables_from(&v);
+        assert_eq!(
+            t.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(),
+            ["ACCOUNTS", "ORDERS"]
+        );
+        let orders = &t[1];
+        assert_eq!(
+            orders
+                .fields
+                .iter()
+                .map(|f| (f.name.as_str(), f.ty.as_str()))
+                .collect::<Vec<_>>(),
+            [("ID", "type/BigInteger"), ("TOTAL", "DOUBLE PRECISION")]
+        );
+    }
+
+    #[test]
+    fn ad_hoc_sql_is_a_native_dataset_request() {
+        let b = native_body("1", "SELECT 1").expect("a body");
+        assert_eq!(
+            b,
+            json!({ "database": 1, "type": "native", "native": { "query": "SELECT 1" } })
+        );
+        assert!(
+            native_body("1", "   \n ")
+                .expect_err("empty")
+                .contains("SQL")
+        );
+        assert!(
+            native_body("sample", "SELECT 1").is_err(),
+            "a database id is a number"
+        );
     }
 }

@@ -7,6 +7,7 @@ mod browse;
 mod dashboard;
 mod question;
 mod sidebar;
+mod sql;
 mod tab;
 
 use std::sync::Arc;
@@ -92,6 +93,8 @@ pub struct AnalyticsTool {
     question: Option<question::Question>,
     /// The picked dashboard's page: its tiles and their runs.
     board: Option<board::Board>,
+    /// The picked database's SQL page: its text and its result.
+    sql: Option<sql::Sql>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -102,6 +105,7 @@ impl AnalyticsTool {
         self.browse.reset();
         self.question = None;
         self.board = None;
+        self.sql = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

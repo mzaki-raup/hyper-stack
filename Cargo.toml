@@ -36,7 +36,7 @@ members = [
 # The single source of truth for the version. scripts/update-version.ps1 moves it;
 # never edit it by hand (docs/09-ci-cd-and-updates.md §3).
 [workspace.package]
-version = "0.138.3"
+version = "0.144.0"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT"
@@ -80,6 +80,7 @@ tool-analytics = { path = "crates/tools/tool-analytics" }
 eframe = "0.35"
 egui = { version = "0.35", features = ["serde"] }
 egui_extras = { version = "0.35", features = ["image", "svg"] }
+egui_plot = "0.36"
 egui-phosphor = { version = "0.13", features = ["regular", "fill"] }
 egui_kittest = "0.35"
 image = { version = "0.25", default-features = false, features = [

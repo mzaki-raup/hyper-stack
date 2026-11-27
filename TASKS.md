@@ -150,13 +150,98 @@ Refs: BUG-0003
 ### Latest Registered Task
 
 ```
-Version : v0.9.0
-Features : FEAT-0132
+Version : v0.10.0
+Features : FEAT-0144
 Bugs : BUG-0077
 Change Request : CR-0103
 ```
 
 ---
+
+## v0.10.0 — Planned
+
+> **ETL**, Apache Hop alone. Spec `docs/tools/etl.md`, decision ADR-035,
+> depth-programme phase R. Specified 2026-11-26 at the owner's request
+> ("I plan to add ETL as new Activity"), narrowed across that
+> conversation to Hop alone ("ditch all, except hop and nifi", then
+> "ditch nifi, only hop remain"); the owner's answers are the spec's
+> §10: an activity, files only in phase 1, both pipelines and workflows,
+> metadata listed with secrets masked, phase R with the rail after
+> Analytics. Talend, Pentaho, Airbyte, NiFi and Airflow were each
+> assessed and dropped, with the reason recorded per product.
+>
+> This batch starts at **FEAT-0138**: while it was specified and waiting
+> for CI, `FEAT-0133` to `FEAT-0137` were allocated by Analytics' further
+> provider specs (SAS Viya, Power BI Report Server, Apache Superset and
+> Grafana) and landed on `main` first, so those ids are left to them
+> rather than reused.
+
+### FEAT-0138 · ETL activity: crate, project entries, Settings page, dashboard, sidebar, tab shell
+- **State:** Pending · **Spec:** docs/tools/etl.md §3, §4.1, §5, §8 · **Phase:** R
+- **Source:** owner, 2026-11-26: "I plan to add ETL as new Activity … For starter, i want to add apache airflow, talend, etc. If provide credentials, can the work pane resemble both the activity web interface (using APIs, etc)?", then "ditch talend", "ditch all, except hop and nifi", "ditch nifi, only hop remain", and the five answers of §10
+- **Scope:** `crates/tools/tool-etl/` with `EtlFactory` (id `etl`, category Data, rail after Analytics); the project list reusing the `hs_core::projects::Projects` type from the activity's **own** `etl-projects.toml`, not the shared `Services.projects` the Editor and Git read (name, path, optional environment — **no connection and no vault entry in phase 1**, §5); `project-config.json` read with `${PROJECT_HOME}` resolved and a folder with none still opened; Settings → ETL (list left, form right, the path field leaving its Browse button room per BUG-0069, the limits of §7); the dashboard (projects, pipelines, workflows, open tabs; Start Here; Saved Projects; Recent with Clear History and Remove; Open Here); the sidebar with the Hop mark and the reorder grip; one tab per project with the header band wearing the same mark, the toolbar (Browse toggle first, AI hard right) and the hideable, resizable browse column; `hs-diagram` and `roxmltree` added as dependencies per ADR-035; the palette commands and shortcuts of §9
+- **Depends on:** —
+- [ ] Crate, factory, rail entry, project list, Settings page
+- [ ] `project-config.json` and the folder walk as a Job with cancel, bounded channels
+- [ ] Dashboard, sidebar, tab shell, header band, the Hop mark
+- [ ] ADR-035's `hs-diagram` and `roxmltree` dependencies; `cargo deny`
+- [ ] Test: the project entry round trip; `metadataBaseFolder` with `${PROJECT_HOME}`; a folder with no `project-config.json`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — add a Hop project, open its tab, hide and resize the column; the *Checking a screen* list
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS
+
+### FEAT-0139 · ETL: the project tree and search
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.2 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0138)
+- **Scope:** Pipelines and Workflows as two sections with the project's folders beneath, folders first then items by name (CR-0038); Metadata's children per kind with counts; Variables with its count; each row its kind's coloured picture from `hs_ui::fileicons` when Material icons are on, else a coloured glyph (CR-0065, CR-0068), a pipeline and a workflow distinct; keyboard navigation; a filter field; Search over file names **and** transform and action names, the index built once per Refresh, results with their path
+- **Depends on:** FEAT-0138
+- [ ] Tree, filter, keyboard navigation, pictures
+- [ ] Search index on Refresh, results in the column
+- [ ] Test: ordering (folders first, then by name); the index from a fixture project; the filter
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — walk a fixture project, filter, search for a transform name
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0140 · ETL: the pipeline and workflow canvas
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.3, §7, §8.2, §8.3 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0138)
+- **Scope:** the `FlowGraph` model (nodes with kind, label, position; edges with `via`, label and style) and one renderer; `.hpl` parsed from `<pipeline>`/`<transform>`/`<GUI><xloc>`/`<order><hop>`; `.hwf` from `<workflow>`/`<actions><action>` with coordinates on the action and `<hops><hop>` with `enabled`, `evaluation` and `unconditional`, mapped to plain, success and failure styles with the raw flags kept on the edge and an unexpected combination drawn unconditional with a tooltip; dashed for a disabled hop; error-handling hops apart; `<notepads>` as labels; node pictures per known type and the generic picture named for an unknown one; pan, zoom, click to select, arrow keys, Enter, `Home` to fit; hover never grows a node; Export SVG through `hs_diagram::export::svg`; missing coordinates fall back to `layout_approx` with a hint; tolerant reading per §8.3; the graph converted and laid out once per file change, keyed on a hash of the bytes, never inside `ui()`; the largest-file and most-nodes limits with their states. **The egui painter is new code here** — `hs-diagram` has no painter (§8.2)
+- **Depends on:** FEAT-0139
+- [ ] `.hpl` and `.hwf` parsers, tolerant per §8.3
+- [ ] `FlowGraph`, the conversion, the cache keyed on the file's bytes
+- [ ] The canvas: painting, hit-testing, pan, zoom, selection, keyboard, fit
+- [ ] Edge styles, node pictures, notepads, Export SVG
+- [ ] Test: each sample parses; both kinds into `FlowGraph`; every `.hwf` flag combination including an unexpected one; a disabled and an error-handling hop; no coordinates falls back to `layout_approx`; an unknown type survives; a hop to a missing transform dropped and counted; `egui_kittest` snapshots at two widths plus the empty, too-many-nodes and parse-error states
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a fixture pipeline and workflow beside Hop GUI's own canvas; zoom and pan; keyboard between nodes; Export SVG; a large file's limit
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0141 · ETL: transform and action detail, metadata, variables, and the secret rules
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.4, §4.5, §4.6, §4.7, §6 · **Phase:** R
+- **Source:** owner, 2026-11-26 (as FEAT-0138); the secret rules from `.claude/rules/security.md` and the owner's whole-word rule, 2026-11-07
+- **Scope:** the selected node's facts in `form::detail_table`, the type's own fields read generically so an unknown type still shows everything; `${variable}` values on hover through `varfield`, an unset one saying so; long values in a `form::well`, SQL through the read-only editor engine; Metadata as `DataTable`s with the clicked row's detail — Connections (name, engine, host, port, database, username) with **Open in Database** matching a saved `db` connection on engine, host, port and database (host without case, `localhost` equal to `127.0.0.1`; no match or several opens the picker with the reason) through an `OpenRequest` carrying the connection's id and **never a credential**; Run Configurations, Datasets, Unit Tests **listed**; empty kinds with a sentence-case hint (CR-0061); Variables with their source; **Hop's `Encrypted <hex>` password never decoded, never shown, never cached, and redacted from every log line and error on Hop's own `CredentialRedactor` pattern**; the whole-word secret mask over keys; the AI context carrying no masked value and no encoded password; Open in Editor, Copy Path, the item's facts under a disclosure
+- **Depends on:** FEAT-0140
+- [ ] Node detail, generic fields, variable hovers, long values and SQL
+- [ ] Metadata tables and detail; Open in Database with its match and picker
+- [ ] Variables; the whole-word mask; Hop's `Encrypted` redaction
+- [ ] Test: the metadata kinds and variables from a fixture; the Open in Database match (host case, loopback equality, none, several); the whole-word mask over `SMTP_PASS`, `dbPassword`, `AUTH_LOCKOUT_THRESHOLD`; **a fixture holding a real `Encrypted <hex>` never reaches the model, the AI context, an error or a log, and the data folder is grepped afterwards**
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — a transform's fields; a connection opened in the Database activity; the masked variables; the encoded password shown nowhere
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0142 · ETL: Hop Server — status, runs and logs (phase 2)
+- **State:** Pending · **Spec:** docs/tools/etl.md §4.9, §5, §6, §8.4 · **Phase:** R
+- **Source:** owner, 2026-11-26: files only in phase 1, so the server is its own item
+- **Scope:** connection kind `hop-server` in `hs_core::connections` (URL, Username and Password through `hs_core::service_auth` as a `secret:<ulid>`, Use Saved Credential, Verify TLS and CA File), Test Connection; the server's registered and running pipelines and workflows with their status; **Run** a pipeline or workflow with its run configuration and parameters, and run a unit test, each a Job with progress and cancel; the run's log with the shared log-level colours (CR-0077); version gating — the released `/hop/...` web services with `&json=Y`, the `/hop/api/v1/` JSON API where the server has it, an unavailable call drawn disabled with the reason, a differently-shaped answer treated as a version fact; Hop's environments mapped onto HyperStack's tiers (FEAT-0106) so a Hop `prod` environment takes the **protected-environment guard** and refuses runs until Allow Writes; `apache/hop` in a new `etl` bench profile, memory-capped and started on demand, with `HS_HOP` and a `bench/README.md` row
+- **Depends on:** FEAT-0141
+- [ ] Connection kind, credential, Test Connection, version gating
+- [ ] Status, runs, logs, unit-test runs as Jobs with cancel
+- [ ] The protected-environment guard on every run verb
+- [ ] Bench: `apache/hop` in the `etl` profile; `HS_HOP`
+- [ ] Test: version gating from recorded answers; the guard refuses a run on a protected environment; a live test gated on `HS_HOP`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Hop Server: status, run a fixture pipeline, read its log, cancel one; a protected environment refuses the run
+- [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
 
 ## v0.9.0 — Planned
 
@@ -175,68 +260,156 @@ Change Request : CR-0103
 - [x] Crate, factory, rail entry, connection kind, profile table, Settings page
 - [x] Provider trait, `Caps`, session runner (bounded channels), sign-in both ways, version gating
 - [x] Dashboard, sidebar, tab shell, header band, mark
-- [ ] Bench (service added to the `bi` profile; the seed is not written): Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
+- [x] Bench: Metabase in the `bi` profile, seeded (Sample Database, a question per chart kind, a native question with a template tag, a two-tab dashboard with a filter, an API key)
 - [ ] Test: profile round trip, version gating; live sign-in both ways gated on `HS_METABASE`; the data-folder grep
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — add the bench Metabase both ways, Test Connection, open its tab; the *Checking a screen* list
 - [ ] Docs: spec · README · CHANGELOG · CHECKLIST · GOTCHAS · bench/README
-- **Notes:** built and clippy-clean, 6 unit tests pass; sign-in not yet tried against a live Metabase; the Metabase mark is a drawn placeholder, not the official logo; the mock-server test is still to write; the gate ran (fmt, clippy, 1574 tests, deny, self-test) but the screen check was declined, so the App box stays open.
+- **Notes:** 2026-11-26 screen check on the bench Metabase v0.52.4, scratch data folder: Settings → Analytics (list, form, vault-stored secret, limits), the tab signed in by **API key** and by **password** ("Tested version."), Test Connection ("Connected. Metabase v0.52.4 · …"), the dashboard, the vault-locked and "nothing answered" states and the reconnect on unlock. It found one bug: Test Connection stayed disabled because `conn_test::testable` did not list `metabase` (fixed, in the test list). Not done: the mock-server test and the live `HS_METABASE` sign-in test; the Metabase mark is a drawn placeholder, not the official logo. The bench's Metabase seed and the Tableau REST mock are on `chore/bench-kit`.
 
 ### FEAT-0127 · Analytics: the collection tree and search
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.2 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** collections a level at a time (folders first, then items, by name; each kind's coloured picture), personal collections, the Databases section, a filter field, Search over `/api/search` with kind filters and More
 - **Depends on:** FEAT-0126
-- [ ] Tree and search
-- [ ] Test: tree and search results from recorded answers; live walk
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — walk the bench collections, search, hide and resize the column
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Tree and search
+- [x] Test: tree and search results from recorded answers; live walk (`tests/metabase_live.rs`, both ways, against the bench)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — walk the bench collections, filter, search with kinds, pick an item (hiding and resizing the column not looked at: see Notes)
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4 (scratch data folder): the tree, the filter, Search with kind chips, the item page; it found the Search button wrapping its label and long result names clipped mid-glyph (both fixed). More (over 50 results) is covered by a unit test, not seen on screen: the bench has 22 results. Hiding and resizing the column, and the empty and error states of a collection, were not looked at on screen. Gate 2026-11-27: fmt, clippy, 1587 tests, deny, self-test.
 
 ### FEAT-0128 · Analytics: questions, models and metrics with tables and charts
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** Run as a Job with cancel; Chart | Table | SQL; `DataTable` with Metabase's formatting; charts through `egui_plot` (ADR-034: line, area, bar, row, combo, scatter; pie, scalar, smart scalar, progress, gauge hand-painted; funnel and waterfall phase 1b; map, pivot, sankey as the table with Open in Browser); parameters as pick and date fields; CSV / JSON / XLSX export; the SQL view with Open in Database; the AI assistant's context
 - **Depends on:** FEAT-0127
-- [ ] ADR-034's `egui_plot` added; `cargo deny`
-- [ ] Run, table, charts, parameters, export, SQL view
-- [ ] Test: each chart kind's points from a recorded result; parameters into the request; formatting by `base_type`
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — every bench question's chart beside Metabase's own; a template tag; an export
-- [ ] Docs: spec · README · CHANGELOG
+- [x] ADR-034's `egui_plot` added (0.36, for egui 0.35); `cargo deny`
+- [x] Run, table, charts, parameters, export, SQL view
+- [x] Test: each chart kind's points from a recorded result; parameters into the request; formatting by `base_type`; live: every seeded question, a parameter, the row limit, a CSV export
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench questions' charts, a template tag, the Table and SQL views, the Export menu (not beside Metabase's own pages, and the save dialog not driven: see Notes)
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS · screenshots
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the line, bar, row, pie, scalar and combo charts, the native question with its parameter (400 gives an empty result with its message), the Table and SQL views and the Export menu. It found a stray axis label and a row chart listing its categories bottom-up (both fixed). The area chart was seen on screen too. Not done: the save dialog of an export was not driven (the bytes are tested live); the scatter chart was not seen (planned and tested only; the bench has no scatter question); Open in Database stays with FEAT-0130; the combo's second axis, the card's own series colours and parameter value lists as pick fields are FEAT-0143; funnel and waterfall are phase 1b. Gate 2026-11-27: fmt, clippy, 1604 tests, deny, self-test; the bench drive ran out of disk once (the full D: made the test link fail), cleared by deleting `target/debug/incremental`.
 
 ### FEAT-0129 · Analytics: dashboards with their grid, tabs and filters
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** the 24-column grid at the pane's width, each card a tile with its chart or table and its own states; text, heading and link cards; dashboard tabs; filters from the parameter values with Apply; cards run four at once, cancelled when the tab leaves; auto-refresh while on screen
 - **Depends on:** FEAT-0128
-- [ ] Grid, tabs, filters, card runs
-- [ ] Test: the grid's layout at two widths; parameter mappings into each card's request
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the bench dashboard beside Metabase's own, a filter applied, both tabs
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Grid, tabs, filters, card runs
+- [x] Test: the grid's layout at two widths; parameter mappings into each card's request; live: the bench dashboard, its filter values, a filter narrowing a mapped tile and not an unmapped one
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench dashboard (not beside Metabase's own page), a filter applied, both tabs
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the Overview tab (a number, a line, a bar and a pie tile), the Detail tab (the table), the Category filter listing the server's four values, and Apply narrowing the bar and pie to Gadget while the unmapped line stayed whole. It found the charts sharing one plot id (a red warning box) and the second tab opening at the first one's scroll offset (both fixed). Not done: the heading, text and link tiles were tested from recorded JSON only (the bench dashboard has none); a date filter and Auto-Refresh were not run on screen; the narrow single-column layout is tested as arithmetic, not seen; cancelling a dashboard's runs on leaving it was not observed.
 
 ### FEAT-0130 · Analytics: databases and ad-hoc SQL through Metabase
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
-- **Scope:** the databases and their metadata; New SQL with completion from the metadata, Run through `/api/dataset`, a quick chart; refused without native access; disabled on a protected environment
+- **Scope:** the databases and their metadata; New SQL with completion from the metadata (not built: FEAT-0144), Run through `/api/dataset`, a quick chart; refused without native access; disabled on a protected environment
 - **Depends on:** FEAT-0128
-- [ ] Databases, SQL page, protected-environment guard
-- [ ] Test: the native request body; the refusal
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — a query against the Sample Database; a protected environment disables the page
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Databases, SQL page, protected-environment guard
+- [x] Test: the native request body; the refusal; live: the databases, the tables, a count, a server error, the row limit
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — a query against the Sample Database; a protected environment disables the page (see Notes for what was seen)
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** the SQL colours and completion from the metadata are not built (a plain text editor), and **Open in Database** (the matching saved connection and a way to hand the SQL to the Database activity, which today opens only a connection or a `.sql` file) is FEAT-0144. The no-native-access refusal is read from `native_permissions` and worded here, not by the server; the bench has only an admin, so that path is a unit-tested reading, not seen against a restricted account. 2026-11-27 screen check on the bench Metabase v0.52.4: the Databases section down to a table's typed columns, a table pick filling the starter query, Run (100 rows in 87 ms), an aggregate with the Bar view, the server's error sentence for a missing table, and a protected environment (a `Production` environment tied to the server in Settings) leaving only its message with no editor and no Run. It found the old rows staying under a failed run's error and Metabase's `-- Metabase::` comment line in the message (both fixed). Not seen: Cancel on a long statement, the Line, Pie and Number views, and `Ctrl+Enter` Run.
 
 ### FEAT-0131 · Analytics: the Tableau provider
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** kind `tableau` for **Tableau Server** (owner, 2026-11-20); username and password or a Personal Access Token into one site; projects, workbooks, views, data sources; a view's PNG with filter fields, its data in a `DataTable`, exports; extract refresh tasks and jobs, read-only (no Refresh Now: the owner chose read-only); Open Interactive in the Browser activity; version gating from `/serverinfo`
 - **Depends on:** FEAT-0129
-- [ ] Provider and screens, read-only
-- [ ] Test: a mock from the REST API reference; a read-only live test gated on `HS_TABLEAU` (the owner's Server)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Provider and screens, read-only
+- [x] Test: a mock from the REST API reference; a read-only live test gated on `HS_TABLEAU` (the owner's Server) — 2026-11-27: 11 parser and profile unit tests; `tableau_live` passes against the bench mock by password and by token (the mock only, not a real Server)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-27: all pass
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS (no new mistake to record)
+- **Notes:** the App box is open: the owner declined screen access on 2026-11-27 (twice), so the Tableau tab has not been looked at in the running app, and no real Tableau Server was available: only the bench mock.
+
+### FEAT-0133 · Analytics: the SAS Viya provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "For Analytic, if possible, add SAS BI"; answered *SAS Viya*, with the spec, the ledger item and a bench mock now
+- **Scope:** kind `sasviya` for **SAS Viya** (not SAS 9.4 BI: no REST surface); SAS Logon password grant with a registered client, or a pasted access token; folders and reports, search; a report's picture from the Report Images service, its details, Open Interactive in the Browser activity; CAS libraries and tables with columns and a row preview in a `DataTable`; recent jobs, read-only; per-service probing in place of one version call
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/sasviya`); a read-only live test gated on `HS_SASVIYA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's Viya: browse, a report's picture, a table's rows, the jobs; Open Interactive
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is on `chore/bench-kit`.
+
+### FEAT-0134 · Analytics: the Apache Superset provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Add power bi, apache Superset and grafana to analytic activity"
+- **Scope:** kind `superset`; login with a username and password (db or ldap) or a pasted access token; dashboards, charts, datasets and databases as sections; a chart's rows from `/chart/{id}/data/` drawn through Metabase's chart code; a dashboard on Superset's 12-column grid with its native filters; read-only SQL Lab with Open in Database
+- **Depends on:** FEAT-0129
+- [ ] Provider and screens, read-only
+- [ ] Test: recorded answers per chart kind; the SELECT-only guard; live sign-in gated on `HS_SUPERSET`; the data-folder grep
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Superset: a chart of each kind, the dashboard with a filter, a SQL Lab query
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Superset (`bench/` profile `bi`).
+
+### FEAT-0135 · Analytics: the Grafana provider and `hs_core::grafana`
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.12, §5.6 · **Phase:** Q
+- **Source:** owner, 2026-11-26
+- **Scope:** the shared client `hs_core::grafana` (health, user, search, folders, dashboards by uid, data sources, `/api/ds/query`) so Logs can use it without a tool-to-tool dependency; kind `grafana` (service-account token or username and password, an organisation id, TLS); folders and dashboards with tags; a dashboard's panels on the 24-column grid drawn from data frames (time series, bar, stat, gauge, bar gauge, table, pie, logs), template variables as pick fields, a time-range picker and auto-refresh; Explore as read-only query; Open Picture where the Image Renderer exists
+- **Depends on:** FEAT-0129
+- [ ] Client in `hs-core`, provider and screens, read-only
+- [ ] Test: data frames from recorded answers into each panel kind; variables; the time range into the request; live sign-in gated on `HS_GRAFANA`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana: a dashboard of each panel kind, a variable, the time range, Explore
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** the bench runs the real Grafana with Prometheus and Loki data (`bench/` profile `bi`).
+
+### FEAT-0136 · Logs: the Grafana source
+- **State:** Pending · **Spec:** docs/tools/logs.md §21 · **Phase:** Q
+- **Source:** owner, 2026-11-26: "Grafana can also be put in both analytic activity and log activity"; chosen as *query its log data sources*
+- **Scope:** a saved Logs source of kind Grafana: a `grafana` connection, a log data source from `/api/datasources` (Loki, Elasticsearch), a LogQL or Lucene query, Max Lines, Follow by polling with an interval; lines as records with labels as fields and the level from the labels or the shared parser; read-only, errors in the tab's error state; the source's mark and rotating colour; Test Connection
+- **Depends on:** FEAT-0135
+- [ ] `GrafanaSource` in `tool-logs`, the form, the sidebar mark
+- [ ] Test: a frame into records with labels and levels; the poll dedupe; a query error is shown
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench Grafana's Loki: a query, labels in the structured view, Follow picking up new lines, a bad query's message
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+
+### FEAT-0137 · Analytics: the Power BI Report Server provider
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.10, §5.4 · **Phase:** Q
+- **Source:** owner, 2026-11-26; answered *Power BI Report Server* (the on-premises product)
+- **Scope:** kind `powerbi`; Basic or NTLM with a username and password, and on Windows the current user (SSPI); folders, Power BI reports, paginated reports, KPIs, data sources and datasets through REST API v2.0 with OData paging and search; a paginated report's picture and CSV; a .pbix as details with Open Interactive in the Browser activity; KPI tiles; data sources with secrets masked and refresh plans, read-only; version from `/System`
+- **Depends on:** FEAT-0131
+- [ ] Provider and screens, read-only
+- [ ] Test: a mock from the REST API reference (`bench/mock/powerbirs`); the masking of a connection string; a read-only live test gated on `HS_POWERBIRS`
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's server: browse, a paginated report's picture, KPIs, the refresh plans
+- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** NTLM needs a client that speaks it (to be chosen; an ADR and a `cargo deny` pass if a crate is added); Power BI Service is not covered.
+
+### FEAT-0143 · Analytics: chart polish for questions
+- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q
+- **Source:** the unbuilt parts of FEAT-0128, found on its screen check (2026-11-27)
+- **Scope:** a combo chart's second y-axis when its series differ in scale (a count beside a sum is now a flat line); the card's own series colours (`series_settings` colour) before the shared palette; a parameter's value list from `/api/card/:id/params/:param-key/values` as a `form::pick_field`; the question's value formatting from the column settings (currency, thousands separators with a numeric sort that still works)
+- **Depends on:** FEAT-0128
+- [ ] The second axis, the card's colours, parameter value lists, column formatting
+- [ ] Test: the axis choice per series, the colour read from settings, the value list into the field
+- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [ ] App: `--data-dir ./tmp-data` — the bench combo question beside Metabase's own, a filter with a value list
+- [ ] Docs: spec · README · CHANGELOG
+
+### FEAT-0144 · Analytics: SQL colours, completion and Open in Database
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.3, §4.6 · **Phase:** Q
+- **Source:** the unbuilt parts of FEAT-0130 and the owner's decision of 2026-11-20 ("Open in Database picks the matching saved connection")
+- **Scope:** the SQL page and the SQL view in the editor engine (`hs-editor`) with SQL colours and completion from the database's tables and columns; **Open in Database**: match Metabase's database (`engine`, `details.host`, `details.port`, `details.dbname`) to a saved `db` connection (host without case, `localhost` equal to `127.0.0.1`), one match opens on it, none or several opens with the connection picker on the candidates and a hint; the SQL travels in an `OpenRequest` that carries the connection id (a new variant or a Text body the Database activity takes), never a password
+- **Depends on:** FEAT-0130
+- [x] Editor engine and completion
+- [x] Open in Database with the matching rule and the new request
+- [x] Test: the match (one, none, several; case and localhost); completion; the details parse — 2026-11-27: 72 tool-analytics tests; the request reaches tool-db through `open()` (not covered by a test)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-27: all pass
+- [ ] App: `--data-dir ./tmp-data` — a bench Metabase database matching a saved Database connection opens its SQL there; one with no match opens the picker
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** the App box is open: the owner declined screen access on 2026-11-27, so the running-app check of Open in Database and the editor has not been made.
 
 ## v0.8.2 — In-Progress
 

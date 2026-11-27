@@ -13,8 +13,49 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ### Added
 
-- Analytics activity, first step: BI servers (Metabase, by password or API key) with a provider trait, Settings → Analytics, a dashboard, a sidebar and a server tab that signs in and shows the server's version and support (FEAT-0126)
-- The bench has a `metabase` service in its `bi` profile
+- Analytics: a Tableau Server provider: projects, workbooks, views and data sources, a view's picture and data with filter fields and saves as PNG, CSV or PDF, Open Interactive in the Browser, and the extract refresh tasks and jobs, read-only (FEAT-0131)
+
+## 0.144.0 — 2026-11-27
+
+### Added
+
+- SQL colours and completion, and Open in Database (8bb6c6fb)
+
+## 0.143.0 — 2026-11-27
+
+### Added
+
+- The Databases section and an SQL page for a Metabase server (babadbbd)
+
+## 0.142.0 — 2026-11-27
+
+### Added
+
+- A Metabase dashboard on its grid, with tabs, filters and tile runs (9b8ef404)
+
+## 0.141.0 — 2026-11-27
+
+### Added
+
+- Run a Metabase question and show it as a chart, a table or its SQL (5823367e)
+
+## 0.140.0 — 2026-11-26
+
+### Added
+
+- The collection tree, filter and Search for a Metabase server (62a140cb)
+
+## 0.139.1 — 2026-11-26
+
+### Fixed
+
+- Offer Test Connection for a Metabase server (a52ea89e)
+
+## 0.139.0 — 2026-11-26
+
+### Added
+
+- Analytics activity with Metabase sign-in, Settings page and dashboard (bc9be664)
 
 ## 0.138.3 — 2026-11-26
 

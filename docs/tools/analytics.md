@@ -1,6 +1,6 @@
 # Tool spec — Analytics
 
-**Status:** draft, decisions recorded (§10) · **Last updated:** 2026-11-20 · **Phase:** Q
+**Status:** draft, decisions recorded (§10) · **Last updated:** 2026-11-26 · **Phase:** Q
 (`docs/10-depth-programme.md`) · **Decisions:** ADR-034
 
 ## 1. Purpose
@@ -11,7 +11,11 @@ its result as a table or a chart, open a dashboard with its filters, and
 try a query against the server's databases. **Metabase first**, through
 its REST API, drawn natively so a Metabase tab looks and reads like
 Metabase's own web interface. **Tableau second** (§4.8), where the API
-gives pictures and data rather than the interactive chart.
+gives pictures and data rather than the interactive chart. **SAS Viya
+third** (§4.9), the same way: folders and reports as pictures, with the
+data tables behind them. **Power BI Report Server** (§4.10), **Apache
+Superset** (§4.11, drawn natively like Metabase) and **Grafana** (§4.12,
+dashboards here and log queries in Logs) follow.
 
 It is **not** a BI authoring tool: it does not build or edit questions,
 dashboards, models or permissions, does not administer the server, and
@@ -136,13 +140,27 @@ disabled with the reason, never hidden). The trait's questions:
 
 ### 4.2 Browsing and search
 
-- The tree loads a level at a time (`/api/collection/tree` for the
-  collections, `/api/collection/:id/items` for a collection's items;
-  `root` for the top). Archived items are left out; a collection the
-  account cannot read is not listed by the server.
+- The tree loads a level at a time (`/api/collection/:id/items`, `root`
+  for the top; each collection is read once, when it is opened).
+  Collections come first, then the items, each by name, each wearing its
+  kind's picture (Material when on, a glyph when off). Archived items are
+  left out; a collection the account cannot read is not listed by the
+  server. A person's own **personal collection** is added to the root
+  (it is not among the root's items); an **API key's user has none**.
+- A **filter field** above the tree narrows what is loaded by name and
+  opens the way to each match; a collection not yet opened is not
+  searched (the empty state says so - use Search for the whole server).
 - **Search** (toolbar, `Ctrl+Alt+B`): a field over `/api/search?q=…`,
-  results in the left column with their collection path, kind filters
-  (Questions, Models, Metrics, Dashboards, Collections).
+  Enter or the Search button runs it; results in the left column, 50 a
+  page with **More**, each with its kind's picture and its collection;
+  **kind filters** (Questions, Models, Metrics, Dashboards, Collections)
+  combine, none chosen meaning all. An empty result says so; an older
+  search's late answer is dropped.
+- **Picking an item** (tree or result) shows its page on the right: name,
+  kind, Open in Browser, Copy Link and its facts (id, collection, editor,
+  last edited, description, where the server gives them). The question,
+  dashboard and collection pages themselves come with FEAT-0128 and
+  FEAT-0129.
 - **Recent** on the home dashboard records what was opened here, not
   Metabase's own recent views.
 
@@ -186,6 +204,18 @@ disabled with the reason, never hidden). The trait's questions:
   `POST /api/card/:id/query/:format`, saved with the shared download
   dialog; Metabase's export limit applies, not the run limit.
 - A **model** and a **metric** run and show like a question.
+- **As built (FEAT-0128)**: opening a question runs it at once, as Metabase
+  does; **Run** (`Ctrl+Enter`) reruns and **Cancel** stops the job (the
+  request is dropped; a late answer is ignored). A result keeps at most
+  *Rows per Run* rows (Settings -> Analytics) and says when it was cut.
+  The SQL view shows a native question's own SQL, or the SQL Metabase
+  compiled a query-builder question to (`data.native_form.query` of the
+  result, marked as generated); **Open in Database** opens the SQL in a new
+  Database tab (FEAT-0144, §4.6). Parameters are text,
+  number and date fields prefilled with the card's defaults; filling a
+  field from the server's value list (`pick_field`) is not built yet.
+  Numbers show without a thousands separator, so a column still sorts as
+  numbers; decimals show up to two places.
 
 ### 4.4 Charts
 
@@ -211,6 +241,18 @@ tooltip does; the legend is clickable to hide a series.
 Charts are laid out once per result and redrawn from the cached points,
 never recomputed per frame (`.claude/rules/rust.md`).
 
+**As built (FEAT-0128)**: `chart::plan` turns a result and the card's
+`graph.dimensions`, `graph.metrics`, `stackable.stack_type`, `series_settings`
+and `scalar.field` / `progress.goal` / `gauge.segments` into a plan, tested
+per kind from recorded results; a second dimension with one metric splits
+into a series per value; a row chart lists the first category at the top;
+a gauge is drawn as a progress bar against its last segment, or as a number
+where it has no goal. Series colours follow the shared palette of eight, not
+the card's own colours yet. A combo draws lines and bars on **one** axis (a
+count beside a sum shows as a flat line: Metabase's second axis is not
+built). Funnel and waterfall (phase 1b), map, pivot, sankey and object are
+the table with the hint and Open in Browser.
+
 ### 4.5 Dashboards
 
 - `GET /api/dashboard/:id` gives the **grid**: each dashcard's `row`,
@@ -234,6 +276,22 @@ never recomputed per frame (`.claude/rules/rust.md`).
   run.
 - Auto-refresh is offered as Metabase does (1, 5, 10, 15, 30, 60
   minutes), off by default, and only while the tab is on screen.
+- **As built (FEAT-0129)**: `grid::place` puts each tile at its column and
+  row on the 24-column grid at the pane's width (a row is 56 points, a gap 8)
+  and stacks the tiles in reading order in one column below 720 points, as
+  Metabase does on a phone; both are tested without a screen. A dashboard
+  page is a toolbar (Refresh, Open in Browser, Copy Link, Auto-Refresh), the
+  filters with **Apply**, the tab strip and the scrolling grid, each tab
+  keeping its own scroll position. A text filter offers what
+  `/api/dashboard/:id/params/:key/values` lists; a date filter is a date
+  field; the typed values reach only the tiles the filter is mapped to
+  (`parameter_mappings`), each with its target as the server gave it. Tiles
+  run through a queue, at most *Cards at Once* as Jobs together; only the
+  shown tab's tiles run, picking another dashboard or item cancels the
+  runs, and an answer to a run since replaced is dropped. A tile's title
+  opens its question; a heading, a text card (Markdown, through the shared
+  renderer) and a link card are drawn from the dashboard itself, and the
+  dashboard's own chart settings for a tile win over the question's.
 
 ### 4.6 Databases and SQL
 
@@ -248,6 +306,31 @@ never recomputed per frame (`.claude/rules/rust.md`).
   server (§6.3).
 - The SQL page refuses a database the account has no native access to,
   with the server's words.
+- **As built (FEAT-0130)**: the **Databases** section is the second branch
+  of the browse tree, below the collections: each database (from
+  `/api/database`) opens its tables (from `/api/database/:id/metadata`;
+  hidden tables and sensitive fields left out), each table its columns with
+  their types. Picking a database or a table opens its **SQL page**: a text
+  editor (a table pre-fills `SELECT * FROM "schema"."table" LIMIT 100`,
+  quoted as the engine quotes, never over what was typed), **Run**
+  (`Ctrl+Enter`) as a cancellable job through `POST /api/dataset`, and the
+  result as a table or, through the **View** picker, a quick line, bar, pie
+  or number chart. A database the account may not query natively says so
+  (from `native_permissions`) and a run that fails shows the server's own
+  sentence. On a **protected environment** the page is disabled outright:
+  Run never reaches the server (the unlock the other activities offer is
+  not built here). The editor is the shared code editor with SQL colours;
+  typing two characters of a word, or a dot after a table, offers the
+  database's tables, the columns of the tables the statement names, and
+  SQL keywords (`Ctrl+Space` forces the list; Up/Down, Enter or Tab,
+  Escape). **Open in Database** (FEAT-0144) sends the SQL in
+  `OpenRequest::Sql` to a new Database tab, on the saved connection whose
+  engine, host (case-insensitive, `localhost` = `127.0.0.1`), port and
+  database name equal the server's `details`; with none or several it
+  opens with the connection picker and a hint. Only admins see a
+  database's `details`, so for anyone else it never matches and the
+  picker opens; SQLite and H2 files are not matched. The request carries
+  the connection id, never a password.
 
 ### 4.7 What every page has
 
@@ -287,16 +370,200 @@ What Tableau's REST API allows, and so what a Tableau tab is:
   low version first, then talks the server's own, so an older Server
   answers in the version it knows; calls a version lacks are disabled
   with the reason.
+- **As built (FEAT-0131).** Kind `tableau`; Settings has the Server URL,
+  **Site** (content URL), a username and password or a Personal Access
+  Token (the token's name is the credential's header field, its secret
+  the key), TLS and a CA file. Sign-in is `auth/signin` into the site;
+  the token and site id are kept in memory and `auth/signout` ends them.
+  Every call asks for JSON. `serverinfo` is read at API 2.4, then the
+  Server's own version is used; 3.15 to 3.23 is supported, older is
+  refused with a sentence, newer is marked "Newer than tested"; a view's
+  picture asks for a size only from 3.23. The tree is projects (shown as
+  "Collection"), each holding its workbooks and data sources, a workbook
+  opening to its views, and an **Extracts and Jobs** entry. Search takes
+  views, workbooks and data sources by name (one page, no More). A view's
+  page has Apply with filter fields typed as `Field=Value; Field=Value`
+  (sent as `vf_<field>=`), Picture and Data tabs (the data is the view's
+  CSV in a table), Save Picture, Save Data and Save PDF, Open Interactive
+  and Copy Link. The interactive link is
+  `#/site/<site>/views/<workbook>/<view>` from the view's `contentUrl`;
+  a workbook or data source opens the site's home page, because Tableau's
+  web address for those takes an id the REST API does not give. Not
+  built: filter fields offered from the view's own filters, and a
+  project's own name on its tree entry.
 - Testing has no container: Tableau Server is licensed. Because the
   provider only reads, the live test may run against the owner's Server
   when `HS_TABLEAU` names it; everything else runs against a mock written
   from the REST API reference.
 
-### 4.9 Later (not specified further now)
+### 4.9 SAS Viya (phase 3, specified, not built now)
 
-Apache Superset, Power BI (REST and the embed token), Looker, Redash,
-Grafana dashboards as pictures; Metabase alerts and subscriptions
-(read-only), and a question's revision history.
+Added at the owner's request, 2026-11-26 ("add SAS BI"), and narrowed by
+the answer: **SAS Viya**, whose services are REST. **SAS 9.4 BI** (Web
+Report Studio, the BI Server and its metadata server) has no equivalent
+and is not covered (§10.7). The endpoints below are from SAS's REST API
+reference and are to be confirmed against a real Viya on the first
+build; like Tableau, a Viya tab is pictures and data, not the
+interactive report.
+
+- **Sign-in**: SAS Logon, `POST /SASLogon/oauth/token` with
+  `grant_type=password` (username and password) for a registered OAuth
+  **client** (id and secret; the site's own, or `sas.cli` with an empty
+  secret where the site allows it), or a pasted **access token** where
+  the site signs people in through SSO. The token lives in memory only,
+  is sent as `Authorization: Bearer`, and is renewed with the refresh
+  token while the tab is open.
+- **Browse**: folders and their members (`/folders/folders/@myFolder`,
+  `…/{id}/members`: folders, reports, data flows, files, each with its
+  type and `uri`), paged with `start` and `limit`; search over
+  `/reports/reports?filter=contains(name,'…')`.
+- **A report**: its **picture** from the Report Images service
+  (`POST /reportImages/jobs` for a report's section, polled until the
+  job completes, then the image fetched), shown at the pane's width;
+  its **details** (`/reports/reports/{id}`: owner, modified, sections).
+  The interactive report is **not** drawn here: **Open Interactive**
+  opens it in SAS Visual Analytics (`/SASVisualAnalyticsViewer/…`) in
+  the Browser activity, where the user signs in as usual.
+- **Data**: the caslibs and their tables (`/casManagement/servers/…/
+  caslibs/…/tables`) with their columns, and a **row preview**
+  (`/casRowSets/…/rows?limit=…`, capped by Rows per Run) in a
+  `DataTable`.
+- **Jobs**: recent jobs (`/jobExecution/jobs`) with their state and
+  messages, read-only.
+- **Version gating**: Viya has no one version call; the provider reads
+  what the server states about itself and probes each service once,
+  and a service that answers 404 is drawn disabled with that reason.
+- Testing has no container: Viya is licensed. The bench has a **mock**
+  written from the reference (`bench/mock/sasviya`), as for Tableau,
+  and a read-only live test may run against the owner's Viya when
+  `HS_SASVIYA` names it.
+
+### 4.10 Power BI Report Server (phase 3, specified, not built now)
+
+Added at the owner's request, 2026-11-26 ("add Power BI"), narrowed by
+the answer to **Power BI Report Server** (the on-premises product, its
+REST API v2.0 at `/reports/api/v2.0`). **Power BI Service** (the cloud,
+Microsoft Entra sign-in) is not covered now (§10.8). As with Tableau and
+SAS, the interactive report belongs to the product: a Report Server tab is
+the catalogue, its data sources and KPIs, with **Open Interactive**.
+
+- **Sign-in**: Report Server accepts Windows authentication (NTLM or
+  Kerberos) or, over HTTPS, Basic. The profile offers **Username and
+  Password** (Basic, or NTLM with a domain `DOMAIN\user`) and, on
+  Windows only, **the current Windows user** (SSPI, nothing stored). On a
+  plain-HTTP server the form warns that a password travels in the clear
+  and asks to confirm.
+- **Browse**: folders, Power BI reports (`PowerBIReports`), paginated
+  reports (`Reports`), mobile reports, KPIs, data sources and datasets
+  (`CatalogItems`, `Folders({id})/CatalogItems`), with owner, modified
+  date and size; search by name; paged with `$top` / `$skip`, filtered
+  with `$filter` (OData).
+- **An item**: its details; a **paginated report's picture** and data
+  through `Reports({id})/Export/IMAGE` and `.../CSV` where the server's
+  rendering extensions allow it; a **Power BI report (.pbix) has no
+  server-side picture or data API**, so it shows its details, data
+  sources and refresh plan, and **Open Interactive** opens it in the
+  Browser activity (`/powerbi/<path>`).
+- **KPIs**: value, goal, status and trend (`Kpis`), read-only, drawn as
+  the dashboard's tiles.
+- **Data sources and refresh**: each data source's type, connection
+  string with the secret masked, and the cache refresh plans and their
+  last result (`CacheRefreshPlans`, read-only; no Refresh Now).
+- **Version gating**: `GET /reports/api/v2.0/System` names the product and
+  version; v2.0 calls a build lacks are drawn disabled with the reason.
+- Testing has no container: Report Server is a licensed Windows Server
+  product. The bench has a **mock** (`bench/mock/powerbirs`), and a
+  read-only live test may run against the owner's server when
+  `HS_POWERBIRS` names it.
+
+### 4.11 Apache Superset (phase 3, specified, not built now)
+
+**Apache Superset** has a public container, so the bench runs the real
+product, and it is the second provider whose charts can be drawn natively,
+as Metabase's are (REST API v1, `/api/v1`).
+
+- **Sign-in**: `POST /api/v1/security/login` with a username and password
+  (`provider: db`, or `ldap` where the server uses it), returning an
+  access token (sent as `Authorization: Bearer`) and a refresh token
+  (renewed in memory while the tab is open). Superset has no long-lived
+  API key; a **pasted access token** is accepted for a server that signs
+  in through OAuth or SSO. Reads need no CSRF token. Who is signed in is
+  the user name typed: `/api/v1/me/` answered *Not authorized* to an admin's
+  bearer token on the bench's 4.1.1, so the tab does not depend on it.
+- **Browse**: dashboards (`/dashboard/`), charts (`/chart/`), datasets
+  (`/dataset/`) and databases (`/database/`), as the flat lists Superset
+  keeps, with owners, changed-by and date, **tags** and **certified**
+  marks; search and filter by owner through its `q` (Rison) filters.
+  There is no folder tree: the tree shows the four lists as sections and
+  a dashboard's charts under it.
+- **A chart**: `GET /chart/{id}/data/` runs the chart's saved query
+  context and returns its rows with the chart's `viz_type` and params,
+  which pick the drawing. A chart made over the API without a query
+  context answers *Chart has no query context saved*; the tab then builds
+  the context from the chart's params and posts it to `/chart/data` (a
+  read), and says so when it cannot. The drawing: line, area, bar, scatter, pie, big number,
+  table, pivot (as a table), gauge, funnel and the rest as the table with
+  Open in Browser, through the same chart code as Metabase's (§4.4).
+- **A dashboard**: `/dashboard/{id}` gives `position_json` (the grid:
+  rows and columns of chart, markdown, header and tabs) and
+  `json_metadata` (native filters and their defaults); the tiles are laid
+  out on Superset's 12-column grid, each chart run as above, four at a
+  time (§4.5), the native filters as pick and date fields with Apply.
+- **SQL**: SQL Lab through `POST /sqllab/execute/` against a database the
+  account may query, capped by Rows per Run, **read-only** (§6): a
+  statement that is not a `SELECT`, `WITH` or `SHOW`/`DESCRIBE` is
+  refused before it is sent. Open in Database picks the matching saved
+  connection (§4.3).
+- **Version gating**: Superset names its version in the page footer and
+  in its bootstrap data only; the provider reads what it can and
+  otherwise shows the version as unknown and probes each endpoint once.
+  Superset 3.x and 4.x are the targets; the bench runs 4.1.
+
+### 4.12 Grafana (phase 3, specified, not built now)
+
+**Grafana** is dashboards over *other* systems' data (Prometheus, Loki,
+Elasticsearch, SQL, ...), so it appears in two activities from **one
+connection kind** (`grafana`): here as dashboards, and in **Logs** as a
+source of log lines (`docs/tools/logs.md` §21). Both use one client,
+`hs_core::grafana` (health, search, dashboards, data sources, the query
+API), because tools never depend on each other (ADR-034).
+
+- **Sign-in**: a **service-account token** (`glsa_...`, sent as
+  `Authorization: Bearer`; the way a server is meant to be read) or a
+  **username and password** (HTTP Basic); an optional **Organisation id**
+  (`X-Grafana-Org-Id`). `GET /api/health` is public and gives the version
+  and database state; `GET /api/user` names who signed in.
+- **Browse**: folders (`/api/folders`, nested folders where the server has
+  them) and dashboards (`/api/search?type=dash-db`), each with its tags and
+  starred mark; search by name and tag; the **data sources**
+  (`/api/datasources`) as a section, with their type.
+- **A dashboard**: `/api/dashboards/uid/{uid}` is the JSON model: panels
+  with their `gridPos` (24 columns), `type`, `targets` and field options,
+  rows that collapse, and **template variables**, drawn as pick fields
+  filled from their queries. Each panel runs its targets through the
+  unified query API (`POST /api/ds/query`, with `from`/`to` from the time
+  range and the `intervalMs` and `maxDataPoints` the panel width gives)
+  and draws the returned data frames natively: time series, bar chart,
+  stat, gauge, bar gauge, table, pie and logs as a list; panels of any
+  other type (heatmap, geomap, node graph, plugins) show their title with
+  **Open in Browser**. A time-range picker (Last 5 minutes ... Last 30
+  days, absolute) and an auto-refresh interval sit in the toolbar.
+- **Pictures**: where the server has the Image Renderer, a panel's PNG
+  (`/render/d-solo/{uid}/...`) is offered as **Open Picture** beside the
+  native drawing; it is never required.
+- **Explore**: **Query** (read-only) takes a data source, a query in that
+  source's language (PromQL, LogQL, SQL, ...) and a range and shows the data
+  frames as a table or a chart; a data source that can write is never
+  asked to.
+- **Version gating**: `/api/health` gives `version` (Grafana 9 to 11 are
+  the targets; the bench runs 11.3); the provider uses `/api/ds/query` on
+  9+ and says so on an older server.
+
+### 4.13 Later (not specified further now)
+
+Power BI Service (REST and the embed token, Microsoft Entra sign-in),
+Looker, Redash; Metabase alerts and subscriptions (read-only), and a
+question's revision history.
 
 ## 5. Connections and credentials
 
@@ -331,6 +598,33 @@ for the default site), Credential **Username and Password** or
 **Personal Access Token** (name + secret), the API version (detected;
 overridable), Verify TLS and CA File (a company CA is usual on an
 internal Server).
+
+### 5.3 SAS Viya (phase 3)
+
+Kind `sasviya`: Server URL (the ingress root), Credential **Username and
+Password** with the OAuth **client id** and **client secret**, or an
+**Access Token**; Verify TLS and CA File. Secrets are `secret:<ulid>` in
+the vault.
+
+### 5.4 Power BI Report Server (phase 3)
+
+Kind `powerbi`: Server URL (the web portal root, e.g.
+`https://reports.example.com`), Credential **Username and Password**
+(Basic, or `DOMAIN\user` for NTLM) or, on Windows, **Current Windows
+user**; Verify TLS and CA File.
+
+### 5.5 Apache Superset (phase 3)
+
+Kind `superset`: Server URL, Credential **Username and Password** with
+the **provider** (`db` or `ldap`), or an **Access Token**; Verify TLS and
+CA File.
+
+### 5.6 Grafana (phase 3)
+
+Kind `grafana`: Server URL (with its sub-path where Grafana is served
+from one), Credential **Service Account Token** or **Username and
+Password**, an optional **Organisation id**; Verify TLS and CA File. The
+same profile serves the Analytics tab and Logs' Grafana sources (§4.12).
 
 ## 6. Guards
 
@@ -374,8 +668,7 @@ trait, `Caps`, `Item`, `Grid`, `Result`), `provider/metabase/{mod,
 api, chart}.rs`, `ui/{mod, tab, dashboard, sidebar, tree, question,
 board, sql, chart}.rs`, `profile.rs`. Depends on `hs-core`, `hs-ui`,
 `hs-editor` (SQL view and editor), `egui_plot` (ADR-034); no other tool
-crate. **Open in Database** goes through `OpenRequest::Text` with the
-`sql` language.
+crate. **Open in Database** goes through `OpenRequest::Sql`.
 
 ### 8.2 Shared pieces reused
 
@@ -446,9 +739,35 @@ The questions this section held, answered:
    Tableau's charts.
 5. **Open in Database picks the matching saved connection** (§4.3).
 6. **Rail after Database**, as proposed.
+7. **SAS Viya** is the third provider (owner, 2026-11-26, "add SAS BI",
+   then *SAS Viya*; spec, ledger item and a bench mock, built after the
+   Tableau step). SAS 9.4 BI is not covered: its stack has no REST
+   surface for reports.
+8. **Power BI Report Server**, the on-premises product, is the fourth
+   provider (owner, 2026-11-26: "add Power BI", then *Report Server*).
+   Power BI Service (the cloud) is not covered now.
+9. **Apache Superset** (the real product runs on the bench) and
+   **Grafana** are the fifth and sixth (owner, 2026-11-26).
+10. **Grafana is in both Analytics and Logs** from one connection kind
+    and one client in `hs-core` (§4.12; `logs.md` §21): in Logs it is a
+    source whose lines come from a Loki or Elasticsearch data source
+    through Grafana's API (owner's choice, 2026-11-26).
 
-## What is implemented (2026-11-20)
+## What is implemented (2026-11-27)
 
-Nothing yet: this document is the specification, written before the
-code at the owner's request ("Yes, Metabase first", 2026-11-20). The
-work is FEAT-0126 to FEAT-0131 in `TASKS.md`.
+FEAT-0126 (v0.139.0): the crate, the provider trait, the Metabase
+sign-in by password or API key, connections and Settings → Analytics,
+the dashboard, the sidebar and a server's tab with its facts.
+FEAT-0127: the collection tree, the filter and Search (§4.2), the item
+page's facts, Open in Browser and Copy Link (§4.7), live-tested against
+the bench Metabase (`tests/metabase_live.rs`).
+FEAT-0128: a question, model or metric opens and runs, as a table, a chart
+(`egui_plot`: line, area, bar, row, combo, scatter; hand-drawn pie, scalar,
+smart scalar, progress and gauge) or its SQL, with parameters and an export
+(§4.3, §4.4), live-tested against every seeded question.
+FEAT-0129: a dashboard opens on its grid with its tabs, filters and Apply,
+and its tiles run four at a time (§4.5), live-tested against the bench
+dashboard (a filter narrows the tiles it is mapped to and no others).
+FEAT-0130: the Databases section and ad-hoc SQL (§4.6), live-tested on the
+bench's Sample Database. The Tableau provider and the other providers are
+FEAT-0131 onward in `TASKS.md`.

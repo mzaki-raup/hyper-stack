@@ -507,6 +507,7 @@ pub const MATERIAL_ICON_TOOLS: &[&str] = &[
     "redis",
     "s3",
     "queue",
+    "analytics",
     "browser",
 ];
 

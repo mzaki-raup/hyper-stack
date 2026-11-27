@@ -37,6 +37,40 @@ The assistant is covered by `settings-ai.png`, `editor-ai-review.png`,
 (terminal, SSH, SQL, S3, Redis, NoSQL) use the same layout; no separate
 captures are kept for each.
 
+## 2026-11-27: the Analytics activity (FEAT-0126, FEAT-0127)
+
+Taken from the `feat/analytics-tree` debug build with `scripts/gui-smoke.ps1`
+on the scratch data folder at 1736 x 900, against the bench Metabase 0.52.4
+(`bench/`, profile `bi`, seeded by `seed/seed-metabase.sh`). The API key was
+typed into the form from `bench/.state/metabase-api-key` and is kept in the
+vault: no capture shows it, only *Stored in the vault*.
+
+- `analytics.png` - the home dashboard with the saved server and its open tab.
+- `analytics-tree.png` - a server's tab: the collection tree open on the demo
+  collection, the question picked, its page with Open in Browser and Copy
+  Link.
+- `analytics-search.png` - Search for *orders*, 22 results with their
+  collections, the kind chips above them.
+- `analytics-settings.png` - Settings -> Analytics scrolled to the server and
+  authentication cards.
+- `analytics-question.png` - FEAT-0128: the seeded question *Orders per month*
+  run and drawn as a line over 49 months, the Chart | Table | SQL strip and
+  the Run, Open in Browser, Copy Link and Export buttons above it.
+- `analytics-parameters.png` - the native question *Big orders (native)*: its
+  `min_total` parameter as a field (100, the card's default) above the table
+  of 100 rows.
+- `analytics-dashboard.png` - FEAT-0129: the seeded dashboard *HyperStack
+  Overview*, Overview tab: its toolbar, the Category filter with Apply, the
+  tab strip, a number tile and a line tile on the 24-column grid.
+- `analytics-dashboard-filter.png` - the same with Category set to *Gadget*
+  and applied, scrolled to the bar and pie tiles that the filter reaches.
+  Taken with the scratch window made always-on-top, as `docs/GOTCHAS.md`
+  (Headless and GUI Testing) says.
+- `analytics-sql.png` - FEAT-0130: the browse tree's Databases section open on
+  the Sample Database down to ORDERS and its typed columns, the SQL page with
+  an aggregate statement, and its 12 rows as a bar chart through the View
+  picker.
+
 ## 2026-11-15: Identity with the server's version (CR-0099)
 
 The header band of a Keycloak tab now shows the version, so the two

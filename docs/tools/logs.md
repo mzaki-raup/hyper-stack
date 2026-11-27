@@ -121,6 +121,7 @@ trait LogSource: Send {
 | journald | P1 | `journalctl -o json -f` over SSH/local |
 | Windows Event Log | P1 | `windows` crate `EvtSubscribe` (local only) |
 | Clipboard / paste | P0 | ad-hoc text |
+| Grafana data source (Loki, Elasticsearch) | P2 | a saved `grafana` connection, a log data source and a query, read through Grafana's query API and polled for new lines (§21) |
 
 ## 5. Engine
 
@@ -872,3 +873,49 @@ record's status row (Record n, Copy, Bookmark, Open in Editor) has
 Colour, Bold, Pattern, Report, Alert, Cooldown), the pattern field is
 wide and the controls sit at a field's height, with Add Rule and Close
 under it.
+
+## 21. Grafana source (2026-11-26)
+
+Added at the owner's request ("Grafana can also be put in both analytic
+activity and log activity", chosen as *query its log data sources*).
+Grafana is a front for other systems' logs (Loki above all, Elasticsearch
+and OpenSearch too), and a team often has no direct access to those, only
+to Grafana. The **connection** is the Analytics activity's `grafana`
+profile (`docs/tools/analytics.md` §4.12, §5.6: a service-account token or a
+username and password, an organisation id, TLS); one profile serves both
+activities, and both reach it through `hs_core::grafana`, because tools
+never depend on each other.
+
+- **A source**: Add Source offers **Grafana (Loki, Elasticsearch)**. The
+  form is a Grafana connection (a `form::pick_field` of the saved
+  `grafana` profiles), a **Data Source** (a `pick_field` filled from
+  `/api/datasources`, only the log kinds: `loki`, `elasticsearch`, and
+  OpenSearch where installed), a **Query** in the source's language
+  (LogQL, or Lucene for Elasticsearch) in a code field, **Max Lines** (the
+  engine's cap) and **Follow** with its **Interval** (1 to 30 s, default
+  5). Test Connection runs the query once and says how many lines came.
+- **Reading**: `POST /api/ds/query` with the data source's uid, the query
+  (for Loki `queryType: range`, `direction: backward`, `maxLines`) and
+  `from`/`to` from the Logs time range. The returned data frame (on the
+  bench's Grafana 11.3 its fields are `labels`, `Time`, `Line`, `tsNs` and
+  `labelTypes`) has the line, its time (nanoseconds) and its labels: each becomes a record whose
+  text is the line and whose **labels are its fields** in the structured
+  view; the level comes from a `level` or `detected_level` label, else from
+  the shared parser as for any line (`hs_ui::log_levels`).
+- **Following**: Grafana has no push channel the app can rely on, so
+  Follow **polls**: each interval asks for the lines after the newest one
+  seen and drops duplicates by time and line, stopping when the tab
+  closes or Follow is turned off. Older lines come from moving `to` back
+  a page at a time. The source has no random access (`supports_random_access`
+  is false), like any stream.
+- **Guards**: the query API only reads; the source never calls a Grafana
+  endpoint that changes anything, and a protected environment does not
+  restrict it. A 401, a data source that no longer exists and Grafana's own
+  query error (a bad LogQL, with the message it returns) are shown in the
+  tab's error state, never swallowed.
+- **Sidebar and tab**: the source wears Grafana's mark and its rotating
+  source colour like any saved source (CR-0059); Saved Sources, Open Here
+  and Recent behave as the others.
+- Testing: the bench runs **Loki** and **Grafana** (profile `bi`), with
+  seeded log lines in several levels and labels (`docs/tools/analytics.md`
+  §4.12; `bench/README.md`).

@@ -331,7 +331,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -342,7 +342,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2362,7 +2362,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2701,6 +2701,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_plot"
+version = "0.36.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "302515219c63e7f380058ecc899c5a6b2c5fe9f140ef1d91c3b685c9f0355fa3"
+dependencies = [
+ "ahash",
+ "egui",
+ "emath",
+]
+
+[[package]]
 name = "either"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2896,7 +2907,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3858,7 +3869,7 @@ dependencies = [
 
 [[package]]
 name = "hs-container"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "futures-util",
  "hs-core",
@@ -3877,7 +3888,7 @@ dependencies = [
 
 [[package]]
 name = "hs-core"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "argon2 0.5.3",
  "async-trait",
@@ -3927,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "hs-dap"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "hs-core",
  "serde",
@@ -3937,7 +3948,7 @@ dependencies = [
 
 [[package]]
 name = "hs-diagram"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -3950,7 +3961,7 @@ dependencies = [
 
 [[package]]
 name = "hs-editor"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -3967,7 +3978,7 @@ dependencies = [
 
 [[package]]
 name = "hs-git"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "hs-core",
  "similar",
@@ -3977,7 +3988,7 @@ dependencies = [
 
 [[package]]
 name = "hs-lsp"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "hs-core",
  "serde",
@@ -3987,7 +3998,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ssh"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "hs-core",
@@ -4007,7 +4018,7 @@ dependencies = [
 
 [[package]]
 name = "hs-term"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "alacritty_terminal",
  "egui",
@@ -4022,7 +4033,7 @@ dependencies = [
 
 [[package]]
 name = "hs-ui"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "egui-phosphor",
@@ -4178,7 +4189,7 @@ dependencies = [
 
 [[package]]
 name = "hyperstack"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "clap",
@@ -5318,7 +5329,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "536bfad37a309d62069485248eeaba1e8d9853aaf951caaeaed0585a95346f08"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5666,7 +5677,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7074,7 +7085,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7779,7 +7790,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7849,7 +7860,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8573,7 +8584,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8706,7 +8717,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9024,7 +9035,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9495,11 +9506,14 @@ checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
 
 [[package]]
 name = "tool-analytics"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
+ "csv",
  "egui",
+ "egui_plot",
  "hs-core",
+ "hs-editor",
  "hs-ui",
  "parking_lot",
  "reqwest",
@@ -9514,7 +9528,7 @@ dependencies = [
 
 [[package]]
 name = "tool-api"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "base64 0.22.1",
  "boa_engine",
@@ -9537,7 +9551,7 @@ dependencies = [
 
 [[package]]
 name = "tool-automation"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9558,7 +9572,7 @@ dependencies = [
 
 [[package]]
 name = "tool-browser"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -9572,7 +9586,7 @@ dependencies = [
 
 [[package]]
 name = "tool-containers"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "hs-container",
@@ -9589,7 +9603,7 @@ dependencies = [
 
 [[package]]
 name = "tool-db"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -9629,7 +9643,7 @@ dependencies = [
 
 [[package]]
 name = "tool-devtools"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "aes",
  "base64 0.22.1",
@@ -9668,7 +9682,7 @@ dependencies = [
 
 [[package]]
 name = "tool-editor"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9693,7 +9707,7 @@ dependencies = [
 
 [[package]]
 name = "tool-git"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9714,7 +9728,7 @@ dependencies = [
 
 [[package]]
 name = "tool-graphics"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "base64 0.22.1",
  "egui",
@@ -9733,7 +9747,7 @@ dependencies = [
 
 [[package]]
 name = "tool-idm"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9761,7 +9775,7 @@ dependencies = [
 
 [[package]]
 name = "tool-logs"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -9784,7 +9798,7 @@ dependencies = [
 
 [[package]]
 name = "tool-nosql"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -9809,7 +9823,7 @@ dependencies = [
 
 [[package]]
 name = "tool-queue"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-nats",
  "async-trait",
@@ -9841,7 +9855,7 @@ dependencies = [
 
 [[package]]
 name = "tool-redis"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9865,7 +9879,7 @@ dependencies = [
 
 [[package]]
 name = "tool-s3"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "hs-core",
@@ -9882,7 +9896,7 @@ dependencies = [
 
 [[package]]
 name = "tool-ssh"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "chrono",
  "egui",
@@ -9902,7 +9916,7 @@ dependencies = [
 
 [[package]]
 name = "tool-terminal"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "egui",
  "hs-container",
@@ -9919,7 +9933,7 @@ dependencies = [
 
 [[package]]
 name = "tool-tracker"
-version = "0.138.3"
+version = "0.144.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -10170,7 +10184,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -11098,7 +11112,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

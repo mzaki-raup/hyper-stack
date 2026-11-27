@@ -95,6 +95,13 @@ pub enum OpenRequest {
     Url {
         url: String,
     },
+    /// A query for the Database tool: the text for an editor, and the saved
+    /// connection to run it on when one is known (Analytics' Open in
+    /// Database). Never carries a credential.
+    Sql {
+        connection: Option<String>,
+        sql: String,
+    },
 }
 
 /// A file-like item a tool contributes to Ctrl+P. `id` is handed back to the

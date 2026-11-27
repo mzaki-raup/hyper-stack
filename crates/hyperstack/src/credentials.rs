@@ -402,7 +402,7 @@ mod tests {
     fn a_reused_credential_lands_where_each_kind_keeps_it() {
         for kind in [
             "ssh", "db", "redis", "mongodb", "jenkins", "redmine", "keycloak", "rabbitmq", "s3",
-            "webdav", "nexus", "docker",
+            "webdav", "nexus", "docker", "metabase", "tableau",
         ] {
             assert!(accepts(kind), "{kind} keeps a credential");
             let mut p = profile(kind, "");

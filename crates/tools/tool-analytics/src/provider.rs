@@ -5,6 +5,41 @@
 use async_trait::async_trait;
 
 pub mod metabase;
+pub mod tableau;
+
+use std::sync::Arc;
+
+use crate::profile::AnalyticsFields;
+
+/// What a provider says when asked for something its product does not have.
+pub const NOT_OFFERED: &str = "This server's product does not offer that.";
+
+/// The provider for a saved server of `kind`, from its resolved profile.
+pub fn open(
+    kind: &str,
+    fields: &AnalyticsFields,
+    secrets: &dyn hs_core::secrets::SecretStore,
+    lookup: &dyn Fn(&str) -> std::result::Result<String, Vec<String>>,
+    timeout: std::time::Duration,
+) -> std::result::Result<Arc<dyn BiProvider>, crate::profile::ProfileError> {
+    use crate::profile::ProfileError;
+    match kind {
+        "tableau" => {
+            let mut cfg = fields.resolve_tableau(secrets, lookup)?;
+            cfg.timeout = timeout;
+            tableau::Tableau::new(cfg)
+                .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
+                .map_err(ProfileError::Invalid)
+        }
+        _ => {
+            let mut cfg = fields.resolve(secrets, lookup)?;
+            cfg.timeout = timeout;
+            metabase::Metabase::new(cfg)
+                .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
+                .map_err(ProfileError::Invalid)
+        }
+    }
+}
 
 /// Errors are sentences (`hs_core::service_http`): they reach the tab as
 /// they are.
@@ -88,6 +123,12 @@ pub struct Caps {
     pub browse: bool,
     /// Ad-hoc SQL can be run through the server.
     pub native_sql: bool,
+    /// Views have a picture and data (Tableau).
+    pub views: bool,
+    /// Extract refresh tasks and jobs can be read.
+    pub extracts: bool,
+    /// The kinds Search can be narrowed to, in the order the chips show.
+    pub search_kinds: &'static [Kind],
 }
 
 /// What a node of the browse tree or a search result is.
@@ -102,6 +143,12 @@ pub enum Kind {
     /// section's entries, never search results.
     Database,
     Table,
+    /// Tableau: a workbook (its views are its children), a view, a data
+    /// source, and the one page that lists extract tasks and jobs.
+    Workbook,
+    View,
+    DataSource,
+    Extracts,
 }
 
 impl Kind {
@@ -124,11 +171,23 @@ impl Kind {
             Kind::Dashboard => "dashboard",
             Kind::Database => "database",
             Kind::Table => "table",
+            Kind::Workbook => "workbook",
+            Kind::View => "view",
+            Kind::DataSource => "datasource",
+            Kind::Extracts => "extracts",
         }
     }
 
     pub fn from_tag(tag: &str) -> Option<Kind> {
-        Kind::ALL.into_iter().find(|k| k.tag() == tag)
+        Kind::ALL
+            .into_iter()
+            .chain([Kind::Workbook, Kind::View, Kind::DataSource])
+            .find(|k| k.tag() == tag)
+    }
+
+    /// Whether the browse tree opens this kind to show its children.
+    pub fn is_branch(self) -> bool {
+        matches!(self, Kind::Collection | Kind::Workbook)
     }
 }
 
@@ -341,6 +400,67 @@ pub struct DashCard {
     pub content: Content,
 }
 
+/// A Tableau view's facts.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ViewInfo {
+    pub id: String,
+    pub name: String,
+    pub workbook: String,
+    pub project: String,
+    pub updated: String,
+}
+
+/// What a view is read as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewFile {
+    /// The picture, as PNG.
+    Image,
+    Csv,
+    Pdf,
+}
+
+impl ViewFile {
+    pub const ALL: [ViewFile; 3] = [ViewFile::Image, ViewFile::Csv, ViewFile::Pdf];
+
+    pub fn ext(self) -> &'static str {
+        match self {
+            ViewFile::Image => "png",
+            ViewFile::Csv => "csv",
+            ViewFile::Pdf => "pdf",
+        }
+    }
+}
+
+/// One extract refresh task, with its schedule and last result.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExtractTask {
+    pub id: String,
+    /// `FullRefresh` or `IncrementalRefresh`.
+    pub kind: String,
+    /// `Workbook` or `Data Source`, and its name where the server's lists
+    /// give it.
+    pub target_kind: String,
+    pub target: String,
+    pub schedule: String,
+    pub frequency: String,
+    /// Refreshes that failed in a row.
+    pub failed: u32,
+}
+
+/// One background job.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct JobInfo {
+    pub id: String,
+    pub kind: String,
+    pub progress: u32,
+    /// `None` while it runs, else whether it succeeded.
+    pub ok: Option<bool>,
+    pub started: String,
+    pub completed: String,
+    /// What the server said about a failure.
+    pub notes: String,
+}
+
 /// A dashboard: its grid, tabs and filters.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dashboard {
@@ -369,41 +489,100 @@ pub trait BiProvider: Send + Sync {
     /// The item's page in the server's own interface.
     fn item_url(&self, kind: Kind, id: &str) -> String;
     /// A question, model or metric with its parameters and chart settings.
-    async fn card(&self, id: &str) -> Result<Card>;
+    async fn card(&self, _id: &str) -> Result<Card> {
+        Err(NOT_OFFERED.into())
+    }
     /// Run it with the parameter `values` (by parameter id; an empty value
     /// is left out), reading at most `limit` rows.
-    async fn run(&self, card: &Card, values: &[(String, String)], limit: usize) -> Result<Table>;
+    async fn run(
+        &self,
+        _card: &Card,
+        _values: &[(String, String)],
+        _limit: usize,
+    ) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
     /// The databases the server queries.
-    async fn databases(&self) -> Result<Vec<Database>>;
+    async fn databases(&self) -> Result<Vec<Database>> {
+        Err(NOT_OFFERED.into())
+    }
     /// A database's tables with their columns.
-    async fn tables(&self, database: &str) -> Result<Vec<TableMeta>>;
+    async fn tables(&self, _database: &str) -> Result<Vec<TableMeta>> {
+        Err(NOT_OFFERED.into())
+    }
     /// Run `sql` on a database as the signed-in account, reading at most
     /// `limit` rows. Nothing is saved on the server.
-    async fn run_sql(&self, database: &str, sql: &str, limit: usize) -> Result<Table>;
+    async fn run_sql(&self, _database: &str, _sql: &str, _limit: usize) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
     /// A dashboard with its grid, tabs, filters and cards.
-    async fn dashboard(&self, id: &str) -> Result<Dashboard>;
+    async fn dashboard(&self, _id: &str) -> Result<Dashboard> {
+        Err(NOT_OFFERED.into())
+    }
     /// Run one tile of a dashboard with the filter `values` (by filter id).
     async fn run_dashcard(
         &self,
-        dashboard: &Dashboard,
-        card: &DashCard,
-        values: &[(String, String)],
-        limit: usize,
-    ) -> Result<Table>;
+        _dashboard: &Dashboard,
+        _card: &DashCard,
+        _values: &[(String, String)],
+        _limit: usize,
+    ) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
     /// The values a filter offers, where the server lists them.
-    async fn filter_values(&self, dashboard: &str, param: &str) -> Result<Vec<String>>;
+    async fn filter_values(&self, _dashboard: &str, _param: &str) -> Result<Vec<String>> {
+        Err(NOT_OFFERED.into())
+    }
     /// The result as a file, through the server's own export (its limit
     /// applies, not the run limit).
     async fn export(
         &self,
-        card: &Card,
-        values: &[(String, String)],
-        format: ExportFormat,
-    ) -> Result<Vec<u8>>;
+        _card: &Card,
+        _values: &[(String, String)],
+        _format: ExportFormat,
+    ) -> Result<Vec<u8>> {
+        Err(NOT_OFFERED.into())
+    }
     /// The server's own web interface, for Open in Browser.
     fn web_url(&self) -> String;
     /// End the server-side session, where there is one.
     async fn disconnect(&self);
+
+    // What only some products have. Each returns [`NOT_OFFERED`] unless the
+    // product overrides it, and `capabilities` says which do.
+
+    /// A view's facts.
+    async fn view(&self, _id: &str) -> Result<ViewInfo> {
+        Err(NOT_OFFERED.into())
+    }
+    /// A view as a picture, a CSV or a PDF, with the filter `values` (field,
+    /// value) applied. `width` is the picture's width in pixels.
+    async fn view_file(
+        &self,
+        _id: &str,
+        _file: ViewFile,
+        _width: u32,
+        _values: &[(String, String)],
+    ) -> Result<Vec<u8>> {
+        Err(NOT_OFFERED.into())
+    }
+    /// A view's data, at most `limit` rows.
+    async fn view_data(
+        &self,
+        _id: &str,
+        _values: &[(String, String)],
+        _limit: usize,
+    ) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
+    /// The extract refresh tasks.
+    async fn extracts(&self) -> Result<Vec<ExtractTask>> {
+        Err(NOT_OFFERED.into())
+    }
+    /// The recent background jobs.
+    async fn jobs(&self) -> Result<Vec<JobInfo>> {
+        Err(NOT_OFFERED.into())
+    }
 }
 
 #[cfg(test)]

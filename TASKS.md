@@ -317,15 +317,16 @@ Change Request : CR-0103
 - **Notes:** the SQL colours and completion from the metadata are not built (a plain text editor), and **Open in Database** (the matching saved connection and a way to hand the SQL to the Database activity, which today opens only a connection or a `.sql` file) is FEAT-0144. The no-native-access refusal is read from `native_permissions` and worded here, not by the server; the bench has only an admin, so that path is a unit-tested reading, not seen against a restricted account. 2026-11-27 screen check on the bench Metabase v0.52.4: the Databases section down to a table's typed columns, a table pick filling the starter query, Run (100 rows in 87 ms), an aggregate with the Bar view, the server's error sentence for a missing table, and a protected environment (a `Production` environment tied to the server in Settings) leaving only its message with no editor and no Run. It found the old rows staying under a failed run's error and Metabase's `-- Metabase::` comment line in the message (both fixed). Not seen: Cancel on a long statement, the Line, Pie and Number views, and `Ctrl+Enter` Run.
 
 ### FEAT-0131 · Analytics: the Tableau provider
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.8, §5.2 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** kind `tableau` for **Tableau Server** (owner, 2026-11-20); username and password or a Personal Access Token into one site; projects, workbooks, views, data sources; a view's PNG with filter fields, its data in a `DataTable`, exports; extract refresh tasks and jobs, read-only (no Refresh Now: the owner chose read-only); Open Interactive in the Browser activity; version gating from `/serverinfo`
 - **Depends on:** FEAT-0129
-- [ ] Provider and screens, read-only
-- [ ] Test: a mock from the REST API reference; a read-only live test gated on `HS_TABLEAU` (the owner's Server)
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Provider and screens, read-only
+- [x] Test: a mock from the REST API reference; a read-only live test gated on `HS_TABLEAU` (the owner's Server) — 2026-11-27: 11 parser and profile unit tests; `tableau_live` passes against the bench mock by password and by token (the mock only, not a real Server)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-27: all pass
 - [ ] App: `--data-dir ./tmp-data` — the owner's Tableau Server: browse, a view with a filter, its data, the extract tasks; Open Interactive in the Browser activity
-- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS (no new mistake to record)
+- **Notes:** the App box is open: the owner declined screen access on 2026-11-27 (twice), so the Tableau tab has not been looked at in the running app, and no real Tableau Server was available: only the bench mock.
 
 ### FEAT-0133 · Analytics: the SAS Viya provider
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.9, §5.3 · **Phase:** Q

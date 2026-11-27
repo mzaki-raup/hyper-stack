@@ -222,6 +222,7 @@ pub fn testable(kind: &str) -> bool {
             | "keycloak"
             | "ldap"
             | "metabase"
+            | "tableau"
     )
 }
 
@@ -366,15 +367,15 @@ fn probe(
             }))
         }
         kind if hs_core::connections::is_analytics_kind(kind) => {
-            let cfg = tool_analytics::profile::AnalyticsFields::from_table(kind, fields)
-                .resolve(secrets, &lookup)
-                .map_err(analytics_error)?;
+            let provider = tool_analytics::provider::open(
+                kind,
+                &tool_analytics::profile::AnalyticsFields::from_table(kind, fields),
+                secrets,
+                &lookup,
+                tool_analytics::profile::TIMEOUT,
+            )
+            .map_err(analytics_error)?;
             Ok(Box::pin(async move {
-                use tool_analytics::provider::BiProvider;
-                let provider = match tool_analytics::provider::metabase::Metabase::new(cfg) {
-                    Ok(p) => p,
-                    Err(e) => return Outcome::Failed(e),
-                };
                 let info = match provider.connect().await {
                     Ok(i) => i,
                     Err(e) => return Outcome::Failed(e),
@@ -597,6 +598,7 @@ mod tests {
             "forgejo-issues",
             "confluence",
             "metabase",
+            "tableau",
         ] {
             assert!(testable(k), "{k}");
         }

@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Analytics: a Tableau Server provider: projects, workbooks, views and data sources, a view's picture and data with filter fields and saves as PNG, CSV or PDF, Open Interactive in the Browser, and the extract refresh tasks and jobs, read-only (FEAT-0131)
 
 ## 0.144.0 — 2026-11-27
 

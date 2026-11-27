@@ -15,6 +15,19 @@ use hs_core::service_http::Tls;
 /// and password.
 pub const AUTH_KINDS: &[&str] = &["api-key", "password"];
 
+/// The credential kinds Tableau Server takes: a username and password, or
+/// a Personal Access Token, which rides the `api-key` kind: its name is
+/// the credential's header field and its secret the key.
+pub const TABLEAU_AUTH_KINDS: &[&str] = &["password", "api-key"];
+
+/// The credential kinds a product's form offers, first being the default.
+pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "tableau" => TABLEAU_AUTH_KINDS,
+        _ => AUTH_KINDS,
+    }
+}
+
 /// The header Metabase reads an API key from.
 pub const API_KEY_HEADER: &str = "x-api-key";
 
@@ -24,6 +37,7 @@ pub const TIMEOUT: Duration = Duration::from_secs(60);
 pub fn default_url(kind: &str) -> &'static str {
     match kind {
         "metabase" => "http://127.0.0.1:3030",
+        "tableau" => "http://127.0.0.1:8280",
         _ => "",
     }
 }
@@ -32,6 +46,8 @@ pub fn default_url(kind: &str) -> &'static str {
 pub struct AnalyticsFields {
     /// The site root, no trailing path of the API.
     pub url: String,
+    /// Tableau: the site's content URL; empty for the default site.
+    pub site: String,
     pub tls_verify: bool,
     /// A PEM file of extra roots (a company CA); empty for none.
     pub ca_file: String,
@@ -42,6 +58,7 @@ impl Default for AnalyticsFields {
     fn default() -> Self {
         AnalyticsFields {
             url: String::new(),
+            site: String::new(),
             tls_verify: true,
             ca_file: String::new(),
             credential: Credential {
@@ -69,6 +86,18 @@ impl std::fmt::Display for ProfileError {
     }
 }
 
+/// A profile resolved for Tableau Server.
+#[derive(Debug, Clone)]
+pub struct TableauConfig {
+    pub url: String,
+    pub site: String,
+    /// `Auth::Password`, or `Auth::ApiKey` carrying a Personal Access
+    /// Token (`header` is its name, `key` its secret).
+    pub auth: Auth,
+    pub tls: Tls,
+    pub timeout: Duration,
+}
+
 /// A profile resolved for Metabase.
 #[derive(Debug, Clone)]
 pub struct MetabaseConfig {
@@ -90,8 +119,9 @@ impl AnalyticsFields {
         let mut credential = Credential::from_table(&t);
         // `none` is no answer for a BI server: a profile that never chose
         // gets the default, an API key.
-        if !AUTH_KINDS.contains(&credential.auth.as_str()) || !t.contains_key("auth") {
-            credential.auth = AUTH_KINDS[0].into();
+        let kinds = auth_kinds(kind);
+        if !kinds.contains(&credential.auth.as_str()) || !t.contains_key("auth") {
+            credential.auth = kinds[0].into();
         }
         let url = s("url");
         AnalyticsFields {
@@ -104,6 +134,7 @@ impl AnalyticsFields {
                 .get("tls_verify")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(true),
+            site: s("site"),
             ca_file: s("ca_file"),
             credential,
         }
@@ -111,7 +142,11 @@ impl AnalyticsFields {
 
     pub fn write_into(&self, fields: &mut toml::Table) {
         let mut t = toml::Table::new();
-        for (k, v) in [("url", &self.url), ("ca_file", &self.ca_file)] {
+        for (k, v) in [
+            ("url", &self.url),
+            ("site", &self.site),
+            ("ca_file", &self.ca_file),
+        ] {
             t.insert(k.into(), toml::Value::String(v.clone()));
         }
         t.insert("tls_verify".into(), toml::Value::Boolean(self.tls_verify));
@@ -128,12 +163,54 @@ impl AnalyticsFields {
         )
     }
 
-    /// Resolve variables and the vault secret into Metabase's config.
-    pub fn resolve(
+    /// Resolve variables and the vault secret into Tableau Server's config.
+    pub fn resolve_tableau(
         &self,
         secrets: &dyn SecretStore,
         lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
-    ) -> Result<MetabaseConfig, ProfileError> {
+    ) -> Result<TableauConfig, ProfileError> {
+        let url = self.resolve_url(lookup)?;
+        let site = lookup(self.site.trim())
+            .map_err(ProfileError::MissingVariables)?
+            .trim()
+            .to_string();
+        let auth = self
+            .credential
+            .clone()
+            .allowed(TABLEAU_AUTH_KINDS)
+            .resolve(secrets, lookup)
+            .map_err(|e| match e {
+                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+                other => ProfileError::Auth(other),
+            })?;
+        match &auth {
+            Auth::Password { .. } => {}
+            Auth::ApiKey { header, .. } if !header.trim().is_empty() => {}
+            Auth::ApiKey { .. } => {
+                return Err(ProfileError::Invalid(
+                    "Enter the Personal Access Token's name.".into(),
+                ));
+            }
+            _ => {
+                return Err(ProfileError::Invalid(
+                    "Choose how to sign in: a username and password, or a Personal Access Token."
+                        .into(),
+                ));
+            }
+        }
+        Ok(TableauConfig {
+            url,
+            site,
+            auth,
+            tls: self.tls(),
+            timeout: TIMEOUT,
+        })
+    }
+
+    fn resolve_url(
+        &self,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<String, ProfileError> {
         let url = match lookup(self.url.trim()) {
             Ok(u) => u,
             Err(missing) => return Err(ProfileError::MissingVariables(missing)),
@@ -144,6 +221,25 @@ impl AnalyticsFields {
                 "The server's address must start with http:// or https://.".into(),
             ));
         }
+        Ok(url)
+    }
+
+    fn tls(&self) -> Tls {
+        Tls {
+            verify: self.tls_verify,
+            ca_file: Some(self.ca_file.trim())
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from),
+        }
+    }
+
+    /// Resolve variables and the vault secret into Metabase's config.
+    pub fn resolve(
+        &self,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<MetabaseConfig, ProfileError> {
+        let url = self.resolve_url(lookup)?;
         let auth = self
             .credential
             .clone()
@@ -172,12 +268,7 @@ impl AnalyticsFields {
         Ok(MetabaseConfig {
             url,
             auth,
-            tls: Tls {
-                verify: self.tls_verify,
-                ca_file: Some(self.ca_file.trim())
-                    .filter(|p| !p.is_empty())
-                    .map(PathBuf::from),
-            },
+            tls: self.tls(),
             timeout: TIMEOUT,
         })
     }
@@ -291,6 +382,48 @@ mod tests {
                 password: "hunter2".into()
             }
         );
+    }
+
+    #[test]
+    fn a_tableau_profile_keeps_its_site_and_resolves_a_token_or_a_password() {
+        let mut table = toml::Table::new();
+        let f = AnalyticsFields::from_table("tableau", &table);
+        assert_eq!(f.url, "http://127.0.0.1:8280");
+        assert_eq!(
+            f.credential.auth, "password",
+            "the first kind is the default"
+        );
+        let mut set = f.clone();
+        set.site = "hs-demo".into();
+        set.credential = Credential {
+            auth: "api-key".into(),
+            secret: "s3cret".into(),
+            header: "hyperstack".into(),
+            ..Default::default()
+        };
+        set.write_into(&mut table);
+        let back = AnalyticsFields::from_table("tableau", &table);
+        assert_eq!(back, set);
+        let cfg = back.resolve_tableau(&NoVault, &no_vars).expect("resolves");
+        assert_eq!(cfg.site, "hs-demo");
+        assert_eq!(
+            cfg.auth,
+            Auth::ApiKey {
+                header: "hyperstack".into(),
+                key: "s3cret".into()
+            }
+        );
+        let nameless = AnalyticsFields {
+            credential: Credential {
+                header: " ".into(),
+                ..set.credential.clone()
+            },
+            ..set
+        };
+        assert!(matches!(
+            nameless.resolve_tableau(&NoVault, &no_vars),
+            Err(ProfileError::Invalid(_))
+        ));
     }
 
     #[test]

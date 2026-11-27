@@ -11050,8 +11050,9 @@ fn analytics_form(
     draft: &mut ConnectionProfile,
     scratch: &mut String,
 ) {
-    use tool_analytics::profile::{AUTH_KINDS, AnalyticsFields};
+    use tool_analytics::profile::{AnalyticsFields, auth_kinds};
     let mut f = AnalyticsFields::from_table(&draft.kind, &draft.fields);
+    let tableau = draft.kind == "tableau";
     let mut changed = false;
     form::section(ui, theme, &s.t("conn-analytics-section"), |ui| {
         form::field_grid(ui, "analytics-server", |ui| {
@@ -11063,13 +11064,28 @@ fn analytics_form(
             )
             .changed();
             ui.end_row();
-            form::row_hint(ui, theme, &s.t("conn-analytics-url-hint"));
+            form::row_hint(
+                ui,
+                theme,
+                &s.t(if tableau {
+                    "conn-analytics-url-hint-tableau"
+                } else {
+                    "conn-analytics-url-hint"
+                }),
+            );
+            if tableau {
+                form::label(ui, &s.t("conn-analytics-site"));
+                changed |= form::text_field(ui, &mut f.site, "hs-demo").changed();
+                ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-analytics-site-hint"));
+            }
         });
     });
     form::section(ui, theme, &s.t("conn-ssh-section-auth"), |ui| {
         form::field_grid(ui, "analytics-auth", |ui| {
-            let auth_key = |a: &str| match a {
-                "api-key" => "conn-analytics-auth-key",
+            let auth_key = |a: &str| match (a, tableau) {
+                ("api-key", true) => "conn-analytics-auth-token",
+                ("api-key", false) => "conn-analytics-auth-key",
                 _ => "conn-analytics-auth-password",
             };
             let c = &mut f.credential;
@@ -11078,7 +11094,7 @@ fn analytics_form(
                 .width(form::FIELD_MIN_WIDTH)
                 .selected_text(s.t(auth_key(&c.auth)))
                 .show_ui(ui, |ui| {
-                    for a in AUTH_KINDS {
+                    for a in auth_kinds(&draft.kind) {
                         if hs_ui::form::selectable_label(ui, c.auth == *a, s.t(auth_key(a)))
                             .clicked()
                         {
@@ -11093,15 +11109,23 @@ fn analytics_form(
                 changed |= form::text_field(ui, &mut c.user, "admin@example.com").changed();
                 ui.end_row();
                 form::label(ui, &s.t("conn-queue-password"));
+            } else if tableau {
+                // A Personal Access Token is a name and a secret: the
+                // name rides the credential's header field.
+                form::label(ui, &s.t("conn-analytics-token-name"));
+                changed |= form::text_field(ui, &mut c.header, "hyperstack").changed();
+                ui.end_row();
+                form::label(ui, &s.t("conn-analytics-token-secret"));
             } else {
                 form::label(ui, &s.t("conn-analytics-api-key"));
             }
             changed |= secret_field(ui, theme, s, "analytics-secret", &mut c.secret, scratch, 0);
             ui.end_row();
-            let hint = if c.auth == "password" {
-                "conn-analytics-hint-password"
-            } else {
-                "conn-analytics-hint-key"
+            let hint = match (c.auth == "password", tableau) {
+                (true, true) => "conn-analytics-hint-password-tableau",
+                (true, false) => "conn-analytics-hint-password",
+                (false, true) => "conn-analytics-hint-token",
+                (false, false) => "conn-analytics-hint-key",
             };
             form::row_hint(ui, theme, &s.t(hint));
         });

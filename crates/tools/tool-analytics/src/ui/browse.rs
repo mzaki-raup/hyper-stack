@@ -95,6 +95,10 @@ fn glyph(k: Kind) -> &'static str {
         Kind::Dashboard => ph::SQUARES_FOUR,
         Kind::Database => ph::DATABASE,
         Kind::Table => ph::TABLE,
+        Kind::Workbook => ph::BOOK_OPEN,
+        Kind::View => ph::CHART_BAR,
+        Kind::DataSource => ph::DATABASE,
+        Kind::Extracts => ph::ARROWS_CLOCKWISE,
     }
 }
 
@@ -108,6 +112,23 @@ fn picture_word(k: Kind) -> &'static str {
         Kind::Dashboard => "view",
         Kind::Database => "database",
         Kind::Table => "table",
+        Kind::Workbook => "collection",
+        Kind::View => "view",
+        Kind::DataSource => "database",
+        Kind::Extracts => "history",
+    }
+}
+
+/// The node of the Extracts and Jobs page, which is not a server item.
+pub fn extracts_node(name: String) -> Node {
+    Node {
+        kind: Kind::Extracts,
+        id: "extracts".into(),
+        name,
+        description: String::new(),
+        collection: String::new(),
+        edited: String::new(),
+        editor: String::new(),
     }
 }
 
@@ -240,12 +261,14 @@ impl Browse {
         if offset == 0 {
             self.search = Search::Loading;
         }
-        let mut kinds: Vec<Kind> = Kind::ALL
-            .into_iter()
+        let offered = provider.capabilities().search_kinds;
+        let mut kinds: Vec<Kind> = offered
+            .iter()
+            .copied()
             .filter(|k| self.kinds.contains(k))
             .collect();
         if kinds.is_empty() {
-            kinds = Kind::ALL.to_vec();
+            kinds = offered.to_vec();
         }
         let (p, inbox) = (provider.clone(), self.inbox.clone());
         s.runtime.spawn(async move {
@@ -370,7 +393,7 @@ impl Browse {
         for n in nodes {
             let key = node_key(n);
             let own = needle.is_empty() || n.name.to_lowercase().contains(needle);
-            if n.kind != Kind::Collection {
+            if !n.kind.is_branch() {
                 if own {
                     out.push(TreeNode::leaf(key, n.name.clone(), icon(material, n.kind)));
                 }
@@ -539,9 +562,19 @@ impl Browse {
         if stale {
             let mut nodes = self.build(ROOT, material, &needle);
             // The Databases section goes below the collections, unless a
-            // filter is narrowing what is loaded.
-            if needle.is_empty() {
+            // filter is narrowing what is loaded; so does Extracts and Jobs.
+            let caps = provider.capabilities();
+            if needle.is_empty() && caps.native_sql {
                 nodes.push(self.databases_node(material));
+            }
+            if needle.is_empty() && caps.extracts {
+                let n = extracts_node(s.t("analytics-kind-extracts"));
+                nodes.push(TreeNode::leaf(
+                    node_key(&n),
+                    n.name.clone(),
+                    icon(material, Kind::Extracts),
+                ));
+                self.seen.insert(node_key(&n), n);
             }
             if !needle.is_empty() {
                 // A match inside a collection is shown, so open its way.
@@ -563,6 +596,8 @@ impl Browse {
                 self.request(s, provider, coll);
             } else if id == DATABASES {
                 self.request_databases(s, provider);
+            } else if let Some(wb) = id.strip_prefix("workbook:") {
+                self.request(s, provider, wb);
             } else if let Some(db) = id.strip_prefix("database:") {
                 self.request_tables(s, provider, db);
             }
@@ -605,7 +640,7 @@ impl Browse {
         let mut kinds_changed = false;
         ui.horizontal_wrapped(|ui| {
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-            for k in Kind::ALL {
+            for &k in provider.capabilities().search_kinds {
                 let mut on = self.kinds.contains(&k);
                 let label = format!(
                     "{} {}",

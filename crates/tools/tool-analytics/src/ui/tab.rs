@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::{AnalyticsTool, board, question, sql};
+use super::{AnalyticsTool, board, extracts, question, sql, view};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -128,6 +128,12 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
                 }
                 None => form::note(ui, &theme, ph::LIGHTBULB, &s.t("analytics-loading")),
             }
+        }
+        Some(node) if node.kind == crate::provider::Kind::View => {
+            view::page(&mut tool.view, ui, cx, &theme, &provider, &node)
+        }
+        Some(node) if node.kind == crate::provider::Kind::Extracts => {
+            extracts::page(&mut tool.extracts, ui, cx, &theme, &provider)
         }
         Some(node) if question::is_card(&node) => question::page(
             &mut tool.question,

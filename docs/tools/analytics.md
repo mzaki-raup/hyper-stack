@@ -370,6 +370,27 @@ What Tableau's REST API allows, and so what a Tableau tab is:
   low version first, then talks the server's own, so an older Server
   answers in the version it knows; calls a version lacks are disabled
   with the reason.
+- **As built (FEAT-0131).** Kind `tableau`; Settings has the Server URL,
+  **Site** (content URL), a username and password or a Personal Access
+  Token (the token's name is the credential's header field, its secret
+  the key), TLS and a CA file. Sign-in is `auth/signin` into the site;
+  the token and site id are kept in memory and `auth/signout` ends them.
+  Every call asks for JSON. `serverinfo` is read at API 2.4, then the
+  Server's own version is used; 3.15 to 3.23 is supported, older is
+  refused with a sentence, newer is marked "Newer than tested"; a view's
+  picture asks for a size only from 3.23. The tree is projects (shown as
+  "Collection"), each holding its workbooks and data sources, a workbook
+  opening to its views, and an **Extracts and Jobs** entry. Search takes
+  views, workbooks and data sources by name (one page, no More). A view's
+  page has Apply with filter fields typed as `Field=Value; Field=Value`
+  (sent as `vf_<field>=`), Picture and Data tabs (the data is the view's
+  CSV in a table), Save Picture, Save Data and Save PDF, Open Interactive
+  and Copy Link. The interactive link is
+  `#/site/<site>/views/<workbook>/<view>` from the view's `contentUrl`;
+  a workbook or data source opens the site's home page, because Tableau's
+  web address for those takes an id the REST API does not give. Not
+  built: filter fields offered from the view's own filters, and a
+  project's own name on its tree entry.
 - Testing has no container: Tableau Server is licensed. Because the
   provider only reads, the live test may run against the owner's Server
   when `HS_TABLEAU` names it; everything else runs against a mock written

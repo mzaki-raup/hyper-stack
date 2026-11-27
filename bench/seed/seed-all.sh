@@ -9,7 +9,7 @@ set -uo pipefail
 
 here=$(cd "$(dirname "$0")" && pwd)
 order=(postgres mysql mongo redis couch s3 qdrant webdav rabbitmq kafka nats mqtt
-  forgejo jenkins teamcity redmine puppetdb k8s keycloak ldap metabase tableau sasviya powerbirs grafana superset heavy)
+  forgejo jenkins teamcity redmine puppetdb k8s keycloak ldap metabase tableau sasviya powerbirs grafana superset elasticsearch hop heavy)
 [ $# -gt 0 ] && order=("$@")
 
 failed=()

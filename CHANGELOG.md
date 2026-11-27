@@ -11,9 +11,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.146.0 — 2026-11-27
+
 ### Added
 
-- Analytics: a SAS Viya provider: folders and reports with Search, a report's picture from the Report Images service, CAS libraries with their tables and a row preview, and recent jobs, read-only, signed in through an OAuth client or an access token (FEAT-0133)
+- The SAS Viya provider (cafd2944)
+
+### Fixed
+
+- Format the SAS Viya live test and name the preview inbox type (21e3bf2c)
 
 ## 0.145.0 — 2026-11-27
 

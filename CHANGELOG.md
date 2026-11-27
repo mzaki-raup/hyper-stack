@@ -11,9 +11,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
+- (nothing yet)
+
+## 0.142.0 — 2026-11-27
+
 ### Added
 
-- Analytics: a Metabase dashboard opens on its 24-column grid with its tabs, its filters (a pick list from the server, dates, Apply), text, heading and link tiles and an auto-refresh, its tiles running as cancellable jobs a few at a time (FEAT-0129)
+- A Metabase dashboard on its grid, with tabs, filters and tile runs (9b8ef404)
 
 ## 0.141.0 — 2026-11-27
 

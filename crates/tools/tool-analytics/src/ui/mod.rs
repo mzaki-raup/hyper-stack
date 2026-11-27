@@ -5,6 +5,8 @@
 mod board;
 mod browse;
 mod dashboard;
+mod editor;
+mod open_db;
 mod question;
 mod sidebar;
 mod sql;

@@ -4,7 +4,9 @@
 //! permissions; read-only.
 
 pub mod chart;
+pub mod complete;
 pub mod grid;
+pub mod open_db;
 pub mod profile;
 pub mod provider;
 pub mod session;

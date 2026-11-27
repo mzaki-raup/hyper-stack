@@ -4855,6 +4855,20 @@ impl Tool for DbTool {
                 }
                 true
             }
+            OpenRequest::Sql { connection, sql } => {
+                // A tab with nothing in it takes the query; a busy one
+                // keeps its work and a new tab gets the request.
+                if self.state.conn_id.is_none() && self.doc().buf.text().trim().is_empty() {
+                    self.doc_mut().buf = Buffer::from_text(&sql);
+                    if let Some(id) = connection {
+                        self.state.conn_id = Some(id);
+                        self.connect(cx.services);
+                    }
+                } else {
+                    cx.open_new_tab("db", Some(OpenRequest::Sql { connection, sql }));
+                }
+                true
+            }
             OpenRequest::File { uri, .. } if uri.ends_with(".sql") => {
                 let path = PathBuf::from(uri.strip_prefix("file://").unwrap_or(&uri));
                 if self.state.conn_id.is_none() && self.doc().buf.text().trim().is_empty()

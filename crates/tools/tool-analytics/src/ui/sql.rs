@@ -14,6 +14,8 @@ use hs_ui::table::TableState;
 use hs_ui::theme::Theme;
 use parking_lot::Mutex;
 
+use super::browse::Browse;
+use super::editor::SqlEditor;
 use super::question::{Done, chart_view, table_view};
 use crate::provider::{BiProvider, Card, Database, Kind, Node, Result, Table};
 
@@ -52,6 +54,9 @@ impl View {
     }
 }
 
+/// The editor's height, about nine lines.
+const EDITOR_HEIGHT: f32 = 200.0;
+
 /// A run's answer with the number of the run it answers.
 type Answer = Option<(u64, Result<Table>)>;
 
@@ -63,7 +68,10 @@ enum Run {
 
 pub struct Sql {
     db_id: String,
+    /// The statement; the editor writes here whenever it changes.
     text: String,
+    /// The coloured editor with completion, made when the page is first drawn.
+    editor: Option<SqlEditor>,
     /// The starter the page filled in, so picking another table may replace
     /// it but never what the user typed.
     starter: String,
@@ -127,6 +135,7 @@ fn card_for(view: View) -> Card {
         description: String::new(),
         display: view.display().into(),
         native_sql: None,
+        database: String::new(),
         params: Vec::new(),
         viz: serde_json::Value::Null,
     }
@@ -137,6 +146,7 @@ impl Sql {
         Sql {
             db_id: db_id.to_string(),
             text: String::new(),
+            editor: None,
             starter: String::new(),
             run: Run::Idle,
             run_no: 0,
@@ -244,6 +254,7 @@ pub fn page(
     cx: &mut ToolContext,
     theme: &Theme,
     target: &Target<'_>,
+    browse: &mut Browse,
 ) {
     let Target {
         node,
@@ -258,12 +269,18 @@ pub fn page(
     let Some(q) = slot.as_mut() else {
         return;
     };
+    if q.editor.is_none() {
+        q.editor = Some(SqlEditor::new(s));
+    }
     // Picking a table fills in a starter query, unless the user has typed.
     if node.kind == Kind::Table {
         let next = starter(&db.engine, &node.collection, &node.name);
         if q.text.trim().is_empty() || q.text == q.starter {
             q.text = next.clone();
             q.starter = next;
+            if let Some(e) = q.editor.as_mut() {
+                e.set_text(&q.text);
+            }
         }
     }
     q.drain();
@@ -296,7 +313,13 @@ pub fn page(
         &s.i18n.t_args("analytics-sql-notice", &[("db", &db.name)]),
     );
     ui.add_space(form::PANE_GAP);
-    form::code_field(ui, &mut q.text, 9);
+    if let Some(e) = q.editor.as_mut()
+        && e.show(ui, theme, EDITOR_HEIGHT, &mut || {
+            browse.tables(s, provider, &db.id)
+        })
+    {
+        q.text = e.text();
+    }
     ui.add_space(form::PANE_GAP);
     form::centred_row_wrapped(ui, |ui| {
         if matches!(q.run, Run::Running(_)) {
@@ -313,6 +336,7 @@ pub fn page(
         if form::button(ui, theme, ph::COPY, &s.t("analytics-sql-copy")).clicked() {
             ui.ctx().copy_text(q.text.clone());
         }
+        super::open_db::button(ui, cx, theme, Some(db), &q.text);
         ui.label(s.t("analytics-sql-view"));
         let before = q.view;
         egui::ComboBox::from_id_salt("analytics-sql-view")

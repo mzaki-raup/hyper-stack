@@ -398,16 +398,17 @@ Change Request : CR-0103
 - [ ] Docs: spec · README · CHANGELOG
 
 ### FEAT-0144 · Analytics: SQL colours, completion and Open in Database
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.6 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.3, §4.6 · **Phase:** Q
 - **Source:** the unbuilt parts of FEAT-0130 and the owner's decision of 2026-11-20 ("Open in Database picks the matching saved connection")
 - **Scope:** the SQL page and the SQL view in the editor engine (`hs-editor`) with SQL colours and completion from the database's tables and columns; **Open in Database**: match Metabase's database (`engine`, `details.host`, `details.port`, `details.dbname`) to a saved `db` connection (host without case, `localhost` equal to `127.0.0.1`), one match opens on it, none or several opens with the connection picker on the candidates and a hint; the SQL travels in an `OpenRequest` that carries the connection id (a new variant or a Text body the Database activity takes), never a password
 - **Depends on:** FEAT-0130
-- [ ] Editor engine and completion
-- [ ] Open in Database with the matching rule and the new request
-- [ ] Test: the match (one, none, several; case and localhost); the request reaches the Database activity
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Editor engine and completion
+- [x] Open in Database with the matching rule and the new request
+- [x] Test: the match (one, none, several; case and localhost); completion; the details parse — 2026-11-27: 72 tool-analytics tests; the request reaches tool-db through `open()` (not covered by a test)
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-27: all pass
 - [ ] App: `--data-dir ./tmp-data` — a bench Metabase database matching a saved Database connection opens its SQL there; one with no match opens the picker
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Docs: spec · README · CHANGELOG
+- **Notes:** the App box is open: the owner declined screen access on 2026-11-27, so the running-app check of Open in Database and the editor has not been made.
 
 ## v0.8.2 — In-Progress
 

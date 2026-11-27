@@ -173,6 +173,35 @@ impl Browse {
         self.dbs.get(id)
     }
 
+    /// The tables of database `db` read so far, with their columns; the read
+    /// is begun when it has not been, so the answer fills in on a later frame.
+    pub fn tables(
+        &mut self,
+        s: &Services,
+        provider: &Arc<dyn BiProvider>,
+        db: &str,
+    ) -> Vec<TableMeta> {
+        self.request_tables(s, provider, db);
+        let Some(Loaded::Ready(nodes)) = self.loaded.get(&format!("db:{db}")) else {
+            return Vec::new();
+        };
+        nodes
+            .iter()
+            .map(|n| TableMeta {
+                id: n.id.clone(),
+                schema: n.collection.clone(),
+                name: n.name.clone(),
+                fields: self.fields.get(&n.id).cloned().unwrap_or_default(),
+            })
+            .collect()
+    }
+
+    /// Read the databases if they have not been (a question needs its own
+    /// database's details without the Databases section being opened).
+    pub fn ensure_databases(&mut self, s: &Services, provider: &Arc<dyn BiProvider>) {
+        self.request_databases(s, provider);
+    }
+
     fn request_databases(&mut self, s: &Services, provider: &Arc<dyn BiProvider>) {
         if self.loaded.contains_key(DATABASES) {
             return;

@@ -228,6 +228,8 @@ pub struct Card {
     pub display: String,
     /// The question's own SQL when it is a native question.
     pub native_sql: Option<String>,
+    /// The id of the database the question queries.
+    pub database: String,
     pub params: Vec<Param>,
     /// The server's `visualization_settings`, read by the chart code.
     pub viz: serde_json::Value,
@@ -262,6 +264,11 @@ pub struct Database {
     pub engine: String,
     /// Whether this account may run SQL on it.
     pub native: bool,
+    /// Where it lives, as the server's admins see it; empty for anyone else.
+    /// Read to find the saved Database connection that is the same server.
+    pub host: String,
+    pub port: String,
+    pub dbname: String,
 }
 
 /// One column of a table.

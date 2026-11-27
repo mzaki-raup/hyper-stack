@@ -14,6 +14,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 ### Added
 
 - Analytics: a Databases section in the browse tree (databases, tables, columns) and an SQL page that runs a statement on a database as the signed-in account, with a table or a quick chart of the result, refused on a protected environment and where the account has no native rights (FEAT-0130)
+- Analytics: the SQL page's editor has SQL colours and completion from the database's tables and columns, and Open in Database opens the SQL in a Database tab on the saved connection that is the same server (FEAT-0144)
+- A new `OpenRequest::Sql` hands a query, and the connection to run it on, to the Database activity (FEAT-0144)
 
 ## 0.142.0 — 2026-11-27
 

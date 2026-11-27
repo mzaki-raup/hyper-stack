@@ -397,7 +397,7 @@ jobs, with `pageSize` / `pageNumber`.
 docker compose --profile bi up -d tableau-mock
 ```
 
-Nothing to seed: the data is in the script (projects Sales and Operations,
+Nothing to load: the data is in the script, and `./seed/seed-all.sh tableau` signs in by password and by token and prints what it holds (projects Sales and Operations,
 workbooks Regional Sales and Order Fulfilment, three views, two data
 sources, two extract tasks, one failing extract job). HyperStack's Tableau
 provider (FEAT-0131) is built against it: `tool-analytics`'s `tableau_live`
@@ -432,7 +432,7 @@ columns and a row preview (`/casManagement/…`, `/casRowSets/…`), and
 docker compose --profile bi up -d sasviya-mock
 ```
 
-Nothing to seed: the data is in the script (folders `Public` > `Sales` and
+Nothing to load: the data is in the script, and `./seed/seed-all.sh sasviya` signs in through the client and prints what it holds (folders `Public` > `Sales` and
 `My Folder`, the reports Revenue by Region, Customer Churn and Scratch
 Report, caslibs `Public` and `Samples` with the tables ORDERS, CUSTOMERS
 and CARS).
@@ -538,7 +538,7 @@ paginated reports; a `.pbix` has no export and answers 400, as the spec says.
 docker compose --profile bi up -d powerbirs-mock
 ```
 
-Nothing to seed. **Sign in** with HTTP Basic as `$POWERBIRS_MOCK_USER` /
+Nothing to load: the data is in the script, and `./seed/seed-all.sh powerbirs` signs in and prints what it holds. **Sign in** with HTTP Basic as `$POWERBIRS_MOCK_USER` /
 `$POWERBIRS_MOCK_PASSWORD`. It speaks no NTLM and checks only the credentials;
 the shapes follow the REST API reference and are unconfirmed against a real
 server.

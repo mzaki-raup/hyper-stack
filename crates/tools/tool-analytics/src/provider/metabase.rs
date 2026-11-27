@@ -11,8 +11,9 @@ use reqwest::Method;
 use serde_json::{Value, json};
 
 use super::{
-    API_KEYS_FROM_MINOR, BiProvider, Caps, Card, Column, ColumnKind, ExportFormat, Found, Kind,
-    Node, Param, ParamKind, Result, SEARCH_PAGE, ServerInfo, Support, Table, Version,
+    API_KEYS_FROM_MINOR, BiProvider, Caps, Card, Column, ColumnKind, Content, DashCard, DashParam,
+    DashTab, Dashboard, ExportFormat, Found, Kind, Mapping, Node, Param, ParamKind, Result,
+    SEARCH_PAGE, ServerInfo, Support, Table, Version,
 };
 use crate::profile::MetabaseConfig;
 
@@ -188,6 +189,59 @@ impl BiProvider for Metabase {
         let mut table = table_from(&v, limit)?;
         table.millis = started.elapsed().as_millis() as u64;
         Ok(table)
+    }
+
+    async fn dashboard(&self, id: &str) -> Result<Dashboard> {
+        let v = self
+            .get(&format!(
+                "/api/dashboard/{}",
+                hs_core::service_http::seg(id)
+            ))
+            .await?;
+        dashboard_from(&v)
+            .ok_or_else(|| "Metabase answered with something that is not a dashboard.".into())
+    }
+
+    async fn run_dashcard(
+        &self,
+        dashboard: &Dashboard,
+        card: &DashCard,
+        values: &[(String, String)],
+        limit: usize,
+    ) -> Result<Table> {
+        let Content::Card { card: q, mappings } = &card.content else {
+            return Err("This tile holds no question.".into());
+        };
+        let body = json!({ "parameters": dash_params(dashboard, mappings, values)?, "ignore_cache": false });
+        let rb = self
+            .http
+            .request_as(
+                Method::POST,
+                &format!(
+                    "/api/dashboard/{}/dashcard/{}/card/{}/query",
+                    hs_core::service_http::seg(&dashboard.id),
+                    hs_core::service_http::seg(&card.id),
+                    hs_core::service_http::seg(&q.id)
+                ),
+                &self.auth(),
+            )
+            .json(&body);
+        let started = std::time::Instant::now();
+        let v = self.http.json(rb).await?;
+        let mut table = table_from(&v, limit)?;
+        table.millis = started.elapsed().as_millis() as u64;
+        Ok(table)
+    }
+
+    async fn filter_values(&self, dashboard: &str, param: &str) -> Result<Vec<String>> {
+        let v = self
+            .get(&format!(
+                "/api/dashboard/{}/params/{}/values",
+                hs_core::service_http::seg(dashboard),
+                hs_core::service_http::seg(param)
+            ))
+            .await?;
+        Ok(values_from(&v))
     }
 
     async fn export(
@@ -451,21 +505,7 @@ fn param_values(card: &Card, values: &[(String, String)]) -> Result<Value> {
         if text.is_empty() {
             continue;
         }
-        let value = match p.kind {
-            ParamKind::Date if p.ty == "date/single" => json!(text),
-            ParamKind::Date => json!([text]),
-            ParamKind::Number => {
-                let n: f64 = text
-                    .parse()
-                    .map_err(|_| format!("{} must be a number.", p.name))?;
-                if n.fract() == 0.0 && n.abs() < 9e15 {
-                    json!([n as i64])
-                } else {
-                    json!([n])
-                }
-            }
-            ParamKind::Text => json!([text]),
-        };
+        let value = filter_value(p.kind, &p.ty, &p.name, text)?;
         out.push(json!({ "id": p.id, "type": p.ty, "target": p.target, "value": value }));
     }
     Ok(Value::Array(out))
@@ -536,6 +576,222 @@ fn table_from(v: &Value, limit: usize) -> Result<Table> {
         millis: 0,
         truncated,
     })
+}
+
+fn id_text(v: Option<&Value>) -> Option<String> {
+    match v? {
+        Value::Number(n) => Some(n.to_string()),
+        Value::String(t) if !t.is_empty() => Some(t.clone()),
+        _ => None,
+    }
+}
+
+fn count(v: &Value, k: &str) -> u32 {
+    v.get(k).and_then(Value::as_u64).unwrap_or(0) as u32
+}
+
+/// `GET /api/dashboard/:id`: the grid, the tabs, the filters and each
+/// tile's card, with the dashboard's own overrides of the card's chart
+/// settings merged over the card's.
+fn dashboard_from(v: &Value) -> Option<Dashboard> {
+    let id = id_of(v);
+    if id.is_empty() {
+        return None;
+    }
+    let mut tabs: Vec<(u64, DashTab)> = v
+        .get("tabs")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| {
+                    Some((
+                        t.get("position").and_then(Value::as_u64).unwrap_or(0),
+                        DashTab {
+                            id: id_text(t.get("id"))?,
+                            name: s(t, "name"),
+                        },
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    tabs.sort_by_key(|(position, _)| *position);
+    let params = v
+        .get("parameters")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .map(|p| {
+                    let ty = s(p, "type");
+                    DashParam {
+                        id: s(p, "id"),
+                        name: [s(p, "name"), s(p, "slug")]
+                            .into_iter()
+                            .find(|n| !n.is_empty())
+                            .unwrap_or_default(),
+                        kind: param_kind(&ty),
+                        ty,
+                        default: default_text(p.get("default")),
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let cards = v
+        .get("dashcards")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(dashcard_from).collect())
+        .unwrap_or_default();
+    Some(Dashboard {
+        id,
+        name: s(v, "name"),
+        description: s(v, "description"),
+        tabs: tabs.into_iter().map(|(_, t)| t).collect(),
+        params,
+        cards,
+    })
+}
+
+fn dashcard_from(v: &Value) -> Option<DashCard> {
+    let id = id_text(v.get("id"))?;
+    let viz = v
+        .get("visualization_settings")
+        .cloned()
+        .unwrap_or(Value::Null);
+    let content = match v
+        .get("card")
+        .filter(|c| c.get("id").is_some_and(|i| !i.is_null()))
+    {
+        Some(c) => {
+            let mut card = card_from(c)?;
+            // The dashboard's settings for this tile win over the card's.
+            if let (Value::Object(base), Value::Object(over)) = (&mut card.viz, &viz) {
+                for (k, x) in over {
+                    base.insert(k.clone(), x.clone());
+                }
+            } else if card.viz.is_null() {
+                card.viz = viz.clone();
+            }
+            let mappings = v
+                .get("parameter_mappings")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .map(|m| Mapping {
+                            param_id: s(m, "parameter_id"),
+                            target: m.get("target").cloned().unwrap_or(Value::Null),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            Content::Card {
+                card: Box::new(card),
+                mappings,
+            }
+        }
+        // A text, heading or link tile has no question behind it.
+        None => {
+            let display = viz
+                .pointer("/virtual_card/display")
+                .and_then(Value::as_str)
+                .unwrap_or("text");
+            match display {
+                "link" => Content::Link {
+                    title: viz
+                        .pointer("/link/entity/name")
+                        .and_then(Value::as_str)
+                        .or_else(|| viz.pointer("/link/url").and_then(Value::as_str))
+                        .unwrap_or_default()
+                        .to_string(),
+                    url: viz
+                        .pointer("/link/url")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                },
+                other => Content::Text {
+                    text: s(&viz, "text"),
+                    heading: other == "heading",
+                },
+            }
+        }
+    };
+    Some(DashCard {
+        id,
+        tab: id_text(v.get("dashboard_tab_id")),
+        row: count(v, "row"),
+        col: count(v, "col"),
+        size_x: count(v, "size_x").max(1),
+        size_y: count(v, "size_y").max(1),
+        content,
+    })
+}
+
+/// One filter's value in the shape its type takes (as a question's).
+fn filter_value(kind: ParamKind, ty: &str, name: &str, text: &str) -> Result<Value> {
+    Ok(match kind {
+        ParamKind::Date if ty == "date/single" => json!(text),
+        ParamKind::Date => json!([text]),
+        ParamKind::Number => {
+            let n: f64 = text
+                .parse()
+                .map_err(|_| format!("{name} must be a number."))?;
+            if n.fract() == 0.0 && n.abs() < 9e15 {
+                json!([n as i64])
+            } else {
+                json!([n])
+            }
+        }
+        ParamKind::Text => json!([text]),
+    })
+}
+
+/// The `parameters` of one tile's request: each filter that has a value
+/// and reaches this tile, with the field of the tile it writes to.
+fn dash_params(
+    dashboard: &Dashboard,
+    mappings: &[Mapping],
+    values: &[(String, String)],
+) -> Result<Value> {
+    let mut out = Vec::new();
+    for p in &dashboard.params {
+        let text = values
+            .iter()
+            .find(|(id, _)| *id == p.id)
+            .map(|(_, v)| v.trim())
+            .unwrap_or_default();
+        let Some(m) = mappings.iter().find(|m| m.param_id == p.id) else {
+            continue;
+        };
+        if text.is_empty() {
+            continue;
+        }
+        out.push(json!({
+            "id": p.id, "type": p.ty, "target": m.target,
+            "value": filter_value(p.kind, &p.ty, &p.name, text)?,
+        }));
+    }
+    Ok(Value::Array(out))
+}
+
+/// `{ "values": [["a"], ["b"]] }`: the first cell of each row.
+fn values_from(v: &Value) -> Vec<String> {
+    v.get("values")
+        .and_then(Value::as_array)
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|r| match r {
+                    Value::Array(cells) => cells.first(),
+                    other => Some(other),
+                })
+                .filter_map(|c| match c {
+                    Value::String(t) => Some(t.clone()),
+                    Value::Number(n) => Some(n.to_string()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -731,5 +987,123 @@ mod tests {
             Err("Column \"X\" not found".to_string())
         );
         assert!(table_from(&json!({}), 10).is_err());
+    }
+
+    /// A dashboard as `GET /api/dashboard/:id` answers it (trimmed).
+    fn dashboard_json() -> Value {
+        json!({
+            "id": 2, "name": "Overview", "description": "Sales",
+            "tabs": [ { "id": 5, "name": "Detail", "position": 1 },
+                      { "id": 4, "name": "Overview", "position": 0 } ],
+            "parameters": [ { "id": "category", "name": "Category", "slug": "category",
+                              "type": "string/=", "default": ["Gadget"] } ],
+            "dashcards": [
+                { "id": 36, "card_id": 39, "dashboard_tab_id": 4, "row": 0, "col": 6,
+                  "size_x": 18, "size_y": 6, "parameter_mappings": [],
+                  "visualization_settings": { "graph.metrics": ["count"] },
+                  "card": { "id": 39, "name": "Orders per month", "display": "line",
+                            "visualization_settings": { "graph.dimensions": ["CREATED_AT"] },
+                            "dataset_query": { "type": "query" } } },
+                { "id": 37, "card_id": 41, "dashboard_tab_id": 4, "row": 6, "col": 0,
+                  "size_x": 12, "size_y": 6,
+                  "parameter_mappings": [ { "parameter_id": "category", "card_id": 41,
+                      "target": ["dimension", ["field", 18, { "source-field": 14 }]] } ],
+                  "visualization_settings": {},
+                  "card": { "id": 41, "name": "By category", "display": "bar" } },
+                { "id": 40, "card_id": null, "dashboard_tab_id": 4, "row": 12, "col": 0,
+                  "size_x": 24, "size_y": 1, "card": null, "parameter_mappings": [],
+                  "visualization_settings": { "virtual_card": { "display": "heading" },
+                                              "text": "Sales" } },
+                { "id": 41, "card_id": null, "dashboard_tab_id": 5, "row": 0, "col": 0,
+                  "size_x": 12, "size_y": 2, "card": null,
+                  "visualization_settings": { "virtual_card": { "display": "text" },
+                                              "text": "Some **notes**" } },
+                { "id": 42, "card_id": null, "dashboard_tab_id": 5, "row": 2, "col": 0,
+                  "size_x": 6, "size_y": 1, "card": null,
+                  "visualization_settings": { "virtual_card": { "display": "link" },
+                                              "link": { "url": "https://example.com" } } }
+            ]
+        })
+    }
+
+    #[test]
+    fn a_dashboard_has_its_tabs_in_order_its_filters_and_every_kind_of_tile() {
+        let d = dashboard_from(&dashboard_json()).expect("a dashboard");
+        assert_eq!(d.id, "2");
+        assert_eq!(
+            d.tabs.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+            ["Overview", "Detail"],
+            "by position, not as listed"
+        );
+        assert_eq!(d.params.len(), 1);
+        assert_eq!(d.params[0].default, "Gadget");
+        assert_eq!(d.cards.len(), 5);
+        let kinds: Vec<&str> = d
+            .cards
+            .iter()
+            .map(|c| match &c.content {
+                Content::Card { .. } => "card",
+                Content::Text { heading: true, .. } => "heading",
+                Content::Text { .. } => "text",
+                Content::Link { .. } => "link",
+            })
+            .collect();
+        assert_eq!(kinds, ["card", "card", "heading", "text", "link"]);
+        assert_eq!(d.cards[0].tab.as_deref(), Some("4"));
+        assert_eq!((d.cards[0].col, d.cards[0].size_x), (6, 18));
+        assert!(
+            matches!(&d.cards[4].content, Content::Link { url, .. } if url == "https://example.com")
+        );
+    }
+
+    #[test]
+    fn a_tiles_own_settings_win_over_its_cards() {
+        let d = dashboard_from(&dashboard_json()).expect("a dashboard");
+        let Content::Card { card, .. } = &d.cards[0].content else {
+            panic!("a card");
+        };
+        assert_eq!(
+            card.viz["graph.dimensions"],
+            json!(["CREATED_AT"]),
+            "the card's stays"
+        );
+        assert_eq!(
+            card.viz["graph.metrics"],
+            json!(["count"]),
+            "the dashboard's is added"
+        );
+    }
+
+    #[test]
+    fn a_filter_reaches_only_the_tiles_it_is_mapped_to() {
+        let d = dashboard_from(&dashboard_json()).expect("a dashboard");
+        let Content::Card { mappings: none, .. } = &d.cards[0].content else {
+            panic!("a card");
+        };
+        let Content::Card { mappings, .. } = &d.cards[1].content else {
+            panic!("a card");
+        };
+        let values = [("category".to_string(), "Gadget".to_string())];
+        assert_eq!(dash_params(&d, none, &values).expect("params"), json!([]));
+        let p = dash_params(&d, mappings, &values).expect("params");
+        assert_eq!(p[0]["id"], "category");
+        assert_eq!(p[0]["value"], json!(["Gadget"]));
+        assert_eq!(
+            p[0]["target"],
+            json!(["dimension", ["field", 18, { "source-field": 14 }]])
+        );
+        // An empty filter is left out.
+        let empty = [("category".to_string(), "  ".to_string())];
+        assert_eq!(
+            dash_params(&d, mappings, &empty).expect("params"),
+            json!([])
+        );
+    }
+
+    #[test]
+    fn a_filters_values_are_the_first_cell_of_each_row() {
+        let v = json!({ "values": [["Doohickey"], ["Gadget"], [7]], "has_more_values": false });
+        assert_eq!(values_from(&v), ["Doohickey", "Gadget", "7"]);
+        assert!(values_from(&json!({})).is_empty());
     }
 }

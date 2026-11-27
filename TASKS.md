@@ -293,15 +293,16 @@ Change Request : CR-0103
 - **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the line, bar, row, pie, scalar and combo charts, the native question with its parameter (400 gives an empty result with its message), the Table and SQL views and the Export menu. It found a stray axis label and a row chart listing its categories bottom-up (both fixed). The area chart was seen on screen too. Not done: the save dialog of an export was not driven (the bytes are tested live); the scatter chart was not seen (planned and tested only; the bench has no scatter question); Open in Database stays with FEAT-0130; the combo's second axis, the card's own series colours and parameter value lists as pick fields are FEAT-0143; funnel and waterfall are phase 1b. Gate 2026-11-27: fmt, clippy, 1604 tests, deny, self-test; the bench drive ran out of disk once (the full D: made the test link fail), cleared by deleting `target/debug/incremental`.
 
 ### FEAT-0129 · Analytics: dashboards with their grid, tabs and filters
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
+- **State:** Completed · **Spec:** docs/tools/analytics.md §4.5 · **Phase:** Q
 - **Source:** owner, 2026-11-20 (as FEAT-0126)
 - **Scope:** the 24-column grid at the pane's width, each card a tile with its chart or table and its own states; text, heading and link cards; dashboard tabs; filters from the parameter values with Apply; cards run four at once, cancelled when the tab leaves; auto-refresh while on screen
 - **Depends on:** FEAT-0128
-- [ ] Grid, tabs, filters, card runs
-- [ ] Test: the grid's layout at two widths; parameter mappings into each card's request
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
-- [ ] App: `--data-dir ./tmp-data` — the bench dashboard beside Metabase's own, a filter applied, both tabs
-- [ ] Docs: spec · README · CHANGELOG
+- [x] Grid, tabs, filters, card runs
+- [x] Test: the grid's layout at two widths; parameter mappings into each card's request; live: the bench dashboard, its filter values, a filter narrowing a mapped tile and not an unmapped one
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] App: `--data-dir ./tmp-data` — the bench dashboard (not beside Metabase's own page), a filter applied, both tabs
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS
+- **Notes:** 2026-11-27 screen check on the bench Metabase v0.52.4: the Overview tab (a number, a line, a bar and a pie tile), the Detail tab (the table), the Category filter listing the server's four values, and Apply narrowing the bar and pie to Gadget while the unmapped line stayed whole. It found the charts sharing one plot id (a red warning box) and the second tab opening at the first one's scroll offset (both fixed). Not done: the heading, text and link tiles were tested from recorded JSON only (the bench dashboard has none); a date filter and Auto-Refresh were not run on screen; the narrow single-column layout is tested as arithmetic, not seen; cancelling a dashboard's runs on leaving it was not observed.
 
 ### FEAT-0130 · Analytics: databases and ad-hoc SQL through Metabase
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.6, §6 · **Phase:** Q

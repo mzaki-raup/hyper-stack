@@ -2,6 +2,7 @@
 //! dashboard on the home tab, the saved servers in the sidebar, and one tab
 //! per server with its header band, toolbar, browse column and item page.
 
+mod board;
 mod browse;
 mod dashboard;
 mod question;
@@ -89,6 +90,8 @@ pub struct AnalyticsTool {
     browse: browse::Browse,
     /// The picked question's page: its card, its run and its result.
     question: Option<question::Question>,
+    /// The picked dashboard's page: its tiles and their runs.
+    board: Option<board::Board>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -98,6 +101,7 @@ impl AnalyticsTool {
         self.session = None;
         self.browse.reset();
         self.question = None;
+        self.board = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

@@ -59,6 +59,13 @@ vault: no capture shows it, only *Stored in the vault*.
 - `analytics-parameters.png` - the native question *Big orders (native)*: its
   `min_total` parameter as a field (100, the card's default) above the table
   of 100 rows.
+- `analytics-dashboard.png` - FEAT-0129: the seeded dashboard *HyperStack
+  Overview*, Overview tab: its toolbar, the Category filter with Apply, the
+  tab strip, a number tile and a line tile on the 24-column grid.
+- `analytics-dashboard-filter.png` - the same with Category set to *Gadget*
+  and applied, scrolled to the bar and pie tiles that the filter reaches.
+  Taken with the scratch window made always-on-top, as `docs/GOTCHAS.md`
+  (Headless and GUI Testing) says.
 
 ## 2026-11-15: Identity with the server's version (CR-0099)
 

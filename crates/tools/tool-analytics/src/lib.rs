@@ -4,6 +4,7 @@
 //! permissions; read-only.
 
 pub mod chart;
+pub mod grid;
 pub mod profile;
 pub mod provider;
 pub mod session;

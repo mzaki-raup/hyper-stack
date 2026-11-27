@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::{AnalyticsTool, question};
+use super::{AnalyticsTool, board, question};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -109,7 +109,14 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
     let Some(info) = tool.session.as_ref().map(|x| x.info()) else {
         return;
     };
+    // Picking something else stops a dashboard's runs.
+    board::leave(&mut tool.board, s, tool.browse.selected.as_ref());
     form::pane(ui, |ui| match tool.browse.selected.clone() {
+        Some(node) if node.kind == crate::provider::Kind::Dashboard => {
+            if let Some(q) = board::page(&mut tool.board, ui, cx, &theme, &provider, &node) {
+                tool.browse.select(q);
+            }
+        }
         Some(node) if question::is_card(&node) => {
             question::page(&mut tool.question, ui, cx, &theme, &provider, &node)
         }

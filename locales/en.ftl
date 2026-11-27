@@ -5226,6 +5226,12 @@ analytics-sql-open-db = Open in Database
 analytics-chart-not-drawn = Metabase draws this kind of chart itself. Open it in the browser, or read the table.
 analytics-chart-no-numbers = The result has no numbers to chart. Read the table.
 analytics-chart-is-table = This question is a table.
+analytics-apply = Apply
+analytics-filters-changed = Filters changed. Press Apply to run the tiles again.
+analytics-tile-waiting = Waiting for a free run…
+analytics-auto-refresh = Auto-Refresh
+analytics-refresh-off = Off
+analytics-refresh-minutes = Every { $n } minutes
 
 ## Settings → Analytics
 settings-analytics = Analytics

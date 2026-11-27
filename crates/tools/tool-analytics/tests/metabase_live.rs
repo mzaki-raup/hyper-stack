@@ -16,7 +16,7 @@ use hs_core::service_http::Tls;
 use tool_analytics::chart::{self, Plan, SeriesKind};
 use tool_analytics::profile::MetabaseConfig;
 use tool_analytics::provider::metabase::Metabase;
-use tool_analytics::provider::{BiProvider, ExportFormat, Kind, Support};
+use tool_analytics::provider::{BiProvider, Content, ExportFormat, Kind, Support};
 
 fn runtime() -> tokio::runtime::Runtime {
     tokio::runtime::Builder::new_multi_thread()
@@ -283,4 +283,92 @@ fn questions_run_and_draw_by_api_key() {
         },
     );
     runtime().block_on(questions(&p));
+}
+
+/// The seeded dashboard: two tabs, a Category filter, tiles that run, and a
+/// filter that narrows the tiles it is mapped to and no others.
+async fn dashboards(p: &Metabase) {
+    p.connect().await.expect("connect");
+    let root = p.children("root").await.expect("root");
+    let demo = root
+        .iter()
+        .find(|n| n.name == "HyperStack Demo")
+        .expect("the seeded collection");
+    let inside = p.children(&demo.id).await.expect("the demo collection");
+    let board = inside
+        .iter()
+        .find(|n| n.kind == Kind::Dashboard && n.name == "HyperStack Overview")
+        .expect("the seeded dashboard");
+    let d = p.dashboard(&board.id).await.expect("the dashboard");
+    assert_eq!(
+        d.tabs.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+        ["Overview", "Detail"]
+    );
+    assert_eq!(d.params.len(), 1);
+    assert_eq!(d.params[0].name, "Category");
+    assert_eq!(d.cards.len(), 5);
+    assert!(
+        d.cards.iter().all(|c| c.tab.is_some()),
+        "every tile is on a tab"
+    );
+
+    let values = p
+        .filter_values(&d.id, &d.params[0].id)
+        .await
+        .expect("the filter's values");
+    assert!(values.iter().any(|v| v == "Gadget"), "{values:?}");
+
+    // Every tile runs.
+    for c in &d.cards {
+        let Content::Card { card, .. } = &c.content else {
+            continue;
+        };
+        let t = p.run_dashcard(&d, c, &[], 2000).await.expect("a tile");
+        assert!(!t.columns.is_empty(), "{} has columns", card.name);
+    }
+
+    // The category filter reaches the bar chart (mapped) and not the line.
+    let by_name = |name: &str| {
+        d.cards
+            .iter()
+            .find(|c| matches!(&c.content, Content::Card { card, .. } if card.name == name))
+            .unwrap_or_else(|| panic!("{name} is on the dashboard"))
+    };
+    let filter = [(d.params[0].id.clone(), "Gadget".to_string())];
+    let bar = by_name("Orders by category");
+    let all = p
+        .run_dashcard(&d, bar, &[], 2000)
+        .await
+        .expect("unfiltered");
+    let one = p
+        .run_dashcard(&d, bar, &filter, 2000)
+        .await
+        .expect("filtered");
+    assert_eq!(all.rows.len(), 4);
+    assert_eq!(one.rows.len(), 1, "{:?}", one.rows);
+    assert_eq!(one.rows[0][0], "Gadget");
+    let line = by_name("Orders per month");
+    let plain = p.run_dashcard(&d, line, &[], 2000).await.expect("line");
+    let same = p
+        .run_dashcard(&d, line, &filter, 2000)
+        .await
+        .expect("line with filter");
+    assert_eq!(plain.rows, same.rows, "an unmapped tile ignores the filter");
+    p.disconnect().await;
+}
+
+#[test]
+fn a_dashboard_runs_its_tiles_and_its_filter_narrows_them() {
+    let Ok(spec) = std::env::var("HS_METABASE") else {
+        return;
+    };
+    let (url, key) = spec.split_once('|').expect("HS_METABASE=<url>|<api-key>");
+    let p = provider(
+        url,
+        Auth::ApiKey {
+            header: tool_analytics::profile::API_KEY_HEADER.into(),
+            key: key.into(),
+        },
+    );
+    runtime().block_on(dashboards(&p));
 }

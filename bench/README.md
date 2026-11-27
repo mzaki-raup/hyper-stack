@@ -88,6 +88,8 @@ The limits are ceilings (`mem_limit`); idle use is much lower.
 | `heavy` | mssql (2 GB), oracle (2.5 GB), db2 (4 GB), clickhouse (1.5 GB), nexus (2.5 GB) | 12.5 GB | each at its limit once warm |
 | `idm` | keycloak (dev mode, embedded H2), openldap | 1.25 GB | about 0.65 GB |
 | `bi` | metabase (v0.52.4, embedded H2), grafana, loki, superset (the real products), tableau-mock, sasviya-mock and powerbirs-mock (stand-ins, see below) | 4.4 GB | about 2.6 GB |
+| `elk` | elasticsearch 8.15 (512 MB heap), kibana | 2.6 GB | about 1.6 GB |
+| `etl` | hop (Apache Hop 2.20, kept alive for `docker exec` / `docker cp`) | 0.9 GB | about 0.4 GB |
 | `tools` | nats-box (only run by the NATS seed) | - | - |
 
 `core` + `queue` fit easily in 16 GB with the OS (about 3-4 GB in practice);
@@ -148,6 +150,9 @@ defaults; each is a variable in `.env` ([Host ports](#host-ports)).
 | Loki (profile `bi`) | `http://<host>:3131` (`LOKI_PORT`) | - | no auth | 360 log lines, apps `orders`, `payments`, `shipping` | not on the Windows/WSL bench |
 | Apache Superset (profile `bi`) | `http://<host>:8188` (`SUPERSET_PORT`) | admin `$SUPERSET_ADMIN_USER` (`admin`) | `$SUPERSET_ADMIN_PASSWORD` | database `Bench Sales`, dashboard `HyperStack Overview` - see [Apache Superset](#apache-superset-profile-bi) | not on the Windows/WSL bench |
 | Power BI Report Server mock (profile `bi`) | `http://<host>:8480` (`POWERBIRS_MOCK_PORT`), REST API `/reports/api/v2.0` | `$POWERBIRS_MOCK_USER` (`dev`), HTTP Basic | `$POWERBIRS_MOCK_PASSWORD` | folders Sales and Operations - see [Power BI Report Server mock](#power-bi-report-server-mock-profile-bi) | not on the Windows/WSL bench |
+| Elasticsearch (profile `elk`) | `http://<host>:9200` (`ELASTIC_PORT`), no TLS | `elastic`, or the API key in `.state/elastic-api-key` | `$ELASTIC_PASSWORD` | indices `hs-logs` 360, `hs-orders` 60, `hs-products` 24 - see [Elasticsearch and Kibana](#elasticsearch-and-kibana-profile-elk) | not on the Windows/WSL bench |
+| Kibana (profile `elk`) | `http://<host>:5601` (`KIBANA_PORT`) | `elastic` | `$ELASTIC_PASSWORD` | data view `HyperStack logs` | not on the Windows/WSL bench |
+| Apache Hop (profile `etl`) | no port: `docker exec` | - | - | Hop's sample projects, in `.state/hop-samples` - see [Apache Hop](#apache-hop-profile-etl) | not on the Windows/WSL bench |
 | k3s (profile `k8s`) | `https://<host>:6443` | context `hs-bench` (client certificate) | `.state/k3s/kubeconfig.yaml`; cluster token `$K3S_TOKEN` | namespaces `shop`, `ops` | did not start (needs `--privileged`); the kit runs it privileged |
 
 The generated tokens (Forgejo, Jenkins, Redmine) differ per installation;
@@ -543,6 +548,56 @@ Nothing to load: the data is in the script, and `./seed/seed-all.sh powerbirs` s
 the shapes follow the REST API reference and are unconfirmed against a real
 server.
 
+## Elasticsearch and Kibana (profile `elk`)
+
+For the ELK phase (`docs/10-depth-programme.md`, phase M): **Elasticsearch
+8.15.3** as a single node with basic auth on plain HTTP, and **Kibana** beside
+it. Elasticsearch has a 512 MB heap (limit 1.2 GB), Kibana a limit of 1.4 GB.
+
+```bash
+docker compose --profile elk up -d elasticsearch kibana
+./seed/seed-all.sh elasticsearch     # or just ./seed/seed-all.sh
+```
+
+The seed (`seed/seed-elasticsearch.sh`, needs `python3`) gives Kibana's
+`kibana_system` account `$KIBANA_SYSTEM_PASSWORD` (so Kibana, which restarts
+until it can sign in, comes up), writes a **read-only API key** over `hs-*` to
+`.state/elastic-api-key` (Elasticsearch shows a key only once: a re-run makes a
+new one and invalidates the old), and loads three indices with fixed ids, so a
+re-run overwrites, never duplicates:
+
+| Index | Documents | Shape |
+|---|---|---|
+| `hs-logs` | 360 lines over 2026-11-01 onward | `@timestamp` date, `app` (orders / payments / shipping), `level` (DEBUG to ERROR), `message` text, `host`, `trace_id` |
+| `hs-orders` | 60 | `order_id`, `customer`, nested `items` (`sku`, `qty`), `total`, `status`, `created` |
+| `hs-products` | 24 | `sku`, `name` text, `category`, `price`, `stock`, `tags` |
+
+With Kibana up it also creates the data view `HyperStack logs`. In
+HyperStack, an `elasticsearch` connection: `http://<host>:9200`, user `elastic`
+and `$ELASTIC_PASSWORD`, or the API key. For the live test:
+`HS_ELASTIC=http://<host>:9200|elastic|$ELASTIC_PASSWORD`. To start over,
+remove just these two services and the volume: `docker compose rm -sf
+elasticsearch kibana && docker volume rm <project>_elastic-data`.
+
+## Apache Hop (profile `etl`)
+
+For the ETL activity (`docs/tools/etl.md`). Phase 1 needs no server: it reads
+`.hpl` and `.hwf` files. This service gives the **real Hop 2.20.0** to take
+them from and to run them: its image's entrypoint runs one pipeline and exits,
+so the compose service keeps it alive (`sleep infinity`).
+
+```bash
+docker compose --profile etl up -d hop
+./seed/seed-all.sh hop               # or just ./seed/seed-all.sh
+```
+
+The seed (`seed/seed-hop.sh`) copies Hop's own **sample project** out of the
+image to `.state/hop-samples` (pipelines, workflows and metadata: the files
+the activity's phase 1 is exercised against; they carry the Apache licence
+headers, which must stay if they are committed as fixtures, with their
+provenance beside them) and runs one sample pipeline with `hop-run.sh` to show
+the runtime works. Phase 2's Hop Server is not part of the kit yet.
+
 ## Fixtures (`fixtures/`)
 
 | File | Used for |
@@ -606,6 +661,7 @@ export HS_LDAP=ldap://$H:$LDAP_PORT HS_LDAP_PASSWORD=$LDAP_ADMIN_PASSWORD   # bi
 export HS_METABASE=http://$H:${METABASE_PORT:-3030}\|$(cat .state/metabase-api-key)
 export HS_METABASE_USER=$METABASE_ADMIN_EMAIL\|$METABASE_ADMIN_PASSWORD
 export HS_TABLEAU=http://$H:$TABLEAU_MOCK_PORT\|$TABLEAU_MOCK_SITE\|$TABLEAU_MOCK_USER\|$TABLEAU_MOCK_PASSWORD
+export HS_ELASTIC=http://$H:$ELASTIC_PORT\|elastic\|$ELASTIC_PASSWORD   # the ELK phase's live test, once written
 export HS_TABLEAU_PAT=http://$H:$TABLEAU_MOCK_PORT\|\|$TABLEAU_MOCK_PAT_NAME\|$TABLEAU_MOCK_PAT_SECRET
 ```
 
@@ -622,7 +678,7 @@ the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.
 On **your Linux box** only:
 
 ```bash
-docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy --profile bi down -v
+docker compose --profile core --profile queue --profile ci --profile k8s --profile idm --profile heavy --profile bi --profile elk --profile etl down -v
 rm -rf .state
 ```
 

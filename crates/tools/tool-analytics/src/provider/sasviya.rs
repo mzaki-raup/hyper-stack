@@ -271,6 +271,9 @@ impl BiProvider for SasViya {
             jobs: up.jobs,
             view_data: false,
             view_files: &[ViewFile::Image],
+            view_filters: false,
+            kpis: false,
+            extracts_keys: [""; 4],
         }
     }
 

@@ -225,6 +225,7 @@ pub fn testable(kind: &str) -> bool {
             | "tableau"
             | "sasviya"
             | "superset"
+            | "powerbi"
     )
 }
 
@@ -603,6 +604,7 @@ mod tests {
             "tableau",
             "sasviya",
             "superset",
+            "powerbi",
         ] {
             assert!(testable(k), "{k}");
         }

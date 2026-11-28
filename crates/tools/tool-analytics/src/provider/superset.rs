@@ -221,6 +221,9 @@ impl BiProvider for Superset {
             jobs: false,
             view_data: false,
             view_files: &[],
+            view_filters: false,
+            kpis: false,
+            extracts_keys: [""; 4],
         }
     }
 

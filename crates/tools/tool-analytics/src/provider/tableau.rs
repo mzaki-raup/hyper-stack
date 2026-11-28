@@ -230,6 +230,14 @@ impl BiProvider for Tableau {
             jobs: true,
             view_data: true,
             view_files: &ViewFile::ALL,
+            view_filters: true,
+            kpis: false,
+            extracts_keys: [
+                "analytics-kind-extracts",
+                "analytics-extracts-sub",
+                "analytics-extracts-tasks",
+                "analytics-extracts-tasks-empty",
+            ],
         }
     }
 
@@ -644,6 +652,7 @@ fn tasks_from(v: &Value, names: &HashMap<String, String>) -> Vec<ExtractTask> {
                 schedule: s(&t["schedule"], "name"),
                 frequency: s(&t["schedule"], "frequency"),
                 failed: number_of(&t["consecutiveFailedCount"]).unwrap_or(0) as u32,
+                ..Default::default()
             }
         })
         .collect()

@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 
 pub mod metabase;
+pub mod powerbi;
 pub mod sasviya;
 pub mod superset;
 pub mod tableau;
@@ -30,6 +31,13 @@ pub fn open(
             let mut cfg = fields.resolve_tableau(secrets, lookup)?;
             cfg.timeout = timeout;
             tableau::Tableau::new(cfg)
+                .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
+                .map_err(ProfileError::Invalid)
+        }
+        "powerbi" => {
+            let mut cfg = fields.resolve_powerbi(secrets, lookup)?;
+            cfg.timeout = timeout;
+            powerbi::PowerBi::new(cfg)
                 .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
                 .map_err(ProfileError::Invalid)
         }
@@ -156,6 +164,13 @@ pub struct Caps {
     pub view_data: bool,
     /// The files a view can be saved as.
     pub view_files: &'static [ViewFile],
+    /// A view takes filter fields (`vf_<field>=value`).
+    pub view_filters: bool,
+    /// KPIs can be read (Power BI Report Server).
+    pub kpis: bool,
+    /// The Fluent keys of the extract tasks page: its title, its one line,
+    /// its table's heading and its empty sentence.
+    pub extracts_keys: [&'static str; 4],
 }
 
 /// What a node of the browse tree or a search result is.
@@ -176,8 +191,11 @@ pub enum Kind {
     View,
     DataSource,
     Extracts,
-    /// SAS Viya: a report.
+    /// SAS Viya and Power BI Report Server: a report.
     Report,
+    /// Power BI Report Server: a `.pbix` report (details only) and a KPI.
+    PowerBi,
+    Kpi,
 }
 
 impl Kind {
@@ -205,13 +223,22 @@ impl Kind {
             Kind::DataSource => "datasource",
             Kind::Extracts => "extracts",
             Kind::Report => "report",
+            Kind::PowerBi => "powerbi",
+            Kind::Kpi => "kpi",
         }
     }
 
     pub fn from_tag(tag: &str) -> Option<Kind> {
         Kind::ALL
             .into_iter()
-            .chain([Kind::Workbook, Kind::View, Kind::DataSource, Kind::Report])
+            .chain([
+                Kind::Workbook,
+                Kind::View,
+                Kind::DataSource,
+                Kind::Report,
+                Kind::PowerBi,
+                Kind::Kpi,
+            ])
             .find(|k| k.tag() == tag)
     }
 
@@ -475,6 +502,24 @@ pub struct ExtractTask {
     pub frequency: String,
     /// Refreshes that failed in a row.
     pub failed: u32,
+    /// When it last ran and what it said, where the server tells (Power BI
+    /// Report Server's refresh plans).
+    pub last_run: String,
+    pub last_status: String,
+}
+
+/// A KPI: its value against its goal, how it stands, and its trend.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Kpi {
+    pub id: String,
+    pub name: String,
+    pub value: f64,
+    pub goal: f64,
+    /// `-1` bad, `0` neutral, `1` good, as the server writes it.
+    pub status: i32,
+    pub trend: Vec<f64>,
+    /// How the value is written (`Currency`, `Integer`, ...).
+    pub format: String,
 }
 
 /// One background job.
@@ -608,6 +653,10 @@ pub trait BiProvider: Send + Sync {
     /// The first rows of a table of a database (a CAS library's table), at
     /// most `limit`.
     async fn preview(&self, _database: &str, _table: &str, _limit: usize) -> Result<Table> {
+        Err(NOT_OFFERED.into())
+    }
+    /// A KPI's value, goal, status and trend.
+    async fn kpi(&self, _id: &str) -> Result<Kpi> {
         Err(NOT_OFFERED.into())
     }
     /// The extract refresh tasks.

@@ -129,6 +129,9 @@ impl BiProvider for Metabase {
             jobs: false,
             view_data: false,
             view_files: &[],
+            view_filters: false,
+            kpis: false,
+            extracts_keys: [""; 4],
         }
     }
 
@@ -326,7 +329,13 @@ impl BiProvider for Metabase {
                 return format!("{base}/browse/databases/{db}#table-{table}");
             }
             // Tableau's kinds are never this server's.
-            Kind::Workbook | Kind::View | Kind::DataSource | Kind::Extracts | Kind::Report => {
+            Kind::Workbook
+            | Kind::View
+            | Kind::DataSource
+            | Kind::Extracts
+            | Kind::Report
+            | Kind::PowerBi
+            | Kind::Kpi => {
                 return base.into();
             }
         };
@@ -371,7 +380,13 @@ fn model_of(k: Kind) -> &'static str {
         Kind::Dashboard => "dashboard",
         // Not items of a collection: never asked of the search.
         Kind::Database | Kind::Table => "",
-        Kind::Workbook | Kind::View | Kind::DataSource | Kind::Extracts | Kind::Report => "",
+        Kind::Workbook
+        | Kind::View
+        | Kind::DataSource
+        | Kind::Extracts
+        | Kind::Report
+        | Kind::PowerBi
+        | Kind::Kpi => "",
     }
 }
 

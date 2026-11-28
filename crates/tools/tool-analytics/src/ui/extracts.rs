@@ -30,6 +30,11 @@ pub struct Extracts {
     /// Which of the two lists this server has.
     show_tasks: bool,
     show_jobs: bool,
+    /// The Fluent keys of the tasks' title, line, heading and empty sentence.
+    keys: [&'static str; 4],
+    /// Whether the tasks carry when they last ran and what they said: those
+    /// two columns then stand where Frequency and Failed in a Row do.
+    with_last: bool,
     tasks: Part<Vec<Vec<String>>>,
     jobs: Part<Vec<Vec<String>>>,
     task_table: TableState,
@@ -46,14 +51,19 @@ fn result_text(job: &JobInfo) -> &'static str {
     }
 }
 
-fn task_row(t: &ExtractTask) -> Vec<String> {
+fn task_row(t: &ExtractTask, with_last: bool) -> Vec<String> {
+    let (a, b) = if with_last {
+        (t.last_run.clone(), t.last_status.clone())
+    } else {
+        (t.frequency.clone(), t.failed.to_string())
+    };
     vec![
         t.target_kind.clone(),
         t.target.clone(),
         t.kind.clone(),
         t.schedule.clone(),
-        t.frequency.clone(),
-        t.failed.to_string(),
+        a,
+        b,
     ]
 }
 
@@ -74,6 +84,8 @@ impl Extracts {
         let page = Extracts {
             show_tasks: caps.extracts,
             show_jobs: caps.jobs,
+            keys: caps.extracts_keys,
+            with_last: false,
             tasks: Part::Loading,
             jobs: Part::Loading,
             task_table: TableState::default(),
@@ -104,7 +116,10 @@ impl Extracts {
         };
         if let Some(r) = tasks {
             self.tasks = match r {
-                Ok(list) => Part::Ready(list.iter().map(task_row).collect()),
+                Ok(list) => {
+                    self.with_last = list.iter().any(|t| !t.last_run.is_empty());
+                    Part::Ready(list.iter().map(|t| task_row(t, self.with_last)).collect())
+                }
                 Err(e) => Part::Failed(e),
             };
         }
@@ -185,12 +200,12 @@ pub fn page(
         ui,
         theme,
         &s.t(if x.show_tasks {
-            "analytics-kind-extracts"
+            x.keys[0]
         } else {
             "analytics-kind-jobs"
         }),
         Some(&s.t(if x.show_tasks {
-            "analytics-extracts-sub"
+            x.keys[1]
         } else {
             "analytics-jobs-sub"
         })),
@@ -225,17 +240,28 @@ pub fn page(
         .show(ui, |ui| {
             if x.show_tasks {
                 let tasks = Section {
-                    title: s.t("analytics-extracts-tasks"),
+                    title: s.t(x.keys[2]),
                     part: &x.tasks,
-                    columns: vec![
-                        ColumnSpec::new(s.t("analytics-col-target-kind"), 120.0),
-                        ColumnSpec::new(s.t("analytics-col-target"), 220.0),
-                        ColumnSpec::new(s.t("analytics-col-type"), 160.0),
-                        ColumnSpec::new(s.t("analytics-col-schedule"), 140.0),
-                        ColumnSpec::new(s.t("analytics-col-frequency"), 110.0),
-                        ColumnSpec::new(s.t("analytics-col-failed"), 100.0).numeric(),
-                    ],
-                    empty: s.t("analytics-extracts-tasks-empty"),
+                    columns: if x.with_last {
+                        vec![
+                            ColumnSpec::new(s.t("analytics-col-target-kind"), 100.0),
+                            ColumnSpec::new(s.t("analytics-col-target"), 240.0),
+                            ColumnSpec::new(s.t("analytics-col-type"), 160.0),
+                            ColumnSpec::new(s.t("analytics-col-schedule"), 160.0),
+                            ColumnSpec::new(s.t("analytics-col-last-run"), 170.0),
+                            ColumnSpec::new(s.t("analytics-col-last-result"), 240.0),
+                        ]
+                    } else {
+                        vec![
+                            ColumnSpec::new(s.t("analytics-col-target-kind"), 120.0),
+                            ColumnSpec::new(s.t("analytics-col-target"), 220.0),
+                            ColumnSpec::new(s.t("analytics-col-type"), 160.0),
+                            ColumnSpec::new(s.t("analytics-col-schedule"), 140.0),
+                            ColumnSpec::new(s.t("analytics-col-frequency"), 110.0),
+                            ColumnSpec::new(s.t("analytics-col-failed"), 100.0).numeric(),
+                        ]
+                    },
+                    empty: s.t(x.keys[3]),
                     id: "analytics-extract-tasks",
                 };
                 section(ui, s, theme, &tasks, &mut x.task_table);
@@ -281,7 +307,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            task_row(&t),
+            task_row(&t, false),
             [
                 "Workbook",
                 "Regional Sales",

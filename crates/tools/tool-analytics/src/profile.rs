@@ -26,6 +26,7 @@ pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
         "tableau" => TABLEAU_AUTH_KINDS,
         "sasviya" => SASVIYA_AUTH_KINDS,
         "superset" => SUPERSET_AUTH_KINDS,
+        "powerbi" => POWERBI_AUTH_KINDS,
         _ => AUTH_KINDS,
     }
 }
@@ -42,6 +43,11 @@ pub const SUPERSET_AUTH_KINDS: &[&str] = &["password", "token"];
 
 /// The security providers Superset's login takes.
 pub const SUPERSET_PROVIDERS: &[&str] = &["db", "ldap"];
+
+/// The credential kinds Power BI Report Server takes here: a username and
+/// password, sent as HTTP Basic (`DOMAIN\user` for a domain account). NTLM
+/// and the current Windows user are not built.
+pub const POWERBI_AUTH_KINDS: &[&str] = &["password"];
 
 /// The header Metabase reads an API key from.
 pub const API_KEY_HEADER: &str = "x-api-key";
@@ -63,6 +69,7 @@ pub fn default_url(kind: &str) -> &'static str {
         "tableau" => "http://127.0.0.1:8280",
         "sasviya" => "http://127.0.0.1:8380",
         "superset" => "http://127.0.0.1:8188",
+        "powerbi" => "http://127.0.0.1:8480",
         _ => "",
     }
 }
@@ -115,6 +122,17 @@ impl std::fmt::Display for ProfileError {
             ProfileError::Invalid(e) => f.write_str(e),
         }
     }
+}
+
+/// A profile resolved for Power BI Report Server.
+#[derive(Debug, Clone)]
+pub struct PowerBiConfig {
+    /// The web portal root, without `/reports`.
+    pub url: String,
+    /// `Auth::Password`, sent as HTTP Basic.
+    pub auth: Auth,
+    pub tls: Tls,
+    pub timeout: Duration,
 }
 
 /// A profile resolved for Apache Superset.
@@ -230,6 +248,36 @@ impl AnalyticsFields {
             hs_core::connections::kind_label(kind),
             short(&self.url)
         )
+    }
+
+    /// Resolve variables and the vault secret into Power BI Report Server's
+    /// config.
+    pub fn resolve_powerbi(
+        &self,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<PowerBiConfig, ProfileError> {
+        let url = self.resolve_url(lookup)?;
+        let auth = self
+            .credential
+            .clone()
+            .allowed(POWERBI_AUTH_KINDS)
+            .resolve(secrets, lookup)
+            .map_err(|e| match e {
+                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+                other => ProfileError::Auth(other),
+            })?;
+        if !matches!(&auth, Auth::Password { user, .. } if !user.trim().is_empty()) {
+            return Err(ProfileError::Invalid(
+                "Enter the username (DOMAIN\\user for a domain account) and password.".into(),
+            ));
+        }
+        Ok(PowerBiConfig {
+            url,
+            auth,
+            tls: self.tls(),
+            timeout: TIMEOUT,
+        })
     }
 
     /// Resolve variables and the vault secret into Superset's config.
@@ -693,6 +741,31 @@ mod tests {
         assert!(matches!(
             token.resolve_superset(&NoVault, &no_vars).unwrap().auth,
             Auth::Token { .. }
+        ));
+    }
+
+    #[test]
+    fn a_power_bi_profile_needs_a_user_and_a_password() {
+        let mut table = toml::Table::new();
+        let f = AnalyticsFields::from_table("powerbi", &table);
+        assert_eq!(f.url, "http://127.0.0.1:8480");
+        assert_eq!(f.credential.auth, "password");
+        let mut set = f.clone();
+        set.credential = Credential {
+            auth: "password".into(),
+            user: "BENCH\\dev".into(),
+            secret: "pw".into(),
+            ..Default::default()
+        };
+        set.write_into(&mut table);
+        let back = AnalyticsFields::from_table("powerbi", &table);
+        let cfg = back.resolve_powerbi(&NoVault, &no_vars).expect("resolves");
+        assert!(matches!(&cfg.auth, Auth::Password { user, .. } if user == "BENCH\\dev"));
+        let mut nameless = back;
+        nameless.credential.user = "  ".into();
+        assert!(matches!(
+            nameless.resolve_powerbi(&NoVault, &no_vars),
+            Err(ProfileError::Invalid(_))
         ));
     }
 

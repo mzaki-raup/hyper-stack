@@ -7,6 +7,7 @@ mod browse;
 mod dashboard;
 mod editor;
 mod extracts;
+mod kpi;
 mod open_db;
 mod preview;
 mod question;
@@ -103,6 +104,8 @@ pub struct AnalyticsTool {
     extracts: Option<extracts::Extracts>,
     /// The picked CAS table's row preview.
     preview: Option<preview::Preview>,
+    /// The picked KPI's page.
+    kpi: Option<kpi::KpiPage>,
     assistant: hs_ui::ai_assistant::AssistantPanel,
 }
 
@@ -117,6 +120,7 @@ impl AnalyticsTool {
         self.view = None;
         self.extracts = None;
         self.preview = None;
+        self.kpi = None;
         self.conn_error = None;
         self.waiting_for_vault = false;
         let Some(id) = self.state.conn_id.clone() else {

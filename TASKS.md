@@ -376,16 +376,16 @@ Change Request : CR-0103
 - [ ] Docs: spec · README · CHANGELOG · GOTCHAS
 
 ### FEAT-0137 · Analytics: the Power BI Report Server provider
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.10, §5.4 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.10, §5.4 · **Phase:** Q
 - **Source:** owner, 2026-11-26; answered *Power BI Report Server* (the on-premises product)
 - **Scope:** kind `powerbi`; Basic or NTLM with a username and password, and on Windows the current user (SSPI); folders, Power BI reports, paginated reports, KPIs, data sources and datasets through REST API v2.0 with OData paging and search; a paginated report's picture and CSV; a .pbix as details with Open Interactive in the Browser activity; KPI tiles; data sources with secrets masked and refresh plans, read-only; version from `/System`
 - **Depends on:** FEAT-0131
-- [ ] Provider and screens, read-only
-- [ ] Test: a mock from the REST API reference (`bench/mock/powerbirs`); the masking of a connection string; a read-only live test gated on `HS_POWERBIRS`
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Provider and screens, read-only — HTTP Basic only: NTLM and the current Windows user (SSPI) are not built (see Notes)
+- [x] Test: a mock from the REST API reference (`bench/mock/powerbirs`); the masking of a connection string; a read-only live test gated on `HS_POWERBIRS` — 2026-11-28: unit tests for the profile, the tree from paths, the masking, KPIs and refresh plans; `powerbi_live` against the bench mock
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-28: each step alone, its exit code read: all 0
 - [ ] App: `--data-dir ./tmp-data` — the bench mock, then the owner's server: browse, a paginated report's picture, KPIs, the refresh plans
-- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
-- **Notes:** NTLM needs a client that speaks it (to be chosen; an ADR and a `cargo deny` pass if a crate is added); Power BI Service is not covered.
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS (no new mistake to record)
+- **Notes:** NTLM and the current Windows user are **not built**: they need a client that speaks NTLM (an ADR and a `cargo deny` pass if a crate is added), so this item is not Completed until they are built or the owner drops them; Power BI Service is not covered. The App box is open: the owner has declined screen access.
 
 ### FEAT-0143 · Analytics: chart polish for questions
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.3, §4.4 · **Phase:** Q

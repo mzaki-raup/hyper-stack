@@ -493,6 +493,33 @@ the catalogue, its data sources and KPIs, with **Open Interactive**.
   last result (`CacheRefreshPlans`, read-only; no Refresh Now).
 - **Version gating**: `GET /reports/api/v2.0/System` names the product and
   version; v2.0 calls a build lacks are drawn disabled with the reason.
+- **As built (FEAT-0137).** Kind `powerbi`; Settings has the portal root
+  (without `/reports`), a username (`DOMAIN\user` for a domain account)
+  and password sent as **HTTP Basic**, TLS and a CA file, with a hint that
+  over plain http the password travels in the clear. **NTLM and the
+  current Windows user (SSPI) are not built**: they need a client that
+  speaks NTLM, which is an ADR and a `cargo deny` pass of its own, so a
+  server that takes only Windows authentication is told so. `connect`
+  reads `System` for the product and version (15 and later is supported)
+  and one catalogue page to prove the credentials. The catalogue is read
+  once (`CatalogItems` and `DataSources`, paged with `$top` / `$skip`) and
+  the **tree is built from the items' paths**: folders, then each folder's
+  Power BI reports, paginated reports, KPIs and data sources by name;
+  datasets, mobile reports and resources are not listed. Search is
+  `$filter=contains(Name,'x')` with `$count`, narrowed by kind. A
+  **paginated report** has the view page without filter fields: its
+  picture (`Export/IMAGE`), its data (`Export/CSV` in a table), Save
+  Picture and Save Data, Open Interactive (`/reports/report/<path>`) and
+  Copy Link; a **Power BI report** is its details with Open in Browser
+  (`/reports/powerbi/<path>`) because the server has no picture or data
+  API for it. A **KPI** has its page: value in its format, goal, status
+  (good, neutral, bad), a progress bar and the trend as a line. A **data
+  source** shows its connection string with the values of Password, Pwd,
+  Secret, Token, Account Key, Shared Access Key and API Key hidden. The
+  **Refresh Plans** entry lists the cache refresh plans with their
+  schedule, when each last ran and what it said, read-only. The endpoints
+  are from Microsoft's reference and the bench mock, unconfirmed against a
+  real Report Server.
 - Testing has no container: Report Server is a licensed Windows Server
   product. The bench has a **mock** (`bench/mock/powerbirs`), and a
   read-only live test may run against the owner's server when

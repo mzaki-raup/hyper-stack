@@ -11054,6 +11054,7 @@ fn analytics_form(
     let tableau = draft.kind == "tableau";
     let sas = draft.kind == "sasviya";
     let superset = draft.kind == "superset";
+    let powerbi = draft.kind == "powerbi";
     let mut changed = false;
     form::section(ui, theme, &s.t("conn-analytics-section"), |ui| {
         form::field_grid(ui, "analytics-server", |ui| {
@@ -11074,6 +11075,8 @@ fn analytics_form(
                     "conn-analytics-url-hint-sas"
                 } else if superset {
                     "conn-analytics-url-hint-superset"
+                } else if powerbi {
+                    "conn-analytics-url-hint-powerbi"
                 } else {
                     "conn-analytics-url-hint"
                 }),
@@ -11111,7 +11114,14 @@ fn analytics_form(
                 });
             ui.end_row();
             if c.auth == "password" {
-                form::label(ui, &s.t("conn-analytics-user"));
+                form::label(
+                    ui,
+                    &s.t(if powerbi {
+                        "conn-analytics-username"
+                    } else {
+                        "conn-analytics-user"
+                    }),
+                );
                 changed |= form::text_field(ui, &mut c.user, "admin@example.com").changed();
                 ui.end_row();
                 form::label(ui, &s.t("conn-queue-password"));
@@ -11131,6 +11141,7 @@ fn analytics_form(
             ui.end_row();
             let is_password = c.auth == "password";
             let hint = match (is_password, tableau, sas) {
+                (true, _, _) if powerbi => "conn-analytics-hint-password-powerbi",
                 (true, _, _) if superset => "conn-analytics-hint-password-superset",
                 (false, _, _) if superset => "conn-analytics-hint-access-token-superset",
                 (true, _, true) => "conn-analytics-hint-password-sas",

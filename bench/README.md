@@ -667,14 +667,15 @@ export HS_SASVIYA_TOKEN=http://$H:$SASVIYA_MOCK_PORT\|$SASVIYA_MOCK_TOKEN
 export HS_SUPERSET=http://$H:$SUPERSET_PORT\|db\|$SUPERSET_ADMIN_USER\|$SUPERSET_ADMIN_PASSWORD
 # A Superset access token lasts about 15 minutes: fetch one just before the run.
 export HS_SUPERSET_TOKEN=http://$H:$SUPERSET_PORT\|$(curl -s -X POST http://$H:$SUPERSET_PORT/api/v1/security/login -H 'Content-Type: application/json' -d "{\"username\":\"$SUPERSET_ADMIN_USER\",\"password\":\"$SUPERSET_ADMIN_PASSWORD\",\"provider\":\"db\"}" | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+export HS_POWERBIRS=http://$H:$POWERBIRS_MOCK_PORT\|$POWERBIRS_MOCK_USER\|$POWERBIRS_MOCK_PASSWORD
 export HS_TABLEAU_PAT=http://$H:$TABLEAU_MOCK_PORT\|\|$TABLEAU_MOCK_PAT_NAME\|$TABLEAU_MOCK_PAT_SECRET
 ```
 
 The Analytics values hold `|`, so they are quoted or escaped as above. Run
 them with `cargo test -p tool-analytics --test metabase_live` and
-`--test tableau_live`, `--test sasviya_live` and `--test superset_live`; the
-Grafana and Power BI Report Server services have no test until their providers
-are built.
+`--test tableau_live`, `--test sasviya_live`, `--test superset_live` and
+`--test powerbi_live`; the Grafana services have no test until its provider is
+built.
 
 (The `.state/` files live on the Linux box; copy the values across.) Note
 the bench's MySQL is on `3307` (`MYSQL_PORT`), not the usual `3306`.

@@ -345,7 +345,7 @@ pub fn page(
         }
     });
     ui.add_space(form::ROW_GAP);
-    if caps.view_data {
+    if caps.view_filters {
         form::centred_row_wrapped(ui, |ui| {
             ui.label(s.t("analytics-view-filters"));
             let w = ui

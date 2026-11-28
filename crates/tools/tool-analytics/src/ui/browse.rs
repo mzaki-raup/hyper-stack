@@ -102,6 +102,8 @@ fn glyph(k: Kind) -> &'static str {
         Kind::DataSource => ph::DATABASE,
         Kind::Extracts => ph::ARROWS_CLOCKWISE,
         Kind::Report => ph::CHART_BAR,
+        Kind::PowerBi => ph::CHART_PIE_SLICE,
+        Kind::Kpi => ph::GAUGE,
     }
 }
 
@@ -120,6 +122,8 @@ fn picture_word(k: Kind) -> &'static str {
         Kind::DataSource => "database",
         Kind::Extracts => "history",
         Kind::Report => "view",
+        Kind::PowerBi => "view",
+        Kind::Kpi => "field",
     }
 }
 
@@ -580,7 +584,7 @@ impl Browse {
             }
             if needle.is_empty() && (caps.extracts || caps.jobs) {
                 let key = if caps.extracts {
-                    "analytics-kind-extracts"
+                    caps.extracts_keys[0]
                 } else {
                     "analytics-kind-jobs"
                 };

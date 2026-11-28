@@ -7,7 +7,7 @@ use hs_ui::icons::ph;
 use hs_ui::theme::Theme;
 use hs_ui::tip::TipExt;
 
-use super::{AnalyticsTool, board, extracts, preview, question, sql, view};
+use super::{AnalyticsTool, board, extracts, kpi, preview, question, sql, view};
 use crate::provider::Support;
 use crate::session::Status;
 
@@ -141,6 +141,9 @@ pub fn body(tool: &mut AnalyticsTool, ui: &mut egui::Ui, cx: &mut ToolContext) {
             ) =>
         {
             view::page(&mut tool.view, ui, cx, &theme, &provider, &node)
+        }
+        Some(node) if node.kind == crate::provider::Kind::Kpi => {
+            kpi::page(&mut tool.kpi, ui, cx, &theme, &provider, &node)
         }
         Some(node) if node.kind == crate::provider::Kind::Extracts => {
             extracts::page(&mut tool.extracts, ui, cx, &theme, &provider)

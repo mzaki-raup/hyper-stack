@@ -11053,6 +11053,7 @@ fn analytics_form(
     let mut f = AnalyticsFields::from_table(&draft.kind, &draft.fields);
     let tableau = draft.kind == "tableau";
     let sas = draft.kind == "sasviya";
+    let superset = draft.kind == "superset";
     let mut changed = false;
     form::section(ui, theme, &s.t("conn-analytics-section"), |ui| {
         form::field_grid(ui, "analytics-server", |ui| {
@@ -11071,6 +11072,8 @@ fn analytics_form(
                     "conn-analytics-url-hint-tableau"
                 } else if sas {
                     "conn-analytics-url-hint-sas"
+                } else if superset {
+                    "conn-analytics-url-hint-superset"
                 } else {
                     "conn-analytics-url-hint"
                 }),
@@ -11112,7 +11115,7 @@ fn analytics_form(
                 changed |= form::text_field(ui, &mut c.user, "admin@example.com").changed();
                 ui.end_row();
                 form::label(ui, &s.t("conn-queue-password"));
-            } else if sas {
+            } else if sas || superset {
                 form::label(ui, &s.t("conn-analytics-access-token"));
             } else if tableau {
                 // A Personal Access Token is a name and a secret: the
@@ -11128,6 +11131,8 @@ fn analytics_form(
             ui.end_row();
             let is_password = c.auth == "password";
             let hint = match (is_password, tableau, sas) {
+                (true, _, _) if superset => "conn-analytics-hint-password-superset",
+                (false, _, _) if superset => "conn-analytics-hint-access-token-superset",
                 (true, _, true) => "conn-analytics-hint-password-sas",
                 (false, _, true) => "conn-analytics-hint-access-token",
                 (true, true, _) => "conn-analytics-hint-password-tableau",
@@ -11136,6 +11141,28 @@ fn analytics_form(
                 (false, false, _) => "conn-analytics-hint-key",
             };
             form::row_hint(ui, theme, &s.t(hint));
+            if superset && is_password {
+                // The security provider the login names, in the header field.
+                form::label(ui, &s.t("conn-analytics-provider"));
+                let provider = if f.credential.header.trim().is_empty() {
+                    "db".to_string()
+                } else {
+                    f.credential.header.trim().to_lowercase()
+                };
+                egui::ComboBox::from_id_salt("analytics-superset-provider")
+                    .width(form::FIELD_MIN_WIDTH)
+                    .selected_text(provider.clone())
+                    .show_ui(ui, |ui| {
+                        for p in tool_analytics::profile::SUPERSET_PROVIDERS {
+                            if form::selectable_label(ui, provider == *p, *p).clicked() {
+                                f.credential.header = (*p).to_string();
+                                changed = true;
+                            }
+                        }
+                    });
+                ui.end_row();
+                form::row_hint(ui, theme, &s.t("conn-analytics-provider-hint"));
+            }
             if sas && is_password {
                 // The registered OAuth client the password grant goes through.
                 form::label(ui, &s.t("conn-analytics-client-id"));

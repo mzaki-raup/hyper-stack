@@ -11,7 +11,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · Versioning:
 
 ## Unreleased
 
-- (nothing yet)
+### Added
+
+- Analytics: an Apache Superset provider: dashboards and charts, a chart drawn from its saved query context, a dashboard on its grid with native select filters, databases with their datasets and a read-only SQL Lab, signed in by username and password (db or ldap) or an access token (FEAT-0134)
 
 ## 0.146.0 — 2026-11-27
 

@@ -540,6 +540,38 @@ as Metabase's are (REST API v1, `/api/v1`).
   in its bootstrap data only; the provider reads what it can and
   otherwise shows the version as unknown and probes each endpoint once.
   Superset 3.x and 4.x are the targets; the bench runs 4.1.
+- **As built (FEAT-0134).** Kind `superset`; Settings has the Server URL,
+  the **Security Provider** (`db` or `ldap`, kept in the credential's
+  header field), a username and password or an **access token**, TLS and
+  a CA file. Sign-in is `/security/login` with a refresh token; a request
+  refused with 401 is retried once after `/security/refresh`. The version
+  is not read (it shows as unknown), and who is signed in is the user
+  typed. The tree is two lists, **Dashboards** and **Charts**, and a
+  **Databases** section: each database with its datasets as the tables
+  (columns read for the first 30), the address for Open in Database taken
+  from `/database/{id}/connection` (Superset 4.1 gives a connection string
+  only there; its password, which Superset masks, is never kept). A chart
+  is the question page: `GET /chart/{id}/data/` run from the saved query
+  context, drawn by the shared chart code (line, area, bar, scatter, pie,
+  big number, gauge; a pivot table as a table; any other kind as its table
+  with Open in Browser), with the compiled SQL as the SQL view and Export
+  to CSV and JSON (Excel is not offered). Superset 4.1 leaves
+  `datasource_id` null on `GET /chart/{id}`, so a chart's dataset, and so
+  its database, comes from its query context or its params. A dashboard
+  is laid out from `position_json` (rows and tabs; charts, markdown and
+  headers) on Superset's 12 columns drawn on this tab's 24, a height unit
+  of 8 px becoming 56 px grid rows. Its **native select filters** are
+  fields with a value list (a group-by over the filter's column) and Apply:
+  a value reaches the charts of the filter's dataset by adding an `IN`
+  filter to the chart's query context in a `POST /chart/data` (a read).
+  SQL Lab is `POST /sqllab/execute/` with `queryLimit` = Rows per Run;
+  a statement must start with `SELECT`, `WITH`, `SHOW`, `DESCRIBE`,
+  `EXPLAIN` or `VALUES`, comments and one trailing semicolon are ignored,
+  a second statement is refused, and all of that is checked before
+  anything is sent. Not built: time and range native filters, filter
+  scoping, a chart with no saved query context (it says to save it once in
+  Superset; building one from the params is not done), and datasets as
+  items of their own.
 
 ### 4.12 Grafana (phase 3, specified, not built now)
 

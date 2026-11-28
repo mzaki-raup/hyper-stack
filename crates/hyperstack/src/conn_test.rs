@@ -224,6 +224,7 @@ pub fn testable(kind: &str) -> bool {
             | "metabase"
             | "tableau"
             | "sasviya"
+            | "superset"
     )
 }
 
@@ -601,6 +602,7 @@ mod tests {
             "metabase",
             "tableau",
             "sasviya",
+            "superset",
         ] {
             assert!(testable(k), "{k}");
         }

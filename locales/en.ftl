@@ -5326,6 +5326,11 @@ conn-analytics-client-secret = Client Secret
 conn-analytics-client-hint = The registered client SAS Logon signs you in through. sas.cli is the usual one, with an empty secret where the site allows it.
 conn-analytics-hint-password-sas = A username and password of the Viya site, signed in through SAS Logon; the token lives in memory and is renewed while the tab is open.
 conn-analytics-hint-access-token = An access token pasted in where the site signs people in through single sign-on, kept in the vault. It is not renewed.
+conn-analytics-url-hint-superset = Superset's root, for example https://superset.example.com, without /api.
+conn-analytics-provider = Security Provider
+conn-analytics-provider-hint = db for Superset's own users, ldap where the server signs people in through a directory.
+conn-analytics-hint-password-superset = A username and password of Superset; a token is fetched for the tab and renewed while it is open. Superset has no long-lived API key.
+conn-analytics-hint-access-token-superset = An access token pasted in where the site signs people in through OAuth or single sign-on, kept in the vault. It lasts about 15 minutes and is not renewed.
 conn-analytics-hint-key = A Metabase API key (Metabase 0.49 or newer), kept in the vault. Create it under Admin → Settings → Authentication → API Keys.
 
 ## Identity server connection form

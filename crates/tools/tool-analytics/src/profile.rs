@@ -25,6 +25,7 @@ pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
     match kind {
         "tableau" => TABLEAU_AUTH_KINDS,
         "sasviya" => SASVIYA_AUTH_KINDS,
+        "superset" => SUPERSET_AUTH_KINDS,
         _ => AUTH_KINDS,
     }
 }
@@ -33,6 +34,14 @@ pub fn auth_kinds(kind: &str) -> &'static [&'static str] {
 /// registered OAuth client (SAS Logon), or an access token pasted in where
 /// the site signs people in through single sign-on.
 pub const SASVIYA_AUTH_KINDS: &[&str] = &["password", "token"];
+
+/// The credential kinds Superset takes: a username and password (with the
+/// security provider, `db` or `ldap`, in the credential's header field), or
+/// an access token pasted in where the site signs people in through OAuth.
+pub const SUPERSET_AUTH_KINDS: &[&str] = &["password", "token"];
+
+/// The security providers Superset's login takes.
+pub const SUPERSET_PROVIDERS: &[&str] = &["db", "ldap"];
 
 /// The header Metabase reads an API key from.
 pub const API_KEY_HEADER: &str = "x-api-key";
@@ -53,6 +62,7 @@ pub fn default_url(kind: &str) -> &'static str {
         "metabase" => "http://127.0.0.1:3030",
         "tableau" => "http://127.0.0.1:8280",
         "sasviya" => "http://127.0.0.1:8380",
+        "superset" => "http://127.0.0.1:8188",
         _ => "",
     }
 }
@@ -105,6 +115,18 @@ impl std::fmt::Display for ProfileError {
             ProfileError::Invalid(e) => f.write_str(e),
         }
     }
+}
+
+/// A profile resolved for Apache Superset.
+#[derive(Debug, Clone)]
+pub struct SupersetConfig {
+    pub url: String,
+    /// `Auth::Password` or `Auth::Token`.
+    pub auth: Auth,
+    /// The security provider the login names: `db` or `ldap`.
+    pub provider: String,
+    pub tls: Tls,
+    pub timeout: Duration,
 }
 
 /// A profile resolved for SAS Viya.
@@ -208,6 +230,46 @@ impl AnalyticsFields {
             hs_core::connections::kind_label(kind),
             short(&self.url)
         )
+    }
+
+    /// Resolve variables and the vault secret into Superset's config.
+    pub fn resolve_superset(
+        &self,
+        secrets: &dyn SecretStore,
+        lookup: &dyn Fn(&str) -> Result<String, Vec<String>>,
+    ) -> Result<SupersetConfig, ProfileError> {
+        let url = self.resolve_url(lookup)?;
+        let auth = self
+            .credential
+            .clone()
+            .allowed(SUPERSET_AUTH_KINDS)
+            .resolve(secrets, lookup)
+            .map_err(|e| match e {
+                AuthError::MissingVariables(v) => ProfileError::MissingVariables(v),
+                other => ProfileError::Auth(other),
+            })?;
+        if !matches!(auth, Auth::Password { .. } | Auth::Token { .. }) {
+            return Err(ProfileError::Invalid(
+                "Choose how to sign in: a username and password, or an access token.".into(),
+            ));
+        }
+        let provider = self.credential.header.trim().to_lowercase();
+        let provider = if provider.is_empty() {
+            SUPERSET_PROVIDERS[0].to_string()
+        } else if SUPERSET_PROVIDERS.contains(&provider.as_str()) {
+            provider
+        } else {
+            return Err(ProfileError::Invalid(
+                "The security provider is db or ldap.".into(),
+            ));
+        };
+        Ok(SupersetConfig {
+            url,
+            auth,
+            provider,
+            tls: self.tls(),
+            timeout: TIMEOUT,
+        })
     }
 
     /// Resolve variables and the vault secrets into SAS Viya's config.
@@ -587,6 +649,49 @@ mod tests {
         };
         assert!(matches!(
             token.resolve_sasviya(&NoVault, &no_vars).unwrap().auth,
+            Auth::Token { .. }
+        ));
+    }
+
+    #[test]
+    fn a_superset_profile_resolves_its_provider_and_a_password_or_a_token() {
+        let mut table = toml::Table::new();
+        let f = AnalyticsFields::from_table("superset", &table);
+        assert_eq!(f.url, "http://127.0.0.1:8188");
+        assert_eq!(f.credential.auth, "password");
+        let mut set = f.clone();
+        set.credential = Credential {
+            auth: "password".into(),
+            user: "admin".into(),
+            secret: "pw".into(),
+            header: "LDAP".into(),
+        };
+        set.write_into(&mut table);
+        let back = AnalyticsFields::from_table("superset", &table);
+        let cfg = back.resolve_superset(&NoVault, &no_vars).expect("resolves");
+        assert_eq!(cfg.provider, "ldap", "written without case");
+        assert!(matches!(cfg.auth, Auth::Password { .. }));
+        // No provider means db.
+        let mut plain = back.clone();
+        plain.credential.header.clear();
+        assert_eq!(
+            plain.resolve_superset(&NoVault, &no_vars).unwrap().provider,
+            "db"
+        );
+        let mut odd = back.clone();
+        odd.credential.header = "oauth".into();
+        assert!(matches!(
+            odd.resolve_superset(&NoVault, &no_vars),
+            Err(ProfileError::Invalid(_))
+        ));
+        let mut token = back;
+        token.credential = Credential {
+            auth: "token".into(),
+            secret: "jwt".into(),
+            ..Default::default()
+        };
+        assert!(matches!(
+            token.resolve_superset(&NoVault, &no_vars).unwrap().auth,
             Auth::Token { .. }
         ));
     }

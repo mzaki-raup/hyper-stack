@@ -6,6 +6,7 @@ use async_trait::async_trait;
 
 pub mod metabase;
 pub mod sasviya;
+pub mod superset;
 pub mod tableau;
 
 use std::sync::Arc;
@@ -29,6 +30,13 @@ pub fn open(
             let mut cfg = fields.resolve_tableau(secrets, lookup)?;
             cfg.timeout = timeout;
             tableau::Tableau::new(cfg)
+                .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
+                .map_err(ProfileError::Invalid)
+        }
+        "superset" => {
+            let mut cfg = fields.resolve_superset(secrets, lookup)?;
+            cfg.timeout = timeout;
+            superset::Superset::new(cfg)
                 .map(|p| Arc::new(p) as Arc<dyn BiProvider>)
                 .map_err(ProfileError::Invalid)
         }

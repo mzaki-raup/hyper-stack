@@ -341,16 +341,16 @@ Change Request : CR-0103
 - **Notes:** the endpoints are from the reference, unconfirmed against a real Viya; the bench mock is in `bench/mock/sasviya`. The App box is open: the owner has declined screen access.
 
 ### FEAT-0134 · Analytics: the Apache Superset provider
-- **State:** Pending · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q
+- **State:** In-Progress · **Spec:** docs/tools/analytics.md §4.11, §5.5 · **Phase:** Q
 - **Source:** owner, 2026-11-26: "Add power bi, apache Superset and grafana to analytic activity"
 - **Scope:** kind `superset`; login with a username and password (db or ldap) or a pasted access token; dashboards, charts, datasets and databases as sections; a chart's rows from `/chart/{id}/data/` drawn through Metabase's chart code; a dashboard on Superset's 12-column grid with its native filters; read-only SQL Lab with Open in Database
 - **Depends on:** FEAT-0129
-- [ ] Provider and screens, read-only
-- [ ] Test: recorded answers per chart kind; the SELECT-only guard; live sign-in gated on `HS_SUPERSET`; the data-folder grep
-- [ ] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test
+- [x] Provider and screens, read-only
+- [x] Test: recorded answers per chart kind; the SELECT-only guard; live sign-in gated on `HS_SUPERSET`; the data-folder grep — 2026-11-28: unit tests for the profile, the parsers, the layout, the filters and the SELECT-only guard; `superset_live` passes against the bench's real Superset 4.1 by password, by token and on a wrong password (a chart of each kind, the dashboard with its Region filter reaching a chart, SQL Lab, the refused write); no secret is written to the vault by these tests, so there is no data folder to grep
+- [x] Gate: fmt · clippy -D warnings · test --workspace -j 4 · deny · --self-test — 2026-11-28: each run on its own with its exit code read: all pass
 - [ ] App: `--data-dir ./tmp-data` — the bench Superset: a chart of each kind, the dashboard with a filter, a SQL Lab query
-- [ ] Docs: spec · README · CHANGELOG · GOTCHAS
-- **Notes:** the bench runs the real Superset (`bench/` profile `bi`).
+- [x] Docs: spec · README · CHANGELOG · GOTCHAS (Superset 4.1 leaves `datasource_id` null on a chart and gives a database's address only at `/connection`: recorded in the spec)
+- **Notes:** the bench runs the real Superset (`bench/` profile `bi`). The App box is open: the owner has declined screen access.
 
 ### FEAT-0135 · Analytics: the Grafana provider and `hs_core::grafana`
 - **State:** Pending · **Spec:** docs/tools/analytics.md §4.12, §5.6 · **Phase:** Q

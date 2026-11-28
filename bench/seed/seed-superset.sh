@@ -2,7 +2,7 @@
 # Apache Superset: a bench database (a SQLite file the script makes inside the
 # container, with a sales table of 400 rows), one dataset over it, charts of
 # kinds table, line, bar, pie and big number, and the dashboard "HyperStack
-# Overview". Everything goes over the REST API with a bearer token (CSRF is off
+# Overview" with a Region select filter. Everything goes over the REST API with a bearer token (CSRF is off
 # in config/superset). A re-run skips what exists.
 # Needs python3 beside curl; the SQLite file is made with the container's own
 # python.
@@ -65,7 +65,27 @@ def find(kind, column, value):
     return hit[0]["id"] if hit else None
 
 
+def ensure_filter():
+    """The dashboard's native filter (Region, a select over sales.region), added
+    to a dashboard made before it existed too."""
+    dash_id = find("dashboard", "dashboard_title", "HyperStack Overview")
+    ds_id = find("dataset", "table_name", "sales")
+    d = call("GET", f"/api/v1/dashboard/{dash_id}", token=token)["result"]
+    meta = json.loads(d.get("json_metadata") or "{}")
+    if meta.get("native_filter_configuration"):
+        return
+    meta["native_filter_configuration"] = [{
+        "id": "NATIVE_FILTER-region", "name": "Region", "filterType": "filter_select",
+        "targets": [{"datasetId": ds_id, "column": {"name": "region"}}],
+        "controlValues": {"multiSelect": False, "enableEmptyFilter": False},
+        "defaultDataMask": {"filterState": {}}, "cascadeParentIds": [], "scope": {"rootPath": ["ROOT_ID"], "excluded": []},
+        "type": "NATIVE_FILTER"}]
+    call("PUT", f"/api/v1/dashboard/{dash_id}", {"json_metadata": json.dumps(meta)}, token)
+    print("[superset] the Region filter added to the dashboard")
+
+
 if find("dashboard", "dashboard_title", "HyperStack Overview"):
+    ensure_filter()
     print("[superset] demo content exists - skipped")
     sys.exit(0)
 
@@ -135,5 +155,6 @@ position = {
 call("PUT", f"/api/v1/dashboard/{dash}", {
     "position_json": json.dumps(position),
     "json_metadata": json.dumps({"native_filter_configuration": [], "refresh_frequency": 0})}, token)
-print("[superset] database, dataset, 5 charts and the dashboard created")
+ensure_filter()
+print("[superset] database, dataset, 5 charts, the dashboard and its Region filter created")
 PY

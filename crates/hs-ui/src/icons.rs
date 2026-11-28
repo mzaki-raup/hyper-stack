@@ -247,6 +247,7 @@ pub fn connection_icon(kind: &str, engine: &str) -> &'static str {
         "metabase" => ph::CHART_BAR,
         "tableau" => ph::CHART_BAR,
         "sasviya" => ph::CHART_BAR,
+        "superset" => ph::CHART_BAR,
         // A directory: no product logo for LDAP itself, so its tree in
         // OpenLDAP's blue (§3.6).
         "ldap" => ph::TREE_STRUCTURE,
@@ -469,6 +470,10 @@ pub static PRODUCT_LOGOS: &[(&str, &[u8])] = &[
     (
         "bytes://product/sasviya.svg",
         include_bytes!("../../../assets/icons/simple/sasviya.svg"),
+    ),
+    (
+        "bytes://product/superset.svg",
+        include_bytes!("../../../assets/icons/simple/superset.svg"),
     ),
     (
         "bytes://product/amazons3.svg",
@@ -854,6 +859,7 @@ fn product_logo(kind: &str, engine: &str) -> Option<&'static str> {
         "metabase" => "metabase",
         "tableau" => "tableau",
         "sasviya" => "sasviya",
+        "superset" => "superset",
         "s3" => "amazons3",
         "jira" => "jira",
         "confluence" => "confluence",
@@ -1653,6 +1659,7 @@ mod tests {
             ("metabase", "metabase"),
             ("tableau", "tableau"),
             ("sasviya", "sasviya"),
+            ("superset", "superset"),
         ] {
             assert_eq!(
                 conn_icon(k, "").image.map(str::to_owned),

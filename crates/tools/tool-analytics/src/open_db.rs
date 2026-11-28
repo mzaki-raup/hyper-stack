@@ -15,9 +15,10 @@ use crate::provider::Database;
 /// The Database tool's engine names a Metabase driver can be.
 fn engines(metabase: &str) -> &'static [&'static str] {
     match metabase {
-        "postgres" => &["postgres"],
+        // Metabase's driver words, and Superset's backend names.
+        "postgres" | "postgresql" => &["postgres"],
         "mysql" => &["mysql", "mariadb"],
-        "sqlserver" => &["mssql"],
+        "sqlserver" | "mssql" => &["mssql"],
         "clickhouse" => &["clickhouse"],
         "oracle" => &["oracle"],
         "sqlite" => &["sqlite"],
